@@ -43,8 +43,8 @@ The public `shdr` package is included explicitly because shader source imports m
 
 **Work**
 
-- Add root `test` and targeted development scripts.
-- Add a Turbo `test` task.
+- Add root `check` and `test` scripts while retaining the existing development scripts.
+- Add Turbo `check` and `test` tasks.
 - Update build outputs to include `dist/**` for packages.
 - Keep TypeScript pinned to the repository version.
 - Do not add release, Changesets, or remote-cache configuration.
@@ -54,7 +54,7 @@ The public `shdr` package is included explicitly because shader source imports m
 ```sh
 pnpm install
 pnpm build
-pnpm check-types
+pnpm check
 pnpm test
 ```
 
@@ -79,7 +79,7 @@ Each package should have:
 
 - A package manifest
 - A strict TypeScript configuration extending the shared configuration
-- `build`, `check-types`, and `test` scripts where applicable
+- `build`, `check`, and `test` scripts where applicable
 - A minimal exported entry point
 
 `@shdr/language-service` must build in a format tsserver can load. The other packages may use ESM.
@@ -88,7 +88,7 @@ Each package should have:
 
 ```sh
 pnpm build
-pnpm check-types
+pnpm check
 pnpm test
 ```
 
@@ -941,7 +941,7 @@ Run from a clean checkout:
 ```sh
 pnpm install --frozen-lockfile
 pnpm build
-pnpm check-types
+pnpm check
 pnpm test
 ```
 
