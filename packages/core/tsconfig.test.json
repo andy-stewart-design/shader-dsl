@@ -4,5 +4,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["test/fixtures/**/*.shader.ts"]
+  "exclude": ["test/fixtures/**/*.shdr.ts"]
 }

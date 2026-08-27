@@ -14,14 +14,14 @@ function textAt(source: string, range: TextRange): string {
 describe("parseShaderFile", () => {
   it("recognizes the strict fragment shader boundary", async () => {
     const source = await readShaderFixture("gradient");
-    const result = parseShaderFile(source, "gradient.shader.ts");
+    const result = parseShaderFile(source, "gradient.shdr.ts");
 
     expect(result.diagnostics).toEqual([]);
     expect(result.info).toBeDefined();
 
     const info = result.info!;
 
-    expect(info.fileName).toBe("gradient.shader.ts");
+    expect(info.fileName).toBe("gradient.shdr.ts");
     expect(info.createFragmentShaderImport).toMatchObject({
       importedName: "createFragmentShader",
       localName: "createFragmentShader",
@@ -96,7 +96,7 @@ describe("parseShaderFile", () => {
     "returns a ranged $code diagnostic for $fixture",
     async ({ fixture, code, rangeText }) => {
       const source = await readShaderFixture(fixture);
-      const result = parseShaderFile(source, `${fixture}.shader.ts`);
+      const result = parseShaderFile(source, `${fixture}.shdr.ts`);
 
       expect(result.info).toBeUndefined();
       expect(result.diagnostics).toHaveLength(1);

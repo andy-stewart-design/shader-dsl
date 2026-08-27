@@ -130,7 +130,7 @@ describe("shader syntax validation", () => {
       });
     `;
 
-    const result = parseShaderFile(source, "parentheses.shader.ts");
+    const result = parseShaderFile(source, "parentheses.shdr.ts");
 
     expect(result.diagnostics).toEqual([]);
     expect(result.info).toBeDefined();
@@ -140,7 +140,7 @@ describe("shader syntax validation", () => {
     "rejects $fixture with $code",
     async ({ fixture, code, messageCategory, rangeText }) => {
       const source = await readShaderFixture(`syntax/${fixture}`);
-      const result = parseShaderFile(source, `${fixture}.shader.ts`);
+      const result = parseShaderFile(source, `${fixture}.shdr.ts`);
 
       expect(result.info).toBeUndefined();
       expect(result.diagnostics).toHaveLength(1);

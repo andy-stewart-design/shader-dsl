@@ -15,7 +15,7 @@ This is an embedded shader language using TypeScript syntax—not TypeScript ope
 ## Target syntax
 
 ```ts
-// gradient.shader.ts
+// gradient.shdr.ts
 import { createFragmentShader, vec4 } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -64,7 +64,7 @@ The Vite adapter emits a plain JavaScript string at runtime; `FragmentShaderSour
 
 Before building the shader IR or GLSL generator, demonstrate in a real VS Code project:
 
-1. Open an actual `.shader.ts` file.
+1. Open an actual `.shdr.ts` file.
 2. Show that no native TypeScript error for `/` is surfaced.
 3. Hover `uv` and see `Expr<Vec2<F32>>`.
 4. Change the expression to an invalid division.
@@ -357,7 +357,7 @@ A generated canonical rule table can be considered later.
 
 The language-service package will:
 
-1. Detect supported `.shader.ts` files.
+1. Detect supported `.shdr.ts` files.
 2. Create and cache an in-memory virtual TypeScript representation by source version.
 3. Ask TypeScript 7 to check the virtual file through an isolated adapter.
 4. Preserve original TypeScript syntactic diagnostics.
@@ -400,7 +400,7 @@ This limitation must not be presented as solved by the Vite plugin.
 After the editor spike succeeds:
 
 ```text
-  .shader.ts source
+  .shdr.ts source
          │
          ├──► Virtual TS transform
          │          │

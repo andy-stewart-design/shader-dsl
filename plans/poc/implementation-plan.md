@@ -104,7 +104,7 @@ All package entry points resolve and the complete workspace builds from a clean 
 
 - Add Vitest and a minimal shared configuration.
 - Add one passing test in each package that will contain logic.
-- Add fixture helpers that read `.shader.ts` files as text rather than allowing ordinary `tsc` to check them.
+- Add fixture helpers that read `.shdr.ts` files as text rather than allowing ordinary `tsc` to check them.
 - Ensure tests run deterministically and do not depend on the current working directory.
 
 **Verify**
@@ -398,7 +398,7 @@ The language-service package can consume virtual source through one stable, file
 
 Before implementing a checker adapter, investigate TypeScript 7's native language-server and editor APIs using the pinned repository version. Build the smallest real VS Code experiment that attempts to:
 
-- Detect a `.shader.ts` callback region
+- Detect a `.shdr.ts` callback region
 - Suppress or replace native diagnostics within that region
 - Supply alternate hover text within that region
 - Preserve ordinary TypeScript diagnostics and hovers outside that region
@@ -407,7 +407,7 @@ Do not add a TypeScript 6 compatibility dependency or rely on the legacy tsserve
 
 **Verification**
 
-Open a real `.shader.ts` file in VS Code and demonstrate hard-coded replacement diagnostics and hover text inside the callback while an ordinary TypeScript error outside the callback remains visible.
+Open a real `.shdr.ts` file in VS Code and demonstrate hard-coded replacement diagnostics and hover text inside the callback while an ordinary TypeScript error outside the callback remains visible.
 
 **Done when**
 
@@ -553,7 +553,7 @@ The package exposes a TypeScript 7-compatible editor adapter whose routing behav
 
 Create `apps/editor-fixture` containing:
 
-- The target `gradient.shader.ts`
+- The target `gradient.shdr.ts`
 - An invalid shader variant or an easy documented edit
 - An ordinary TypeScript file with a deliberate test location
 - The configuration required to activate `@shdr/language-service` through the selected TypeScript 7 integration
@@ -567,7 +567,7 @@ In VS Code:
 
 1. Use the workspace TypeScript 7 version.
 2. Restart the TypeScript editor service or extension.
-3. Open `gradient.shader.ts`.
+3. Open `gradient.shdr.ts`.
 4. Confirm no native `/` or cascading `uv.x` errors are surfaced.
 5. Hover `uv` and confirm `Expr<Vec2<F32>>`.
 6. Change the division to `coord.xy / coord` and confirm one mapped diagnostic.
@@ -801,7 +801,7 @@ Consumers no longer need internal compiler functions to compile a fragment shade
 Create a Vite plugin that:
 
 - Runs with `enforce: "pre"`
-- Recognizes `.shader.ts` IDs while handling Vite query strings
+- Recognizes `.shdr.ts` IDs while handling Vite query strings
 - Calls `compileFragment`
 - Converts diagnostics to Vite errors with source locations
 - Returns JavaScript module source using `JSON.stringify` for safe string escaping
@@ -824,7 +824,7 @@ Vite receives valid JavaScript rather than raw GLSL or untransformed shader Type
 
 **Work**
 
-Create `apps/vite-basic` using vanilla TypeScript. Import `gradient.shader.ts`, create a WebGL 2 canvas, compile the shader, and bind `u_resolution`.
+Create `apps/vite-basic` using vanilla TypeScript. Import `gradient.shdr.ts`, create a WebGL 2 canvas, compile the shader, and bind `u_resolution`.
 
 Do not run ordinary `tsc --noEmit` over the shader file; document the standalone TypeScript limitation.
 
@@ -849,7 +849,7 @@ Run the fixture through the Vite dev server and verify the pre-transform is used
 **Verification**
 
 - Automated request test against the Vite dev server
-- Manual edit of `gradient.shader.ts` followed by a successful browser reload
+- Manual edit of `gradient.shdr.ts` followed by a successful browser reload
 
 **Done when**
 

@@ -60,7 +60,7 @@ type ParseSourceResult =
 
 export function parseShaderFile(
   source: string,
-  fileName = "shader.shader.ts",
+  fileName = "shader.shdr.ts",
 ): ParseShaderFileResult {
   const parsed = parseSource(source, fileName);
   if (!("file" in parsed)) return { diagnostics: parsed.diagnostics };
