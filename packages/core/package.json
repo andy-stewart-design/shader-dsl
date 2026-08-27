@@ -20,6 +20,8 @@
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },
   "dependencies": {
+    "@babel/parser": "8.0.4",
+    "@babel/types": "8.0.4",
     "shdr": "workspace:*"
   },
   "devDependencies": {

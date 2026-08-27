@@ -97,6 +97,12 @@ The POC recognizes only:
 
 These restrictions may be relaxed after the POC.
 
+## Source parser
+
+`@shdr/core` uses Babel Parser 8 with TypeScript syntax enabled. Babel is used only to convert source text into an AST; the project does not adopt Babel transforms, configuration, or runtime semantics.
+
+Babel AST nodes remain private to a parser adapter. Downstream compiler stages consume normalized core syntax nodes and source ranges so that the parser can be replaced without changing shader semantics. The parser adapter must remain synchronous, filesystem-independent, and browser-compatible.
+
 ## Supported shader-language subset
 
 Inside the shader callback, the POC accepts only the following syntax.
@@ -347,30 +353,32 @@ Every rule must have parity tests against:
 
 A generated canonical rule table can be considered later.
 
-## Language-service behavior
+## TypeScript 7 editor behavior
 
 The language-service package will:
 
-1.  Detect supported `.shader.ts` files.
-2.  Create and cache an in-memory virtual TypeScript representation by source version.
-3.  Type-check the virtual file.
-4.  Preserve original TypeScript syntactic diagnostics.
-5.  Use virtual semantic diagnostics for the entire shader callback.
-6.  Use original TypeScript semantic diagnostics outside the shader callback.
-7.  Add shader diagnostics for unsupported syntax and semantic rules.
-8.  Map virtual diagnostics to original source ranges.
-9.  Route hover requests inside the shader callback to the virtual representation.
-10. Delegate hover and diagnostic behavior outside the callback to the original language service.
+1. Detect supported `.shader.ts` files.
+2. Create and cache an in-memory virtual TypeScript representation by source version.
+3. Ask TypeScript 7 to check the virtual file through an isolated adapter.
+4. Preserve original TypeScript syntactic diagnostics.
+5. Use virtual semantic diagnostics for the entire shader callback.
+6. Use original TypeScript semantic diagnostics outside the shader callback.
+7. Add shader diagnostics for unsupported syntax and semantic rules.
+8. Map virtual diagnostics to original source ranges.
+9. Route hover requests inside the shader callback to the virtual representation.
+10. Delegate hover and diagnostic behavior outside the callback to TypeScript 7's normal editor tooling.
 
 Replacing diagnostics applies to the complete shader callback, not only to TypeScript arithmetic diagnostic codes. This is necessary because the original checker may infer `/` as `number` and then produce cascading errors for later expressions such as `uv.x`. Diagnostics that cross a boundary must be deduplicated and attributed to either the original or virtual representation according to whether their relevant expression is inside the shader callback.
 
-A tsserver plugin must use the TypeScript instance supplied by the running server rather than importing a separate compiler instance. The POC supports the repository-pinned workspace TypeScript version; compatibility with other TypeScript versions is not required. The browser REPL may bundle that pinned version directly.
+The POC must not depend on TypeScript 6 or the legacy tsserver plugin API. Before implementing the full checker adapter, a real VS Code spike must prove that the repository-pinned TypeScript 7 editor service exposes an API or protocol capable of replacing diagnostics and hover information within the shader callback while preserving ordinary TypeScript behavior elsewhere. If that extension point is unavailable, the editor hypothesis fails until the architecture is revised.
 
-The behavior must have automated language-service tests for quick info and diagnostics, followed by verification using the workspace TypeScript installation in a real VS Code/tsserver session. Exact QuickInfo text is asserted only against the pinned TypeScript version.
+TypeScript 7 API and protocol details remain isolated inside `@shdr/language-service`; they must not leak into `@shdr/core`. The browser REPL uses Babel Parser and the shader semantic analyzer and does not bundle TypeScript solely for compilation.
+
+The behavior must have automated adapter tests for hover information and diagnostics, followed by verification using the workspace TypeScript 7 installation in a real VS Code session. Exact hover text is asserted only against the pinned TypeScript 7 version.
 
 ## Standalone tsc limitation
 
-A tsserver plugin affects editor behavior but does not change:
+The editor adapter affects editor behavior but does not necessarily change:
 
 ```bash
   tsc --noEmit
@@ -397,7 +405,7 @@ After the editor spike succeeds:
          ├──► Virtual TS transform
          │          │
          │          ▼
-         │     Language service
+         │     TypeScript 7 adapter
          │
          ▼
   Shader lowering
@@ -469,14 +477,14 @@ All diagnostic ranges returned by the core refer to the original source. Neither
       GLSL generation
 
     language-service/
-      tsserver integration
+      TypeScript 7 editor adapter
       hover and diagnostic routing
 
     vite/
       Vite transformation adapter
 ```
 
-`@shdr/core` must remain filesystem-independent and browser-compatible. Shipping the TypeScript parser in the REPL is acceptable for the POC despite its bundle-size cost.
+`@shdr/core` must remain filesystem-independent and browser-compatible. Babel Parser is included in the REPL bundle for the POC, and its bundle-size impact must be measured during the browser phase.
 
 The Vite adapter transforms a shader source file into a JavaScript module whose default export is the generated GLSL string:
 
@@ -504,9 +512,11 @@ The automated language-service tests are followed by the manual VS Code go/no-go
 ## Implementation order
 
 1. Define branded shader types.
+1. Parse the strict source boundary through the private Babel Parser adapter.
 1. Implement `/` and numeric-literal virtual transformations.
 1. Add explicit `__shdr_internal_div` overloads.
 1. Implement source-to-virtual mappings.
+1. Prove a viable TypeScript 7 editor extension point.
 1. Demonstrate real VS Code hovers and diagnostics.
 1. Test invalid and nested division.
 1. Define the shader IR.

@@ -18,14 +18,14 @@ A step is complete only when its verification passes. Later phases should not co
 
 ```text
 apps/
-  editor-fixture/          Real VS Code/tsserver acceptance fixture
+  editor-fixture/          Real VS Code/TypeScript 7 acceptance fixture
   vite-basic/              Vite and WebGL integration fixture
   repl/                    Browser REPL
 
 packages/
   shdr/                    Public `shdr` types and runtime sentinels
-  core/                    Parsing, virtual source, IR, semantics, GLSL
-  language-service/        tsserver integration and diagnostic routing
+  core/                    Babel parsing, virtual source, IR, semantics, GLSL
+  language-service/        TypeScript 7 editor adapter and diagnostic routing
   vite/                    Vite adapter
 
 plans/poc/
@@ -33,7 +33,7 @@ plans/poc/
   implementation-plan.md
 ```
 
-The public `shdr` package is included explicitly because shader source imports must resolve before the Vite transform and while tsserver checks the virtual file.
+The public `shdr` package is included explicitly because shader source imports must resolve before the Vite transform and while TypeScript 7 checks the virtual file.
 
 ---
 
@@ -82,7 +82,7 @@ Each package should have:
 - `build`, `check`, and `test` scripts where applicable
 - A minimal exported entry point
 
-`@shdr/language-service` must build in a format tsserver can load. The other packages may use ESM.
+`@shdr/language-service` starts as an adapter shell. Its final runtime format will be selected by the TypeScript 7 editor feasibility spike rather than assuming the legacy tsserver plugin format.
 
 **Verify**
 
@@ -193,7 +193,7 @@ A generated virtual file can import all required public and internal declaration
 
 **Work**
 
-In `@shdr/core`, parse source with the pinned TypeScript parser and return a `ShaderFileInfo` containing at least:
+In `@shdr/core`, parse source with Babel Parser 8 using its TypeScript syntax plugin and return a `ShaderFileInfo` containing at least:
 
 - The `createFragmentShader` import
 - Constructor imports
@@ -201,7 +201,7 @@ In `@shdr/core`, parse source with the pinned TypeScript parser and return a `Sh
 - Callback parameter and body ranges
 - The complete shader callback range
 
-Recognize only the strict forms listed in the specification, including imports from exactly `"shdr"`.
+Keep Babel AST types private to the parser adapter. Downstream compiler stages consume normalized core syntax types and source ranges. Recognize only the strict forms listed in the specification, including imports from exactly `"shdr"`.
 
 **Automated verification**
 
@@ -390,19 +390,42 @@ The language-service package can consume virtual source through one stable, file
 
 ---
 
-# Phase 3 — Virtual checking and language-service routing
+# Phase 3 — TypeScript 7 checking and editor integration
 
-## Step 3.1 — Build an in-memory virtual TypeScript project
+## Step 3.0 — Prove a TypeScript 7 editor extension point
 
 **Work**
 
-Using the pinned TypeScript instance, create a test harness that checks the virtual shader file with normal project context and resolves both `shdr` and `shdr/internal`.
+Before implementing a checker adapter, investigate TypeScript 7's native language-server and editor APIs using the pinned repository version. Build the smallest real VS Code experiment that attempts to:
 
-The harness must expose:
+- Detect a `.shader.ts` callback region
+- Suppress or replace native diagnostics within that region
+- Supply alternate hover text within that region
+- Preserve ordinary TypeScript diagnostics and hovers outside that region
+
+Do not add a TypeScript 6 compatibility dependency or rely on the legacy tsserver plugin API. Record the API or protocol used and any unstable dependencies.
+
+**Verification**
+
+Open a real `.shader.ts` file in VS Code and demonstrate hard-coded replacement diagnostics and hover text inside the callback while an ordinary TypeScript error outside the callback remains visible.
+
+**Done when**
+
+A documented TypeScript 7 integration path can satisfy the editor-routing requirements, or the POC stops with evidence that TypeScript 7 does not yet expose the required extension point.
+
+## Step 3.1 — Define the TypeScript 7 checker adapter
+
+**Work**
+
+Using the TypeScript 7 API or protocol selected in Step 3.0, define an adapter that checks the virtual shader file with normal project context and resolves both `shdr` and `shdr/internal`.
+
+The adapter must expose compiler-independent core data for:
 
 - Semantic diagnostics
 - QuickInfo at a generated position
 - The inferred type of a named declaration for test assertions
+
+TypeScript 7 API and protocol types must not leak into `@shdr/core`.
 
 **Automated verification**
 
@@ -417,7 +440,7 @@ Also assert that no helper import or module-resolution diagnostics occur.
 
 **Done when**
 
-The transformed file is checked by real TypeScript declarations rather than a mocked type system.
+The transformed file is checked by real TypeScript 7 declarations rather than a mocked type system, through an isolated adapter.
 
 ## Step 3.2 — Prove invalid operator diagnostics
 
@@ -482,7 +505,7 @@ Create a routing layer that:
 - Removes native cascading errors from the original callback
 - Deduplicates diagnostics crossing the callback boundary
 
-Keep this logic independent of the tsserver plugin adapter so it can be unit tested directly.
+Keep this logic independent of the concrete TypeScript 7 editor adapter so it can be unit tested directly.
 
 **Automated verification**
 
@@ -499,30 +522,30 @@ Cover:
 
 One diagnostic API produces the intended combined view without leaking internal helper diagnostics.
 
-## Step 3.5 — Add the tsserver plugin adapter
+## Step 3.5 — Implement the TypeScript 7 editor adapter
 
 **Work**
 
-Implement the tsserver plugin entry point using the TypeScript instance supplied by tsserver. Proxy only the methods required for the POC:
+Implement the editor integration path proven in Step 3.0. Expose only the capabilities required for the POC:
 
-- `getSemanticDiagnostics`
-- `getSyntacticDiagnostics` if routing requires it
-- `getQuickInfoAtPosition`
+- Semantic diagnostics
+- Syntactic diagnostics if routing requires them
+- QuickInfo or hover information
 
-Cache virtual files and virtual language services by source/project version. Delegate all unsupported methods to the original language service.
+Cache virtual files and checker state by source/project version. Delegate unsupported behavior to TypeScript 7's normal editor tooling. Keep native API or protocol details inside `@shdr/language-service`.
 
 **Automated verification**
 
-Instantiate the plugin adapter with a controlled language-service host and verify:
+Exercise the adapter through the narrowest realistic test harness available for the selected TypeScript 7 integration and verify:
 
-- The supplied TypeScript instance is used.
-- Shader methods route through virtual source.
+- Shader requests route through virtual source.
 - Non-shader files delegate unchanged.
-- Updating a source snapshot invalidates the cached virtual file.
+- Updating a source snapshot invalidates cached virtual state.
+- No TypeScript 6 compiler or tsserver package is loaded.
 
 **Done when**
 
-The package exports a tsserver-loadable plugin and its routing behavior is covered without opening VS Code.
+The package exposes a TypeScript 7-compatible editor adapter whose routing behavior is covered without relying only on manual VS Code testing.
 
 ## Step 3.6 — Create the real editor fixture
 
@@ -533,8 +556,8 @@ Create `apps/editor-fixture` containing:
 - The target `gradient.shader.ts`
 - An invalid shader variant or an easy documented edit
 - An ordinary TypeScript file with a deliberate test location
-- A `tsconfig.json` that loads `@shdr/language-service`
-- Workspace instructions for selecting the pinned TypeScript version
+- The configuration required to activate `@shdr/language-service` through the selected TypeScript 7 integration
+- Workspace instructions for selecting the pinned TypeScript 7 version
 
 Do not claim standalone `tsc --noEmit` support.
 
@@ -542,8 +565,8 @@ Do not claim standalone `tsc --noEmit` support.
 
 In VS Code:
 
-1. Use the workspace TypeScript version.
-2. Restart the TypeScript server.
+1. Use the workspace TypeScript 7 version.
+2. Restart the TypeScript editor service or extension.
 3. Open `gradient.shader.ts`.
 4. Confirm no native `/` or cascading `uv.x` errors are surfaced.
 5. Hover `uv` and confirm `Expr<Vec2<F32>>`.
@@ -555,7 +578,7 @@ Record the pinned VS Code and TypeScript versions used for the successful run.
 
 **Done when**
 
-The complete editor checklist passes in a real tsserver session.
+The complete editor checklist passes against the real TypeScript 7 editor service.
 
 ## Phase 3 gate — Go/no-go decision
 
@@ -567,7 +590,7 @@ Proceed only if all of the following are true:
 - Invalid shader division produces a mapped diagnostic.
 - Ordinary TypeScript diagnostics remain intact elsewhere.
 
-If the gate fails, document exactly which tsserver behavior prevented the POC before investing in IR or GLSL generation.
+If the gate fails, document exactly which TypeScript 7 editor capability is missing before investing in IR or GLSL generation.
 
 ---
 
@@ -659,7 +682,7 @@ No division rule exists in only one of the two type systems.
 
 **Work**
 
-Require exactly four `Expr<F32>` arguments and produce `Expr<Vec4<F32>>` in the language service and `Vec4<F32>` in IR. Require the final callback result to be `Vec4<F32>`.
+Require exactly four `Expr<F32>` arguments and produce `Expr<Vec4<F32>>` through the TypeScript 7 checker adapter and `Vec4<F32>` in IR. Require the final callback result to be `Vec4<F32>`.
 
 **Automated verification**
 
@@ -914,7 +937,7 @@ All fixed POC uniforms have documented, consistent runtime behavior.
 
 **Work**
 
-Audit `@shdr/core` for Node-only imports and filesystem access. Measure and record the REPL production bundle size, including the pinned TypeScript parser.
+Audit `@shdr/core` for Node-only imports and filesystem access. Measure and record the REPL production bundle size, including Babel Parser.
 
 **Automated verification**
 
