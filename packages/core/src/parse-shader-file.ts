@@ -14,6 +14,7 @@ import {
 
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import type { TextRange } from "./source-range.js";
+import { validateShaderSyntax } from "./validate-shader-syntax.js";
 
 const SHDR_MODULE_NAME = "shdr";
 const CREATE_FRAGMENT_SHADER = "createFragmentShader";
@@ -216,6 +217,16 @@ export function parseShaderFile(
         ),
       ],
     };
+  }
+
+  const syntaxDiagnostics = validateShaderSyntax(
+    callback,
+    new Set(
+      imports.constructorImports.map((importInfo) => importInfo.localName),
+    ),
+  );
+  if (syntaxDiagnostics.length > 0) {
+    return { diagnostics: syntaxDiagnostics };
   }
 
   const callbackRange = rangeOf(callback);

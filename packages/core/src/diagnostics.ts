@@ -16,6 +16,17 @@ export const ShaderDiagnosticCode = {
   AsyncCallback: "SHDR1012",
   InvalidCallbackParameter: "SHDR1013",
   InvalidCallbackBody: "SHDR1014",
+  InvalidVariableDeclaration: "SHDR1100",
+  InvalidReturn: "SHDR1101",
+  UnsupportedStatement: "SHDR1102",
+  UnsupportedExpression: "SHDR1103",
+  UnsupportedAssignment: "SHDR1104",
+  UnsupportedOperator: "SHDR1105",
+  UnsupportedCall: "SHDR1106",
+  UnsupportedPropertyAccess: "SHDR1107",
+  ClosureCapture: "SHDR1108",
+  TypeAnnotation: "SHDR1109",
+  NestedFunction: "SHDR1110",
 } as const;
 
 export type ShaderDiagnosticCode =
