@@ -137,7 +137,7 @@ In `packages/shdr`, define:
 - `FragmentContext`
 - `FragmentShaderSource`
 
-Expose `.x`, `.y`, and `.xy` only on expression types where those swizzles are valid. `Vec2` and `Vec4` must remain structurally incompatible.
+For the POC, expose only the minimum swizzles `.x`, `.y`, and `.xy`. Full vector component and swizzle support is deferred. `Vec2` and `Vec4` must remain structurally incompatible.
 
 **Automated verification**
 

@@ -1,3 +1,4 @@
+export { createFragmentShader, vec4 } from "./dsl.js";
 export type {
   DefaultUniforms,
   Expr,

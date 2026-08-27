@@ -142,13 +142,15 @@ coord maps to:
   gl_FragCoord
 ```
 
-Initial supported swizzles:
+Minimum swizzles supported by the POC:
 
 ```text
   .x
   .y
   .xy
 ```
+
+This is not the intended full vector API. `Vec3` and complete GLSL component and swizzle support are deferred until after the operator-integration hypothesis is proven.
 
 ## Default uniforms
 
@@ -193,7 +195,7 @@ interface Expr<T> {
 }
 ```
 
-The actual Expr<T> definition will also expose valid swizzles based on T.
+For the POC, the actual `Expr<T>` definition exposes only the minimum swizzles listed above when valid for `T`.
 
 ## Virtual TypeScript transformation
 
