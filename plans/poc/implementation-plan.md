@@ -352,7 +352,9 @@ Cover at least:
 ```ts
 a / b / c;
 
-a / (b / c)(1 / 2) / uniforms.time;
+a / (b / c);
+
+1 / 2 / uniforms.time;
 ```
 
 **Automated verification**
