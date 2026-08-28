@@ -20,11 +20,13 @@
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },
   "dependencies": {
-    "@shdr/core": "workspace:*"
+    "@shdr/core": "workspace:*",
+    "typescript": "7.0.2"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "tsdown": "^0.22.5",
-    "typescript": "7.0.2"
+    "@types/node": "^24.13.3",
+    "shdr": "workspace:*",
+    "tsdown": "^0.22.5"
   }
 }

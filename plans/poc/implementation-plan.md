@@ -470,6 +470,12 @@ Also assert that no helper import or module-resolution diagnostics occur.
 
 The transformed file is checked by real TypeScript 7 declarations rather than a mocked type system, through an isolated adapter.
 
+**Result — complete**
+
+`@shdr/language-service` now exposes `TypeScript7CheckerAdapter`. It overlays generated shader code through TypeScript 7's virtual `fs.readFile` callback, opens the real configured project, and returns only project-owned diagnostic, QuickInfo, declaration-type, and range data. Callers explicitly dispose checked snapshots and the adapter; TypeScript 7 API, AST, project, checker, and snapshot types remain private to the implementation and do not appear in emitted declarations.
+
+The project fixture resolves the built declarations for both `shdr` and the generated `shdr/internal` helper import. Automated tests check the transformed source with TypeScript 7.0.2 and assert zero semantic or module-resolution diagnostics, `uv: Expr<Vec2<F32>>`, `color: Expr<Vec4<F32>>`, and generated-position QuickInfo for `uv`.
+
 ## Step 3.2 — Prove invalid operator diagnostics
 
 **Work**

@@ -109,16 +109,22 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../core
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      shdr:
+        specifier: workspace:*
+        version: link:../shdr
       tsdown:
         specifier: ^0.22.5
         version: 0.22.14(typescript@7.0.2)
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
 
   packages/shdr:
     devDependencies:

@@ -1,5 +1,15 @@
 import type { CorePackage } from "@shdr/core";
 
+export {
+  TypeScript7CheckerAdapter,
+  type CheckedVirtualSource,
+  type NamedDeclarationType,
+  type TypeScript7CheckerOptions,
+  type TypeScriptCheckerDiagnostic,
+  type TypeScriptDiagnosticCategory,
+  type TypeScriptQuickInfo,
+} from "./typescript-7-checker.js";
+
 export type LanguageServicePackage = "@shdr/language-service";
 export type LanguageServiceWorkspaceSmoke = CorePackage;
 
