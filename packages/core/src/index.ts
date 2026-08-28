@@ -4,6 +4,14 @@ export {
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
 export {
+  MappedTextWriter,
+  mapGeneratedRangeToOriginal,
+  mapOriginalOffsetToGenerated,
+  type SourceMapping,
+  type SourceMappingKind,
+  type VirtualSource,
+} from "./mapped-text-writer.js";
+export {
   parseShaderFile,
   type ParseShaderFileResult,
   type ShaderCallbackInfo,
