@@ -1,11 +1,16 @@
 import {
   mapGeneratedRangeToOriginal,
+  mapOriginalOffsetToGenerated,
   type TextRange,
   type VirtualSource,
 } from "@shdr/core";
 import { resolve } from "node:path";
 import type { CallExpression, Node, SourceFile } from "typescript/unstable/ast";
-import { isCallExpression, isIdentifier } from "typescript/unstable/ast/is";
+import {
+  isCallExpression,
+  isIdentifier,
+  isPropertyAccessExpression,
+} from "typescript/unstable/ast/is";
 import {
   API,
   DiagnosticCategory,
@@ -56,6 +61,10 @@ export interface CheckedVirtualSource {
 
   getQuickInfoAtGeneratedPosition(
     generatedPosition: number,
+  ): TypeScriptQuickInfo | undefined;
+
+  getQuickInfoAtOriginalPosition(
+    originalPosition: number,
   ): TypeScriptQuickInfo | undefined;
 
   getTypeOfNamedDeclaration(name: string): NamedDeclarationType | undefined;
@@ -144,6 +153,7 @@ export class TypeScript7CheckerAdapter {
 
 class CheckedVirtualSourceImpl implements CheckedVirtualSource {
   readonly #fileName: string;
+  readonly #virtualSource: VirtualSource;
   readonly #snapshot: Snapshot;
   readonly #project: Project;
   readonly #onDispose: () => void;
@@ -160,6 +170,7 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
     onDispose: () => void,
   ) {
     this.#fileName = fileName;
+    this.#virtualSource = virtualSource;
     this.#snapshot = snapshot;
     this.#project = project;
     this.#onDispose = onDispose;
@@ -210,6 +221,52 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
       display: this.#project.checker.typeToString(type),
       range: nodeRange(node, sourceFile),
     };
+  }
+
+  public getQuickInfoAtOriginalPosition(
+    originalPosition: number,
+  ): TypeScriptQuickInfo | undefined {
+    this.#assertOpen();
+    const generatedPosition = mapOriginalOffsetToGenerated(
+      this.#virtualSource,
+      originalPosition,
+    );
+    if (generatedPosition === undefined) return undefined;
+
+    const sourceFile = this.#project.program.getSourceFile(this.#fileName);
+    if (!sourceFile) return undefined;
+
+    const node = findSmallestNodeAtPosition(sourceFile, generatedPosition);
+    if (!node) return undefined;
+
+    let queryPosition: number;
+    if (isIdentifier(node)) {
+      queryPosition = generatedPosition;
+    } else if (isPropertyAccessExpression(node)) {
+      queryPosition = node.name.getStart(sourceFile);
+    } else {
+      return undefined;
+    }
+
+    const quickInfo = this.getQuickInfoAtGeneratedPosition(queryPosition);
+    if (!quickInfo) return undefined;
+
+    const originalRange = mapGeneratedRangeToOriginal(
+      this.#virtualSource,
+      quickInfo.range,
+    );
+    if (
+      !originalRange ||
+      !isIdentityBackedRange(
+        this.#virtualSource,
+        originalRange,
+        quickInfo.range,
+      )
+    ) {
+      return undefined;
+    }
+
+    return { ...quickInfo, range: originalRange };
   }
 
   public getTypeOfNamedDeclaration(
@@ -414,7 +471,29 @@ function isAncestor(ancestor: Node, node: Node): boolean {
   return false;
 }
 
+function isIdentityBackedRange(
+  virtualSource: VirtualSource,
+  originalRange: TextRange,
+  generatedRange: TextRange,
+): boolean {
+  return virtualSource.mappings.some(
+    (mapping) =>
+      mapping.kind === "identity" &&
+      generatedRange.start >= mapping.generated.start &&
+      rangeEnd(generatedRange) <= rangeEnd(mapping.generated) &&
+      originalRange.start >= mapping.original.start &&
+      rangeEnd(originalRange) <= rangeEnd(mapping.original) &&
+      generatedRange.start - mapping.generated.start ===
+        originalRange.start - mapping.original.start &&
+      generatedRange.length === originalRange.length,
+  );
+}
+
 function nodeRange(node: Node, sourceFile: SourceFile): TextRange {
   const start = node.getStart(sourceFile);
   return { start, length: node.getEnd() - start };
+}
+
+function rangeEnd(range: TextRange): number {
+  return range.start + range.length;
 }

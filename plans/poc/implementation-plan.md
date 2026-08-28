@@ -532,6 +532,12 @@ Assert exact display text only against the pinned TypeScript version.
 
 The target source reports `uv` as `Expr<Vec2<F32>>` at original source positions.
 
+**Result — complete**
+
+`CheckedVirtualSource.getQuickInfoAtOriginalPosition()` now maps an original identifier or property-access position into generated source, asks the TypeScript 7 checker for type and symbol information, and maps the returned identifier span back to original coordinates. Only identity-backed identifier spans are returned, preventing generated helper names from appearing when hovering rewritten operators or numeric literals. Property-access punctuation is normalized to the property name. Positions outside the callback follow the same identity path and retain ordinary TypeScript information and ranges.
+
+Pinned TypeScript 7.0.2 tests cover `coord`, `coord.xy`, `uniforms.resolution`, `uv` at its declaration and later reference, and `uv.x`. They also verify property-dot normalization, unchanged QuickInfo outside the callback, and no QuickInfo for the rewritten `/` token.
+
 ## Step 3.4 — Implement semantic diagnostic routing
 
 **Work**
