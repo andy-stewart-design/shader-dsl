@@ -1,6 +1,6 @@
 # TypeScript 7 editor feasibility fixture
 
-This is the Phase 3.0 VS Code extension spike. It proves an editor-routing path against VS Code 1.127.0 and the repository-pinned TypeScript 7.0.2.
+This fixture began as the Phase 3.0 VS Code spike and now exercises the Phase 3.5 editor adapter against VS Code 1.127.0 and the repository-pinned TypeScript 7.0.2.
 
 ## Proven integration path
 
@@ -8,13 +8,13 @@ The released TypeScript 7.0.2 language server and matching `TypeScriptTeam.nativ
 
 1. Registers `.shdr.ts` as the dedicated `shdr-typescript` VS Code language ID, so the native TypeScript provider does not publish diagnostics for shader modules.
 2. Registers a VS Code `DiagnosticCollection` and `HoverProvider` for that language ID.
-3. Creates virtual source with `@shdr/core`.
-4. Uses the unstable `typescript/unstable/sync` `API` with an in-memory `fs.readFile` overlay to make TypeScript 7 check the virtual source in its real `tsconfig.json` project.
-5. Maps diagnostics and hover positions between generated and original source.
+3. Delegates document checking, diagnostic routing, source mapping, QuickInfo, and source/project-version caching to `TypeScript7EditorAdapter` from `@shdr/language-service`.
+4. Keeps the unstable `typescript/unstable/sync` API and TypeScript AST details private inside `@shdr/language-service`.
+5. Publishes the adapter's compiler-independent results through stable VS Code diagnostic and hover APIs.
 
 Ordinary TypeScript inside a shader module is checked through the same TypeScript 7 `Program` and preserved by identity mappings. Ordinary `.ts` modules keep the normal TypeScript editor provider.
 
-The TypeScript 7 dependencies selected for the next adapter are unstable: `API`, `updateSnapshot`, `getDefaultProjectForFile`, `Program` diagnostics, and `Checker` type queries from `typescript/unstable/sync`. VS Code's language, diagnostic, and hover provider APIs are stable.
+The isolated TypeScript 7 dependencies remain unstable: `API`, `updateSnapshot`, `getDefaultProjectForFile`, `Program` diagnostics, and `Checker` type queries from `typescript/unstable/sync`. VS Code's language, diagnostic, and hover provider APIs are stable.
 
 The content-mapper protocol currently present on the `microsoft/typescript-go` main branch was investigated but rejected for this pinned-version spike: neither TypeScript 7.0.2 nor the matching native-preview extension ships it. Standalone `tsc` also does not apply editor virtual source.
 
@@ -40,4 +40,4 @@ Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS pa
 
 Run the extension fixture in a VS Code Extension Development Host, then open `gradient.shdr.ts` and `invalid.shdr.ts`. The expected results are the same as the automated checklist above.
 
-This remains a feasibility implementation: it performs synchronous TypeScript API work on the extension host, assumes one workspace root and one `tsconfig.json`, and has not yet moved the checker/provider adapter into `@shdr/language-service`.
+This remains a feasibility implementation: it performs synchronous TypeScript API work on the extension host and assumes one workspace root and one `tsconfig.json`. The VS Code layer is now thin; checker and routing behavior lives in `@shdr/language-service`.

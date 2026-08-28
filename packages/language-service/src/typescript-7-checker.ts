@@ -52,7 +52,16 @@ export interface TypeScript7CheckerOptions {
   readonly cwd?: string;
 }
 
-export interface CheckedVirtualSource {
+export interface CheckedTypeScriptSource {
+  readonly syntacticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
+  readonly semanticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
+
+  getQuickInfoAtPosition(position: number): TypeScriptQuickInfo | undefined;
+
+  dispose(): void;
+}
+
+export interface CheckedVirtualSource extends CheckedTypeScriptSource {
   /** Diagnostics in generated-source coordinates. */
   readonly semanticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
 
@@ -98,6 +107,23 @@ export class TypeScript7CheckerAdapter {
     });
   }
 
+  public checkSource(
+    fileName: string,
+    source: string,
+  ): CheckedTypeScriptSource {
+    return this.checkVirtualSource(fileName, {
+      code: source,
+      mappings: [
+        {
+          original: { start: 0, length: source.length },
+          generated: { start: 0, length: source.length },
+          kind: "identity",
+        },
+      ],
+      shaderRegion: { start: 0, length: 0 },
+    });
+  }
+
   public checkVirtualSource(
     fileName: string,
     virtualSource: VirtualSource,
@@ -135,6 +161,19 @@ export class TypeScript7CheckerAdapter {
     return check;
   }
 
+  public closeFile(fileName: string): void {
+    this.#assertOpen();
+    const resolvedFileName = resolve(this.#cwd, fileName);
+    if (!this.#openFiles.has(resolvedFileName)) return;
+
+    const snapshot = this.#api.updateSnapshot({
+      closeFiles: [resolvedFileName],
+    });
+    snapshot.dispose();
+    this.#openFiles.delete(resolvedFileName);
+    this.#virtualFiles.delete(resolvedFileName);
+  }
+
   public dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
@@ -159,6 +198,7 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
   readonly #onDispose: () => void;
   #disposed = false;
 
+  public readonly syntacticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
   public readonly semanticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
   public readonly shaderOperationDiagnostics: readonly ShaderOperationDiagnostic[];
 
@@ -175,6 +215,9 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
     this.#project = project;
     this.#onDispose = onDispose;
 
+    this.syntacticDiagnostics = project.program
+      .getSyntacticDiagnostics(fileName)
+      .map(fromTypeScriptDiagnostic);
     const semanticDiagnostics =
       project.program.getSemanticDiagnostics(fileName);
     this.semanticDiagnostics = semanticDiagnostics.map(
@@ -191,6 +234,12 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
         return mapped ? [mapped] : [];
       },
     );
+  }
+
+  public getQuickInfoAtPosition(
+    position: number,
+  ): TypeScriptQuickInfo | undefined {
+    return this.getQuickInfoAtGeneratedPosition(position);
   }
 
   public getQuickInfoAtGeneratedPosition(

@@ -48,6 +48,8 @@ export interface ShaderFileInfo {
 
 export interface ParseShaderFileResult {
   readonly info?: ShaderFileInfo;
+  /** Available when the callback boundary was recognized but its syntax failed validation. */
+  readonly shaderRegion?: TextRange;
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -185,8 +187,10 @@ export function parseShaderFile(
   }
 
   const callback = callbackArgument;
+  const callbackRange = rangeOf(callback);
   if (callback.async) {
     return {
+      shaderRegion: callbackRange,
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.AsyncCallback,
@@ -200,6 +204,7 @@ export function parseShaderFile(
   const parameter = callback.params[0];
   if (callback.params.length !== 1 || !isContextParameter(parameter)) {
     return {
+      shaderRegion: callbackRange,
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.InvalidCallbackParameter,
@@ -212,6 +217,7 @@ export function parseShaderFile(
 
   if (callback.body.type !== "BlockStatement") {
     return {
+      shaderRegion: callbackRange,
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.InvalidCallbackBody,
@@ -229,10 +235,12 @@ export function parseShaderFile(
     ),
   );
   if (syntaxDiagnostics.length > 0) {
-    return { diagnostics: syntaxDiagnostics };
+    return {
+      diagnostics: syntaxDiagnostics,
+      shaderRegion: callbackRange,
+    };
   }
 
-  const callbackRange = rangeOf(callback);
   const syntax = normalizeShaderSyntax(callback);
 
   return {

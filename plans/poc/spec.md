@@ -299,6 +299,7 @@ interface CreateVirtualSourceSuccess {
 interface CreateVirtualSourceFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
+  readonly shaderRegion?: TextRange;
 }
 
 type CreateVirtualSourceResult =
@@ -311,7 +312,7 @@ createVirtualSource(
 ): CreateVirtualSourceResult;
 ```
 
-Failure diagnostics use original-source coordinates, and no partial `VirtualSource` is returned. `VirtualSource.shaderRegion` also remains in original-source coordinates; generated positions are translated through its mappings.
+Failure diagnostics use original-source coordinates, and no partial `VirtualSource` is returned. When the callback boundary was recognized before validation failed, `CreateVirtualSourceFailure.shaderRegion` preserves that original-source range for editor diagnostic routing. `VirtualSource.shaderRegion` also remains in original-source coordinates; generated positions are translated through its mappings.
 
 Copied identifiers and expression fragments receive identity mappings. Each generated `__shdr_internal_div(...)` call maps to the complete original binary expression that produced it, and each generated `__shdr_internal_f32(...)` call maps to its original numeric literal. For nested division, every generated call maps to its corresponding inner or outer binary expression.
 

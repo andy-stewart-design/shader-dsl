@@ -381,6 +381,7 @@ interface CreateVirtualSourceSuccess {
 interface CreateVirtualSourceFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
+  readonly shaderRegion?: TextRange;
 }
 
 type CreateVirtualSourceResult =
@@ -393,7 +394,7 @@ createVirtualSource(
 ): CreateVirtualSourceResult;
 ```
 
-Return `VirtualSource` only on success. Return source-ranged diagnostics in original-source coordinates for invalid boundaries and unsupported syntax.
+Return `VirtualSource` only on success. Return source-ranged diagnostics in original-source coordinates for invalid boundaries and unsupported syntax. If the callback boundary was recognized before validation failed, return its original-source `shaderRegion` as routing metadata without returning partial virtual source.
 
 **Automated verification**
 
@@ -598,6 +599,14 @@ Exercise the adapter through the narrowest realistic test harness available for 
 **Done when**
 
 The package exposes a TypeScript 7-compatible editor adapter whose routing behavior is covered without relying only on manual VS Code testing.
+
+**Result — complete**
+
+`TypeScript7EditorAdapter` now provides the editor-facing document API for diagnostics and QuickInfo. For `.shdr.ts`, it checks both original and virtual snapshots, routes them through `routeShaderDiagnostics()`, maps hover information, and retains core diagnostics when transformation fails. Recognized-but-invalid callbacks carry `shaderRegion` routing metadata without exposing partial virtual source. Non-shader files return an explicit delegation result so the standard TypeScript provider remains their sole owner.
+
+Document results are cached by resolved file name, source version, project version, and source text. Source changes replace and dispose stale original/virtual snapshots; project-version changes dispose all document state and recreate the TypeScript 7 checker. Tests cover shader routing and hover, explicit non-shader delegation, source and project cache invalidation, mapped invalid division, unsupported callback syntax, preserved TypeScript syntax errors, pinned TypeScript 7.0.2 resolution, and absence of loaded TypeScript 6 or tsserver modules.
+
+The VS Code fixture now consumes this adapter instead of importing TypeScript's unstable API or implementing checker logic itself. Its thin provider converts compiler-independent diagnostics and QuickInfo to VS Code objects, watches `tsconfig.json` to advance the project version, and leaves non-shader language IDs untouched. The real Extension Development Host diagnostics-and-hover test passes through this packaged integration.
 
 ## Step 3.6 — Create the real editor fixture
 

@@ -26,15 +26,15 @@ importers:
 
   apps/editor-fixture:
     dependencies:
-      '@shdr/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@shdr/language-service':
         specifier: workspace:*
         version: link:../../packages/language-service
       shdr:
         specifier: workspace:*
         version: link:../../packages/shdr
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -45,9 +45,6 @@ importers:
       tsdown:
         specifier: ^0.22.5
         version: 0.22.14(typescript@7.0.2)
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
 
   packages/core:
     dependencies:

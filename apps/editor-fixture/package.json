@@ -33,14 +33,13 @@
     "test:editor": "node run-editor-test.mjs"
   },
   "dependencies": {
-    "@shdr/core": "workspace:*",
     "@shdr/language-service": "workspace:*",
-    "shdr": "workspace:*"
+    "shdr": "workspace:*",
+    "typescript": "7.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/vscode": "1.125.0",
-    "tsdown": "^0.22.5",
-    "typescript": "7.0.2"
+    "tsdown": "^0.22.5"
   }
 }

@@ -7,7 +7,14 @@ export {
   type RouteShaderDiagnosticsInput,
 } from "./diagnostic-routing.js";
 export {
+  TypeScript7EditorAdapter,
+  type EditorDocumentVersion,
+  type TypeScript7EditorDocument,
+  type TypeScript7EditorDocumentInput,
+} from "./typescript-7-editor-adapter.js";
+export {
   TypeScript7CheckerAdapter,
+  type CheckedTypeScriptSource,
   type CheckedVirtualSource,
   type NamedDeclarationType,
   type ShaderOperationDiagnostic,

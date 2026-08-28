@@ -6,7 +6,7 @@ export default defineConfig({
     "extension-test": "src/extension.test.ts",
   },
   deps: {
-    alwaysBundle: ["@shdr/core", "@babel/parser"],
+    alwaysBundle: ["@shdr/core", "@shdr/language-service", "@babel/parser"],
     neverBundle: ["vscode", "typescript/unstable/sync"],
     onlyBundle: false,
   },

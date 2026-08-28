@@ -6,5 +6,5 @@
     "strict": true,
     "target": "ES2022"
   },
-  "include": ["*.shdr.ts"]
+  "include": ["*.ts"]
 }

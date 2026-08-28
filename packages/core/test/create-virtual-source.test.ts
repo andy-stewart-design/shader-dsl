@@ -45,6 +45,13 @@ describe("createVirtualSource", () => {
     expect(result.diagnostics[0]?.code).toBe(
       ShaderDiagnosticCode.InvalidVariableDeclaration,
     );
+    expect(result.shaderRegion).toBeDefined();
+    expect(
+      source.slice(
+        result.shaderRegion!.start,
+        result.shaderRegion!.start + result.shaderRegion!.length,
+      ),
+    ).toContain("let value = uniforms.time");
     expect("virtualSource" in result).toBe(false);
   });
 

@@ -1,20 +1,10 @@
 import {
-  createVirtualSource,
-  mapGeneratedRangeToOriginal,
-  mapOriginalOffsetToGenerated,
-  type CreateVirtualSourceSuccess,
-  type ShaderDiagnostic,
-} from "@shdr/core";
-import {
-  API,
-  type Diagnostic as TypeScriptDiagnostic,
-} from "typescript/unstable/sync";
+  TypeScript7EditorAdapter,
+  type RoutedDiagnostic,
+  type TypeScript7EditorDocument,
+  type TypeScriptDiagnosticCategory,
+} from "@shdr/language-service";
 import * as vscode from "vscode";
-
-interface DocumentState {
-  readonly source: string;
-  readonly virtual: CreateVirtualSourceSuccess;
-}
 
 const SHADER_LANGUAGE_ID = "shdr-typescript";
 
@@ -22,170 +12,117 @@ export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<void> {
   const diagnostics = vscode.languages.createDiagnosticCollection("shdr");
-  const states = new Map<string, DocumentState>();
-  const workspaceDirectory = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspaceDirectory) return;
+  const documents = new Map<string, TypeScript7EditorDocument>();
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) return;
 
-  const api = new API({
-    cwd: workspaceDirectory,
-    fs: {
-      readFile(fileName) {
-        return states.get(vscode.Uri.file(fileName).toString())?.virtual
-          .virtualSource.code;
-      },
-    },
+  const adapter = new TypeScript7EditorAdapter({
+    cwd: workspaceFolder.uri.fsPath,
+    projectFileName: "tsconfig.json",
   });
-  let snapshot: ReturnType<typeof api.updateSnapshot> | undefined;
-  let openedProject = false;
+  let projectVersion = 1;
 
   const updateDocument = (document: vscode.TextDocument): void => {
     if (document.languageId !== SHADER_LANGUAGE_ID) return;
 
-    const uri = document.uri.toString();
-    const source = document.getText();
-    const virtual = createVirtualSource(source, document.uri.fsPath);
-    if (!virtual.ok) {
-      states.delete(uri);
-      diagnostics.set(
-        document.uri,
-        virtual.diagnostics.map((diagnostic) =>
-          fromShaderDiagnostic(document, diagnostic),
-        ),
-      );
-      return;
-    }
-
-    states.set(uri, { source, virtual });
-    const previousSnapshot = snapshot;
-    snapshot = api.updateSnapshot({
-      openProjects: openedProject
-        ? undefined
-        : [
-            vscode.Uri.joinPath(
-              vscode.workspace.getWorkspaceFolder(document.uri)!.uri,
-              "tsconfig.json",
-            ).fsPath,
-          ],
-      openFiles: [document.uri.fsPath],
-      fileChanges: { changed: [document.uri.fsPath] },
+    const checked = adapter.updateDocument({
+      fileName: document.uri.fsPath,
+      source: document.getText(),
+      version: document.version,
+      projectVersion,
     });
-    openedProject = true;
-    previousSnapshot?.dispose();
-
-    const project = snapshot.getDefaultProjectForFile(document.uri.fsPath);
-    if (!project) {
-      diagnostics.set(document.uri, []);
-      return;
-    }
-
-    const typeScriptDiagnostics = [
-      ...project.program.getSyntacticDiagnostics(document.uri.fsPath),
-      ...project.program.getSemanticDiagnostics(document.uri.fsPath),
-    ];
+    documents.set(document.uri.toString(), checked);
     diagnostics.set(
       document.uri,
-      typeScriptDiagnostics.flatMap((diagnostic) => {
-        const converted = fromTypeScriptDiagnostic(
-          document,
-          virtual,
-          diagnostic,
-        );
-        return converted ? [converted] : [];
-      }),
+      checked.diagnostics.map((diagnostic) =>
+        toVsCodeDiagnostic(document, diagnostic),
+      ),
     );
+  };
+
+  const updateOpenShaderDocuments = (): void => {
+    for (const document of vscode.workspace.textDocuments) {
+      updateDocument(document);
+    }
+  };
+
+  const configWatcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(workspaceFolder, "tsconfig.json"),
+  );
+  const updateProject = (): void => {
+    projectVersion += 1;
+    updateOpenShaderDocuments();
   };
 
   context.subscriptions.push(
     diagnostics,
+    configWatcher,
+    configWatcher.onDidChange(updateProject),
+    configWatcher.onDidCreate(updateProject),
+    configWatcher.onDidDelete(updateProject),
     vscode.workspace.onDidOpenTextDocument(updateDocument),
     vscode.workspace.onDidChangeTextDocument((event) =>
       updateDocument(event.document),
     ),
     vscode.workspace.onDidCloseTextDocument((document) => {
-      states.delete(document.uri.toString());
+      documents.delete(document.uri.toString());
       diagnostics.delete(document.uri);
+      adapter.closeDocument(document.uri.fsPath);
     }),
     vscode.languages.registerHoverProvider(SHADER_LANGUAGE_ID, {
       provideHover(document, position) {
-        const state = states.get(document.uri.toString());
-        if (!state || !snapshot) return undefined;
-
-        const originalOffset = document.offsetAt(position);
-        const generatedOffset = mapOriginalOffsetToGenerated(
-          state.virtual.virtualSource,
-          originalOffset,
+        const checked = documents.get(document.uri.toString());
+        const quickInfo = checked?.getQuickInfoAtPosition(
+          document.offsetAt(position),
         );
-        if (generatedOffset === undefined) return undefined;
+        if (!quickInfo) return undefined;
 
-        const project = snapshot.getDefaultProjectForFile(document.uri.fsPath);
-        const type = project?.checker.getTypeAtPosition(
-          document.uri.fsPath,
-          generatedOffset,
-        );
-        if (!project || !type) return undefined;
-
-        const display = project.checker.typeToString(type);
         const contents = new vscode.MarkdownString();
-        contents.appendCodeblock(display, "typescript");
+        contents.appendCodeblock(quickInfo.display, "typescript");
         return new vscode.Hover(
           contents,
-          document.getWordRangeAtPosition(position),
+          toVsCodeRange(document, quickInfo.range),
         );
       },
     }),
-    {
-      dispose() {
-        snapshot?.dispose();
-        api.close();
-      },
-    },
+    { dispose: () => adapter.dispose() },
   );
 
-  for (const document of vscode.workspace.textDocuments) {
-    updateDocument(document);
-  }
+  updateOpenShaderDocuments();
 }
 
 export function deactivate(): void {}
 
-function fromShaderDiagnostic(
+function toVsCodeDiagnostic(
   document: vscode.TextDocument,
-  diagnostic: ShaderDiagnostic,
+  diagnostic: RoutedDiagnostic,
 ): vscode.Diagnostic {
   const result = new vscode.Diagnostic(
-    toDocumentRange(document, diagnostic.range),
+    toVsCodeRange(document, diagnostic.range),
     diagnostic.message,
-    vscode.DiagnosticSeverity.Error,
+    toVsCodeSeverity(diagnostic.category),
   );
   result.code = diagnostic.code;
-  result.source = "shdr";
+  result.source = diagnostic.source === "typescript" ? "ts" : "shdr";
   return result;
 }
 
-function fromTypeScriptDiagnostic(
-  document: vscode.TextDocument,
-  virtual: CreateVirtualSourceSuccess,
-  diagnostic: TypeScriptDiagnostic,
-): vscode.Diagnostic | undefined {
-  const original = mapGeneratedRangeToOriginal(virtual.virtualSource, {
-    start: diagnostic.pos,
-    length: diagnostic.end - diagnostic.pos,
-  });
-  if (!original) return undefined;
-
-  const result = new vscode.Diagnostic(
-    toDocumentRange(document, original),
-    diagnostic.text,
-    diagnostic.category === 1
-      ? vscode.DiagnosticSeverity.Error
-      : vscode.DiagnosticSeverity.Warning,
-  );
-  result.code = diagnostic.code;
-  result.source = "ts";
-  return result;
+function toVsCodeSeverity(
+  category: TypeScriptDiagnosticCategory,
+): vscode.DiagnosticSeverity {
+  switch (category) {
+    case "error":
+      return vscode.DiagnosticSeverity.Error;
+    case "warning":
+      return vscode.DiagnosticSeverity.Warning;
+    case "suggestion":
+      return vscode.DiagnosticSeverity.Hint;
+    case "message":
+      return vscode.DiagnosticSeverity.Information;
+  }
 }
 
-function toDocumentRange(
+function toVsCodeRange(
   document: vscode.TextDocument,
   range: { readonly start: number; readonly length: number },
 ): vscode.Range {

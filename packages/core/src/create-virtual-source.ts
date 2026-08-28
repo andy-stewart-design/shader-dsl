@@ -1,6 +1,7 @@
 import type { ShaderDiagnostic } from "./diagnostics.js";
 import type { VirtualSource } from "./mapped-text-writer.js";
 import { parseShaderFile } from "./parse-shader-file.js";
+import type { TextRange } from "./source-range.js";
 import { transformShaderExpressions } from "./transform-shader-expressions.js";
 
 export interface CreateVirtualSourceSuccess {
@@ -12,6 +13,8 @@ export interface CreateVirtualSourceSuccess {
 export interface CreateVirtualSourceFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
+  /** Present when the shader callback boundary was recognized before validation failed. */
+  readonly shaderRegion?: TextRange;
 }
 
 export type CreateVirtualSourceResult =
@@ -28,7 +31,13 @@ export function createVirtualSource(
 ): CreateVirtualSourceResult {
   const parsed = parseShaderFile(source, fileName);
   if (!parsed.info) {
-    return { ok: false, diagnostics: parsed.diagnostics };
+    return parsed.shaderRegion
+      ? {
+          ok: false,
+          diagnostics: parsed.diagnostics,
+          shaderRegion: parsed.shaderRegion,
+        }
+      : { ok: false, diagnostics: parsed.diagnostics };
   }
 
   return {
