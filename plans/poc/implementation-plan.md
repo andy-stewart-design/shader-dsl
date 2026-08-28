@@ -472,7 +472,7 @@ The transformed file is checked by real TypeScript 7 declarations rather than a 
 
 **Result — complete**
 
-`@shdr/language-service` now exposes `TypeScript7CheckerAdapter`. It overlays generated shader code through TypeScript 7's virtual `fs.readFile` callback, opens the real configured project, and returns only project-owned diagnostic, QuickInfo, declaration-type, and range data. Callers explicitly dispose checked snapshots and the adapter; TypeScript 7 API, AST, project, checker, and snapshot types remain private to the implementation and do not appear in emitted declarations.
+`@shdr/language-service` now exposes `TypeScript7CheckerAdapter`. It overlays generated shader code through TypeScript 7's virtual `fs.readFile` callback, opens the real configured project, and returns only project-owned diagnostic, QuickInfo, declaration-type, and range data. Callers explicitly dispose checked snapshots and the adapter; TypeScript 7 API, AST, project, checker, and snapshot types remain private to the implementation and do not appear in emitted declarations. The package emits ESM so it can consume the browser-compatible ESM core directly; editor-specific bundles may wrap it in their required host format.
 
 The project fixture resolves the built declarations for both `shdr` and the generated `shdr/internal` helper import. Automated tests check the transformed source with TypeScript 7.0.2 and assert zero semantic or module-resolution diagnostics, `uv: Expr<Vec2<F32>>`, `color: Expr<Vec4<F32>>`, and generated-position QuickInfo for `uv`.
 
@@ -500,6 +500,12 @@ Assert:
 **Done when**
 
 Invalid division gives one understandable source-ranged error.
+
+**Result — complete**
+
+The checker adapter now recognizes TypeScript 7's no-overload diagnostic when it occurs within a generated `__shdr_internal_div` call. It expands the generated diagnostic from the highlighted operand to the complete helper call, maps that call through the expression mapping to the original binary expression, and publishes a sanitized operator message built from TypeScript's inferred operand types. Internal helper names remain private.
+
+The invalid-project fixture verifies exactly one relevant diagnostic for `coord.xy / coord`, mapped to that complete original expression with the message `Operator "/" cannot be applied to types "Expr<Vec2<F32>>" and "Expr<Vec4<F32>>".` The underlying TypeScript recovery type is not `Expr<never>`, and the overload failure is always surfaced rather than accepted silently.
 
 ## Step 3.3 — Implement QuickInfo mapping
 

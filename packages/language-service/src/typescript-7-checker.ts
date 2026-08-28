@@ -1,6 +1,11 @@
-import type { TextRange, VirtualSource } from "@shdr/core";
+import {
+  mapGeneratedRangeToOriginal,
+  type TextRange,
+  type VirtualSource,
+} from "@shdr/core";
 import { resolve } from "node:path";
-import type { Node, SourceFile } from "typescript/unstable/ast";
+import type { CallExpression, Node, SourceFile } from "typescript/unstable/ast";
+import { isCallExpression, isIdentifier } from "typescript/unstable/ast/is";
 import {
   API,
   DiagnosticCategory,
@@ -8,6 +13,9 @@ import {
   type Project,
   type Snapshot,
 } from "typescript/unstable/sync";
+
+const DIV_HELPER_NAME = "__shdr_internal_div";
+const NO_OVERLOAD_MATCHES_CODE = 2769;
 
 export type TypeScriptDiagnosticCategory =
   "error" | "warning" | "suggestion" | "message";
@@ -19,6 +27,8 @@ export interface TypeScriptCheckerDiagnostic {
   readonly category: TypeScriptDiagnosticCategory;
   readonly message: string;
 }
+
+export type ShaderOperationDiagnostic = TypeScriptCheckerDiagnostic;
 
 export interface TypeScriptQuickInfo {
   readonly name?: string;
@@ -38,7 +48,11 @@ export interface TypeScript7CheckerOptions {
 }
 
 export interface CheckedVirtualSource {
+  /** Diagnostics in generated-source coordinates. */
   readonly semanticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
+
+  /** User-facing operator diagnostics in original-source coordinates. */
+  readonly shaderOperationDiagnostics: readonly ShaderOperationDiagnostic[];
 
   getQuickInfoAtGeneratedPosition(
     generatedPosition: number,
@@ -103,6 +117,7 @@ export class TypeScript7CheckerAdapter {
 
     const check = new CheckedVirtualSourceImpl(
       resolvedFileName,
+      virtualSource,
       snapshot,
       project,
       () => this.#checks.delete(check),
@@ -135,9 +150,11 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
   #disposed = false;
 
   public readonly semanticDiagnostics: readonly TypeScriptCheckerDiagnostic[];
+  public readonly shaderOperationDiagnostics: readonly ShaderOperationDiagnostic[];
 
   public constructor(
     fileName: string,
+    virtualSource: VirtualSource,
     snapshot: Snapshot,
     project: Project,
     onDispose: () => void,
@@ -146,9 +163,23 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
     this.#snapshot = snapshot;
     this.#project = project;
     this.#onDispose = onDispose;
-    this.semanticDiagnostics = project.program
-      .getSemanticDiagnostics(fileName)
-      .map(fromTypeScriptDiagnostic);
+
+    const semanticDiagnostics =
+      project.program.getSemanticDiagnostics(fileName);
+    this.semanticDiagnostics = semanticDiagnostics.map(
+      fromTypeScriptDiagnostic,
+    );
+    this.shaderOperationDiagnostics = semanticDiagnostics.flatMap(
+      (diagnostic) => {
+        const mapped = mapDivisionDiagnostic(
+          diagnostic,
+          virtualSource,
+          fileName,
+          project,
+        );
+        return mapped ? [mapped] : [];
+      },
+    );
   }
 
   public getQuickInfoAtGeneratedPosition(
@@ -259,6 +290,69 @@ function formatDiagnosticMessage(diagnostic: TypeScriptDiagnostic): string {
       .join("\n"),
   );
   return [diagnostic.text, ...(nested ?? [])].join("\n");
+}
+
+function mapDivisionDiagnostic(
+  diagnostic: TypeScriptDiagnostic,
+  virtualSource: VirtualSource,
+  fileName: string,
+  project: Project,
+): ShaderOperationDiagnostic | undefined {
+  if (diagnostic.code !== NO_OVERLOAD_MATCHES_CODE) return undefined;
+
+  const sourceFile = project.program.getSourceFile(fileName);
+  if (!sourceFile) return undefined;
+
+  const call = findContainingDivisionCall(
+    sourceFile,
+    diagnostic.pos,
+    diagnostic.end,
+  );
+  if (!call || call.arguments.length !== 2) return undefined;
+
+  const originalRange = mapGeneratedRangeToOriginal(
+    virtualSource,
+    nodeRange(call, sourceFile),
+  );
+  const left = call.arguments[0];
+  const right = call.arguments[1];
+  if (!originalRange || !left || !right) return undefined;
+
+  const leftType = project.checker.getTypeAtLocation(left);
+  const rightType = project.checker.getTypeAtLocation(right);
+  if (!leftType || !rightType) return undefined;
+
+  return {
+    fileName: diagnostic.fileName,
+    range: originalRange,
+    code: diagnostic.code,
+    category: diagnosticCategory(diagnostic.category),
+    message: `Operator "/" cannot be applied to types "${project.checker.typeToString(leftType)}" and "${project.checker.typeToString(rightType)}".`,
+  };
+}
+
+function findContainingDivisionCall(
+  sourceFile: SourceFile,
+  diagnosticStart: number,
+  diagnosticEnd: number,
+): CallExpression | undefined {
+  let current = findSmallestNodeAtPosition(sourceFile, diagnosticStart);
+
+  while (current) {
+    if (
+      isCallExpression(current) &&
+      isIdentifier(current.expression) &&
+      current.expression.getText(sourceFile) === DIV_HELPER_NAME &&
+      diagnosticEnd <= current.getEnd()
+    ) {
+      return current;
+    }
+
+    if (current === current.parent) return undefined;
+    current = current.parent;
+  }
+
+  return undefined;
 }
 
 function findSmallestNodeAtPosition(

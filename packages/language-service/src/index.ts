@@ -4,6 +4,7 @@ export {
   TypeScript7CheckerAdapter,
   type CheckedVirtualSource,
   type NamedDeclarationType,
+  type ShaderOperationDiagnostic,
   type TypeScript7CheckerOptions,
   type TypeScriptCheckerDiagnostic,
   type TypeScriptDiagnosticCategory,

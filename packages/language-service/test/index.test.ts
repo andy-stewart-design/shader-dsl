@@ -74,4 +74,53 @@ describe("@shdr/language-service package", () => {
       adapter.dispose();
     }
   });
+
+  it("maps an invalid division to one user-facing source diagnostic", () => {
+    const fileName = join(projectDirectory, "invalid-division.shdr.ts");
+    const source = readFileSync(fileName, "utf8");
+    const virtual = createVirtualSource(source, fileName);
+    expect(virtual.ok).toBe(true);
+    if (!virtual.ok) return;
+
+    const adapter = new TypeScript7CheckerAdapter({
+      cwd: projectDirectory,
+      projectFileName: "tsconfig.json",
+    });
+
+    try {
+      const checked = adapter.checkVirtualSource(
+        fileName,
+        virtual.virtualSource,
+      );
+      try {
+        expect(checked.semanticDiagnostics).toHaveLength(1);
+        expect(checked.semanticDiagnostics[0]?.code).toBe(2769);
+
+        const expression = "coord.xy / coord";
+        expect(checked.shaderOperationDiagnostics).toEqual([
+          expect.objectContaining({
+            code: 2769,
+            category: "error",
+            range: {
+              start: source.indexOf(expression),
+              length: expression.length,
+            },
+            message:
+              'Operator "/" cannot be applied to types "Expr<Vec2<F32>>" and "Expr<Vec4<F32>>".',
+          }),
+        ]);
+        expect(checked.shaderOperationDiagnostics[0]?.message).not.toContain(
+          "__shdr_internal",
+        );
+
+        const invalidType = checked.getTypeOfNamedDeclaration("invalid");
+        expect(invalidType).toBeDefined();
+        expect(invalidType?.display).not.toBe("Expr<never>");
+      } finally {
+        checked.dispose();
+      }
+    } finally {
+      adapter.dispose();
+    }
+  });
 });
