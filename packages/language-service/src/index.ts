@@ -1,6 +1,12 @@
 import type { CorePackage } from "@shdr/core";
 
 export {
+  routeShaderDiagnostics,
+  type RoutedDiagnostic,
+  type RoutedDiagnosticSource,
+  type RouteShaderDiagnosticsInput,
+} from "./diagnostic-routing.js";
+export {
   TypeScript7CheckerAdapter,
   type CheckedVirtualSource,
   type NamedDeclarationType,

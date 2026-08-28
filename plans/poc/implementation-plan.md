@@ -568,6 +568,12 @@ Cover:
 
 One diagnostic API produces the intended combined view without leaking internal helper diagnostics.
 
+**Result — complete**
+
+`routeShaderDiagnostics()` is a pure routing layer over project-owned ranges and diagnostic records; it has no TypeScript 7 session or editor dependency. It preserves all original syntactic diagnostics, keeps original semantic diagnostics only outside the callback, maps virtual semantic diagnostics only into the callback, adds sanitized shader-operation and core diagnostics, suppresses original callback cascades and cross-boundary semantic diagnostics, and deduplicates equivalent results. Generated-only and internal-helper diagnostics are dropped when they cannot map safely.
+
+Unit tests cover native `/` and `uv.x` cascades being hidden, ordinary errors before and after the callback, mapped and deduplicated virtual callback errors, one invalid-division diagnostic, unsupported syntax from the core, preservation of a native syntactic error without a duplicate core parser error, and removal of helper import/name diagnostics.
+
 ## Step 3.5 — Implement the TypeScript 7 editor adapter
 
 **Work**
