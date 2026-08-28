@@ -1,0 +1,46 @@
+{
+  "name": "@shdr/editor-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "engines": {
+    "vscode": "^1.127.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onLanguage:shdr-typescript"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "shdr-typescript",
+        "aliases": [
+          "Shader TypeScript"
+        ],
+        "extensions": [
+          ".shdr.ts"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "tsc --noEmit -p tsconfig.extension.json && tsc --noEmit -p tsconfig.check.json",
+    "test": "node --test test.mjs",
+    "test:editor": "node run-editor-test.mjs"
+  },
+  "dependencies": {
+    "@shdr/core": "workspace:*",
+    "@shdr/language-service": "workspace:*",
+    "shdr": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/vscode": "1.125.0",
+    "tsdown": "^0.22.5",
+    "typescript": "7.0.2"
+  }
+}

@@ -427,11 +427,19 @@ Do not add a TypeScript 6 compatibility dependency or rely on the legacy tsserve
 
 **Verification**
 
-Open a real `.shdr.ts` file in VS Code and demonstrate hard-coded replacement diagnostics and hover text inside the callback while an ordinary TypeScript error outside the callback remains visible.
+Open a real `.shdr.ts` file in VS Code and demonstrate replacement diagnostics and hover text inside the callback while an ordinary TypeScript error and hover outside the callback remain visible.
 
 **Done when**
 
 A documented TypeScript 7 integration path can satisfy the editor-routing requirements, or the POC stops with evidence that TypeScript 7 does not yet expose the required extension point.
+
+**Result — complete**
+
+The pinned TypeScript 7.0.2 native language server does not ship middleware, content mappers, or another extension point that can selectively replace its diagnostics. The content-mapper protocol found on the `microsoft/typescript-go` main branch is not present in either the pinned package or the investigated `TypeScriptTeam.native-preview` 0.20260708.2 extension and is therefore not the selected path.
+
+The successful path gives `.shdr.ts` a dedicated `shdr-typescript` VS Code language ID. A Shdr extension owns diagnostics and hovers for that language, checks virtual source through the unstable `typescript/unstable/sync` API, and maps results back with `@shdr/core`. The API surface used by the spike is `API`, the virtual `fs.readFile` hook, `updateSnapshot`, `getDefaultProjectForFile`, `Program` diagnostics, and `Checker` type queries. Ordinary code inside a shader module is preserved through identity mappings; ordinary `.ts` files remain owned by the standard TypeScript editor provider.
+
+`apps/editor-fixture` includes an automated real-VS-Code Extension Development Host test. Against VS Code 1.127.0 and TypeScript 7.0.2 it proves that only the ordinary outside diagnostic remains, shader hover reports `Expr<Vec2<F32>>`, outside hover reports `string`, and unsupported shader syntax reports one Shdr diagnostic.
 
 ## Step 3.1 — Define the TypeScript 7 checker adapter
 

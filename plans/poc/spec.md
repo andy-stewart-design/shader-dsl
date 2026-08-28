@@ -383,20 +383,20 @@ A generated canonical rule table can be considered later.
 
 The language-service package will:
 
-1. Detect supported `.shdr.ts` files.
+1. Register supported `.shdr.ts` files under a dedicated VS Code language ID.
 2. Create and cache an in-memory virtual TypeScript representation by source version.
 3. Ask TypeScript 7 to check the virtual file through an isolated adapter.
-4. Preserve original TypeScript syntactic diagnostics.
-5. Use virtual semantic diagnostics for the entire shader callback.
-6. Use original TypeScript semantic diagnostics outside the shader callback.
-7. Add shader diagnostics for unsupported syntax and semantic rules.
-8. Map virtual diagnostics to original source ranges.
-9. Route hover requests inside the shader callback to the virtual representation.
-10. Delegate hover and diagnostic behavior outside the callback to TypeScript 7's normal editor tooling.
+4. Preserve TypeScript syntactic and semantic diagnostics for ordinary code through identity mappings.
+5. Use virtual semantic diagnostics for the complete shader callback.
+6. Add shader diagnostics for unsupported syntax and semantic rules.
+7. Map virtual diagnostics to original source ranges.
+8. Route hover requests inside the shader callback to the virtual representation.
+9. Return TypeScript 7 hover and diagnostic results for ordinary code elsewhere in the shader module.
+10. Leave non-shader `.ts` files with the standard TypeScript editor provider.
 
-Replacing diagnostics applies to the complete shader callback, not only to TypeScript arithmetic diagnostic codes. This is necessary because the original checker may infer `/` as `number` and then produce cascading errors for later expressions such as `uv.x`. Diagnostics that cross a boundary must be deduplicated and attributed to either the original or virtual representation according to whether their relevant expression is inside the shader callback.
+Replacing diagnostics applies to the complete shader callback, not only to TypeScript arithmetic diagnostic codes. This is necessary because checking the original source may infer `/` as `number` and then produce cascading errors for later expressions such as `uv.x`. The dedicated language provider avoids publishing those original-source diagnostics and instead presents one mapped view produced from shader validation plus virtual TypeScript checking.
 
-The POC must not depend on TypeScript 6 or the legacy tsserver plugin API. Before implementing the full checker adapter, a real VS Code spike must prove that the repository-pinned TypeScript 7 editor service exposes an API or protocol capable of replacing diagnostics and hover information within the shader callback while preserving ordinary TypeScript behavior elsewhere. If that extension point is unavailable, the editor hypothesis fails until the architecture is revised.
+The POC does not depend on TypeScript 6 or the legacy tsserver plugin API. The real VS Code spike established that pinned TypeScript 7.0.2 does not ship diagnostic middleware or the newer content-mapper protocol. The selected integration therefore claims `.shdr.ts` through a dedicated VS Code language ID and uses `typescript/unstable/sync` with an in-memory filesystem overlay. The unstable API surface is limited to the language-service adapter; VS Code diagnostic and hover publication uses stable provider APIs.
 
 TypeScript 7 API and protocol details remain isolated inside `@shdr/language-service`; they must not leak into `@shdr/core`. The browser REPL uses Babel Parser and the shader semantic analyzer and does not bundle TypeScript solely for compilation.
 
