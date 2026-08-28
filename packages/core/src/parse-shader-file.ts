@@ -13,6 +13,8 @@ import {
 } from "@babel/types";
 
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
+import type { ShaderCallbackSyntax } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 import { validateShaderSyntax } from "./validate-shader-syntax.js";
 
@@ -31,6 +33,7 @@ export interface ShaderCallbackInfo {
   readonly range: TextRange;
   readonly parameterRange: TextRange;
   readonly bodyRange: TextRange;
+  readonly syntax: ShaderCallbackSyntax;
 }
 
 export interface ShaderFileInfo {
@@ -230,6 +233,7 @@ export function parseShaderFile(
   }
 
   const callbackRange = rangeOf(callback);
+  const syntax = normalizeShaderSyntax(callback);
 
   return {
     diagnostics: [],
@@ -243,6 +247,7 @@ export function parseShaderFile(
         range: callbackRange,
         parameterRange: rangeOf(parameter),
         bodyRange: rangeOf(callback.body),
+        syntax,
       },
       shaderRegion: callbackRange,
     },
