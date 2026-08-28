@@ -287,6 +287,32 @@ interface VirtualSource {
 }
 ```
 
+The filesystem-independent public entry point returns virtual source only after successful parsing and validation:
+
+```ts
+interface CreateVirtualSourceSuccess {
+  readonly ok: true;
+  readonly virtualSource: VirtualSource;
+  readonly diagnostics: readonly [];
+}
+
+interface CreateVirtualSourceFailure {
+  readonly ok: false;
+  readonly diagnostics: readonly ShaderDiagnostic[];
+}
+
+type CreateVirtualSourceResult =
+  | CreateVirtualSourceSuccess
+  | CreateVirtualSourceFailure;
+
+createVirtualSource(
+  source: string,
+  fileName?: string,
+): CreateVirtualSourceResult;
+```
+
+Failure diagnostics use original-source coordinates, and no partial `VirtualSource` is returned. `VirtualSource.shaderRegion` also remains in original-source coordinates; generated positions are translated through its mappings.
+
 Copied identifiers and expression fragments receive identity mappings. Each generated `__shdr_internal_div(...)` call maps to the complete original binary expression that produced it, and each generated `__shdr_internal_f32(...)` call maps to its original numeric literal. For nested division, every generated call maps to its corresponding inner or outer binary expression.
 
 Diagnostics on copied operands should map to the operand when possible. Diagnostics attached to a generated helper call or helper name map to the corresponding complete original expression. The implementation must not assume that offsets from a fully reprinted TypeScript AST still correspond to the source; generated text must be assembled with explicit source-preserving segments and mappings.

@@ -369,13 +369,31 @@ Nested operators and literals transform correctly without relying on offsets fro
 
 **Work**
 
-Expose:
+Expose a discriminated result:
 
 ```ts
-createVirtualSource(source: string): VirtualSource
+interface CreateVirtualSourceSuccess {
+  readonly ok: true;
+  readonly virtualSource: VirtualSource;
+  readonly diagnostics: readonly [];
+}
+
+interface CreateVirtualSourceFailure {
+  readonly ok: false;
+  readonly diagnostics: readonly ShaderDiagnostic[];
+}
+
+type CreateVirtualSourceResult =
+  | CreateVirtualSourceSuccess
+  | CreateVirtualSourceFailure;
+
+createVirtualSource(
+  source: string,
+  fileName?: string,
+): CreateVirtualSourceResult;
 ```
 
-Return source-ranged diagnostics for invalid boundaries and unsupported syntax. Decide and document whether `VirtualSource` is returned alongside diagnostics or only on success.
+Return `VirtualSource` only on success. Return source-ranged diagnostics in original-source coordinates for invalid boundaries and unsupported syntax.
 
 **Automated verification**
 

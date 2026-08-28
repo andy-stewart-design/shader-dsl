@@ -1,4 +1,10 @@
 export {
+  createVirtualSource,
+  type CreateVirtualSourceFailure,
+  type CreateVirtualSourceResult,
+  type CreateVirtualSourceSuccess,
+} from "./create-virtual-source.js";
+export {
   ShaderDiagnosticCode,
   type ShaderDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
@@ -30,7 +36,6 @@ export type {
   ShaderPropertyAccessSyntax,
 } from "./shader-syntax.js";
 export type { TextRange } from "./source-range.js";
-export { transformShaderExpressions } from "./transform-shader-expressions.js";
 
 export type CorePackage = "@shdr/core";
 

@@ -4,9 +4,9 @@ import {
   mapGeneratedRangeToOriginal,
   mapOriginalOffsetToGenerated,
   parseShaderFile,
-  transformShaderExpressions,
   type TextRange,
 } from "../src/index.js";
+import { transformShaderExpressions } from "../src/transform-shader-expressions.js";
 
 const helperName = "__shdr_internal_f32";
 const helperImport = `import { ${helperName} } from "shdr/internal";\n`;

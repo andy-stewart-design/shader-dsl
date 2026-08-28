@@ -4,11 +4,11 @@ import {
   mapGeneratedRangeToOriginal,
   mapOriginalOffsetToGenerated,
   parseShaderFile,
-  transformShaderExpressions,
   type ShaderDivisionExpressionSyntax,
   type ShaderExpressionSyntax,
   type TextRange,
 } from "../src/index.js";
+import { transformShaderExpressions } from "../src/transform-shader-expressions.js";
 import { readShaderFixture } from "./read-shader-fixture.js";
 
 const divHelper = "__shdr_internal_div";
