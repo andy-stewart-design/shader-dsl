@@ -30,7 +30,7 @@ export type {
   ShaderPropertyAccessSyntax,
 } from "./shader-syntax.js";
 export type { TextRange } from "./source-range.js";
-export { transformNumericLiterals } from "./transform-numeric-literals.js";
+export { transformShaderExpressions } from "./transform-shader-expressions.js";
 
 export type CorePackage = "@shdr/core";
 

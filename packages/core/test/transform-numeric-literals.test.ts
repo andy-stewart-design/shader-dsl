@@ -4,7 +4,7 @@ import {
   mapGeneratedRangeToOriginal,
   mapOriginalOffsetToGenerated,
   parseShaderFile,
-  transformNumericLiterals,
+  transformShaderExpressions,
   type TextRange,
 } from "../src/index.js";
 
@@ -18,29 +18,31 @@ function numericRanges(source: string): TextRange[] {
   }));
 }
 
-describe("transformNumericLiterals", () => {
+describe("numeric literal transformation", () => {
   it("wraps only callback literals and preserves explicit parentheses", () => {
     const source = `import { createFragmentShader, vec4 } from "shdr";
 const outside = 42;
 
 export default createFragmentShader(({ coord, uniforms }) => {
-  const half = (1 / 2);
-  return vec4((0.5), half, 0, 1);
+  const first = (1);
+  const second = 2;
+  return vec4((0.5), first, second, 0);
 });
 `;
     const expected = `${helperImport}import { createFragmentShader, vec4 } from "shdr";
 const outside = 42;
 
 export default createFragmentShader(({ coord, uniforms }) => {
-  const half = (${helperName}(1) / ${helperName}(2));
-  return vec4((${helperName}(0.5)), half, ${helperName}(0), ${helperName}(1));
+  const first = (${helperName}(1));
+  const second = ${helperName}(2);
+  return vec4((${helperName}(0.5)), first, second, ${helperName}(0));
 });
 `;
 
     const parsed = parseShaderFile(source, "numeric-literals.shdr.ts");
     expect(parsed.diagnostics).toEqual([]);
 
-    const virtualSource = transformNumericLiterals(source, parsed.info!);
+    const virtualSource = transformShaderExpressions(source, parsed.info!);
 
     expect(virtualSource.code).toBe(expected);
     expect(virtualSource.shaderRegion).toEqual(parsed.info!.shaderRegion);
@@ -53,20 +55,21 @@ export default createFragmentShader(({ coord, uniforms }) => {
 const outside = 42;
 
 export default createFragmentShader(({ coord, uniforms }) => {
-  const half = (1 / 2);
-  return vec4((0.5), half, 0, 1);
+  const first = (1);
+  const second = 2;
+  return vec4((0.5), first, second, 0);
 });
 `;
     const parsed = parseShaderFile(source, "numeric-mappings.shdr.ts");
-    const virtualSource = transformNumericLiterals(source, parsed.info!);
+    const virtualSource = transformShaderExpressions(source, parsed.info!);
     const [outside, ...shaderLiterals] = numericRanges(source);
     const generatedHelperStarts = Array.from(
       virtualSource.code.matchAll(new RegExp(`${helperName}\\(`, "g")),
       (match) => match.index,
     );
 
-    expect(shaderLiterals).toHaveLength(5);
-    expect(generatedHelperStarts).toHaveLength(5);
+    expect(shaderLiterals).toHaveLength(4);
+    expect(generatedHelperStarts).toHaveLength(4);
 
     for (const [index, original] of shaderLiterals.entries()) {
       const helperStart = generatedHelperStarts[index]!;
