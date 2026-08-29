@@ -7,7 +7,7 @@ Prove that shader expressions can use native operators inside TypeScript source 
 - Correct shader-specific type inference
 - VS Code hovers and diagnostics
 - Diagnostics mapped to original operator expressions
-- GLSL generation
+- GLSL ES 3.00 and WGSL generation from one target-neutral typed IR
 - A shared compiler core for Vite and a browser REPL
 
 This is an embedded shader language using TypeScript syntax—not TypeScript operator overloading.
@@ -130,7 +130,15 @@ declare function vec4(
   z: Expr<F32>,
   w: Expr<F32>,
 ): Expr<Vec4<F32>>;
+
+declare function vec4(
+  xy: Expr<Vec2<F32>>,
+  z: Expr<F32>,
+  w: Expr<F32>,
+): Expr<Vec4<F32>>;
 ```
+
+The second overload supports idiomatic construction such as `vec4(uv.xy, 0, 1)`. `Vec3`, scalar splat, and other GLSL constructor combinations remain deferred.
 
 Numeric source literals become `Expr<F32>` through the virtual transformation described below. The final returned expression must have type `Expr<Vec4<F32>>`.
 
@@ -142,11 +150,7 @@ Assignment, `let`, `var`, type annotations, expression statements, unary operato
 coord: Expr<Vec4<F32>>;
 ```
 
-coord maps to:
-
-```glsl
-  gl_FragCoord
-```
+`coord` has target-neutral lower-left pixel-coordinate semantics. It maps directly to `gl_FragCoord` in GLSL. WGSL generation maps WebGPU's fragment-position built-in and applies the required Y-origin conversion using the viewport resolution.
 
 Minimum swizzles supported by the POC:
 
@@ -280,9 +284,19 @@ interface SourceMapping {
   kind: "identity" | "expression";
 }
 
+type ShaderBinaryOperator = "/";
+
+interface VirtualBinaryOperation {
+  kind: "binary";
+  operator: ShaderBinaryOperator;
+  original: TextRange;
+  generated: TextRange;
+}
+
 interface VirtualSource {
   code: string;
   mappings: SourceMapping[];
+  operations: VirtualBinaryOperation[];
   shaderRegion: TextRange;
 }
 ```
@@ -314,7 +328,7 @@ createVirtualSource(
 
 Failure diagnostics use original-source coordinates, and no partial `VirtualSource` is returned. When the callback boundary was recognized before validation failed, `CreateVirtualSourceFailure.shaderRegion` preserves that original-source range for editor diagnostic routing. `VirtualSource.shaderRegion` also remains in original-source coordinates; generated positions are translated through its mappings.
 
-Copied identifiers and expression fragments receive identity mappings. Each generated `__shdr_internal_div(...)` call maps to the complete original binary expression that produced it, and each generated `__shdr_internal_f32(...)` call maps to its original numeric literal. For nested division, every generated call maps to its corresponding inner or outer binary expression.
+Copied identifiers and expression fragments receive identity mappings. Each generated `__shdr_internal_div(...)` call maps to the complete original binary expression that produced it, and each generated `__shdr_internal_f32(...)` call maps to its original numeric literal. Each generated binary helper call also receives operator-neutral virtual-operation metadata with its operator and original/generated ranges. For nested division, every generated call maps to its corresponding inner or outer binary expression and has a distinct operation record.
 
 Diagnostics on copied operands should map to the operand when possible. Diagnostics attached to a generated helper call or helper name map to the corresponding complete original expression. The implementation must not assume that offsets from a fully reprinted TypeScript AST still correspond to the source; generated text must be assembled with explicit source-preserving segments and mappings.
 
@@ -440,15 +454,28 @@ After the editor spike succeeds:
          ▼
   Typed shader IR
          │
-         ▼
-  GLSL ES 3.00 generator
+         ├──► GLSL ES 3.00 generator
+         │
+         └──► WGSL generator
 ```
 
 The compiler must not evaluate arbitrary source code.
 
-## GLSL target
+## Growth-oriented internal representation
 
-The POC targets WebGL 2 / GLSL ES 3.00.
+The normalized compiler syntax describes structure without baking current feature names into node shapes:
+
+- Binary expressions carry a `ShaderBinaryOperator`; only `/` is initially accepted.
+- Direct calls carry a callee name and arguments; semantic analysis classifies `vec4` as a constructor, while future built-in functions can use the same syntax node.
+- Property access remains structurally generic; semantic analysis distinguishes uniforms from swizzles and validates each against the receiver type.
+
+The typed IR uses dimensional scalar/vector type records and generic binary, call, and swizzle nodes. It can represent vector dimensions 2, 3, and 4 without requiring the POC source language to expose `Vec3` yet. Every accepted operator and call must still be explicitly typed, checked against the TypeScript virtual surface through parity tests, and emitted equivalently by both target generators. This representation is an extension boundary, not permission to silently accept unsupported language features.
+
+## Shader targets
+
+The POC generates both WebGL 2 / GLSL ES 3.00 and WGSL from the exact same target-neutral typed IR. GLSL is the rendered POC path; WGSL is generated and compile-validated in a WebGPU-capable browser without requiring WebGPU rendering.
+
+### GLSL ES 3.00
 
 Expected output:
 
@@ -469,24 +496,48 @@ Expected output:
 
 Only referenced default uniforms need to be emitted.
 
-The rendering demo may supply a hard-coded fullscreen-triangle vertex shader. Vertex-shader authoring in the DSL remains outside the POC.
+### WGSL
+
+WGSL output must include:
+
+- A fragment entry point with a fragment-position built-in input
+- A `@location(0) vec4<f32>` result
+- Explicit WGSL scalar and vector type spellings
+- A deterministic, documented bind-group/binding layout for referenced default uniforms, treating `resolution` as implicitly referenced when coordinate conversion needs it
+- A lower-left coordinate conversion matching the DSL and GLSL semantics
+- Equivalent local declarations, swizzles, division grouping, numeric values, and `vec4` construction
+
+WGSL output must not contain GLSL directives, qualifiers, type spellings, or `gl_FragCoord`. The WGSL backend must not mutate or decorate the shared IR with target details.
+
+The rendering demo may supply a hard-coded fullscreen-triangle vertex shader for WebGL. Vertex-shader authoring in the DSL and WebGPU rendering remain outside the POC.
 
 ## Core APIs
 
 The filesystem-independent core exposes at least:
 
 ```ts
-interface CompileResult {
-  code?: string;
+type ShaderTarget = "glsl-es-300" | "wgsl";
+
+interface LowerFragmentResult {
   ir?: ShaderModule;
   diagnostics: Diagnostic[];
 }
 
+interface CompileResult extends LowerFragmentResult {
+  target: ShaderTarget;
+  code?: string;
+}
+
 function createVirtualSource(source: string): VirtualSource;
-function compileFragment(source: string): CompileResult;
+function lowerFragment(source: string): LowerFragmentResult;
+function generateFragment(ir: ShaderModule, target: ShaderTarget): string;
+function compileFragment(
+  source: string,
+  options: { target: ShaderTarget },
+): CompileResult;
 ```
 
-All diagnostic ranges returned by the core refer to the original source. Neither API reads files or resolves modules from the filesystem.
+`lowerFragment` parses and types source once; the REPL passes its exact IR result to both `generateFragment` targets. `compileFragment` is the single-target convenience API used by adapters such as Vite. All diagnostic ranges returned by the core refer to the original source. None of these APIs reads files or resolves modules from the filesystem.
 
 ## Package structure
 
@@ -500,8 +551,8 @@ All diagnostic ranges returned by the core refer to the original source. Neither
       parsing
       virtual transformation and source mappings
       semantic rules
-      shader IR
-      GLSL generation
+      target-neutral shader IR
+      GLSL and WGSL generation
 
     language-service/
       TypeScript 7 editor adapter
@@ -527,14 +578,15 @@ The POC includes automated tests at each boundary:
 
 - Golden tests for generated virtual TypeScript and source mappings
 - Programmatic language-service tests for QuickInfo and diagnostics
-- Mapping tests for operands, generated helper calls, numeric literals, and nested expressions
-- A parity matrix that runs every operator rule through both virtual TypeScript checking and shader semantic analysis
-- Shader IR assertions and GLSL snapshots
+- Mapping and virtual-operation metadata tests for operands, generated helper calls, numeric literals, and nested expressions
+- A parity matrix that runs every operator and constructor rule through both virtual TypeScript checking and shader semantic analysis
+- Target-neutral shader IR assertions plus GLSL and WGSL snapshots
+- Same-frozen-IR backend parity and non-mutation tests
 - WebGL 2 shader compilation and linking in a real browser
 - Vite development-transform and production-build integration tests
 - A Playwright pixel test for the rendered gradient, using tolerances for implementation-dependent rendering differences
 
-The automated language-service tests are followed by the manual VS Code go/no-go checklist from the first milestone.
+The automated language-service tests are followed by the manual VS Code go/no-go checklist from the first milestone. The browser REPL also records manual GLSL rendering and WGSL shader-module compilation in a pinned WebGPU-capable browser.
 
 ## Implementation order
 
@@ -546,11 +598,13 @@ The automated language-service tests are followed by the manual VS Code go/no-go
 1. Prove a viable TypeScript 7 editor extension point.
 1. Demonstrate real VS Code hovers and diagnostics.
 1. Test invalid and nested division.
-1. Define the shader IR.
-1. Implement semantic lowering and parity tests.
-1. Generate WebGL 2 GLSL.
-1. Add the Vite adapter.
-1. Add the browser REPL and rendering demo.
+1. Generalize normalized binary/call syntax and virtual-operation metadata without expanding the accepted language.
+1. Define the growth-oriented shader IR.
+1. Implement semantic lowering, both initial `vec4` overloads, and parity tests.
+1. Generate and validate WebGL 2 GLSL.
+1. Generate WGSL from the same frozen IR and test backend parity.
+1. Add the GLSL-targeted Vite adapter.
+1. Add the multi-target browser REPL, GLSL rendering, and browser WGSL compilation check.
 
 ## Final acceptance criteria
 
@@ -563,7 +617,9 @@ The POC succeeds when:
 - Ordinary TypeScript remains unaffected.
 - Nested division and numeric literals have shader semantics.
 - The generated GLSL compiles and renders in WebGL 2.
-- Vite and the browser REPL share the same compiler core.
+- The exact same typed IR generates deterministic GLSL and WGSL without target-conditioned lowering.
+- A WebGPU-capable browser reports no WGSL shader-module compilation errors.
+- Vite and the multi-target browser REPL share the same compiler core.
 
 ## Non-goals
 
@@ -576,7 +632,7 @@ The POC succeeds when:
 - Textures and samplers
 - Matrices
 - Closure capture
-- WGSL
+- WebGPU rendering
 - Optimization passes
 - Complete refactoring and rename support
 - Production-quality source maps

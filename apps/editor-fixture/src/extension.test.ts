@@ -16,6 +16,61 @@ async function waitForDiagnostics(
   throw new Error(`Timed out waiting for diagnostics for ${uri.toString()}.`);
 }
 
+async function waitForHoverText(
+  document: vscode.TextDocument,
+  sourceText: string,
+  expected: RegExp,
+): Promise<string> {
+  const offset = document.getText().indexOf(sourceText);
+  assert.notEqual(
+    offset,
+    -1,
+    `Expected to find ${JSON.stringify(sourceText)}.`,
+  );
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      "vscode.executeHoverProvider",
+      document.uri,
+      document.positionAt(offset),
+    );
+    const text = hovers
+      .flatMap((hover) => hover.contents)
+      .map((content) =>
+        content instanceof vscode.MarkdownString
+          ? content.value
+          : typeof content === "string"
+            ? content
+            : content.value,
+      )
+      .join("\n");
+    if (expected.test(text)) return text;
+    await delay(100);
+  }
+
+  throw new Error(`Timed out waiting for hover ${expected.toString()}.`);
+}
+
+async function replaceText(
+  document: vscode.TextDocument,
+  oldText: string,
+  newText: string,
+): Promise<void> {
+  const offset = document.getText().indexOf(oldText);
+  assert.notEqual(offset, -1, `Expected to find ${JSON.stringify(oldText)}.`);
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(
+    document.uri,
+    new vscode.Range(
+      document.positionAt(offset),
+      document.positionAt(offset + oldText.length),
+    ),
+    newText,
+  );
+  assert.equal(await vscode.workspace.applyEdit(edit), true);
+}
+
 export async function run(): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0];
   assert(workspace, "Expected the editor fixture workspace to be open.");
@@ -25,74 +80,67 @@ export async function run(): Promise<void> {
   assert.equal(gradient.languageId, "shdr-typescript");
   await vscode.window.showTextDocument(gradient);
 
-  const gradientDiagnostics = await waitForDiagnostics(
+  const ordinaryOutsideDiagnostics = await waitForDiagnostics(
     gradientUri,
-    (diagnostics) => diagnostics.some((diagnostic) => diagnostic.code === 2322),
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
   );
-  assert.deepEqual(
-    gradientDiagnostics.map((diagnostic) => diagnostic.code),
-    [2322],
-  );
+  assert.equal(ordinaryOutsideDiagnostics[0]?.source, "ts");
+  await waitForHoverText(gradient, "uv.x", /Expr<Vec2<F32>>/);
+  await waitForHoverText(gradient, "ordinaryOutside", /string/);
 
-  const hoverLine = gradient
-    .getText()
-    .split("\n")
-    .findIndex((line) => line.includes("return vec4"));
-  const hoverCharacter = gradient.lineAt(hoverLine).text.indexOf("uv");
-  const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-    "vscode.executeHoverProvider",
+  const validDivision = "coord.xy / uniforms.resolution";
+  const invalidDivision = "coord.xy / coord";
+  await replaceText(gradient, validDivision, invalidDivision);
+  const editedDiagnostics = await waitForDiagnostics(
     gradientUri,
-    new vscode.Position(hoverLine, hoverCharacter),
+    (diagnostics) =>
+      diagnostics.length === 2 &&
+      diagnostics.some((diagnostic) => diagnostic.code === 2769),
   );
-  const hoverText = hovers
-    .flatMap((hover) => hover.contents)
-    .map((content) =>
-      content instanceof vscode.MarkdownString
-        ? content.value
-        : typeof content === "string"
-          ? content
-          : content.value,
-    )
-    .join("\n");
-  assert.match(hoverText, /Expr<Vec2<F32>>/);
+  const mappedDivision = editedDiagnostics.find(
+    (diagnostic) => diagnostic.code === 2769,
+  );
+  assert(mappedDivision);
+  assert.equal(gradient.getText(mappedDivision.range), invalidDivision);
+  assert.match(mappedDivision.message, /^Operator "\/" cannot be applied/);
+  assert.doesNotMatch(mappedDivision.message, /__shdr_internal/);
 
-  const outsideLine = gradient
-    .getText()
-    .split("\n")
-    .findIndex((line) => line.includes("ordinaryOutside"));
-  const outsideCharacter = gradient
-    .lineAt(outsideLine)
-    .text.indexOf("ordinaryOutside");
-  const outsideHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-    "vscode.executeHoverProvider",
+  const nestedDivision =
+    "(coord.xy / uniforms.resolution) / uniforms.resolution";
+  await replaceText(gradient, invalidDivision, nestedDivision);
+  await waitForDiagnostics(
     gradientUri,
-    new vscode.Position(outsideLine, outsideCharacter),
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
   );
-  const outsideHoverText = outsideHovers
-    .flatMap((hover) => hover.contents)
-    .map((content) =>
-      content instanceof vscode.MarkdownString
-        ? content.value
-        : typeof content === "string"
-          ? content
-          : content.value,
-    )
-    .join("\n");
-  assert.match(outsideHoverText, /string/);
+  await waitForHoverText(gradient, "uv.x", /Expr<Vec2<F32>>/);
+
+  await replaceText(gradient, nestedDivision, validDivision);
+  await waitForDiagnostics(
+    gradientUri,
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
+  );
 
   const invalidUri = vscode.Uri.joinPath(workspace.uri, "invalid.shdr.ts");
   const invalid = await vscode.workspace.openTextDocument(invalidUri);
+  assert.equal(invalid.languageId, "shdr-typescript");
   await vscode.window.showTextDocument(invalid);
   const invalidDiagnostics = await waitForDiagnostics(
     invalidUri,
-    (diagnostics) => diagnostics.length > 0,
+    (diagnostics) => diagnostics.length === 1,
   );
-  assert.equal(invalidDiagnostics.length, 1);
-  assert.equal(invalidDiagnostics[0]?.code, "SHDR1100");
-  assert.deepEqual(
-    invalidDiagnostics[0]?.range.start,
-    new vscode.Position(3, 2),
+  assert.equal(invalidDiagnostics[0]?.code, 2769);
+  assert.equal(
+    invalid.getText(invalidDiagnostics[0]?.range),
+    "coord.xy / coord",
   );
 
-  console.log("Real VS Code diagnostics and hover routing verified.");
+  const ordinaryUri = vscode.Uri.joinPath(workspace.uri, "ordinary.ts");
+  const ordinary = await vscode.workspace.openTextDocument(ordinaryUri);
+  assert.equal(ordinary.languageId, "typescript");
+  await vscode.window.showTextDocument(ordinary);
+  await waitForHoverText(ordinary, "ordinaryValue", /string/);
+  await delay(300);
+  assert.deepEqual(vscode.languages.getDiagnostics(ordinaryUri), []);
+
+  console.log("Complete real VS Code editor checklist verified.");
 }

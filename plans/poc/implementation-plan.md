@@ -641,6 +641,10 @@ Record the pinned VS Code and TypeScript versions used for the successful run.
 
 The complete editor checklist passes against the real TypeScript 7 editor service.
 
+**Result — complete**
+
+`apps/editor-fixture` now contains the target shader, a mapped invalid-division variant, an ordinary TypeScript provider fixture, pinned workspace settings, and complete setup/manual-verification instructions. The Extension Development Host test automates initial diagnostic and hover behavior, a live edit to invalid division, restoration through valid nested division, the standalone invalid fixture, and ordinary `.ts` provider ownership. The successful run used VS Code 1.127.0 and TypeScript 7.0.2. The fixture explicitly documents that standalone `tsc --noEmit` does not receive shader semantics.
+
 ## Phase 3 gate — Go/no-go decision
 
 Proceed only if all of the following are true:
@@ -653,9 +657,42 @@ Proceed only if all of the following are true:
 
 If the gate fails, document exactly which TypeScript 7 editor capability is missing before investing in IR or GLSL generation.
 
+**Gate result — go**
+
+All five conditions pass in the real VS Code fixture: source operator syntax is unchanged, `uv` reports `Expr<Vec2<F32>>`, callback-native cascades are absent, invalid division produces one source-mapped sanitized diagnostic, and ordinary TypeScript diagnostics and hovers remain intact outside the shader boundary and in ordinary `.ts` files.
+
 ---
 
 # Phase 4 — Shader semantics and typed IR
+
+## Step 4.0 — Generalize syntax and virtual operations without expanding the language
+
+**Work**
+
+Refactor the existing division- and constructor-specific internal representation before semantic lowering depends on it:
+
+- Replace `ShaderDivisionExpressionSyntax` with an operator-neutral binary-expression node carrying a `ShaderBinaryOperator` whose only accepted value remains `"/"`.
+- Replace `ShaderConstructorCallSyntax` with a direct call-expression node carrying its callee name and arguments. Classify constructors and future built-in functions during semantic analysis rather than in normalized syntax.
+- Rename constructor-only import and validation records to shader-callable terminology while preserving the current `createFragmentShader` and `vec4` import boundary.
+- Add compiler-owned virtual-operation metadata that records each generated binary operation's operator plus original and generated ranges, including nested operations.
+- Replace division-specific language-service diagnostic discovery with operator-neutral routing driven by that metadata. TypeScript 7 API types remain private to the checker adapter.
+- Add exhaustive checks to project-owned syntax visitors so new node kinds produce compile-time failures in every transformer or analyzer that must handle them.
+
+Do not accept any new statements, operators, calls, properties, imports, or callback forms in this step. Preserve current generated source, source mappings, diagnostics, QuickInfo, and editor behavior.
+
+**Automated verification**
+
+Update the existing parser, transformation, mapping, checker, routing, and real-editor tests. Add focused assertions that:
+
+- `/` normalizes as a generic binary expression.
+- `vec4(...)` normalizes as a generic direct call.
+- Nested divisions produce distinct, correctly ranged virtual-operation records.
+- Invalid division still produces one sanitized source-mapped diagnostic without helper leakage.
+- Unsupported operators and calls remain unsupported.
+
+**Done when**
+
+No project-owned normalized syntax node or language-service operator diagnostic path is structurally named for division or constructors, while the accepted POC language and observable editor behavior remain unchanged.
 
 ## Step 4.1 — Define source-ranged shader types and IR
 
@@ -668,16 +705,20 @@ Define the minimal IR for:
 - Default uniforms
 - Local references
 - Swizzles
-- Division
-- `vec4` construction
+- Binary operations, with `"/"` as the only accepted operator
+- Calls classified as constructors or built-in functions, with `vec4` as the only accepted target
 - `const` declarations
 - Final return
 
-Every expression must carry a resolved shader type and original source range. Keep TypeScript AST nodes out of the public IR.
+Represent shader value types dimensionally as scalar or vector records so the IR can represent vector sizes 2, 3, and 4 even though the accepted POC source currently produces only `F32`, `Vec2<F32>`, and `Vec4<F32>`. Represent binary expressions, calls, and swizzles with generic structural nodes rather than division-, `vec4`-, or fixed-property-specific shapes. Keep their accepted operator, target, and component sets closed to the current POC.
+
+Keep the IR target-neutral: represent semantic built-ins such as fragment position and default uniforms without GLSL or WGSL spellings, resource bindings, declarations, or coordinate conversions. Both backends must consume the exact same IR object, and target-specific generation must not mutate it.
+
+Every expression must carry a resolved shader type and original source range. Keep TypeScript and Babel AST nodes out of the public IR.
 
 **Automated verification**
 
-Construct one IR module directly in a test and assert its type relationships and serializable shape.
+Construct one IR module directly in a test and assert its type relationships, dimensional vector representation, generic binary/call/swizzle nodes, target-neutral built-in and uniform records, absence of target-language names, and serializable shape.
 
 **Done when**
 
@@ -710,7 +751,7 @@ The non-operator structure of the target shader lowers into source-ranged IR.
 
 **Work**
 
-Support `.x`, `.y`, and `.xy` on the allowed vector types. Reject unsupported properties and scalar swizzles.
+Support `.x`, `.y`, and `.xy` on the allowed vector types. Move the current property-name whitelist out of structural syntax validation: semantic analysis must classify uniform access versus swizzling and reject unknown uniforms, unavailable components, unsupported swizzle spellings, and scalar swizzles. Keep the accepted property set unchanged.
 
 **Automated verification**
 
@@ -743,21 +784,28 @@ No division rule exists in only one of the two type systems.
 
 **Work**
 
-Require exactly four `Expr<F32>` arguments and produce `Expr<Vec4<F32>>` through the TypeScript 7 checker adapter and `Vec4<F32>` in IR. Require the final callback result to be `Vec4<F32>`.
+Support both initial `vec4` constructor forms:
+
+```ts
+vec4(x: Expr<F32>, y: Expr<F32>, z: Expr<F32>, w: Expr<F32>)
+vec4(xy: Expr<Vec2<F32>>, z: Expr<F32>, w: Expr<F32>)
+```
+
+Both forms produce `Expr<Vec4<F32>>` through the TypeScript 7 checker adapter and `Vec4<F32>` in IR. Represent constructor arguments as an ordered expression list rather than four scalar-specific fields. Require the final callback result to be `Vec4<F32>`. Do not add `Vec3`, scalar splat, or other GLSL constructor combinations in this step.
 
 **Automated verification**
 
-Test valid construction, wrong arity, vector argument, unsupported call target, and invalid final return type.
+Create a constructor parity matrix that runs four-scalar construction, `vec4(uv.xy, 0, 1)`, wrong arity, and unsupported vector argument combinations through both the TypeScript 7 checker and shader semantic analysis. Also test unsupported call targets, inferred result types, and invalid final return type.
 
 **Done when**
 
-The complete target shader lowers to a typed IR module with no diagnostics.
+Both supported `vec4` forms lower to the same typed constructor IR shape with no diagnostics, and the complete target shader lowers to a typed IR module with no diagnostics.
 
-## Step 4.6 — Stabilize `compileFragment` through typed IR
+## Step 4.6 — Stabilize target-neutral lowering through typed IR
 
 **Work**
 
-Expose `compileFragment(source)` with typed IR and original-source diagnostics. Code generation may still be absent.
+Expose `lowerFragment(source)` as the target-neutral lowering boundary used by `compileFragment`, returning typed IR and original-source diagnostics. Code generation may still be absent. Keep lowering independent of the eventual GLSL/WGSL target-selection API so source is parsed and typed once before backend generation.
 
 **Automated verification**
 
@@ -769,9 +817,9 @@ One core API parses, validates, types, and lowers the target source deterministi
 
 ---
 
-# Phase 5 — GLSL ES 3.00 generation
+# Phase 5 — GLSL ES 3.00 and WGSL generation
 
-## Step 5.1 — Emit expressions
+## Step 5.1 — Emit GLSL expressions
 
 **Work**
 
@@ -795,7 +843,7 @@ Add expression-level tests, including nested division and `1 / 2`. Verify genera
 
 Every expression IR node has deterministic valid GLSL output.
 
-## Step 5.2 — Emit the fragment module
+## Step 5.2 — Emit the GLSL fragment module
 
 **Work**
 
@@ -835,21 +883,72 @@ Provide a manual fallback command if CI WebGL is unavailable, but keep the autom
 
 **Done when**
 
-A browser GPU driver accepts the generated target shader.
+A browser GPU driver accepts the generated GLSL shader.
 
-## Step 5.4 — Complete `CompileResult`
+## Step 5.4 — Emit WGSL from the same typed IR
 
 **Work**
 
-Return generated code, typed IR, and original-source diagnostics from `compileFragment`. Define behavior clearly for unsuccessful compilation, such as omitting `code` and optionally retaining partial IR.
+Add a WGSL backend for the complete accepted POC IR:
+
+- Float literals
+- Fragment position
+- Default uniforms
+- Local references and declarations
+- Swizzles
+- Division with correct grouping
+- Both supported `vec4` constructor forms
+- A fragment entry point returning `@location(0) vec4<f32>`
+
+Define a deterministic POC bind-group/binding layout for referenced default uniforms. Treat `resolution` as an implicit WGSL dependency whenever fragment-position conversion requires it. Preserve the DSL's lower-left pixel-coordinate semantics even though WebGPU fragment position uses a different origin. Keep all WGSL spellings, attributes, bindings, layout rules, and coordinate conversion out of the IR.
 
 **Automated verification**
 
-Test successful compilation, syntax failure, semantic failure, and deterministic repeated compilation.
+Add expression-level and complete-module WGSL snapshots. Assert explicit WGSL type spellings, deterministic bindings, correct constructor forms, valid numeric literals, and the required fragment entry-point attributes.
 
 **Done when**
 
-Consumers no longer need internal compiler functions to compile a fragment shader.
+The target shader's existing typed IR deterministically generates a standalone WGSL fragment module without GLSL-specific data being added to the IR.
+
+## Step 5.5 — Prove backend parity at the IR boundary
+
+**Work**
+
+Lower the target source once and pass the exact same typed IR object to both generators. Neither generator may mutate it. Keep backend selection in code generation rather than parsing, validation, or semantic analysis.
+
+**Automated verification**
+
+Deep-freeze one lowered module, generate GLSL and WGSL from it, and assert:
+
+- Both generators succeed from that object.
+- Source ranges and resolved shader types remain unchanged.
+- GLSL contains no WGSL attributes or type syntax.
+- WGSL contains no GLSL directives, storage qualifiers, or `gl_FragCoord`.
+- Repeated and differently ordered generation is deterministic.
+
+**Done when**
+
+One semantic result demonstrably supports both target languages without target-conditioned lowering.
+
+## Step 5.6 — Complete the multi-target compile API
+
+**Work**
+
+Finalize the public multi-target boundary:
+
+- `lowerFragment(source)` returns target-neutral typed IR and original-source diagnostics.
+- `generateFragment(ir, target)` emits `"glsl-es-300"` or `"wgsl"` from an existing IR.
+- `compileFragment(source, { target })` is the single-target convenience API returning generated output, IR, and diagnostics.
+
+Do not infer a target from ambient browser capabilities. Define behavior clearly for unsuccessful compilation, such as omitting generated output and optionally retaining partial IR.
+
+**Automated verification**
+
+Test lowering once followed by both generators, both `compileFragment` targets, successful compilation, syntax failure, semantic failure, unknown runtime target values, and deterministic repeated compilation. Assert that selecting a target changes only code generation.
+
+**Done when**
+
+Consumers can compile one fragment source to either target without using internal compiler functions or changing semantic results.
 
 ---
 
@@ -863,7 +962,7 @@ Create a Vite plugin that:
 
 - Runs with `enforce: "pre"`
 - Recognizes `.shdr.ts` IDs while handling Vite query strings
-- Calls `compileFragment`
+- Calls `compileFragment` with the explicit `"glsl-es-300"` target
 - Converts diagnostics to Vite errors with source locations
 - Returns JavaScript module source using `JSON.stringify` for safe string escaping
 - Returns no source map for the POC
@@ -946,33 +1045,42 @@ The DSL source is proven end-to-end from Vite transform to GPU pixels.
 Create `apps/repl` with:
 
 - A textarea containing the target shader source
-- A generated GLSL pane
-- A diagnostics pane
+- Generated-output panes or a target selector for GLSL ES 3.00 and WGSL
+- A diagnostics pane shared by both targets
+- Per-target validation status
 - A compile button or debounced input handler
+
+Lower the source once per edit and generate both outputs from that semantic result.
 
 Do not add Monaco or a framework requirement solely for the POC.
 
 **Manual verification**
 
-Edit the source and confirm that generated code and diagnostics update without a server-side compiler call.
+Edit the source and confirm that both generated outputs and shared diagnostics update without a server-side compiler call.
 
 **Done when**
 
-`compileFragment(source)` runs directly in the browser bundle.
+The target-neutral compiler and both generators run directly in the browser bundle.
 
-## Step 7.2 — Render successful REPL output
+## Step 7.2 — Validate both targets and render GLSL output
 
 **Work**
 
-Reuse the WebGL 2 renderer from `vite-basic`. On successful compilation, render the generated fragment shader. Preserve the last successful render when the current source is invalid.
+Reuse the WebGL 2 renderer from `vite-basic`. On successful compilation, compile/link and render the generated GLSL fragment shader. Preserve the last successful render when the current source is invalid.
+
+When `navigator.gpu` is available, request a device, create a shader module from the generated WGSL, inspect `getCompilationInfo()`, and show errors or success in the REPL. WGSL/WebGPU rendering is not required. If WebGPU is unavailable, show a clear manual-validation limitation rather than reporting success.
 
 **Automated verification**
 
-A browser test edits a literal, recompiles, and confirms the canvas output changes.
+A WebGL browser test edits a literal, recompiles, and confirms the canvas output changes. Add focused tests for target selection and validation-result display. Run WGSL browser compilation where the test environment exposes WebGPU; otherwise record the pinned manual browser result.
+
+**Manual verification**
+
+In a WebGPU-capable browser, compile the target source, inspect both generated outputs, confirm GLSL renders successfully, and confirm WGSL module compilation reports no errors.
 
 **Done when**
 
-The browser can compile source text with `@shdr/core` and immediately render the result.
+The browser can compile one source through the shared core, validate both generated shader languages, and render the GLSL result.
 
 ## Step 7.3 — Bind all default uniforms
 
@@ -984,7 +1092,7 @@ Provide runtime values for:
 - `mouse`
 - `time`
 
-Define mouse coordinates using the same lower-left pixel origin as `gl_FragCoord`. Resize the canvas and viewport consistently.
+Define `coord` and mouse coordinates with one target-neutral lower-left pixel origin. Resize the canvas and viewport consistently. Assert that the GLSL mapping uses `gl_FragCoord` directly and the WGSL generator performs the required conversion from WebGPU fragment-position coordinates.
 
 **Automated verification**
 
@@ -998,7 +1106,7 @@ All fixed POC uniforms have documented, consistent runtime behavior.
 
 **Work**
 
-Audit `@shdr/core` for Node-only imports and filesystem access. Measure and record the REPL production bundle size, including Babel Parser.
+Audit `@shdr/core` and both code generators for Node-only imports and filesystem access. Measure and record the REPL production bundle size, including Babel Parser and both backends.
 
 **Automated verification**
 
@@ -1033,7 +1141,7 @@ Then run the Vite and REPL browser tests.
 
 **Manual verification**
 
-Repeat the Phase 3 VS Code checklist using the pinned workspace TypeScript version.
+Repeat the Phase 3 VS Code checklist using the pinned workspace TypeScript version. In the browser REPL, record successful GLSL rendering and successful WGSL shader-module compilation from the same source and IR.
 
 **Done when**
 
@@ -1048,10 +1156,12 @@ Replace the starter README with:
 - The target DSL example
 - Workspace commands
 - VS Code workspace-TypeScript setup
-- Vite plugin setup
-- REPL instructions
+- Vite plugin setup and its explicit GLSL target
+- Multi-target REPL instructions
 - The standalone `tsc` limitation
-- The exact supported syntax and GLSL target
+- The exact supported syntax and both shader targets
+- Default uniform and cross-target coordinate semantics
+- WGSL generation and the WebGPU-rendering non-goal
 
 Link to the specification and this plan rather than duplicating detailed design material.
 
@@ -1072,7 +1182,8 @@ Write a short outcome document containing:
 - Whether the editor hypothesis succeeded
 - What remained fragile
 - TypeScript and VS Code versions tested
-- Compiler and browser test results
+- GLSL/WebGL and WGSL/WebGPU compilation results
+- Same-IR backend parity result
 - Bundle-size observation
 - Recommended next milestone
 - Whether to pursue standalone `tsc` integration
@@ -1085,11 +1196,12 @@ The repository contains enough evidence to make a go/no-go decision without reco
 
 # Phase gates summary
 
-| Gate           | Required evidence                                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Editor gate    | Real VS Code hover, suppressed native errors, mapped invalid-operation diagnostic, unaffected ordinary TypeScript |
-| Compiler gate  | Target source lowers to typed IR; virtual TypeScript and semantic analyzer pass the same operator matrix          |
-| GLSL gate      | Generated GLSL ES 3.00 compiles and links in WebGL 2                                                              |
-| Vite gate      | Development and production transforms render the expected gradient                                                |
-| Browser gate   | The same core compiles source and renders output entirely in the browser                                          |
-| POC completion | Clean full test run, documented manual editor verification, and recorded outcome                                  |
+| Gate           | Required evidence                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Editor gate    | Real VS Code hover, suppressed native errors, mapped invalid-operation diagnostic, unaffected ordinary TypeScript     |
+| Compiler gate  | Target source lowers to target-neutral typed IR; virtual TypeScript and semantic analyzer pass the same rule matrices |
+| GLSL gate      | Generated GLSL ES 3.00 compiles and links in WebGL 2                                                                  |
+| Backend gate   | The same frozen IR deterministically generates GLSL and WGSL without target-conditioned lowering                      |
+| Vite gate      | Development and production GLSL transforms render the expected gradient                                               |
+| Browser gate   | The same core generates both targets, renders GLSL, and compile-validates WGSL in the browser                         |
+| POC completion | Clean full test run, documented manual editor verification, and recorded outcome                                      |
