@@ -712,7 +712,7 @@ Define the minimal IR for:
 
 Represent shader value types dimensionally as scalar or vector records so the IR can represent vector sizes 2, 3, and 4 even though the accepted POC source currently produces only `F32`, `Vec2<F32>`, and `Vec4<F32>`. Represent binary expressions, calls, and swizzles with generic structural nodes rather than division-, `vec4`-, or fixed-property-specific shapes. Keep their accepted operator, target, and component sets closed to the current POC.
 
-Keep the IR target-neutral: represent semantic built-ins such as fragment position and default uniforms without GLSL or WGSL spellings, resource bindings, declarations, or coordinate conversions. Both backends must consume the exact same IR object, and target-specific generation must not mutate it.
+Keep the IR target-neutral: represent semantic built-ins such as fragment position and default uniforms without GLSL or WGSL spellings, resource bindings, declarations, or coordinate conversions. Define fragment position semantically as top-left-origin pixel coordinates with +X right, +Y down, half-integer pixel centers, and `0..1` fragment depth. Both backends must consume the exact same IR object, and target-specific generation must not mutate it.
 
 Every expression must carry a resolved shader type and original source range. Keep TypeScript and Babel AST nodes out of the public IR.
 
@@ -741,7 +741,7 @@ Maintain a local symbol table and reject unknown or forward references.
 
 **Automated verification**
 
-Add focused IR assertions for each expression category and diagnostics for unknown identifiers, invalid uniform names, duplicate locals, and references before declaration.
+Add focused IR assertions for each expression category and diagnostics for unknown identifiers, invalid uniform names, duplicate locals, and references before declaration. Assert that fragment position is represented by a target-neutral semantic identifier without coordinate conversion or backend naming.
 
 **Done when**
 
@@ -826,8 +826,8 @@ One core API parses, validates, types, and lowers the target source deterministi
 Generate GLSL for:
 
 - Float literals, normalized to valid GLSL float syntax
-- `gl_FragCoord`
-- Uniform references
+- Canonical top-left fragment position constructed from `gl_FragCoord`, with Y converted as `u_resolution.y - gl_FragCoord.y`
+- Uniform references, including the implicit `resolution` dependency introduced by fragment-position conversion
 - Local references
 - Swizzles
 - Division with correct grouping
@@ -837,7 +837,7 @@ Prefer correctness over minimal parentheses.
 
 **Automated verification**
 
-Add expression-level tests, including nested division and `1 / 2`. Verify generated numeric literals such as `0.0` and `1.0`.
+Add expression-level tests, including nested division and `1 / 2`. Verify generated numeric literals such as `0.0` and `1.0`. Assert the GLSL coordinate conversion preserves half-integer pixel centers and maps top and bottom rows to the canonical top-left orientation.
 
 **Done when**
 
@@ -851,14 +851,14 @@ Generate:
 
 - `#version 300 es` as the first directive
 - Precision declaration
-- Referenced default uniforms only
+- Explicitly or backend-implicitly referenced default uniforms only
 - `out vec4 shdr_fragment_color`
 - Local declarations with resolved GLSL types
 - Final output assignment
 
 **Automated verification**
 
-Snapshot the complete expected target shader and assert that unused `mouse` and `time` uniforms are omitted.
+Snapshot the complete expected target shader and assert that unused `mouse` and `time` uniforms are omitted. Add a shader that references `coord` without explicitly reading `uniforms.resolution` and assert that GLSL still emits `u_resolution` for coordinate conversion.
 
 **Done when**
 
@@ -900,11 +900,11 @@ Add a WGSL backend for the complete accepted POC IR:
 - Both supported `vec4` constructor forms
 - A fragment entry point returning `@location(0) vec4<f32>`
 
-Define a deterministic POC bind-group/binding layout for referenced default uniforms. Treat `resolution` as an implicit WGSL dependency whenever fragment-position conversion requires it. Preserve the DSL's lower-left pixel-coordinate semantics even though WebGPU fragment position uses a different origin. Keep all WGSL spellings, attributes, bindings, layout rules, and coordinate conversion out of the IR.
+Define a deterministic POC bind-group/binding layout for referenced default uniforms. Use WebGPU fragment position directly for the DSL's canonical top-left framebuffer coordinates; do not introduce an implicit WGSL `resolution` dependency unless source semantics require it. Keep all WGSL spellings, attributes, bindings, and layout rules out of the IR.
 
 **Automated verification**
 
-Add expression-level and complete-module WGSL snapshots. Assert explicit WGSL type spellings, deterministic bindings, correct constructor forms, valid numeric literals, and the required fragment entry-point attributes.
+Add expression-level and complete-module WGSL snapshots. Assert explicit WGSL type spellings, deterministic bindings, correct constructor forms, valid numeric literals, direct fragment-position use, no unnecessary coordinate conversion, and the required fragment entry-point attributes.
 
 **Done when**
 
@@ -924,6 +924,7 @@ Deep-freeze one lowered module, generate GLSL and WGSL from it, and assert:
 - Source ranges and resolved shader types remain unchanged.
 - GLSL contains no WGSL attributes or type syntax.
 - WGSL contains no GLSL directives, storage qualifiers, or `gl_FragCoord`.
+- Backend-specific coordinate handling does not alter the IR.
 - Repeated and differently ordered generation is deterministic.
 
 **Done when**
@@ -1027,6 +1028,7 @@ Assert:
 
 - No shader compile or link error is shown.
 - The center pixel is approximately half red and half green.
+- Top- and bottom-row samples confirm top-left-origin Y semantics.
 - Blue is approximately zero.
 - Alpha is opaque.
 
@@ -1092,11 +1094,11 @@ Provide runtime values for:
 - `mouse`
 - `time`
 
-Define `coord` and mouse coordinates with one target-neutral lower-left pixel origin. Resize the canvas and viewport consistently. Assert that the GLSL mapping uses `gl_FragCoord` directly and the WGSL generator performs the required conversion from WebGPU fragment-position coordinates.
+Define `coord` and mouse coordinates with one target-neutral top-left pixel origin, +X right, +Y down, and half-integer pixel centers. Browser pointer values enter this convention without a Y flip. Resize the canvas and viewport consistently. Assert that the WGSL mapping uses fragment position directly and the GLSL generator performs the required `resolution.y - gl_FragCoord.y` conversion.
 
 **Automated verification**
 
-Add small renderer tests or browser assertions showing that each uniform location is bound when referenced. Add one manual example for `time` or `mouse` only if the current shader subset can express a visible use.
+Add small renderer tests or browser assertions showing that each uniform location is bound when explicitly or implicitly referenced. Add top/bottom coordinate-orientation assertions and one manual example for `time` or `mouse` only if the current shader subset can express a visible use.
 
 **Done when**
 
@@ -1201,7 +1203,7 @@ The repository contains enough evidence to make a go/no-go decision without reco
 | Editor gate    | Real VS Code hover, suppressed native errors, mapped invalid-operation diagnostic, unaffected ordinary TypeScript     |
 | Compiler gate  | Target source lowers to target-neutral typed IR; virtual TypeScript and semantic analyzer pass the same rule matrices |
 | GLSL gate      | Generated GLSL ES 3.00 compiles and links in WebGL 2                                                                  |
-| Backend gate   | The same frozen IR deterministically generates GLSL and WGSL without target-conditioned lowering                      |
+| Backend gate   | The same frozen IR generates GLSL and WGSL while preserving canonical top-left coordinates and `0..1` fragment depth  |
 | Vite gate      | Development and production GLSL transforms render the expected gradient                                               |
 | Browser gate   | The same core generates both targets, renders GLSL, and compile-validates WGSL in the browser                         |
 | POC completion | Clean full test run, documented manual editor verification, and recorded outcome                                      |

@@ -150,7 +150,14 @@ Assignment, `let`, `var`, type annotations, expression statements, unary operato
 coord: Expr<Vec4<F32>>;
 ```
 
-`coord` has target-neutral lower-left pixel-coordinate semantics. It maps directly to `gl_FragCoord` in GLSL. WGSL generation maps WebGPU's fragment-position built-in and applies the required Y-origin conversion using the viewport resolution.
+`coord` has target-neutral, WebGPU-oriented framebuffer semantics:
+
+- The origin is the top-left of the viewport.
+- Positive X points right and positive Y points down.
+- Coordinates are in pixels, with the top-left pixel center at `(0.5, 0.5)`.
+- Fragment depth uses the `0.0` near to `1.0` far range.
+
+WGSL maps `coord` directly to its fragment-position built-in. GLSL constructs the canonical value from `gl_FragCoord`, converting Y with `uniforms.resolution.y - gl_FragCoord.y`. Therefore `resolution` is an implicit GLSL dependency whenever `coord` is referenced, even when source does not access that uniform explicitly.
 
 Minimum swizzles supported by the POC:
 
@@ -172,13 +179,15 @@ interface DefaultUniforms {
 }
 ```
 
-| DSL value             | GLSL value     | Semantics                  |
-| --------------------- | -------------- | -------------------------- |
-| `uniforms.resolution` | `u_resolution` | Viewport size in pixels    |
-| `uniforms.mouse`      | `u_mouse`      | Pointer position in pixels |
-| `uniforms.time`       | `u_time`       | Elapsed seconds            |
+| DSL value             | GLSL value     | Semantics                                                     |
+| --------------------- | -------------- | ------------------------------------------------------------- |
+| `uniforms.resolution` | `u_resolution` | Viewport size in pixels                                       |
+| `uniforms.mouse`      | `u_mouse`      | Top-left-origin pointer position in pixels; +X right, +Y down |
+| `uniforms.time`       | `u_time`       | Elapsed seconds                                               |
 
 Custom uniforms are not part of the POC.
+
+For future vertex support, Shdr will use WGSL-style canonical clip depth (`0..W` before perspective division); a GLSL vertex backend would remap Z to `-W..W`. For future textures, Shdr will define `(0, 0)` as the top-left texel and normalize resource upload per runtime backend rather than silently rewriting arbitrary UV expressions. CCW remains the canonical front-face convention, with backend pipeline state responsible for preserving it. Vertex authoring, textures, and culling controls remain outside this POC.
 
 ## Branded shader types
 
@@ -488,13 +497,19 @@ Expected output:
   out vec4 shdr_fragment_color;
 
   void main() {
-      vec2 uv = gl_FragCoord.xy / u_resolution;
+      vec4 shdr_coord = vec4(
+          gl_FragCoord.x,
+          u_resolution.y - gl_FragCoord.y,
+          gl_FragCoord.z,
+          gl_FragCoord.w
+      );
+      vec2 uv = shdr_coord.xy / u_resolution;
       vec4 color = vec4(uv.x, uv.y, 0.0, 1.0);
       shdr_fragment_color = color;
   }
 ```
 
-Only referenced default uniforms need to be emitted.
+Only explicitly or backend-implicitly referenced default uniforms need to be emitted. In GLSL, any use of `coord` implicitly references `resolution` for the Y-origin conversion.
 
 ### WGSL
 
@@ -503,8 +518,8 @@ WGSL output must include:
 - A fragment entry point with a fragment-position built-in input
 - A `@location(0) vec4<f32>` result
 - Explicit WGSL scalar and vector type spellings
-- A deterministic, documented bind-group/binding layout for referenced default uniforms, treating `resolution` as implicitly referenced when coordinate conversion needs it
-- A lower-left coordinate conversion matching the DSL and GLSL semantics
+- A deterministic, documented bind-group/binding layout for referenced default uniforms
+- Direct use of WebGPU fragment position for the DSL's canonical top-left framebuffer coordinates
 - Equivalent local declarations, swizzles, division grouping, numeric values, and `vec4` construction
 
 WGSL output must not contain GLSL directives, qualifiers, type spellings, or `gl_FragCoord`. The WGSL backend must not mutate or decorate the shared IR with target details.
@@ -581,6 +596,7 @@ The POC includes automated tests at each boundary:
 - Mapping and virtual-operation metadata tests for operands, generated helper calls, numeric literals, and nested expressions
 - A parity matrix that runs every operator and constructor rule through both virtual TypeScript checking and shader semantic analysis
 - Target-neutral shader IR assertions plus GLSL and WGSL snapshots
+- Cross-target coordinate-convention tests, including pixel centers, Y orientation, and implicit backend dependencies
 - Same-frozen-IR backend parity and non-mutation tests
 - WebGL 2 shader compilation and linking in a real browser
 - Vite development-transform and production-build integration tests
@@ -618,6 +634,7 @@ The POC succeeds when:
 - Nested division and numeric literals have shader semantics.
 - The generated GLSL compiles and renders in WebGL 2.
 - The exact same typed IR generates deterministic GLSL and WGSL without target-conditioned lowering.
+- Both backends preserve top-left framebuffer and `0..1` fragment-depth semantics.
 - A WebGPU-capable browser reports no WGSL shader-module compilation errors.
 - Vite and the multi-target browser REPL share the same compiler core.
 
