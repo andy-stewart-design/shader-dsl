@@ -21,7 +21,7 @@ import { validateShaderSyntax } from "./validate-shader-syntax.js";
 const SHDR_MODULE_NAME = "shdr";
 const CREATE_FRAGMENT_SHADER = "createFragmentShader";
 const RESERVED_IDENTIFIER_PREFIX = "__shdr_internal_";
-const SUPPORTED_CONSTRUCTORS = new Set(["vec4"]);
+const SUPPORTED_SHADER_CALLABLES = new Set(["vec4"]);
 
 export interface ShaderImportInfo {
   readonly importedName: string;
@@ -39,7 +39,7 @@ export interface ShaderCallbackInfo {
 export interface ShaderFileInfo {
   readonly fileName: string;
   readonly createFragmentShaderImport: ShaderImportInfo;
-  readonly constructorImports: readonly ShaderImportInfo[];
+  readonly shaderCallableImports: readonly ShaderImportInfo[];
   readonly defaultExportRange: TextRange;
   readonly defaultExportCallRange: TextRange;
   readonly callback: ShaderCallbackInfo;
@@ -55,7 +55,7 @@ export interface ParseShaderFileResult {
 
 interface ParsedImports {
   readonly createFragmentShaderImport?: ShaderImportInfo;
-  readonly constructorImports: readonly ShaderImportInfo[];
+  readonly shaderCallableImports: readonly ShaderImportInfo[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -231,7 +231,7 @@ export function parseShaderFile(
   const syntaxDiagnostics = validateShaderSyntax(
     callback,
     new Set(
-      imports.constructorImports.map((importInfo) => importInfo.localName),
+      imports.shaderCallableImports.map((importInfo) => importInfo.localName),
     ),
   );
   if (syntaxDiagnostics.length > 0) {
@@ -248,7 +248,7 @@ export function parseShaderFile(
     info: {
       fileName,
       createFragmentShaderImport: imports.createFragmentShaderImport,
-      constructorImports: imports.constructorImports,
+      shaderCallableImports: imports.shaderCallableImports,
       defaultExportRange: rangeOf(defaultExport),
       defaultExportCallRange: rangeOf(call),
       callback: {
@@ -322,7 +322,7 @@ function findReservedIdentifier(node: Node): Identifier | undefined {
 
 function parseImports(file: File): ParsedImports {
   let createFragmentShaderImport: ShaderImportInfo | undefined;
-  const constructorImports: ShaderImportInfo[] = [];
+  const shaderCallableImports: ShaderImportInfo[] = [];
   const diagnostics: ShaderDiagnostic[] = [];
 
   for (const statement of file.program.body) {
@@ -350,7 +350,7 @@ function parseImports(file: File): ParsedImports {
     parseShdrImport(
       statement,
       diagnostics,
-      constructorImports,
+      shaderCallableImports,
       (importInfo) => {
         if (createFragmentShaderImport) {
           diagnostics.push(
@@ -369,7 +369,7 @@ function parseImports(file: File): ParsedImports {
 
   return {
     createFragmentShaderImport,
-    constructorImports,
+    shaderCallableImports,
     diagnostics,
   };
 }
@@ -377,7 +377,7 @@ function parseImports(file: File): ParsedImports {
 function parseShdrImport(
   declaration: ImportDeclaration,
   diagnostics: ShaderDiagnostic[],
-  constructorImports: ShaderImportInfo[],
+  shaderCallableImports: ShaderImportInfo[],
   setCreateFragmentShaderImport: (importInfo: ShaderImportInfo) => void,
 ): void {
   if (declaration.importKind === "type") {
@@ -437,8 +437,8 @@ function parseShdrImport(
 
     if (importedName === CREATE_FRAGMENT_SHADER) {
       setCreateFragmentShaderImport(importInfo);
-    } else if (SUPPORTED_CONSTRUCTORS.has(importedName)) {
-      constructorImports.push(importInfo);
+    } else if (SUPPORTED_SHADER_CALLABLES.has(importedName)) {
+      shaderCallableImports.push(importInfo);
     } else {
       diagnostics.push(
         diagnostic(

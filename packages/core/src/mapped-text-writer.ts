@@ -1,3 +1,4 @@
+import type { ShaderBinaryOperator } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 
 export type SourceMappingKind = "identity" | "expression";
@@ -8,9 +9,19 @@ export interface SourceMapping {
   readonly kind: SourceMappingKind;
 }
 
+export interface VirtualBinaryOperation {
+  readonly kind: "binary-operation";
+  readonly operator: ShaderBinaryOperator;
+  readonly original: TextRange;
+  readonly generated: TextRange;
+}
+
+export type VirtualOperation = VirtualBinaryOperation;
+
 export interface VirtualSource {
   readonly code: string;
   readonly mappings: readonly SourceMapping[];
+  readonly operations: readonly VirtualOperation[];
   readonly shaderRegion: TextRange;
 }
 
@@ -22,6 +33,7 @@ export class MappedTextWriter {
   readonly #source: string;
   readonly #chunks: string[] = [];
   readonly #mappings: SourceMapping[] = [];
+  readonly #operations: VirtualOperation[] = [];
   #length = 0;
 
   public constructor(source: string) {
@@ -63,6 +75,21 @@ export class MappedTextWriter {
     });
   }
 
+  public addBinaryOperation(
+    operator: ShaderBinaryOperator,
+    original: TextRange,
+    generated: TextRange,
+  ): void {
+    assertRangeWithin(original, this.#source.length, "original operation");
+    assertRangeWithin(generated, this.#length, "generated operation");
+    this.#operations.push({
+      kind: "binary-operation",
+      operator,
+      original: cloneRange(original),
+      generated: cloneRange(generated),
+    });
+  }
+
   public writeExpression(
     original: TextRange,
     write: (writer: MappedTextWriter) => void,
@@ -82,6 +109,7 @@ export class MappedTextWriter {
     return {
       code: this.#chunks.join(""),
       mappings: this.#mappings.map(cloneMapping),
+      operations: this.#operations.map(cloneOperation),
       shaderRegion: cloneRange(shaderRegion),
     };
   }
@@ -217,5 +245,14 @@ function cloneMapping(mapping: SourceMapping): SourceMapping {
     original: cloneRange(mapping.original),
     generated: cloneRange(mapping.generated),
     kind: mapping.kind,
+  };
+}
+
+function cloneOperation(operation: VirtualOperation): VirtualOperation {
+  return {
+    kind: operation.kind,
+    operator: operation.operator,
+    original: cloneRange(operation.original),
+    generated: cloneRange(operation.generated),
   };
 }

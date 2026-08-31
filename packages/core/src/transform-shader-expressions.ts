@@ -1,6 +1,9 @@
 import { MappedTextWriter, type VirtualSource } from "./mapped-text-writer.js";
 import type { ShaderFileInfo } from "./parse-shader-file.js";
-import type { ShaderExpressionSyntax } from "./shader-syntax.js";
+import type {
+  ShaderBinaryOperator,
+  ShaderExpressionSyntax,
+} from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 
 export const DIV_HELPER_NAME = "__shdr_internal_div";
@@ -56,15 +59,24 @@ function writeExpression(
       });
       return;
 
-    case "division-expression":
-      writer.writeExpression(expression.range, (generated) => {
-        generated.append(`${DIV_HELPER_NAME}(`);
-        writeExpression(generated, expression.left);
-        generated.append(", ");
-        writeExpression(generated, expression.right);
-        generated.append(")");
-      });
+    case "binary-expression": {
+      const generatedRange = writer.writeExpression(
+        expression.range,
+        (generated) => {
+          generated.append(`${helperNameForOperator(expression.operator)}(`);
+          writeExpression(generated, expression.left);
+          generated.append(", ");
+          writeExpression(generated, expression.right);
+          generated.append(")");
+        },
+      );
+      writer.addBinaryOperation(
+        expression.operator,
+        expression.range,
+        generatedRange,
+      );
       return;
+    }
 
     case "identifier":
       writer.copy(expression.range);
@@ -76,13 +88,15 @@ function writeExpression(
       ]);
       return;
 
-    case "constructor-call":
+    case "call-expression":
       writePreservingChildren(writer, expression.range, expression.arguments);
       return;
 
     case "property-access":
       writePreservingChildren(writer, expression.range, [expression.object]);
       return;
+    default:
+      return assertNever(expression);
   }
 }
 
@@ -129,8 +143,8 @@ function visitExpression(
       helperNames.add(F32_HELPER_NAME);
       return;
 
-    case "division-expression":
-      helperNames.add(DIV_HELPER_NAME);
+    case "binary-expression":
+      helperNames.add(helperNameForOperator(expression.operator));
       visitExpression(expression.left, helperNames);
       visitExpression(expression.right, helperNames);
       return;
@@ -142,7 +156,7 @@ function visitExpression(
       visitExpression(expression.expression, helperNames);
       return;
 
-    case "constructor-call":
+    case "call-expression":
       for (const argument of expression.arguments) {
         visitExpression(argument, helperNames);
       }
@@ -151,7 +165,22 @@ function visitExpression(
     case "property-access":
       visitExpression(expression.object, helperNames);
       return;
+    default:
+      return assertNever(expression);
   }
+}
+
+function helperNameForOperator(operator: ShaderBinaryOperator): string {
+  switch (operator) {
+    case "/":
+      return DIV_HELPER_NAME;
+    default:
+      return assertNever(operator);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled shader syntax: ${JSON.stringify(value)}`);
 }
 
 function copyIfNonEmpty(writer: MappedTextWriter, range: TextRange): void {

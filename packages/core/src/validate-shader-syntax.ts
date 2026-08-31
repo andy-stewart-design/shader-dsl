@@ -20,7 +20,7 @@ const SUPPORTED_PROPERTY_NAMES = new Set([
 
 export function validateShaderSyntax(
   callback: ArrowFunctionExpression,
-  constructorNames: ReadonlySet<string>,
+  calleeNames: ReadonlySet<string>,
 ): readonly ShaderDiagnostic[] {
   const annotation = callback.returnType ?? callback.typeParameters;
   if (annotation) {
@@ -106,7 +106,7 @@ export function validateShaderSyntax(
       const declarationDiagnostic = validateVariableDeclaration(
         statement,
         localNames,
-        constructorNames,
+        calleeNames,
       );
       if (declarationDiagnostic) return [declarationDiagnostic];
       continue;
@@ -144,7 +144,7 @@ export function validateShaderSyntax(
   const expressionDiagnostic = validateExpression(
     returnStatement.argument,
     localNames,
-    constructorNames,
+    calleeNames,
   );
 
   return expressionDiagnostic ? [expressionDiagnostic] : [];
@@ -153,7 +153,7 @@ export function validateShaderSyntax(
 function validateVariableDeclaration(
   declaration: VariableDeclaration,
   localNames: ReadonlySet<string>,
-  constructorNames: ReadonlySet<string>,
+  calleeNames: ReadonlySet<string>,
 ): ShaderDiagnostic | undefined {
   if (declaration.kind !== "const") {
     return diagnostic(
@@ -192,13 +192,13 @@ function validateVariableDeclaration(
     );
   }
 
-  return validateExpression(declarator.init, localNames, constructorNames);
+  return validateExpression(declarator.init, localNames, calleeNames);
 }
 
 function validateExpression(
   expression: Expression,
   localNames: ReadonlySet<string>,
-  constructorNames: ReadonlySet<string>,
+  calleeNames: ReadonlySet<string>,
 ): ShaderDiagnostic | undefined {
   switch (expression.type) {
     case "NumericLiteral":
@@ -213,11 +213,7 @@ function validateExpression(
       );
 
     case "ParenthesizedExpression":
-      return validateExpression(
-        expression.expression,
-        localNames,
-        constructorNames,
-      );
+      return validateExpression(expression.expression, localNames, calleeNames);
 
     case "BinaryExpression":
       if (expression.operator !== "/") {
@@ -228,14 +224,14 @@ function validateExpression(
         );
       }
       return (
-        validateExpression(expression.left, localNames, constructorNames) ??
-        validateExpression(expression.right, localNames, constructorNames)
+        validateExpression(expression.left, localNames, calleeNames) ??
+        validateExpression(expression.right, localNames, calleeNames)
       );
 
     case "CallExpression": {
       if (
         expression.callee.type !== "Identifier" ||
-        !constructorNames.has(expression.callee.name)
+        !calleeNames.has(expression.callee.name)
       ) {
         return diagnostic(
           ShaderDiagnosticCode.UnsupportedCall,
@@ -263,7 +259,7 @@ function validateExpression(
         const argumentDiagnostic = validateExpression(
           argument,
           localNames,
-          constructorNames,
+          calleeNames,
         );
         if (argumentDiagnostic) return argumentDiagnostic;
       }
@@ -289,11 +285,7 @@ function validateExpression(
           expression,
         );
       }
-      return validateExpression(
-        expression.object,
-        localNames,
-        constructorNames,
-      );
+      return validateExpression(expression.object, localNames, calleeNames);
 
     case "OptionalMemberExpression":
     case "OptionalCallExpression":

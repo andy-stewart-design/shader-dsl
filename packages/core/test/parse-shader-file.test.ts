@@ -29,12 +29,12 @@ describe("parseShaderFile", () => {
     expect(textAt(source, info.createFragmentShaderImport.range)).toBe(
       "createFragmentShader",
     );
-    expect(info.constructorImports).toHaveLength(1);
-    expect(info.constructorImports[0]).toMatchObject({
+    expect(info.shaderCallableImports).toHaveLength(1);
+    expect(info.shaderCallableImports[0]).toMatchObject({
       importedName: "vec4",
       localName: "vec4",
     });
-    expect(textAt(source, info.constructorImports[0]!.range)).toBe("vec4");
+    expect(textAt(source, info.shaderCallableImports[0]!.range)).toBe("vec4");
     expect(textAt(source, info.defaultExportRange)).toMatch(
       /^export default createFragmentShader/,
     );

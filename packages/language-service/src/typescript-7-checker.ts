@@ -5,7 +5,7 @@ import {
   type VirtualSource,
 } from "@shdr/core";
 import { resolve } from "node:path";
-import type { CallExpression, Node, SourceFile } from "typescript/unstable/ast";
+import type { Node, SourceFile } from "typescript/unstable/ast";
 import {
   isCallExpression,
   isIdentifier,
@@ -19,7 +19,6 @@ import {
   type Snapshot,
 } from "typescript/unstable/sync";
 
-const DIV_HELPER_NAME = "__shdr_internal_div";
 const NO_OVERLOAD_MATCHES_CODE = 2769;
 
 export type TypeScriptDiagnosticCategory =
@@ -120,6 +119,7 @@ export class TypeScript7CheckerAdapter {
           kind: "identity",
         },
       ],
+      operations: [],
       shaderRegion: { start: 0, length: 0 },
     });
   }
@@ -225,7 +225,7 @@ class CheckedVirtualSourceImpl implements CheckedVirtualSource {
     );
     this.shaderOperationDiagnostics = semanticDiagnostics.flatMap(
       (diagnostic) => {
-        const mapped = mapDivisionDiagnostic(
+        const mapped = mapShaderOperationDiagnostic(
           diagnostic,
           virtualSource,
           fileName,
@@ -398,7 +398,7 @@ function formatDiagnosticMessage(diagnostic: TypeScriptDiagnostic): string {
   return [diagnostic.text, ...(nested ?? [])].join("\n");
 }
 
-function mapDivisionDiagnostic(
+function mapShaderOperationDiagnostic(
   diagnostic: TypeScriptDiagnostic,
   virtualSource: VirtualSource,
   fileName: string,
@@ -406,59 +406,58 @@ function mapDivisionDiagnostic(
 ): ShaderOperationDiagnostic | undefined {
   if (diagnostic.code !== NO_OVERLOAD_MATCHES_CODE) return undefined;
 
+  const operation = virtualSource.operations
+    .filter(
+      (candidate) =>
+        diagnostic.pos >= candidate.generated.start &&
+        diagnostic.end <= rangeEnd(candidate.generated),
+    )
+    .sort((left, right) => left.generated.length - right.generated.length)[0];
+  if (!operation) return undefined;
+
   const sourceFile = project.program.getSourceFile(fileName);
   if (!sourceFile) return undefined;
+  const node = findNodeWithRange(sourceFile, operation.generated);
+  if (!node || !isCallExpression(node) || node.arguments.length !== 2) {
+    return undefined;
+  }
 
-  const call = findContainingDivisionCall(
-    sourceFile,
-    diagnostic.pos,
-    diagnostic.end,
-  );
-  if (!call || call.arguments.length !== 2) return undefined;
-
-  const originalRange = mapGeneratedRangeToOriginal(
-    virtualSource,
-    nodeRange(call, sourceFile),
-  );
-  const left = call.arguments[0];
-  const right = call.arguments[1];
-  if (!originalRange || !left || !right) return undefined;
-
+  const left = node.arguments[0];
+  const right = node.arguments[1];
+  if (!left || !right) return undefined;
   const leftType = project.checker.getTypeAtLocation(left);
   const rightType = project.checker.getTypeAtLocation(right);
   if (!leftType || !rightType) return undefined;
 
   return {
     fileName: diagnostic.fileName,
-    range: originalRange,
+    range: operation.original,
     code: diagnostic.code,
     category: diagnosticCategory(diagnostic.category),
-    message: `Operator "/" cannot be applied to types "${project.checker.typeToString(leftType)}" and "${project.checker.typeToString(rightType)}".`,
+    message: `Operator "${operation.operator}" cannot be applied to types "${project.checker.typeToString(leftType)}" and "${project.checker.typeToString(rightType)}".`,
   };
 }
 
-function findContainingDivisionCall(
+function findNodeWithRange(
   sourceFile: SourceFile,
-  diagnosticStart: number,
-  diagnosticEnd: number,
-): CallExpression | undefined {
-  let current = findSmallestNodeAtPosition(sourceFile, diagnosticStart);
-
-  while (current) {
-    if (
-      isCallExpression(current) &&
-      isIdentifier(current.expression) &&
-      current.expression.getText(sourceFile) === DIV_HELPER_NAME &&
-      diagnosticEnd <= current.getEnd()
-    ) {
-      return current;
+  range: TextRange,
+): Node | undefined {
+  let match: Node | undefined;
+  const visit = (node: Node): void => {
+    const current = nodeRange(node, sourceFile);
+    if (current.start === range.start && current.length === range.length) {
+      match = node;
+      return;
     }
-
-    if (current === current.parent) return undefined;
-    current = current.parent;
-  }
-
-  return undefined;
+    if (range.start >= current.start && rangeEnd(range) <= rangeEnd(current)) {
+      node.forEachChild((child) => {
+        if (!match) visit(child);
+        return undefined;
+      });
+    }
+  };
+  visit(sourceFile);
+  return match;
 }
 
 function findSmallestNodeAtPosition(

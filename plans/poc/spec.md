@@ -296,16 +296,18 @@ interface SourceMapping {
 type ShaderBinaryOperator = "/";
 
 interface VirtualBinaryOperation {
-  kind: "binary";
+  kind: "binary-operation";
   operator: ShaderBinaryOperator;
   original: TextRange;
   generated: TextRange;
 }
 
+type VirtualOperation = VirtualBinaryOperation;
+
 interface VirtualSource {
   code: string;
   mappings: SourceMapping[];
-  operations: VirtualBinaryOperation[];
+  operations: VirtualOperation[];
   shaderRegion: TextRange;
 }
 ```

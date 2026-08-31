@@ -79,8 +79,9 @@ function normalizeExpression(expression: Expression): ShaderExpressionSyntax {
     case "BinaryExpression":
       if (expression.operator !== "/") break;
       return {
-        kind: "division-expression",
+        kind: "binary-expression",
         range: rangeOf(expression),
+        operator: expression.operator,
         left: normalizeExpression(expression.left),
         right: normalizeExpression(expression.right),
       };
@@ -88,9 +89,9 @@ function normalizeExpression(expression: Expression): ShaderExpressionSyntax {
     case "CallExpression":
       if (expression.callee.type !== "Identifier") break;
       return {
-        kind: "constructor-call",
+        kind: "call-expression",
         range: rangeOf(expression),
-        constructorName: expression.callee.name,
+        calleeName: expression.callee.name,
         calleeRange: rangeOf(expression.callee),
         arguments: expression.arguments.map((argument) => {
           if (
@@ -98,7 +99,7 @@ function normalizeExpression(expression: Expression): ShaderExpressionSyntax {
             argument.type === "ArgumentPlaceholder"
           ) {
             throw new Error(
-              "Cannot normalize an unsupported constructor argument.",
+              "Cannot normalize an unsupported shader callable argument.",
             );
           }
           return normalizeExpression(argument);

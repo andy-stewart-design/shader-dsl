@@ -123,4 +123,50 @@ describe("@shdr/language-service package", () => {
       adapter.dispose();
     }
   });
+
+  it("maps a nested overload failure to the smallest operation", () => {
+    const fileName = join(projectDirectory, "invalid-nested-division.shdr.ts");
+    const source = readFileSync(fileName, "utf8");
+    const virtual = createVirtualSource(source, fileName);
+    expect(virtual.ok).toBe(true);
+    if (!virtual.ok) return;
+
+    const adapter = new TypeScript7CheckerAdapter({
+      cwd: projectDirectory,
+      projectFileName: "tsconfig.json",
+    });
+
+    try {
+      const checked = adapter.checkVirtualSource(
+        fileName,
+        virtual.virtualSource,
+      );
+      try {
+        const innerExpression = "coord.xy / coord";
+        const outerExpression = "(coord.xy / coord) / uniforms.resolution";
+
+        expect(virtual.virtualSource.operations).toHaveLength(2);
+        expect(checked.semanticDiagnostics).toHaveLength(1);
+        expect(checked.shaderOperationDiagnostics).toEqual([
+          expect.objectContaining({
+            code: 2769,
+            range: {
+              start: source.indexOf(innerExpression),
+              length: innerExpression.length,
+            },
+            message:
+              'Operator "/" cannot be applied to types "Expr<Vec2<F32>>" and "Expr<Vec4<F32>>".',
+          }),
+        ]);
+        expect(checked.shaderOperationDiagnostics[0]?.range).not.toEqual({
+          start: source.indexOf(outerExpression),
+          length: outerExpression.length,
+        });
+      } finally {
+        checked.dispose();
+      }
+    } finally {
+      adapter.dispose();
+    }
+  });
 });

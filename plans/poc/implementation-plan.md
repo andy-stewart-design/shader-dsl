@@ -694,6 +694,14 @@ Update the existing parser, transformation, mapping, checker, routing, and real-
 
 No project-owned normalized syntax node or language-service operator diagnostic path is structurally named for division or constructors, while the accepted POC language and observable editor behavior remain unchanged.
 
+**Result — complete**
+
+Normalized syntax now uses generic binary-expression and direct call-expression nodes. Binary syntax and virtual metadata share the closed `ShaderBinaryOperator` value `"/"`; call nodes carry a callee name and ordered arguments. Parser import records and validation use shader-callable terminology while preserving the strict `createFragmentShader` and `vec4` boundary and existing user-facing diagnostics.
+
+Each generated binary helper call now has compiler-owned `VirtualOperation` metadata containing its operator and exact original/generated ranges, including independent nested-operation records. The TypeScript 7 checker discovers and sanitizes overload failures from this metadata rather than helper names or division-specific syntax. A nested invalid-operation test verifies that the smallest containing operation receives the diagnostic. Syntax transformers use exhaustive project-owned node switches.
+
+Core, language-service, workspace build/check/test, and the real VS Code Extension Development Host checklist pass with unchanged generated source, mappings, diagnostics, QuickInfo, and accepted language.
+
 ## Step 4.1 — Define source-ranged shader types and IR
 
 **Work**

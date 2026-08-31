@@ -4,7 +4,7 @@ import {
   mapGeneratedRangeToOriginal,
   mapOriginalOffsetToGenerated,
   parseShaderFile,
-  type ShaderDivisionExpressionSyntax,
+  type ShaderBinaryExpressionSyntax,
   type ShaderExpressionSyntax,
   type TextRange,
 } from "../src/index.js";
@@ -17,11 +17,12 @@ const helperImport = `import { ${divHelper}, ${f32Helper} } from "shdr/internal"
 
 function expectDivision(
   expression: ShaderExpressionSyntax,
-): ShaderDivisionExpressionSyntax {
-  expect(expression.kind).toBe("division-expression");
-  if (expression.kind !== "division-expression") {
-    throw new Error("Expected a normalized division expression.");
+): ShaderBinaryExpressionSyntax {
+  expect(expression.kind).toBe("binary-expression");
+  if (expression.kind !== "binary-expression") {
+    throw new Error("Expected a normalized binary expression.");
   }
+  expect(expression.operator).toBe("/");
   return expression;
 }
 
@@ -110,6 +111,17 @@ export default createFragmentShader(({ coord, uniforms }) => {
     ];
 
     expect(generatedDivisions).toHaveLength(originalDivisions.length);
+    expect(virtualSource.operations).toHaveLength(generatedDivisions.length);
+    expect(virtualSource.operations).toEqual(
+      expect.arrayContaining(
+        generatedDivisions.map((generated, index) => ({
+          kind: "binary-operation",
+          operator: "/",
+          original: originalDivisions[index],
+          generated,
+        })),
+      ),
+    );
     for (const [index, generated] of generatedDivisions.entries()) {
       expect(mapGeneratedRangeToOriginal(virtualSource, generated)).toEqual(
         originalDivisions[index],
@@ -174,9 +186,10 @@ export default createFragmentShader(({ coord, uniforms }) => {
     }
 
     const returnExpression = parsed.info!.callback.syntax.returnExpression;
-    if (returnExpression.kind !== "constructor-call") {
-      throw new Error("Expected the final vec4 constructor call.");
+    if (returnExpression.kind !== "call-expression") {
+      throw new Error("Expected the final vec4 call.");
     }
+    expect(returnExpression.calleeName).toBe("vec4");
     const returnLiteral = returnExpression.arguments[3]!;
     if (returnLiteral.kind !== "numeric-literal") {
       throw new Error("Expected a numeric final argument.");

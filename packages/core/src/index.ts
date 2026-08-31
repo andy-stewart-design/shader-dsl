@@ -15,6 +15,8 @@ export {
   mapOriginalOffsetToGenerated,
   type SourceMapping,
   type SourceMappingKind,
+  type VirtualBinaryOperation,
+  type VirtualOperation,
   type VirtualSource,
 } from "./mapped-text-writer.js";
 export {
@@ -25,10 +27,11 @@ export {
   type ShaderImportInfo,
 } from "./parse-shader-file.js";
 export type {
+  ShaderBinaryExpressionSyntax,
+  ShaderBinaryOperator,
   ShaderCallbackSyntax,
+  ShaderCallExpressionSyntax,
   ShaderConstDeclarationSyntax,
-  ShaderConstructorCallSyntax,
-  ShaderDivisionExpressionSyntax,
   ShaderExpressionSyntax,
   ShaderIdentifierSyntax,
   ShaderNumericLiteralSyntax,

@@ -19,8 +19,8 @@ export type ShaderExpressionSyntax =
   | ShaderNumericLiteralSyntax
   | ShaderIdentifierSyntax
   | ShaderParenthesizedExpressionSyntax
-  | ShaderDivisionExpressionSyntax
-  | ShaderConstructorCallSyntax
+  | ShaderBinaryExpressionSyntax
+  | ShaderCallExpressionSyntax
   | ShaderPropertyAccessSyntax;
 
 export interface ShaderNumericLiteralSyntax extends ShaderSyntaxNode {
@@ -38,15 +38,18 @@ export interface ShaderParenthesizedExpressionSyntax extends ShaderSyntaxNode {
   readonly expression: ShaderExpressionSyntax;
 }
 
-export interface ShaderDivisionExpressionSyntax extends ShaderSyntaxNode {
-  readonly kind: "division-expression";
+export type ShaderBinaryOperator = "/";
+
+export interface ShaderBinaryExpressionSyntax extends ShaderSyntaxNode {
+  readonly kind: "binary-expression";
+  readonly operator: ShaderBinaryOperator;
   readonly left: ShaderExpressionSyntax;
   readonly right: ShaderExpressionSyntax;
 }
 
-export interface ShaderConstructorCallSyntax extends ShaderSyntaxNode {
-  readonly kind: "constructor-call";
-  readonly constructorName: string;
+export interface ShaderCallExpressionSyntax extends ShaderSyntaxNode {
+  readonly kind: "call-expression";
+  readonly calleeName: string;
   readonly calleeRange: TextRange;
   readonly arguments: readonly ShaderExpressionSyntax[];
 }

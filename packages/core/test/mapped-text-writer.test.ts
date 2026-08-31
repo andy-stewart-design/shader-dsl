@@ -25,6 +25,7 @@ describe("MappedTextWriter", () => {
           kind: "identity",
         },
       ],
+      operations: [],
       shaderRegion: range(0, 3),
     });
     expect(mapOriginalOffsetToGenerated(result, 1)).toBe(1);
