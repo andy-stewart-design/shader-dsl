@@ -1,4 +1,4 @@
-import type { ShaderBinaryOperator } from "./shader-syntax.js";
+import type { ShaderBinaryOperator } from "./shader-operator.js";
 import type { TextRange } from "./source-range.js";
 
 export type SourceMappingKind = "identity" | "expression";

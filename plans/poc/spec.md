@@ -482,6 +482,40 @@ The normalized compiler syntax describes structure without baking current featur
 
 The typed IR uses dimensional scalar/vector type records and generic binary, call, and swizzle nodes. It can represent vector dimensions 2, 3, and 4 without requiring the POC source language to expose `Vec3` yet. Every accepted operator and call must still be explicitly typed, checked against the TypeScript virtual surface through parity tests, and emitted equivalently by both target generators. This representation is an extension boundary, not permission to silently accept unsupported language features.
 
+The public IR shape includes:
+
+```ts
+type ShaderScalarKind = "f32";
+type ShaderVectorSize = 2 | 3 | 4;
+
+type ShaderValueType =
+  | { kind: "scalar"; scalar: ShaderScalarKind }
+  | { kind: "vector"; scalar: ShaderScalarKind; size: ShaderVectorSize };
+
+interface ShaderExpressionBase {
+  type: ShaderValueType;
+  range: TextRange;
+}
+
+type ShaderExpression =
+  | ShaderNumericLiteralExpression
+  | ShaderBuiltinInputExpression
+  | ShaderDefaultUniformExpression
+  | ShaderLocalReferenceExpression
+  | ShaderSwizzleExpression
+  | ShaderBinaryExpression
+  | ShaderCallExpression;
+
+interface ShaderModule {
+  kind: "shader-module";
+  stage: "fragment";
+  statements: readonly (ShaderConstDeclaration | ShaderReturnStatement)[];
+  range: TextRange;
+}
+```
+
+`fragment-position` is a semantic built-in input, default uniforms use semantic names, swizzles store component indices, and local declarations/references share module-local numeric symbol IDs. Every expression has a resolved `ShaderValueType` and original source range. The IR contains no parser nodes, TypeScript nodes, generated source names, target-language spellings, resource bindings, or coordinate-conversion nodes.
+
 ## Shader targets
 
 The POC generates both WebGL 2 / GLSL ES 3.00 and WGSL from the exact same target-neutral typed IR. GLSL is the rendered POC path; WGSL is generated and compile-validated in a WebGPU-capable browser without requiring WebGPU rendering.

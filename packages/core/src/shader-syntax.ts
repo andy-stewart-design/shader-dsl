@@ -1,3 +1,4 @@
+import type { ShaderBinaryOperator } from "./shader-operator.js";
 import type { TextRange } from "./source-range.js";
 
 interface ShaderSyntaxNode {
@@ -37,8 +38,6 @@ export interface ShaderParenthesizedExpressionSyntax extends ShaderSyntaxNode {
   readonly kind: "parenthesized-expression";
   readonly expression: ShaderExpressionSyntax;
 }
-
-export type ShaderBinaryOperator = "/";
 
 export interface ShaderBinaryExpressionSyntax extends ShaderSyntaxNode {
   readonly kind: "binary-expression";

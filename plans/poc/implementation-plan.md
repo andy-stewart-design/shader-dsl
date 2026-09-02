@@ -732,6 +732,12 @@ Construct one IR module directly in a test and assert its type relationships, di
 
 The target shader can be represented without TypeScript-specific nodes.
 
+**Result — complete**
+
+`@shdr/core` now exports a serializable, target-neutral shader IR. `ShaderValueType` distinguishes `f32` scalars from dimensioned vectors of size 2, 3, or 4. The expression union contains generic numeric literal, built-in input, default uniform, local reference, swizzle, binary, and classified call nodes; every expression carries a resolved value type and original source range. Swizzles store component indices, binary nodes share `ShaderBinaryOperator`, constructor and future built-in calls share one call shape, and local declarations/references share module-local symbol IDs.
+
+`ShaderModule` contains a fragment stage and an ordered union of source-ranged const-declaration and return statements. Target concepts remain semantic (`fragment-position`, `resolution`, `mouse`, and `time`): no GLSL/WGSL names, bindings, declarations, or coordinate conversions appear in the IR. A directly constructed target-shader module verifies node relationships, dimensional `Vec3` representability without source-language support, complete expression ranges, JSON serialization, exhaustive traversal, and absence of target spellings.
+
 ## Step 4.2 — Lower built-ins, uniforms, literals, and locals
 
 **Work**

@@ -19,6 +19,38 @@ export {
   type VirtualOperation,
   type VirtualSource,
 } from "./mapped-text-writer.js";
+export type {
+  ShaderBinaryExpression,
+  ShaderBuiltinFunctionName,
+  ShaderBuiltinInput,
+  ShaderBuiltinInputExpression,
+  ShaderCallExpression,
+  ShaderCallTarget,
+  ShaderConstDeclaration,
+  ShaderConstructorName,
+  ShaderDefaultUniform,
+  ShaderDefaultUniformExpression,
+  ShaderExpression,
+  ShaderExpressionBase,
+  ShaderLocalReferenceExpression,
+  ShaderLocalSymbolId,
+  ShaderModule,
+  ShaderNumericLiteralExpression,
+  ShaderReturnStatement,
+  ShaderStage,
+  ShaderStatement,
+  ShaderSwizzleComponents,
+  ShaderSwizzleExpression,
+  ShaderVectorComponent,
+} from "./shader-ir.js";
+export type { ShaderBinaryOperator } from "./shader-operator.js";
+export type {
+  ShaderScalarKind,
+  ShaderScalarType,
+  ShaderValueType,
+  ShaderVectorSize,
+  ShaderVectorType,
+} from "./shader-type.js";
 export {
   parseShaderFile,
   type ParseShaderFileResult,
@@ -28,7 +60,6 @@ export {
 } from "./parse-shader-file.js";
 export type {
   ShaderBinaryExpressionSyntax,
-  ShaderBinaryOperator,
   ShaderCallbackSyntax,
   ShaderCallExpressionSyntax,
   ShaderConstDeclarationSyntax,

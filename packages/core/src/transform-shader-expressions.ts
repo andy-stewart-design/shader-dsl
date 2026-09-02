@@ -1,9 +1,7 @@
 import { MappedTextWriter, type VirtualSource } from "./mapped-text-writer.js";
 import type { ShaderFileInfo } from "./parse-shader-file.js";
-import type {
-  ShaderBinaryOperator,
-  ShaderExpressionSyntax,
-} from "./shader-syntax.js";
+import type { ShaderBinaryOperator } from "./shader-operator.js";
+import type { ShaderExpressionSyntax } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 
 export const DIV_HELPER_NAME = "__shdr_internal_div";
