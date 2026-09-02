@@ -7,6 +7,7 @@ interface ShaderSyntaxNode {
 
 export interface ShaderCallbackSyntax extends ShaderSyntaxNode {
   readonly declarations: readonly ShaderConstDeclarationSyntax[];
+  readonly returnRange: TextRange;
   readonly returnExpression: ShaderExpressionSyntax;
 }
 

@@ -27,6 +27,10 @@ export const ShaderDiagnosticCode = {
   ClosureCapture: "SHDR1108",
   TypeAnnotation: "SHDR1109",
   NestedFunction: "SHDR1110",
+  UnknownIdentifier: "SHDR1200",
+  ForwardReference: "SHDR1201",
+  DuplicateLocal: "SHDR1202",
+  InvalidUniform: "SHDR1203",
 } as const;
 
 export type ShaderDiagnosticCode =

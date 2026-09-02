@@ -10,6 +10,12 @@ export {
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
 export {
+  lowerShaderSyntax,
+  type LowerShaderSyntaxFailure,
+  type LowerShaderSyntaxResult,
+  type LowerShaderSyntaxSuccess,
+} from "./lower-shader-syntax.js";
+export {
   MappedTextWriter,
   mapGeneratedRangeToOriginal,
   mapOriginalOffsetToGenerated,

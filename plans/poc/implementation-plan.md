@@ -761,6 +761,12 @@ Add focused IR assertions for each expression category and diagnostics for unkno
 
 The non-operator structure of the target shader lowers into source-ranged IR.
 
+**Result — complete**
+
+`lowerShaderSyntax()` now converts normalized callback syntax into a target-neutral `ShaderModule` for the completed semantic subset. It lowers numeric literals to `f32`, `coord` to the semantic `fragment-position` built-in with `Vec4<f32>` type, and `uniforms.resolution`, `.mouse`, and `.time` to typed default-uniform references. Normalized callback syntax now retains the complete final-return range so IR statements and expressions both preserve original-source coordinates.
+
+Declarations are processed sequentially through a module-local symbol table. Successful const declarations receive stable numeric symbol IDs, and local-reference nodes retain both source names and declaration IDs while sharing the resolved initializer type. Lowering reports dedicated source-ranged diagnostics for unknown identifiers/closure captures, forward and self references, duplicate/context-conflicting locals, bare `uniforms`, and unknown default uniforms. Tests cover every completed expression category, symbol/type relationships, exact source ranges, deterministic final-return lowering, target-name isolation, and all required failure cases.
+
 ## Step 4.3 — Lower and type swizzles
 
 **Work**

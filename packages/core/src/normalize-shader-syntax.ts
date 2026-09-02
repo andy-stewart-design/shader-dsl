@@ -49,6 +49,7 @@ export function normalizeShaderSyntax(
   return {
     range: rangeOf(callback),
     declarations,
+    returnRange: rangeOf(returnStatement),
     returnExpression: normalizeExpression(returnStatement.argument),
   };
 }

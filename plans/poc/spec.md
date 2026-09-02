@@ -516,6 +516,8 @@ interface ShaderModule {
 
 `fragment-position` is a semantic built-in input, default uniforms use semantic names, swizzles store component indices, and local declarations/references share module-local numeric symbol IDs. Every expression has a resolved `ShaderValueType` and original source range. The IR contains no parser nodes, TypeScript nodes, generated source names, target-language spellings, resource bindings, or coordinate-conversion nodes.
 
+Semantic lowering processes const declarations in source order. An initializer can reference context bindings and previously declared locals, but not itself, a later declaration, an unknown or captured outer identifier, or a duplicate local. Default uniform properties resolve to their fixed semantic names and types; bare `uniforms` and unknown properties are errors. These failures return original-source diagnostics rather than partial modules.
+
 ## Shader targets
 
 The POC generates both WebGL 2 / GLSL ES 3.00 and WGSL from the exact same target-neutral typed IR. GLSL is the rendered POC path; WGSL is generated and compile-validated in a WebGPU-capable browser without requiring WebGPU rendering.
