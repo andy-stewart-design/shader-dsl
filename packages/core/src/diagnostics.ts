@@ -32,6 +32,7 @@ export const ShaderDiagnosticCode = {
   DuplicateLocal: "SHDR1202",
   InvalidUniform: "SHDR1203",
   InvalidSwizzle: "SHDR1204",
+  InvalidBinaryOperation: "SHDR1205",
 } as const;
 
 export type ShaderDiagnosticCode =

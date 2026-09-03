@@ -399,7 +399,7 @@ Invalid example:
 const invalid = coord.xy / coord;
 ```
 
-This must produce a diagnostic on the original expression because Vec2 / Vec4 is unsupported.
+This must produce `SHDR1205` on the complete original expression because Vec2 / Vec4 is unsupported. Successful lowering produces the generic binary IR node with `operator: "/"`, recursively lowered operands, and the matrix result type. Invalid semantic diagnostics use the same `Expr<...>` operand-type display as the sanitized TypeScript 7 editor diagnostic.
 
 Every rule must have parity tests against:
 

@@ -10,6 +10,7 @@ import type {
   ShaderVectorComponent,
 } from "./shader-ir.js";
 import type {
+  ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,
   ShaderExpressionSyntax,
   ShaderPropertyAccessSyntax,
@@ -218,11 +219,7 @@ function lowerExpression(
       return lowerSwizzle(syntax, context);
 
     case "binary-expression":
-      return expressionFailure(
-        ShaderDiagnosticCode.UnsupportedOperator,
-        "Binary-operation semantic lowering is not available yet.",
-        syntax.range,
-      );
+      return lowerBinaryExpression(syntax, context);
 
     case "call-expression":
       return expressionFailure(
@@ -234,6 +231,63 @@ function lowerExpression(
     default:
       return assertNever(syntax);
   }
+}
+
+function lowerBinaryExpression(
+  syntax: ShaderBinaryExpressionSyntax,
+  context: LoweringContext,
+): LowerExpressionResult {
+  const left = lowerExpression(syntax.left, context);
+  if (!left.ok) return left;
+
+  const right = lowerExpression(syntax.right, context);
+  if (!right.ok) return right;
+
+  let type: ShaderValueType | undefined;
+  switch (syntax.operator) {
+    case "/":
+      type = divisionResultType(left.expression.type, right.expression.type);
+      break;
+    default:
+      return assertNever(syntax.operator);
+  }
+
+  if (!type) {
+    return expressionFailure(
+      ShaderDiagnosticCode.InvalidBinaryOperation,
+      `Operator ${JSON.stringify(syntax.operator)} cannot be applied to types ${JSON.stringify(formatExpressionType(left.expression.type))} and ${JSON.stringify(formatExpressionType(right.expression.type))}.`,
+      syntax.range,
+    );
+  }
+
+  return {
+    ok: true,
+    expression: {
+      kind: "binary",
+      operator: syntax.operator,
+      left: left.expression,
+      right: right.expression,
+      type,
+      range: syntax.range,
+    },
+  };
+}
+
+function divisionResultType(
+  left: ShaderValueType,
+  right: ShaderValueType,
+): ShaderValueType | undefined {
+  if (left.kind === "scalar") {
+    return right.kind === "scalar" ? F32_TYPE : undefined;
+  }
+
+  if (left.size !== 2 && left.size !== 4) return undefined;
+  if (right.kind === "scalar") return left;
+  return right.size === left.size ? left : undefined;
+}
+
+function formatExpressionType(type: ShaderValueType): string {
+  return `Expr<${formatShaderType(type)}>`;
 }
 
 function lowerSwizzle(

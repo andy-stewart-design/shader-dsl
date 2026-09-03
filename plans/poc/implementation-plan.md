@@ -806,6 +806,12 @@ Assert that both systems agree on success/error and result type.
 
 No division rule exists in only one of the two type systems.
 
+**Result — complete**
+
+Semantic lowering now recursively lowers both operands of a binary expression and resolves `/` through the exact closed matrix: `F32/F32`, `Vec2/F32`, `Vec2/Vec2`, `Vec4/F32`, and `Vec4/Vec4`. Successful operations produce generic `ShaderBinaryExpression` IR with the original operator-expression range and the resolved scalar/vector result type. `SHDR1205` rejects all other dimension combinations on the complete source expression with the same sanitized operand-type message used by the TypeScript 7 adapter.
+
+One nine-case parity matrix exercises every `F32`, `Vec2`, and `Vec4` left/right pair through both virtual TypeScript checking and semantic lowering, comparing acceptance, result types, diagnostic messages, and source ranges. A focused core test additionally verifies that nested left-associative division produces the corresponding nested binary IR, exact inner/outer ranges, and propagated result types.
+
 ## Step 4.5 — Lower and type `vec4`
 
 **Work**
