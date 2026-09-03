@@ -781,6 +781,12 @@ Test every accepted type/property pair and representative rejected pairs. Assert
 
 Swizzle semantics match the public TypeScript expression types.
 
+**Result — complete**
+
+Direct, non-computed property access is now normalized structurally without a global property-name whitelist. Semantic lowering first distinguishes direct `uniforms.<name>` access from value swizzles, then recursively lowers the swizzle receiver and validates its resolved shader type. On both `Vec2<f32>` and `Vec4<f32>`, `.x` and `.y` lower to `f32` and `.xy` lowers to `Vec2<f32>` using component-index IR (`0`, `1`, and `[0, 1]`). The same rules apply through local references and nested property expressions.
+
+`SHDR1204` reports precise property-name ranges for scalar swizzles, components unavailable on the receiver dimension, and well-formed but unsupported POC swizzle spellings. Unknown uniform names remain `SHDR1203` semantic diagnostics now that arbitrary direct property names reach lowering. Tests cover every accepted vector-type/property pair, vector locals, representative scalar/unavailable/unsupported failures, structural-versus-semantic validation ownership, and matching positive/negative public `Expr<T>` TypeScript types.
+
 ## Step 4.4 — Lower and type division
 
 **Work**

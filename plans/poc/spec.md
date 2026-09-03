@@ -159,15 +159,18 @@ coord: Expr<Vec4<F32>>;
 
 WGSL maps `coord` directly to its fragment-position built-in. GLSL constructs the canonical value from `gl_FragCoord`, converting Y with `uniforms.resolution.y - gl_FragCoord.y`. Therefore `resolution` is an implicit GLSL dependency whenever `coord` is referenced, even when source does not access that uniform explicitly.
 
-Minimum swizzles supported by the POC:
+Minimum read swizzles supported by the POC:
 
 ```text
-  .x
-  .y
-  .xy
+              Vec2<F32> result   Vec4<F32> result
+  .x          F32                F32
+  .y          F32                F32
+  .xy         Vec2<F32>          Vec2<F32>
 ```
 
-This is not the intended full vector API. `Vec3` and complete GLSL component and swizzle support are deferred until after the operator-integration hypothesis is proven.
+Normalized syntax accepts any direct, non-computed identifier property structurally. Semantic lowering distinguishes default-uniform access from swizzling based on the receiver, stores swizzles as component indices (`x = 0`, `y = 1`), and reports the property-name range for scalar receivers, components unavailable at the receiver dimension, and unsupported spellings. This keeps syntax normalization independent of the current swizzle list without silently accepting extra language features.
+
+This is not the intended full vector API. `Vec3`, writable swizzles, `.z`/`.w`, alternate component alphabets, and complete GLSL/WGSL swizzle support are deferred until after the operator-integration hypothesis is proven.
 
 ## Default uniforms
 

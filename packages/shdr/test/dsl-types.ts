@@ -28,6 +28,12 @@ const vector2ByScalar = __shdr_internal_div(vector2, scalar);
 const vector2ByVector2 = __shdr_internal_div(vector2, vector2);
 const vector4ByScalar = __shdr_internal_div(vector4, scalar);
 const vector4ByVector4 = __shdr_internal_div(vector4, vector4);
+const vector2X = vector2.x;
+const vector2Y = vector2.y;
+const vector2XY = vector2.xy;
+const vector4X = vector4.x;
+const vector4Y = vector4.y;
+const vector4XY = vector4.xy;
 const color = vec4(scalar, scalar, scalar, scalar);
 const shader = createFragmentShader(({ coord, uniforms }) =>
   vec4(coord.x, coord.y, uniforms.time, uniforms.time),
@@ -35,6 +41,18 @@ const shader = createFragmentShader(({ coord, uniforms }) =>
 
 // @ts-expect-error Vec2 / Vec4 has no shader overload.
 const invalidDivision = __shdr_internal_div(vector2, vector4);
+
+// @ts-expect-error Scalars do not expose vector swizzles.
+const invalidScalarSwizzle = scalar.x;
+
+// @ts-expect-error The POC does not expose z, even on Vec4.
+const invalidVector4Swizzle = vector4.z;
+
+// @ts-expect-error Vec2 does not contain z.
+const invalidVector2Swizzle = vector2.z;
+
+// @ts-expect-error The POC does not expose yx.
+const invalidSwizzleSpelling = vector4.yx;
 
 // @ts-expect-error vec4 requires exactly four scalar expressions.
 const invalidArity = vec4(scalar, scalar, scalar);
@@ -55,6 +73,12 @@ type DslTypeAssertions = [
   Expect<Equal<typeof vector2ByVector2, Expr<Vec2<F32>>>>,
   Expect<Equal<typeof vector4ByScalar, Expr<Vec4<F32>>>>,
   Expect<Equal<typeof vector4ByVector4, Expr<Vec4<F32>>>>,
+  Expect<Equal<typeof vector2X, Expr<F32>>>,
+  Expect<Equal<typeof vector2Y, Expr<F32>>>,
+  Expect<Equal<typeof vector2XY, Expr<Vec2<F32>>>>,
+  Expect<Equal<typeof vector4X, Expr<F32>>>,
+  Expect<Equal<typeof vector4Y, Expr<F32>>>,
+  Expect<Equal<typeof vector4XY, Expr<Vec2<F32>>>>,
   Expect<Equal<typeof color, Expr<Vec4<F32>>>>,
   Expect<Equal<typeof shader, FragmentShaderSource>>,
 ];

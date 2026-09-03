@@ -136,6 +136,22 @@ describe("shader syntax validation", () => {
     expect(result.info).toBeDefined();
   });
 
+  it("defers direct property-name validity to semantic analysis", () => {
+    const source = `
+      import { createFragmentShader, vec4 } from "shdr";
+
+      export default createFragmentShader(({ coord, uniforms }) => {
+        const unknownUniform = uniforms.viewport;
+        return vec4(coord.z, unknownUniform.x, 0, 1);
+      });
+    `;
+
+    const result = parseShaderFile(source, "semantic-properties.shdr.ts");
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.info).toBeDefined();
+  });
+
   it.each(invalidSyntaxCases)(
     "rejects $fixture with $code",
     async ({ fixture, code, messageCategory, rangeText }) => {

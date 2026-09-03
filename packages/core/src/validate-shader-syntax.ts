@@ -9,15 +9,6 @@ import type {
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import type { TextRange } from "./source-range.js";
 
-const SUPPORTED_PROPERTY_NAMES = new Set([
-  "mouse",
-  "resolution",
-  "time",
-  "x",
-  "xy",
-  "y",
-]);
-
 export function validateShaderSyntax(
   callback: ArrowFunctionExpression,
   calleeNames: ReadonlySet<string>,
@@ -267,14 +258,10 @@ function validateExpression(
     }
 
     case "MemberExpression":
-      if (
-        expression.computed ||
-        expression.property.type !== "Identifier" ||
-        !SUPPORTED_PROPERTY_NAMES.has(expression.property.name)
-      ) {
+      if (expression.computed || expression.property.type !== "Identifier") {
         return diagnostic(
           ShaderDiagnosticCode.UnsupportedPropertyAccess,
-          "Only direct access to POC uniforms and the x, y, and xy properties is supported.",
+          "Only direct access with non-computed property names is supported in shaders.",
           expression,
         );
       }

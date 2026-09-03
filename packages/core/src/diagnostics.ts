@@ -31,6 +31,7 @@ export const ShaderDiagnosticCode = {
   ForwardReference: "SHDR1201",
   DuplicateLocal: "SHDR1202",
   InvalidUniform: "SHDR1203",
+  InvalidSwizzle: "SHDR1204",
 } as const;
 
 export type ShaderDiagnosticCode =

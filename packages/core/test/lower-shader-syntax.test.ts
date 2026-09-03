@@ -208,7 +208,7 @@ describe("shader syntax lowering", () => {
 
   it("rejects an invalid default uniform name", () => {
     const { source, result } = lowerSource(`
-  const invalid = uniforms.x;
+  const invalid = uniforms.viewport;
   return coord;`);
 
     expect(result).toEqual({
@@ -216,8 +216,11 @@ describe("shader syntax lowering", () => {
       diagnostics: [
         {
           code: ShaderDiagnosticCode.InvalidUniform,
-          message: 'Unknown default uniform "x".',
-          range: { start: source.indexOf(".x") + 1, length: 1 },
+          message: 'Unknown default uniform "viewport".',
+          range: {
+            start: source.indexOf(".viewport") + 1,
+            length: "viewport".length,
+          },
           severity: "error",
         },
       ],

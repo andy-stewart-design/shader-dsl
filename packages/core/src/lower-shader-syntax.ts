@@ -6,6 +6,8 @@ import type {
   ShaderExpression,
   ShaderLocalSymbolId,
   ShaderModule,
+  ShaderSwizzleComponents,
+  ShaderVectorComponent,
 } from "./shader-ir.js";
 import type {
   ShaderCallbackSyntax,
@@ -213,11 +215,7 @@ function lowerExpression(
       ) {
         return lowerDefaultUniform(syntax);
       }
-      return expressionFailure(
-        ShaderDiagnosticCode.UnsupportedPropertyAccess,
-        "Swizzle semantic lowering is not available yet.",
-        syntax.range,
-      );
+      return lowerSwizzle(syntax, context);
 
     case "binary-expression":
       return expressionFailure(
@@ -236,6 +234,122 @@ function lowerExpression(
     default:
       return assertNever(syntax);
   }
+}
+
+function lowerSwizzle(
+  syntax: ShaderPropertyAccessSyntax,
+  context: LoweringContext,
+): LowerExpressionResult {
+  const object = lowerExpression(syntax.object, context);
+  if (!object.ok) return object;
+
+  const objectType = object.expression.type;
+  if (objectType.kind !== "vector") {
+    return expressionFailure(
+      ShaderDiagnosticCode.InvalidSwizzle,
+      `Cannot apply swizzle ${JSON.stringify(`.${syntax.propertyName}`)} to scalar type ${JSON.stringify(formatShaderType(objectType))}.`,
+      syntax.propertyRange,
+    );
+  }
+
+  const components = supportedSwizzle(syntax.propertyName);
+  if (!components) {
+    const parsed = parseVectorComponents(syntax.propertyName);
+    if (parsed?.some((component) => component >= objectType.size)) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidSwizzle,
+        `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not available on type ${JSON.stringify(formatShaderType(objectType))}.`,
+        syntax.propertyRange,
+      );
+    }
+
+    return expressionFailure(
+      ShaderDiagnosticCode.InvalidSwizzle,
+      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not supported; the POC supports only ".x", ".y", and ".xy".`,
+      syntax.propertyRange,
+    );
+  }
+
+  if (components.some((component) => component >= objectType.size)) {
+    return expressionFailure(
+      ShaderDiagnosticCode.InvalidSwizzle,
+      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not available on type ${JSON.stringify(formatShaderType(objectType))}.`,
+      syntax.propertyRange,
+    );
+  }
+
+  return {
+    ok: true,
+    expression: {
+      kind: "swizzle",
+      expression: object.expression,
+      components,
+      type: swizzleType(components),
+      range: syntax.range,
+    },
+  };
+}
+
+function supportedSwizzle(
+  propertyName: string,
+): ShaderSwizzleComponents | undefined {
+  switch (propertyName) {
+    case "x":
+      return [0];
+    case "y":
+      return [1];
+    case "xy":
+      return [0, 1];
+    default:
+      return undefined;
+  }
+}
+
+function parseVectorComponents(
+  propertyName: string,
+): ShaderSwizzleComponents | undefined {
+  if (propertyName.length < 1 || propertyName.length > 4) return undefined;
+
+  const first = vectorComponent(propertyName[0]);
+  if (first === undefined) return undefined;
+  if (propertyName.length === 1) return [first];
+
+  const second = vectorComponent(propertyName[1]);
+  if (second === undefined) return undefined;
+  if (propertyName.length === 2) return [first, second];
+
+  const third = vectorComponent(propertyName[2]);
+  if (third === undefined) return undefined;
+  if (propertyName.length === 3) return [first, second, third];
+
+  const fourth = vectorComponent(propertyName[3]);
+  return fourth === undefined ? undefined : [first, second, third, fourth];
+}
+
+function vectorComponent(
+  component: string | undefined,
+): ShaderVectorComponent | undefined {
+  switch (component) {
+    case "x":
+      return 0;
+    case "y":
+      return 1;
+    case "z":
+      return 2;
+    case "w":
+      return 3;
+    default:
+      return undefined;
+  }
+}
+
+function swizzleType(components: ShaderSwizzleComponents): ShaderValueType {
+  if (components.length === 1) return F32_TYPE;
+  return { kind: "vector", scalar: "f32", size: components.length };
+}
+
+function formatShaderType(type: ShaderValueType): string {
+  return type.kind === "scalar" ? "F32" : `Vec${type.size}<F32>`;
 }
 
 function lowerDefaultUniform(
