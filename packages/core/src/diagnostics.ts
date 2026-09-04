@@ -33,6 +33,8 @@ export const ShaderDiagnosticCode = {
   InvalidUniform: "SHDR1203",
   InvalidSwizzle: "SHDR1204",
   InvalidBinaryOperation: "SHDR1205",
+  InvalidConstructor: "SHDR1206",
+  InvalidReturnType: "SHDR1207",
 } as const;
 
 export type ShaderDiagnosticCode =

@@ -136,11 +136,14 @@ declare function vec4(
   z: Expr<F32>,
   w: Expr<F32>,
 ): Expr<Vec4<F32>>;
+
+declare function vec4(value: Expr<F32>): Expr<Vec4<F32>>;
+declare function vec4(value: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
 ```
 
-The second overload supports idiomatic construction such as `vec4(uv.xy, 0, 1)`. `Vec3`, scalar splat, and other GLSL constructor combinations remain deferred.
+The second overload supports idiomatic construction such as `vec4(uv.xy, 0, 1)`. The unary scalar form splats one `F32` across all four components, while the unary `Vec4` form performs a copy/identity construction. Semantic lowering classifies all four overloads as the same `vec4` constructor call IR with an ordered argument list and `Vec4<f32>` result. `SHDR1206` rejects all other arity/type combinations on the complete call. `Vec3`, mixed component packing, and other GLSL constructor combinations remain deferred.
 
-Numeric source literals become `Expr<F32>` through the virtual transformation described below. The final returned expression must have type `Expr<Vec4<F32>>`.
+Numeric source literals become `Expr<F32>` through the virtual transformation described below. The final returned expression must have type `Expr<Vec4<F32>>`; semantic lowering reports `SHDR1207` on the returned expression when it resolves to another type.
 
 Assignment, `let`, `var`, type annotations, expression statements, unary operators including unary minus, other binary operators, optional access, nested calls other than supported constructors, and all other statement and expression forms are unsupported. Encountering unsupported syntax must produce a shader diagnostic rather than being silently interpreted as JavaScript.
 

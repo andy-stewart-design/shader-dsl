@@ -816,22 +816,30 @@ One nine-case parity matrix exercises every `F32`, `Vec2`, and `Vec4` left/right
 
 **Work**
 
-Support both initial `vec4` constructor forms:
+Support four initial `vec4` constructor forms:
 
 ```ts
 vec4(x: Expr<F32>, y: Expr<F32>, z: Expr<F32>, w: Expr<F32>)
 vec4(xy: Expr<Vec2<F32>>, z: Expr<F32>, w: Expr<F32>)
+vec4(value: Expr<F32>)
+vec4(value: Expr<Vec4<F32>>)
 ```
 
-Both forms produce `Expr<Vec4<F32>>` through the TypeScript 7 checker adapter and `Vec4<F32>` in IR. Represent constructor arguments as an ordered expression list rather than four scalar-specific fields. Require the final callback result to be `Vec4<F32>`. Do not add `Vec3`, scalar splat, or other GLSL constructor combinations in this step.
+All forms produce `Expr<Vec4<F32>>` through the TypeScript 7 checker adapter and `Vec4<F32>` in IR. The unary scalar form has splat semantics; the unary `Vec4` form has copy/identity semantics. Represent constructor arguments as an ordered expression list rather than scalar-specific fields. Require the final callback result to be `Vec4<F32>`. Do not add `Vec3`, mixed component packing, or other GLSL constructor combinations in this step.
 
 **Automated verification**
 
-Create a constructor parity matrix that runs four-scalar construction, `vec4(uv.xy, 0, 1)`, wrong arity, and unsupported vector argument combinations through both the TypeScript 7 checker and shader semantic analysis. Also test unsupported call targets, inferred result types, and invalid final return type.
+Create a constructor parity matrix that runs four-scalar construction, `vec4(uv.xy, 0, 1)`, scalar splat, `Vec4` copy, wrong arity, and unsupported vector argument combinations through both the TypeScript 7 checker and shader semantic analysis. Also test unsupported call targets, inferred result types, and invalid final return type.
 
 **Done when**
 
-Both supported `vec4` forms lower to the same typed constructor IR shape with no diagnostics, and the complete target shader lowers to a typed IR module with no diagnostics.
+All four supported `vec4` forms lower to the same typed constructor IR shape with no diagnostics, and the complete target shader lowers to a typed IR module with no diagnostics.
+
+**Result — complete**
+
+The public `shdr` package and semantic lowerer now support exactly the four-`F32`, `Vec2<F32>`-plus-two-`F32`, scalar-splat, and `Vec4<F32>` copy/identity `vec4` forms. Calls recursively lower an ordered argument list, are semantically classified as the `vec4` constructor, and produce generic call IR with resolved `Vec4<f32>` type and the complete original call range. This includes full lowering of the idiomatic target form `vec4(uv.xy, 0, 1)` after `uv` division and swizzle lowering.
+
+`SHDR1206` reports unmatched constructor arity/type combinations on the call, while unsupported semantic call targets retain a callee-ranged `SHDR1106`. `SHDR1207` requires the final callback expression to resolve to `Vec4<f32>`. An eight-case constructor parity matrix verifies all four valid forms and representative invalid arity/vector placements against the real TypeScript 7 overloads. Core and public type tests cover ordered call IR, unary splat and copy calls, local return linkage, unsupported targets, invalid final returns, and the absence of a permissive emitted implementation signature.
 
 ## Step 4.6 — Stabilize target-neutral lowering through typed IR
 

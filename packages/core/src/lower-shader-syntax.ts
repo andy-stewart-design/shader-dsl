@@ -12,6 +12,7 @@ import type {
 import type {
   ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,
+  ShaderCallExpressionSyntax,
   ShaderExpressionSyntax,
   ShaderPropertyAccessSyntax,
 } from "./shader-syntax.js";
@@ -120,6 +121,15 @@ export function lowerShaderSyntax(
     futureNames,
   });
   if (!returned.ok) return failure(returned.diagnostic);
+  if (!isVec4(returned.expression.type)) {
+    return failure(
+      diagnostic(
+        ShaderDiagnosticCode.InvalidReturnType,
+        `Fragment shaders must return "Expr<Vec4<F32>>"; received ${JSON.stringify(formatExpressionType(returned.expression.type))}.`,
+        syntax.returnExpression.range,
+      ),
+    );
+  }
 
   return {
     ok: true,
@@ -222,15 +232,86 @@ function lowerExpression(
       return lowerBinaryExpression(syntax, context);
 
     case "call-expression":
-      return expressionFailure(
-        ShaderDiagnosticCode.UnsupportedCall,
-        "Shader-call semantic lowering is not available yet.",
-        syntax.range,
-      );
+      return lowerCallExpression(syntax, context);
 
     default:
       return assertNever(syntax);
   }
+}
+
+function lowerCallExpression(
+  syntax: ShaderCallExpressionSyntax,
+  context: LoweringContext,
+): LowerExpressionResult {
+  if (syntax.calleeName !== "vec4") {
+    return expressionFailure(
+      ShaderDiagnosticCode.UnsupportedCall,
+      `Unsupported shader call ${JSON.stringify(syntax.calleeName)}; the POC supports only "vec4".`,
+      syntax.calleeRange,
+    );
+  }
+
+  const args: ShaderExpression[] = [];
+  for (const argument of syntax.arguments) {
+    const lowered = lowerExpression(argument, context);
+    if (!lowered.ok) return lowered;
+    args.push(lowered.expression);
+  }
+
+  if (!isVec4ConstructorArguments(args)) {
+    const argumentTypes = args
+      .map((argument) => formatExpressionType(argument.type))
+      .join(", ");
+    return expressionFailure(
+      ShaderDiagnosticCode.InvalidConstructor,
+      `No matching "vec4" constructor for argument types (${argumentTypes}).`,
+      syntax.range,
+    );
+  }
+
+  return {
+    ok: true,
+    expression: {
+      kind: "call",
+      target: { kind: "constructor", name: "vec4" },
+      arguments: args,
+      type: VEC4_F32_TYPE,
+      range: syntax.range,
+    },
+  };
+}
+
+function isVec4ConstructorArguments(
+  args: readonly ShaderExpression[],
+): boolean {
+  if (args.length === 1) {
+    const [value] = args;
+    return value !== undefined && (isF32(value.type) || isVec4(value.type));
+  }
+
+  if (args.length === 4) {
+    return args.every((argument) => isF32(argument.type));
+  }
+
+  if (args.length !== 3) return false;
+  const [xy, z, w] = args;
+  return (
+    xy?.type.kind === "vector" &&
+    xy.type.scalar === "f32" &&
+    xy.type.size === 2 &&
+    z !== undefined &&
+    isF32(z.type) &&
+    w !== undefined &&
+    isF32(w.type)
+  );
+}
+
+function isVec4(type: ShaderValueType): boolean {
+  return type.kind === "vector" && type.scalar === "f32" && type.size === 4;
+}
+
+function isF32(type: ShaderValueType): boolean {
+  return type.kind === "scalar" && type.scalar === "f32";
 }
 
 function lowerBinaryExpression(
@@ -277,13 +358,20 @@ function divisionResultType(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
-  if (left.kind === "scalar") {
-    return right.kind === "scalar" ? F32_TYPE : undefined;
+  if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
+  if (
+    left.kind !== "vector" ||
+    left.scalar !== "f32" ||
+    (left.size !== 2 && left.size !== 4)
+  ) {
+    return undefined;
   }
-
-  if (left.size !== 2 && left.size !== 4) return undefined;
-  if (right.kind === "scalar") return left;
-  return right.size === left.size ? left : undefined;
+  if (isF32(right)) return left;
+  return right.kind === "vector" &&
+    right.scalar === "f32" &&
+    right.size === left.size
+    ? left
+    : undefined;
 }
 
 function formatExpressionType(type: ShaderValueType): string {

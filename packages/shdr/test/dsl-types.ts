@@ -35,9 +35,15 @@ const vector4X = vector4.x;
 const vector4Y = vector4.y;
 const vector4XY = vector4.xy;
 const color = vec4(scalar, scalar, scalar, scalar);
+const colorFromVector2 = vec4(vector2, scalar, scalar);
+const colorFromScalarSplat = vec4(scalar);
+const colorFromVector4 = vec4(vector4);
 const shader = createFragmentShader(({ coord, uniforms }) =>
   vec4(coord.x, coord.y, uniforms.time, uniforms.time),
 );
+
+// @ts-expect-error Fragment shaders must return Expr<Vec4<F32>>.
+const invalidShaderReturn = createFragmentShader(({ coord }) => coord.xy);
 
 // @ts-expect-error Vec2 / Vec4 has no shader overload.
 const invalidDivision = __shdr_internal_div(vector2, vector4);
@@ -80,5 +86,8 @@ type DslTypeAssertions = [
   Expect<Equal<typeof vector4Y, Expr<F32>>>,
   Expect<Equal<typeof vector4XY, Expr<Vec2<F32>>>>,
   Expect<Equal<typeof color, Expr<Vec4<F32>>>>,
+  Expect<Equal<typeof colorFromVector2, Expr<Vec4<F32>>>>,
+  Expect<Equal<typeof colorFromScalarSplat, Expr<Vec4<F32>>>>,
+  Expect<Equal<typeof colorFromVector4, Expr<Vec4<F32>>>>,
   Expect<Equal<typeof shader, FragmentShaderSource>>,
 ];

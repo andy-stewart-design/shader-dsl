@@ -4,12 +4,12 @@ import {
   lowerShaderSyntax,
   parseShaderFile,
   ShaderDiagnosticCode,
+  type ShaderConstDeclaration,
   type ShaderExpression,
-  type ShaderReturnStatement,
   type ShaderValueType,
 } from "../src/index.js";
 
-function lowerReturnedExpression(expression: string): {
+function lowerTestExpression(expression: string): {
   readonly source: string;
   readonly result:
     | { readonly ok: true; readonly expression: ShaderExpression }
@@ -23,7 +23,8 @@ function lowerReturnedExpression(expression: string): {
   const source = `import { createFragmentShader } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
-  return ${expression};
+  const result = ${expression};
+  return coord;
 });
 `;
   const parsed = parseShaderFile(source, "swizzle.shdr.ts");
@@ -38,13 +39,13 @@ export default createFragmentShader(({ coord, uniforms }) => {
     };
   }
 
-  const returned = lowered.module.statements.at(-1) as
-    ShaderReturnStatement | undefined;
-  expect(returned?.kind).toBe("return-statement");
-  if (!returned) throw new Error("Expected a lowered return statement.");
+  const declaration = lowered.module.statements[0] as
+    ShaderConstDeclaration | undefined;
+  expect(declaration?.kind).toBe("const-declaration");
+  if (!declaration) throw new Error("Expected a lowered const declaration.");
   return {
     source,
-    result: { ok: true, expression: returned.expression },
+    result: { ok: true, expression: declaration.initializer },
   };
 }
 
@@ -85,7 +86,7 @@ describe("swizzle lowering", () => {
     for (const swizzle of swizzles) {
       it(`lowers ${vector.type.size}-component .${swizzle.property}`, () => {
         const expressionSource = `${vector.source}.${swizzle.property}`;
-        const { source, result } = lowerReturnedExpression(expressionSource);
+        const { source, result } = lowerTestExpression(expressionSource);
         expect(result.ok).toBe(true);
         if (!result.ok) return;
 
@@ -108,7 +109,8 @@ describe("swizzle lowering", () => {
 
 export default createFragmentShader(({ coord, uniforms }) => {
   const local = uniforms.resolution;
-  return local.xy;
+  const result = local.xy;
+  return coord;
 });
 `;
     const parsed = parseShaderFile(source, "local-swizzle.shdr.ts");
@@ -119,9 +121,9 @@ export default createFragmentShader(({ coord, uniforms }) => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.module.statements.at(-1)).toMatchObject({
-      kind: "return-statement",
-      expression: {
+    expect(result.module.statements[1]).toMatchObject({
+      kind: "const-declaration",
+      initializer: {
         kind: "swizzle",
         components: [0, 1],
         type: { kind: "vector", scalar: "f32", size: 2 },
@@ -140,7 +142,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
 export default createFragmentShader(({ coord, uniforms }) => {
   const scalar = uniforms.time;
-  return scalar.x;
+  const result = scalar.x;
+  return coord;
 });
 `;
     const parsed = parseShaderFile(source, "scalar-swizzle.shdr.ts");
@@ -163,7 +166,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
   it("rejects a component unavailable on the receiver vector", () => {
     const expressionSource = "uniforms.resolution.z";
-    const { source, result } = lowerReturnedExpression(expressionSource);
+    const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
       ok: false,
@@ -180,7 +183,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
   it("rejects an available component outside the POC swizzle set", () => {
     const expressionSource = "coord.z";
-    const { source, result } = lowerReturnedExpression(expressionSource);
+    const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
       ok: false,
@@ -198,7 +201,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
   it("rejects an unsupported multi-component spelling", () => {
     const expressionSource = "coord.yx";
-    const { source, result } = lowerReturnedExpression(expressionSource);
+    const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
       ok: false,
