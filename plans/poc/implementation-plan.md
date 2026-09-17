@@ -889,6 +889,14 @@ Add expression-level tests, including nested division and `1 / 2`. Verify genera
 
 Every expression IR node has deterministic valid GLSL output.
 
+**Result — complete**
+
+The core GLSL expression emitter now handles every typed IR expression node deterministically. It normalizes finite numeric values to GLSL floating-point syntax, emits semantic default uniforms and local references, converts component-index swizzles to GLSL component names, fully parenthesizes binary division, and emits ordered `vec4` constructor arguments. Non-finite direct-IR numeric values are rejected rather than producing invalid shader text.
+
+Fragment position emits a target-specific canonical `vec4` built from `gl_FragCoord`, preserving X, depth, reciprocal W, and half-integer pixel centers while converting Y with `u_resolution.y - gl_FragCoord.y`. Expression generation reports stable explicit and implicit uniform dependencies, so any fragment-position use records `resolution`; a module generator may substitute a module-local canonical coordinate name without changing this dependency.
+
+Expression-level tests cover every IR node, all default uniforms, scalar literals, `1 / 2`, both nested-division associations, full component swizzling, constructor calls, coordinate orientation, optional module-local fragment-position references, and deterministic dependency metadata.
+
 ## Step 5.2 — Emit the GLSL fragment module
 
 **Work**
