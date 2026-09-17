@@ -1248,6 +1248,14 @@ Add small renderer tests or browser assertions showing that each uniform locatio
 
 All fixed POC uniforms have documented, consistent runtime behavior.
 
+**Result — complete**
+
+The REPL WebGL path is now a persistent animation renderer. It resizes the canvas drawing buffer to the displayed CSS size times device pixel ratio, updates the viewport consistently, and binds every active fixed uniform on each frame: drawing-buffer dimensions for `u_resolution`, top-left-origin pointer coordinates for `u_mouse`, and elapsed seconds since renderer creation for `u_time`. Pointer input is scaled into drawing-buffer pixels without a Y flip. Candidate shaders are compiled and linked before replacing renderer resources, preserving the previous program and frame on failure.
+
+The browser suite verifies that `resolution`, `mouse`, and `time` locations are bound when active. It separately confirms that a source using `coord` without reading `uniforms.resolution` still activates GLSL `u_resolution`, while the equivalent WGSL uses `@builtin(position)` directly and omits the unused resolution binding. Canvas resizing is checked against CSS dimensions and device pixel ratio; top, center, and bottom samples establish canonical top-left Y orientation; pointer movement produces matching red/green output without inversion; and a time-driven shader changes pixels across animation frames.
+
+The REPL README now documents resolution, mouse, time, active-uniform binding, and cross-target coordinate behavior. `pnpm --filter repl check`, `pnpm --filter repl test`, and `pnpm --filter repl build` complete successfully.
+
 ## Step 7.4 — Confirm core browser boundaries
 
 **Work**

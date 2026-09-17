@@ -223,6 +223,13 @@ kbd {
   background: #000;
 }
 
+.preview-canvas p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
 .validation-list {
   display: grid;
   align-content: start;

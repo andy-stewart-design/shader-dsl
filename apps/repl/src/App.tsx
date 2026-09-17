@@ -6,7 +6,7 @@ import type {
 } from "@shdr/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
-import { renderFragmentShader } from "./webgl-renderer.ts";
+import { WebGlRenderer } from "./webgl-renderer.ts";
 import { validateWgsl } from "./wgsl-validator.ts";
 
 const INITIAL_SOURCE = `import { createFragmentShader, vec4 } from "shdr";
@@ -90,6 +90,7 @@ function App() {
     useState<TargetValidations>(PENDING_VALIDATIONS);
   const [hasSuccessfulRender, setHasSuccessfulRender] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<WebGlRenderer>(null);
   const validationRun = useRef(0);
   const isDirty = source !== compiledSource;
 
@@ -98,31 +99,39 @@ function App() {
       const run = ++validationRun.current;
       setValidations(PENDING_VALIDATIONS);
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      try {
-        renderFragmentShader(canvas, outputs["glsl-es-300"]);
-        canvas.dataset.renderStatus = "success";
-        canvas.dataset.validationState = "success";
-        setHasSuccessfulRender(true);
-        setValidations((current) => ({
-          ...current,
-          "glsl-es-300": {
-            state: "success",
-            message: "GLSL compiled, linked, and rendered in WebGL 2.",
-          },
-        }));
-      } catch (error) {
-        canvas.dataset.validationState = "error";
-        if (!canvas.dataset.renderStatus) canvas.dataset.renderStatus = "error";
+      const renderer = rendererRef.current;
+      if (!renderer) {
         setValidations((current) => ({
           ...current,
           "glsl-es-300": {
             state: "error",
-            message: errorMessage(error),
+            message: "WebGL 2 renderer initialization failed.",
           },
         }));
+      } else {
+        try {
+          const boundUniforms = renderer.setFragmentShader(
+            outputs["glsl-es-300"],
+          );
+          setHasSuccessfulRender(true);
+          setValidations((current) => ({
+            ...current,
+            "glsl-es-300": {
+              state: "success",
+              message:
+                "GLSL compiled, linked, and rendered in WebGL 2. " +
+                `Bound uniforms: ${boundUniforms.join(", ") || "none"}.`,
+            },
+          }));
+        } catch (error) {
+          setValidations((current) => ({
+            ...current,
+            "glsl-es-300": {
+              state: "error",
+              message: errorMessage(error),
+            },
+          }));
+        }
       }
 
       const wgsl = await validateWgsl(outputs.wgsl);
@@ -136,10 +145,22 @@ function App() {
   );
 
   useEffect(() => {
+    if (canvasRef.current) {
+      try {
+        rendererRef.current = new WebGlRenderer(canvasRef.current);
+      } catch {
+        rendererRef.current = null;
+      }
+    }
     const frame = requestAnimationFrame(() => {
       void validateOutputs(INITIAL_COMPILATION.outputs);
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      validationRun.current += 1;
+      rendererRef.current?.dispose();
+      rendererRef.current = null;
+    };
   }, [validateOutputs]);
 
   const compile = () => {
@@ -266,7 +287,13 @@ function App() {
             />
           </div>
           <div className="preview-body">
-            <canvas ref={canvasRef} width="512" height="512" />
+            <div className="preview-canvas">
+              <canvas ref={canvasRef} width="512" height="512" />
+              <p>
+                Resolution follows the display size. Pointer coordinates use a
+                top-left origin; time advances in seconds.
+              </p>
+            </div>
             <div className="validation-list" aria-label="Target validation results">
               {TARGETS.map(({ target, label }) => {
                 const validation = validations[target];
