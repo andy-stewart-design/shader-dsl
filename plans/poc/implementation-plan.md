@@ -1075,6 +1075,14 @@ Call the plugin transform hook in isolation and assert:
 
 Vite receives valid JavaScript rather than raw GLSL or untransformed shader TypeScript.
 
+**Result — complete**
+
+`@shdr/vite` now exports a `shdr()` Vite plugin as both its named and default entry point. The plugin runs with `enforce: "pre"`, strips query strings and fragments before recognizing `.shdr.ts`, ignores all other module IDs, and compiles recognized source through the public `compileFragment(source, { target: "glsl-es-300" })` boundary.
+
+Successful transforms return an ordinary JavaScript module whose default export is the generated GLSL serialized with `JSON.stringify`; the transform explicitly returns `map: null`. Failed compilation publishes a `ShdrCompileError` through Vite's plugin context with all shader diagnostic messages, the primary shader code, the query-free file ID, and a one-based line/zero-based column computed from the original-source diagnostic range.
+
+Isolated hook tests verify pre-transform configuration, non-shader delegation, query-bearing shader IDs, valid JavaScript and GLSL output without original imports or operator source, a null source map, and exact source location for an unsupported-operator error.
+
 ## Step 6.2 — Create the vanilla Vite fixture
 
 **Work**
