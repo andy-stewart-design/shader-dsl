@@ -4,8 +4,10 @@ import type {
   ShaderTarget,
   TextRange,
 } from "@shdr/core";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
+import { renderFragmentShader } from "./webgl-renderer.ts";
+import { validateWgsl } from "./wgsl-validator.ts";
 
 const INITIAL_SOURCE = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -39,19 +41,128 @@ interface CompilationFailure {
 }
 
 type Compilation = CompilationSuccess | CompilationFailure;
+type ValidationState =
+  | "pending"
+  | "success"
+  | "error"
+  | "unavailable"
+  | "blocked";
+
+interface ValidationResult {
+  readonly state: ValidationState;
+  readonly message: string;
+}
+
+type TargetValidations = Readonly<Record<ShaderTarget, ValidationResult>>;
+
+const INITIAL_COMPILATION = compileInitialSource();
+
+const PENDING_VALIDATIONS: TargetValidations = {
+  "glsl-es-300": {
+    state: "pending",
+    message: "Waiting for WebGL 2 compilation and rendering.",
+  },
+  wgsl: {
+    state: "pending",
+    message: "Checking WebGPU availability.",
+  },
+};
+
+const BLOCKED_VALIDATIONS: TargetValidations = {
+  "glsl-es-300": {
+    state: "blocked",
+    message: "Blocked by shared source diagnostics.",
+  },
+  wgsl: {
+    state: "blocked",
+    message: "Blocked by shared source diagnostics.",
+  },
+};
 
 function App() {
   const [source, setSource] = useState(INITIAL_SOURCE);
   const [compiledSource, setCompiledSource] = useState(INITIAL_SOURCE);
-  const [compilation, setCompilation] = useState<Compilation>(() =>
-    compileBothTargets(INITIAL_SOURCE),
-  );
+  const [compilation, setCompilation] =
+    useState<Compilation>(INITIAL_COMPILATION);
+  const [selectedTarget, setSelectedTarget] =
+    useState<ShaderTarget>("glsl-es-300");
+  const [validations, setValidations] =
+    useState<TargetValidations>(PENDING_VALIDATIONS);
+  const [hasSuccessfulRender, setHasSuccessfulRender] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const validationRun = useRef(0);
   const isDirty = source !== compiledSource;
 
+  const validateOutputs = useCallback(
+    async (outputs: Readonly<Record<ShaderTarget, string>>) => {
+      const run = ++validationRun.current;
+      setValidations(PENDING_VALIDATIONS);
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      try {
+        renderFragmentShader(canvas, outputs["glsl-es-300"]);
+        canvas.dataset.renderStatus = "success";
+        canvas.dataset.validationState = "success";
+        setHasSuccessfulRender(true);
+        setValidations((current) => ({
+          ...current,
+          "glsl-es-300": {
+            state: "success",
+            message: "GLSL compiled, linked, and rendered in WebGL 2.",
+          },
+        }));
+      } catch (error) {
+        canvas.dataset.validationState = "error";
+        if (!canvas.dataset.renderStatus) canvas.dataset.renderStatus = "error";
+        setValidations((current) => ({
+          ...current,
+          "glsl-es-300": {
+            state: "error",
+            message: errorMessage(error),
+          },
+        }));
+      }
+
+      const wgsl = await validateWgsl(outputs.wgsl);
+      if (validationRun.current !== run) return;
+      setValidations((current) => ({
+        ...current,
+        wgsl,
+      }));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      void validateOutputs(INITIAL_COMPILATION.outputs);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [validateOutputs]);
+
   const compile = () => {
-    setCompilation(compileBothTargets(source));
+    const next = compileBothTargets(source);
+    setCompilation(next);
     setCompiledSource(source);
+
+    if (!next.ok) {
+      validationRun.current += 1;
+      setValidations(BLOCKED_VALIDATIONS);
+      return;
+    }
+
+    void validateOutputs(next.outputs);
   };
+
+  const selected = TARGETS.find(
+    ({ target }) => target === selectedTarget,
+  );
+  if (!selected) throw new Error(`Unknown selected target: ${selectedTarget}`);
+  const selectedValidation = validations[selectedTarget];
+  const previewIsPreserved =
+    hasSuccessfulRender && validations["glsl-es-300"].state !== "success";
 
   return (
     <div className="repl-shell">
@@ -60,7 +171,8 @@ function App() {
           <p className="eyebrow">Shdr proof of concept</p>
           <h1>Fragment shader REPL</h1>
           <p className="subtitle">
-            Lower TypeScript-shaped shader source once, then inspect both browser-generated targets.
+            Compile one typed IR to two targets, validate both in the browser,
+            and render the GLSL result with WebGL 2.
           </p>
         </div>
         <button className="compile-button" type="button" onClick={compile}>
@@ -75,12 +187,13 @@ function App() {
               <p className="panel-kicker">Input</p>
               <h2 id="source-title">Shader source</h2>
             </div>
-            <span className={`status ${isDirty ? "status-pending" : "status-ready"}`}>
-              {isDirty ? "Uncompiled changes" : "Compiled"}
-            </span>
+            <Status
+              state={isDirty ? "pending" : "success"}
+              label={isDirty ? "Uncompiled changes" : "Compiled"}
+            />
           </div>
           <textarea
-            aria-label="Shader source"
+            aria-label="Shader source editor"
             value={source}
             onChange={(event) => setSource(event.target.value)}
             onKeyDown={(event) => {
@@ -96,17 +209,23 @@ function App() {
           </p>
         </section>
 
-        <section className="panel diagnostics-panel" aria-labelledby="diagnostics-title">
+        <section
+          className="panel diagnostics-panel"
+          aria-labelledby="diagnostics-title"
+        >
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Shared semantic pass</p>
               <h2 id="diagnostics-title">Diagnostics</h2>
             </div>
-            <span className={`status ${compilation.ok ? "status-ready" : "status-error"}`}>
-              {compilation.ok
-                ? "No errors"
-                : `${compilation.diagnostics.length} error${compilation.diagnostics.length === 1 ? "" : "s"}`}
-            </span>
+            <Status
+              state={compilation.ok ? "success" : "error"}
+              label={
+                compilation.ok
+                  ? "No errors"
+                  : `${compilation.diagnostics.length} error${compilation.diagnostics.length === 1 ? "" : "s"}`
+              }
+            />
           </div>
           <div className="diagnostics" aria-live="polite">
             {compilation.ok ? (
@@ -114,9 +233,14 @@ function App() {
             ) : (
               <ol>
                 {compilation.diagnostics.map((diagnostic, index) => {
-                  const location = sourceLocation(compiledSource, diagnostic.range);
+                  const location = sourceLocation(
+                    compiledSource,
+                    diagnostic.range,
+                  );
                   return (
-                    <li key={`${diagnostic.code}-${diagnostic.range.start}-${index}`}>
+                    <li
+                      key={`${diagnostic.code}-${diagnostic.range.start}-${index}`}
+                    >
                       <div>
                         <strong>{diagnostic.code}</strong>
                         <span>{location}</span>
@@ -130,38 +254,109 @@ function App() {
           </div>
         </section>
 
-        <section className="outputs" aria-label="Generated shader targets">
-          {TARGETS.map(({ target, label, language }) => (
-            <article className="panel output-panel" key={target}>
-              <div className="panel-header">
-                <div>
-                  <p className="panel-kicker">{language} backend</p>
-                  <h2>{label}</h2>
-                </div>
-                <span
-                  className={`status ${compilation.ok ? "status-pending" : "status-error"}`}
-                  title={
-                    compilation.ok
-                      ? "Runtime validation is added in the next REPL step."
-                      : "Generation is blocked by shared source diagnostics."
-                  }
-                >
-                  {compilation.ok ? "Generated · validation pending" : "Blocked"}
-                </span>
-              </div>
-              <pre data-target={target}>
-                <code>
-                  {compilation.ok
-                    ? compilation.outputs[target]
-                    : "Fix the shared source diagnostics to generate this target."}
-                </code>
-              </pre>
-            </article>
-          ))}
+        <section className="panel preview-panel" aria-labelledby="preview-title">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">WebGL 2</p>
+              <h2 id="preview-title">Rendered GLSL</h2>
+            </div>
+            <Status
+              state={validations["glsl-es-300"].state}
+              label={validationLabel(validations["glsl-es-300"].state)}
+            />
+          </div>
+          <div className="preview-body">
+            <canvas ref={canvasRef} width="512" height="512" />
+            <div className="validation-list" aria-label="Target validation results">
+              {TARGETS.map(({ target, label }) => {
+                const validation = validations[target];
+                return (
+                  <div
+                    className="validation-result"
+                    data-validation-state={validation.state}
+                    data-validation-target={target}
+                    key={target}
+                  >
+                    <div>
+                      <strong>{label}</strong>
+                      <Status
+                        state={validation.state}
+                        label={validationLabel(validation.state)}
+                      />
+                    </div>
+                    <p>{validation.message}</p>
+                  </div>
+                );
+              })}
+              {previewIsPreserved ? (
+                <p className="preserved-note">
+                  The canvas preserves the last successful GLSL render.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel output-panel" aria-labelledby="output-title">
+          <div className="target-tabs" role="tablist" aria-label="Shader output target">
+            {TARGETS.map(({ target, label }) => (
+              <button
+                aria-controls="target-output"
+                aria-selected={target === selectedTarget}
+                id={`target-tab-${target}`}
+                key={target}
+                onClick={() => setSelectedTarget(target)}
+                role="tab"
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="panel-header output-header">
+            <div>
+              <p className="panel-kicker">{selected.language} backend</p>
+              <h2 id="output-title">{selected.label} output</h2>
+            </div>
+            <Status
+              state={selectedValidation.state}
+              label={validationLabel(selectedValidation.state)}
+            />
+          </div>
+          <pre
+            aria-labelledby={`target-tab-${selectedTarget}`}
+            data-target={selectedTarget}
+            id="target-output"
+            role="tabpanel"
+          >
+            <code>
+              {compilation.ok
+                ? compilation.outputs[selectedTarget]
+                : "Fix the shared source diagnostics to generate this target."}
+            </code>
+          </pre>
         </section>
       </main>
     </div>
   );
+}
+
+function Status({
+  state,
+  label,
+}: {
+  readonly state: ValidationState;
+  readonly label: string;
+}) {
+  return <span className={`status status-${statusTone(state)}`}>{label}</span>;
+}
+
+function compileInitialSource(): CompilationSuccess {
+  const compilation = compileBothTargets(INITIAL_SOURCE);
+  if (!compilation.ok) {
+    throw new Error("The REPL's initial shader must compile successfully.");
+  }
+  return compilation;
 }
 
 function compileBothTargets(source: string): Compilation {
@@ -184,6 +379,38 @@ function sourceLocation(source: string, range: TextRange): string {
   const prefix = source.slice(0, range.start);
   const lines = prefix.split("\n");
   return `Line ${lines.length}, column ${(lines.at(-1)?.length ?? 0) + 1}`;
+}
+
+function validationLabel(state: ValidationState): string {
+  switch (state) {
+    case "pending":
+      return "Validating";
+    case "success":
+      return "Valid";
+    case "error":
+      return "Invalid";
+    case "unavailable":
+      return "Unavailable";
+    case "blocked":
+      return "Blocked";
+  }
+}
+
+function statusTone(state: ValidationState): "ready" | "pending" | "error" {
+  switch (state) {
+    case "success":
+      return "ready";
+    case "pending":
+    case "unavailable":
+      return "pending";
+    case "error":
+    case "blocked":
+      return "error";
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export default App;

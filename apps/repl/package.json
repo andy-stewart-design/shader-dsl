@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "check": "tsc -b && oxlint",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pretest": "playwright install chromium",
+    "test": "node verify-browser.mjs"
   },
   "dependencies": {
     "@shdr/core": "workspace:*",
@@ -20,7 +22,9 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "@webgpu/types": "^0.1.69",
     "oxlint": "^1.81.0",
+    "playwright": "^1.63.0",
     "typescript": "7.0.2",
     "vite": "^8.3.0"
   }

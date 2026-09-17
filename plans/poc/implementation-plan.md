@@ -1218,6 +1218,16 @@ In a WebGPU-capable browser, compile the target source, inspect both generated o
 
 The browser can compile one source through the shared core, validate both generated shader languages, and render the GLSL result.
 
+**Result — complete**
+
+The REPL now compiles and links generated GLSL in WebGL 2 and renders it on a persistent canvas with the fullscreen-triangle renderer adapted from `vite-basic`. A successful draw updates explicit validation state; compilation, link, and draw failures are surfaced in the UI. Shared source failures block new target validation without touching the canvas, and GLSL failures occur before drawing, so the last successful frame remains visible whenever the current source is invalid.
+
+Generated WGSL is validated with the browser WebGPU API when available: the REPL requests an adapter and device, creates a shader module, awaits `getCompilationInfo()`, checks a validation error scope, and reports compiler messages. Missing WebGPU, a missing adapter, and device-request failure are represented as an explicit unavailable limitation rather than success. Target tabs expose GLSL and WGSL output while a persistent validation summary shows both target results.
+
+`apps/repl/verify-browser.mjs` exercises the application in Playwright Chromium. It checks target selection and validation-result display, confirms WebGL compilation/rendering, edits the blue literal and observes the center canvas pixel change, introduces a shared source error, and confirms both targets become blocked while the edited frame is preserved byte-for-byte. The pinned Playwright Chromium environment exposed WebGPU during verification and reported successful WGSL shader-module compilation.
+
+`pnpm --filter repl check`, `pnpm --filter repl test`, and `pnpm --filter repl build` complete successfully.
+
 ## Step 7.3 — Bind all default uniforms
 
 **Work**

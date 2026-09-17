@@ -91,7 +91,7 @@ textarea:focus-visible {
 }
 
 .source-panel {
-  grid-row: span 2;
+  grid-row: span 3;
 }
 
 .panel-header {
@@ -206,10 +206,101 @@ kbd {
   font-size: 0.8rem;
 }
 
-.outputs {
+.preview-body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1.3fr);
   gap: 16px;
+  padding: 16px;
+}
+
+.preview-body canvas {
+  display: block;
+  width: 100%;
+  max-width: 512px;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #000;
+}
+
+.validation-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.validation-result {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: var(--surface-raised);
+}
+
+.validation-result > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.validation-result strong {
+  color: var(--text-strong);
+  font-size: 0.78rem;
+}
+
+.validation-result p,
+.preserved-note {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.preserved-note {
+  padding-left: 10px;
+  border-left: 2px solid var(--warning);
+  color: var(--warning);
+}
+
+.target-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-background);
+}
+
+.target-tabs button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 11px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.target-tabs button:hover {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.target-tabs button[aria-selected="true"] {
+  border-color: var(--border-strong);
+  color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.target-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.output-header {
+  border-top: 0;
 }
 
 .output-panel pre {
@@ -235,6 +326,10 @@ kbd {
   textarea {
     min-height: 430px;
   }
+
+  .preview-body {
+    grid-template-columns: minmax(220px, 0.6fr) minmax(260px, 1fr);
+  }
 }
 
 @media (max-width: 760px) {
@@ -248,8 +343,12 @@ kbd {
     gap: 18px;
   }
 
-  .outputs {
+  .preview-body {
     grid-template-columns: 1fr;
+  }
+
+  .preview-body canvas {
+    max-width: none;
   }
 
   .panel-header {
