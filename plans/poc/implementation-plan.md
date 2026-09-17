@@ -1103,6 +1103,14 @@ Assert the production bundle contains the generated GLSL and not the original op
 
 A production Vite build imports the shader as `FragmentShaderSource` and completes successfully.
 
+**Result — complete**
+
+`apps/vite-basic` is now a focused vanilla TypeScript/WebGL 2 fixture using the workspace `shdr` and `@shdr/vite` packages. Its Vite configuration activates the Shdr pre-transform, and `src/gradient.shdr.ts` contains the target DSL source. The application imports the transformed default export with a `FragmentShaderSource` type, compiles it with a hard-coded fullscreen-triangle vertex shader, binds `u_resolution` from the canvas dimensions, and renders into a fixed-size canvas with browser-visible success/error state.
+
+The fixture uses the pinned workspace TypeScript 7 version but intentionally does not invoke standalone `tsc` in its build. Its README documents that standalone TypeScript does not receive Vite shader semantics. Production build and test scripts run Vite followed by `verify-build.mjs`, which scans emitted JavaScript and asserts that generated GLSL and `shdr_fragment_color` are present while the original operator expression, `createFragmentShader`, and `shdr` import are absent.
+
+`pnpm --filter vite-basic build` completes successfully and verifies the production bundle.
+
 ## Step 6.3 — Verify Vite development mode
 
 **Work**
@@ -1117,6 +1125,14 @@ Run the fixture through the Vite dev server and verify the pre-transform is used
 **Done when**
 
 Both Vite development and production use the same `@shdr/core` compilation path.
+
+**Result — complete**
+
+`apps/vite-basic/verify-dev.mjs` now starts Vite programmatically on an ephemeral local port and requests `gradient.shdr.ts` through the real development module pipeline. It verifies that the response is a JavaScript default export containing generated GLSL and no original shader import, constructor call, or operator expression.
+
+The same test opens the application in Playwright Chromium, confirms the initial generated shader renders successfully, temporarily edits the shader's blue channel, waits for Vite to invalidate and regenerate the requested shader module, and verifies Vite's browser reload renders the edited shader without console, page, compile, or link errors. The original shader source is restored in a `finally` block. The fixture author also manually confirmed the initial development render with no errors.
+
+`pnpm --filter vite-basic test:dev` runs the focused development check, while the fixture's normal test covers both production bundle verification and development edit/reload behavior. Both modes therefore exercise the same `@shdr/vite` plugin and public `@shdr/core` GLSL compilation path.
 
 ## Step 6.4 — Add the rendered-gradient browser test
 
@@ -1137,6 +1153,14 @@ Assert:
 **Done when**
 
 The DSL source is proven end-to-end from Vite transform to GPU pixels.
+
+**Result — complete**
+
+`apps/vite-basic/verify-render.mjs` now starts the fixture through Vite and loads it in headless Playwright Chromium with WebGL enabled. It waits for the renderer's explicit success state, rejects browser console/page errors and WebGL readback errors, then reads representative RGBA pixels directly from the preserved WebGL 2 drawing buffer.
+
+The test checks the center against approximately half red and half green, the canonical top and bottom rows against near-zero and near-full green respectively, and blue/alpha against zero/opaque for every sample. This proves the source DSL's gradient, GLSL coordinate conversion, `u_resolution` binding, and GPU output end-to-end, including top-left-origin Y semantics.
+
+`pnpm --filter vite-basic test:render` runs the focused browser check, and the fixture's normal test now includes production output, development edit/reload, and rendered-pixel verification.
 
 ---
 
@@ -1165,6 +1189,14 @@ Edit the source and confirm that both generated outputs and shared diagnostics u
 **Done when**
 
 The target-neutral compiler and both generators run directly in the browser bundle.
+
+**Result — complete**
+
+`apps/repl` is now a React/Vite browser application using the pinned workspace TypeScript version and a direct workspace dependency on `@shdr/core`. The source editor starts with the canonical gradient example and supports explicit compilation by button or Ctrl/Command+Enter. Each compilation calls `lowerFragment` exactly once, then passes the successful typed IR independently to `generateFragment` for GLSL ES 3.00 and WGSL.
+
+The responsive UI presents both generated outputs simultaneously, one shared source-diagnostics pane with source locations, dirty/compiled source state, and an honest per-target status. Successful generation is marked as awaiting runtime validation rather than being reported as valid prematurely; shared semantic failures block both output panes. React coordinates UI state only—the compiler and backend calls remain direct, framework-independent APIs.
+
+`pnpm --filter repl check` and `pnpm --filter repl build` complete successfully. Browser verification edited a literal and observed both target panes update, then introduced an invalid uniform and observed the shared `SHDR1203` diagnostic, with compilation performed entirely in the local browser bundle and no external compiler request.
 
 ## Step 7.2 — Validate both targets and render GLSL output
 

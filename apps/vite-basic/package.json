@@ -1,0 +1,24 @@
+{
+  "name": "vite-basic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node verify-build.mjs",
+    "preview": "vite preview",
+    "pretest": "playwright install chromium",
+    "test": "vite build && node verify-build.mjs && node verify-dev.mjs && node verify-render.mjs",
+    "test:dev": "playwright install chromium && node verify-dev.mjs",
+    "test:render": "playwright install chromium && node verify-render.mjs"
+  },
+  "dependencies": {
+    "@shdr/vite": "workspace:*",
+    "shdr": "workspace:*"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "typescript": "7.0.2",
+    "vite": "^8.3.0"
+  }
+}
