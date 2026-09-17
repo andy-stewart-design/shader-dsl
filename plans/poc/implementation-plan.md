@@ -1309,6 +1309,12 @@ Repeat the Phase 3 VS Code checklist using the pinned workspace TypeScript versi
 
 Every final acceptance criterion in `spec.md` has a passing automated test or an explicitly recorded manual result.
 
+**Result — complete**
+
+The full acceptance sequence passed from a detached clean worktree at commit `3f29c2c` after `pnpm install --frozen-lockfile`. The run used Node.js 24.20.0 and pnpm 11.23.0, forced Turbo to bypass all caches, and completed `pnpm build`, `pnpm check`, and `pnpm test` with zero cached tasks. The normal test graph included the Vite development/production/pixel suite and the REPL WebGL/WebGPU browser suite.
+
+The real VS Code Extension Development Host checklist was rerun separately against VS Code 1.127.0 and TypeScript 7.0.2. It passed valid shader routing and exact hover, live invalid and nested division edits, mapped diagnostics, preserved ordinary TypeScript behavior, and standard provider ownership for `.ts`. Playwright 1.63.0 Chromium 153.0.8010.12 compiled/linked/rendered the GLSL and successfully compiled the WGSL shader module through WebGPU. `plans/poc/outcome.md` maps every final specification criterion to this evidence.
+
 ## Step 8.2 — Document known limitations and usage
 
 **Work**
@@ -1335,6 +1341,12 @@ Follow the README from a clean checkout without relying on undocumented local se
 
 Another developer can run the editor fixture, Vite demo, and REPL from the README alone.
 
+**Result — complete**
+
+The root starter README has been replaced with a project guide covering the canonical source, required tool versions, clean workspace commands, package map, VS Code workspace-TypeScript setup, real editor checklist, GLSL-targeted Vite configuration, vanilla integration fixture, and multi-target browser REPL. It documents the exact accepted module/callback/expression/constructor subset, both output targets, fixed uniforms, coordinate/depth conventions, and implicit GLSL resolution dependency.
+
+The guide explicitly distinguishes editor/Vite semantics from standalone `tsc`, records the unstable editor and bundle limitations, and states that WGSL rendering is a non-goal while compile validation is implemented. It links to the specification, implementation record, editor guide, and outcome rather than duplicating their detailed rationale. Its commands are the same commands exercised by the clean acceptance run.
+
 ## Step 8.3 — Record the POC decision
 
 **Work**
@@ -1353,6 +1365,12 @@ Write a short outcome document containing:
 **Done when**
 
 The repository contains enough evidence to make a go/no-go decision without reconstructing the experiment from commit history.
+
+**Result — complete**
+
+`plans/poc/outcome.md` records a **GO for a hardened next milestone**. It maps every final acceptance criterion to concrete evidence and records the successful editor hypothesis, pinned TypeScript/VS Code/Playwright/Chromium versions, GLSL/WebGL and WGSL/WebGPU results, frozen-IR backend parity, clean uncached acceptance run, browser bundle size, and remaining architectural risks.
+
+The recommended next milestone prioritizes a dedicated `shdr check` CLI, asynchronous/cancellable and multi-root editor hardening, compatibility testing around unstable TypeScript APIs, incremental performance, and source-map quality before broad language expansion. The decision is not to pursue invasive standalone `tsc` integration now; ordinary `tsc` remains for ordinary modules while a Shdr-specific checker should own shader CI.
 
 ---
 
