@@ -918,6 +918,14 @@ Snapshot the complete expected target shader and assert that unused `mouse` and 
 
 The target source produces the expected standalone fragment shader.
 
+**Result — complete**
+
+The GLSL backend now assembles a standalone ES 3.00 fragment module from typed IR. Output starts with `#version 300 es`, declares high-precision floats, emits only referenced default uniforms in deterministic semantic order, declares `shdr_fragment_color`, writes resolved GLSL types for local const declarations, and assigns the final return expression to the fragment output.
+
+When any expression references semantic fragment position, the module creates one canonical `shdr_coord` value from `gl_FragCoord` and includes the backend-implicit `u_resolution` uniform even if source never reads `uniforms.resolution`. Modules without fragment-position or uniform references omit both coordinate setup and uniform declarations. Generation is deterministic and does not mutate or decorate the target-neutral IR.
+
+Tests assert the complete target-shader module, omission of unused `mouse` and `time`, implicit resolution for a coord-only shader, stable ordering and types for all explicitly referenced uniforms, and omission of unnecessary coordinate/uniform setup.
+
 ## Step 5.3 — Validate generated GLSL in WebGL 2
 
 **Work**
