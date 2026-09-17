@@ -855,6 +855,12 @@ Assert the complete IR for the target shader and focused properties rather than 
 
 One core API parses, validates, types, and lowers the target source deterministically.
 
+**Result — complete**
+
+`@shdr/core` now exposes synchronous `lowerFragment(source)` as the filesystem-independent, target-neutral boundary. It composes private parsing and syntax validation with semantic typing/lowering, returning a discriminated result containing either one `ShaderModule` IR or original-source diagnostics; it does not select, invoke, or encode assumptions from either backend.
+
+A complete structural assertion covers every declaration, symbol link, expression node, resolved type, ordered constructor argument, and source range in the target shader IR. A repeated lowering assertion verifies deterministic output, while boundary tests verify that both syntax-validation and semantic-type failures retain their exact original-source diagnostic ranges.
+
 ---
 
 # Phase 5 — GLSL ES 3.00 and WGSL generation

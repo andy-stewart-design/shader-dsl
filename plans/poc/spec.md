@@ -577,15 +577,18 @@ The filesystem-independent core exposes at least:
 ```ts
 type ShaderTarget = "glsl-es-300" | "wgsl";
 
-interface LowerFragmentResult {
-  ir?: ShaderModule;
-  diagnostics: Diagnostic[];
-}
+type LowerFragmentResult =
+  | { ok: true; ir: ShaderModule; diagnostics: readonly [] }
+  | {
+      ok: false;
+      ir?: undefined;
+      diagnostics: readonly Diagnostic[];
+    };
 
-interface CompileResult extends LowerFragmentResult {
+type CompileResult = LowerFragmentResult & {
   target: ShaderTarget;
   code?: string;
-}
+};
 
 function createVirtualSource(source: string): VirtualSource;
 function lowerFragment(source: string): LowerFragmentResult;

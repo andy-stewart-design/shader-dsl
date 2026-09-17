@@ -10,6 +10,12 @@ export {
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
 export {
+  lowerFragment,
+  type LowerFragmentFailure,
+  type LowerFragmentResult,
+  type LowerFragmentSuccess,
+} from "./lower-fragment.js";
+export {
   lowerShaderSyntax,
   type LowerShaderSyntaxFailure,
   type LowerShaderSyntaxResult,
