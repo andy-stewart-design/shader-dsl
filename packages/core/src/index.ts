@@ -1,4 +1,11 @@
 export {
+  compileFragment,
+  type CompileFragmentFailure,
+  type CompileFragmentOptions,
+  type CompileFragmentSuccess,
+  type CompileResult,
+} from "./compile-fragment.js";
+export {
   createVirtualSource,
   type CreateVirtualSourceFailure,
   type CreateVirtualSourceResult,
@@ -9,6 +16,10 @@ export {
   type ShaderDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
+export {
+  generateFragment,
+  type ShaderTarget,
+} from "./generate-fragment.js";
 export {
   lowerFragment,
   type LowerFragmentFailure,

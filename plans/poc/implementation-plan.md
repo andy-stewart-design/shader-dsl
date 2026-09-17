@@ -947,6 +947,14 @@ Provide a manual fallback command if CI WebGL is unavailable, but keep the autom
 
 A browser GPU driver accepts the generated GLSL shader.
 
+**Result — complete**
+
+A Playwright-driven Chromium test now lowers the target source, generates its GLSL ES 3.00 fragment module, and validates it in a real WebGL 2 context against a hard-coded `gl_VertexID` fullscreen-triangle vertex shader. The harness captures separate vertex compilation, fragment compilation, and program link statuses and logs, then asserts that WebGL 2 is available, both shaders compile, the program links, and no log contains an error.
+
+The automated test is part of the normal core test suite, and the core pretest installs the pinned Playwright Chromium build when it is not cached. CI environments without usable headless WebGL can run the same assertion manually in visible Chromium with `pnpm --filter @shdr/core test:webgl:headed`; the focused headless command is `pnpm --filter @shdr/core test:webgl`.
+
+The successful automated run used Chromium's WebGL 2 implementation through its SwiftShader ANGLE backend. All 99 core tests pass with the generated target shader accepted by the browser driver.
+
 ## Step 5.4 — Emit WGSL from the same typed IR
 
 **Work**
@@ -972,6 +980,14 @@ Add expression-level and complete-module WGSL snapshots. Assert explicit WGSL ty
 
 The target shader's existing typed IR deterministically generates a standalone WGSL fragment module without GLSL-specific data being added to the IR.
 
+**Result — complete**
+
+A separate WGSL backend now emits every expression in the accepted typed IR: normalized floating-point literals, direct semantic fragment position, default uniforms, local references, component-index swizzles, fully grouped division, and all accepted ordered `vec4` constructor forms with explicit `vec4<f32>` spelling. Fragment-position use records no implicit uniform and introduces no coordinate conversion.
+
+The module generator emits typed `let` declarations and a deterministic `@fragment` entry point returning `@location(0) vec4<f32>`. Referenced default uniforms use a fixed POC layout in group 0—`resolution` at binding 0, `mouse` at binding 1, and `time` at binding 2—and omitted uniforms do not renumber later bindings. All attributes, binding rules, names, and WGSL type spellings remain confined to the backend.
+
+Expression and complete-module tests cover valid numeric syntax, nested division grouping, direct fragment position, all four currently accepted `vec4` forms, explicit types, the target-module snapshot, fixed sparse bindings, absence of an unnecessary resolution dependency, omission of an unused position parameter, and absence of GLSL syntax.
+
 ## Step 5.5 — Prove backend parity at the IR boundary
 
 **Work**
@@ -993,6 +1009,14 @@ Deep-freeze one lowered module, generate GLSL and WGSL from it, and assert:
 
 One semantic result demonstrably supports both target languages without target-conditioned lowering.
 
+**Result — complete**
+
+A backend-parity test now lowers the target source exactly once, recursively freezes that `ShaderModule`, and passes the same object directly to both the GLSL and WGSL generators. Both backends generate successfully from the frozen object in both generation orders, and repeated generation produces byte-identical output.
+
+The test preserves a pre-generation serialization and a focused list of every expression's kind, original source range, and resolved shader type, then verifies all remain unchanged after both backends run. It also verifies the complete IR remains recursively frozen and contains only the semantic `fragment-position` identifier rather than either backend's coordinate names or conversion nodes.
+
+Target-isolation assertions ensure GLSL contains its required Y conversion but no WGSL attributes or generic type syntax, while WGSL contains direct position input but no GLSL directives, precision/storage declarations, or `gl_FragCoord`. Backend selection is therefore confined to generation and does not condition parsing, validation, semantic lowering, or IR.
+
 ## Step 5.6 — Complete the multi-target compile API
 
 **Work**
@@ -1012,6 +1036,14 @@ Test lowering once followed by both generators, both `compileFragment` targets, 
 **Done when**
 
 Consumers can compile one fragment source to either target without using internal compiler functions or changing semantic results.
+
+**Result — complete**
+
+`@shdr/core` now publicly exports the closed `ShaderTarget` union, `generateFragment(ir, target)`, and `compileFragment(source, { target })` alongside the existing `lowerFragment(source)` boundary. `generateFragment` dispatches an existing target-neutral `ShaderModule` to either the GLSL ES 3.00 or WGSL backend, while `compileFragment` lowers exactly once and generates only the explicitly requested target.
+
+Successful convenience compilation returns the target, generated code, typed IR, and an empty diagnostic list. Source syntax or semantic failure returns the requested target and original-source diagnostics while omitting both code and IR. Unsupported runtime target values throw a clear `RangeError` rather than inferring a backend from the host environment.
+
+Public API tests lower once and generate both outputs, exercise both convenience targets, compare semantic results across targets, verify deterministic repeated compilation, cover syntax and semantic failures with original ranges, and reject an unknown runtime target. The emitted package declarations expose the complete compiler boundary, and target selection changes only generated output.
 
 ---
 

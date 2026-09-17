@@ -17,7 +17,10 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "check": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "vitest run --config ../../vitest.config.ts --root ."
+    "pretest": "playwright install chromium",
+    "test": "vitest run --config ../../vitest.config.ts --root .",
+    "test:webgl": "playwright install chromium && vitest run --config ../../vitest.config.ts --root . test/generated-glsl-webgl.test.ts",
+    "test:webgl:headed": "playwright install chromium && SHDR_WEBGL_HEADED=1 vitest run --config ../../vitest.config.ts --root . test/generated-glsl-webgl.test.ts"
   },
   "dependencies": {
     "@babel/parser": "8.0.4",
@@ -26,6 +29,7 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "playwright": "^1.63.0",
     "tsdown": "^0.22.5",
     "typescript": "7.0.2"
   }
