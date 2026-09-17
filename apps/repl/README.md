@@ -22,3 +22,9 @@ The browser test verifies target selection, validation states, visible render ch
 - `time` is elapsed time in seconds since the renderer was created.
 
 Only uniforms active in the generated GLSL program are bound. Referencing `coord` implicitly activates `resolution` for GLSL's `u_resolution.y - gl_FragCoord.y` conversion. WGSL uses its fragment-position built-in directly.
+
+## Browser boundary and bundle observation
+
+The production build audits `packages/core/src` for Node built-ins, Node globals, and filesystem calls. It also rejects Vite browser-external stubs and confirms the emitted browser bundle contains Babel Parser and both shader backends.
+
+At Step 7.4, the production JavaScript bundle measured **618,142 bytes minified / 168,464 bytes gzip**. This is the complete single bundle containing React, Babel Parser, `@shdr/core`, and the GLSL and WGSL generators. The size is intentionally recorded rather than optimized during the POC.

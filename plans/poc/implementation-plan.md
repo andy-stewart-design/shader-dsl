@@ -1274,6 +1274,14 @@ The browser build must complete without Node polyfills.
 
 The same core package runs under both Vite’s Node process and the browser.
 
+**Result — complete**
+
+The `@shdr/core` source tree and both generators have been audited for browser boundaries. They contain no Node built-in imports, Node globals, or filesystem access. The REPL production build resolves the same published core entry used by the Vite adapter and completes without Node polyfills or browser-external compatibility modules.
+
+`apps/repl/verify-build.mjs` now makes this boundary executable: it scans all core source imports and filesystem/global usage, rejects Vite browser-external stubs in emitted JavaScript, and confirms that the production bundle includes Babel Parser plus the GLSL and WGSL fragment generators. It also measures the complete production JavaScript payload on every build.
+
+The recorded Step 7.4 bundle is **618,142 bytes minified and 168,464 bytes gzip**. This single bundle includes React, Babel Parser, `@shdr/core`, and both backends. The size is documented as a POC observation rather than optimized. `pnpm --filter repl build` completes successfully and runs the boundary and bundle verification automatically.
+
 ---
 
 # Phase 8 — POC closeout
