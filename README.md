@@ -142,7 +142,7 @@ Assignment, `let`, `var`, type annotations inside the callback, other operators,
 | `coord`               | Canonical value derived from `gl_FragCoord` | Direct fragment-position built-in | Pixel position; top-left origin, +X right, +Y down, half-integer pixel centers |
 | `uniforms.resolution` | `u_resolution`                              | Group 0, binding 0                | Drawing-buffer size in physical pixels                                         |
 | `uniforms.mouse`      | `u_mouse`                                   | Group 0, binding 1                | Pointer position in pixels, top-left origin, no browser-input Y flip           |
-| `uniforms.time`       | `u_time`                                    | Group 0, binding 2                | Elapsed seconds                                                                |
+| `uniforms.time`       | `u_time`                                    | Group 0, binding 2                | Seconds since the most recent successful shader compilation                    |
 
 GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore creates an implicit GLSL resolution dependency. WGSL uses fragment position directly and does not add that dependency. Fragment depth follows the canonical `0.0` near to `1.0` far convention in both targets. Unreferenced uniforms are omitted.
 

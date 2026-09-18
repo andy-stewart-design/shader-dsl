@@ -199,10 +199,16 @@ export default createFragmentShader(({ coord, uniforms }) => {
   return color;
 });
 `;
+  await page.waitForTimeout(500);
+  const previousShaderTime = await readRuntimeMetrics(page);
   await compileSource(page, editor, timeSource);
   await waitForValidation(page, "glsl-es-300", "success");
   assert.equal(await canvas.getAttribute("data-bound-uniforms"), "time");
   const timeBefore = await readRuntimeMetrics(page);
+  assert.ok(
+    timeBefore.time < previousShaderTime.time,
+    `u_time did not reset after compilation: ${previousShaderTime.time} -> ${timeBefore.time}`,
+  );
   const timePixelBefore = await readCenterPixel(page);
   await page.waitForTimeout(300);
   const timeAfter = await readRuntimeMetrics(page);

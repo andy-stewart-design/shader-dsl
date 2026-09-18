@@ -24,7 +24,7 @@ export class WebGlRenderer {
   readonly #canvas: HTMLCanvasElement;
   readonly #gl: WebGL2RenderingContext;
   readonly #vertexArray: WebGLVertexArrayObject;
-  readonly #startedAt = performance.now();
+  #shaderStartedAt = performance.now();
   #resources: ShaderResources | undefined;
   #animationFrame: number | undefined;
   #mouseX = 0;
@@ -50,10 +50,12 @@ export class WebGlRenderer {
   setFragmentShader(fragmentSource: string): readonly DefaultUniform[] {
     const resources = this.#createResources(fragmentSource);
     const previous = this.#resources;
+    const startedAt = performance.now();
 
     try {
-      this.#draw(resources, performance.now());
+      this.#draw(resources, startedAt, startedAt);
       this.#resources = resources;
+      this.#shaderStartedAt = startedAt;
       if (previous) this.#deleteResources(previous);
       this.#canvas.dataset.renderStatus = "success";
       this.#canvas.dataset.validationState = "success";
@@ -123,7 +125,11 @@ export class WebGlRenderer {
     gl.deleteShader(resources.fragment);
   }
 
-  #draw(resources: ShaderResources, timestamp: number): void {
+  #draw(
+    resources: ShaderResources,
+    timestamp: number,
+    startedAt: number,
+  ): void {
     const gl = this.#gl;
     this.#resizeDrawingBuffer();
     gl.viewport(0, 0, this.#canvas.width, this.#canvas.height);
@@ -141,7 +147,7 @@ export class WebGlRenderer {
     if (locations.mouse) {
       gl.uniform2f(locations.mouse, this.#mouseX, this.#mouseY);
     }
-    const elapsedSeconds = (timestamp - this.#startedAt) / 1_000;
+    const elapsedSeconds = (timestamp - startedAt) / 1_000;
     if (locations.time) {
       gl.uniform1f(locations.time, elapsedSeconds);
     }
@@ -177,7 +183,9 @@ export class WebGlRenderer {
   };
 
   #drawFrame = (timestamp: number): void => {
-    if (this.#resources) this.#draw(this.#resources, timestamp);
+    if (this.#resources) {
+      this.#draw(this.#resources, timestamp, this.#shaderStartedAt);
+    }
     this.#animationFrame = requestAnimationFrame(this.#drawFrame);
   };
 }

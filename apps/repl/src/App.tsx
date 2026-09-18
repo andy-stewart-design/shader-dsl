@@ -291,7 +291,8 @@ function App() {
               <canvas ref={canvasRef} width="512" height="512" />
               <p>
                 Resolution follows the display size. Pointer coordinates use a
-                top-left origin; time advances in seconds.
+                top-left origin; time restarts at zero after each successful
+                compile and advances in seconds.
               </p>
             </div>
             <div className="validation-list" aria-label="Target validation results">

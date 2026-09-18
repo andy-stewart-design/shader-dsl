@@ -19,7 +19,7 @@ The browser test verifies target selection, validation states, visible render ch
 
 - `resolution` is the WebGL drawing-buffer size in physical pixels. The canvas backing size follows its displayed size and device pixel ratio.
 - `mouse` is the pointer position in those pixels with a top-left origin, +X right, and +Y down. Browser pointer coordinates enter this convention without a Y flip.
-- `time` is elapsed time in seconds since the renderer was created.
+- `time` starts at zero after each successful shader compilation and advances in seconds.
 
 Only uniforms active in the generated GLSL program are bound. Referencing `coord` implicitly activates `resolution` for GLSL's `u_resolution.y - gl_FragCoord.y` conversion. WGSL uses its fragment-position built-in directly.
 
