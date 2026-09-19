@@ -44,6 +44,11 @@ try {
   );
 
   const canvas = page.locator("canvas");
+  const diagnostics = page.getByRole("region", { name: "Diagnostics" });
+  assert.match(
+    await diagnostics.textContent(),
+    /Compilation time: \d+\.\d{2} ms/,
+  );
   const glslValidation = page.locator(
     '[data-validation-target="glsl-es-300"]',
   );
@@ -142,10 +147,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
     originalSource.replace("uniforms.resolution", "uniforms.missing"),
   );
   await waitForValidation(page, "glsl-es-300", "blocked");
-  assert.match(
-    await page.getByRole("region", { name: "Diagnostics" }).textContent(),
-    /SHDR1203/,
-  );
+  assert.match(await diagnostics.textContent(), /SHDR1203/);
   assert.match(await glslValidation.textContent(), /blocked by shared source diagnostics/i);
   assert.equal(
     await wgslValidation.getAttribute("data-validation-state"),

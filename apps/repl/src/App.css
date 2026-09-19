@@ -173,6 +173,18 @@ kbd {
   padding: 14px 16px;
 }
 
+.compilation-time {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.compilation-time strong {
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
 .empty-state {
   margin: 0;
   color: var(--text-muted);

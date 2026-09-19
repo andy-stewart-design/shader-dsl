@@ -30,12 +30,14 @@ const TARGETS: readonly {
 
 interface CompilationSuccess {
   readonly ok: true;
+  readonly durationMs: number;
   readonly diagnostics: readonly [];
   readonly outputs: Readonly<Record<ShaderTarget, string>>;
 }
 
 interface CompilationFailure {
   readonly ok: false;
+  readonly durationMs: number;
   readonly diagnostics: readonly ShaderDiagnostic[];
   readonly outputs?: undefined;
 }
@@ -249,6 +251,10 @@ function App() {
             />
           </div>
           <div className="diagnostics" aria-live="polite">
+            <p className="compilation-time">
+              Compilation time:{" "}
+              <strong>{formatDuration(compilation.durationMs)}</strong>
+            </p>
             {compilation.ok ? (
               <p className="empty-state">No shared compiler diagnostics.</p>
             ) : (
@@ -388,19 +394,31 @@ function compileInitialSource(): CompilationSuccess {
 }
 
 function compileBothTargets(source: string): Compilation {
+  const startedAt = performance.now();
   const lowered = lowerFragment(source);
+
   if (!lowered.ok) {
-    return { ok: false, diagnostics: lowered.diagnostics };
+    return {
+      ok: false,
+      durationMs: performance.now() - startedAt,
+      diagnostics: lowered.diagnostics,
+    };
   }
 
+  const outputs = {
+    "glsl-es-300": generateFragment(lowered.ir, "glsl-es-300"),
+    wgsl: generateFragment(lowered.ir, "wgsl"),
+  };
   return {
     ok: true,
+    durationMs: performance.now() - startedAt,
     diagnostics: [],
-    outputs: {
-      "glsl-es-300": generateFragment(lowered.ir, "glsl-es-300"),
-      wgsl: generateFragment(lowered.ir, "wgsl"),
-    },
+    outputs,
   };
+}
+
+function formatDuration(durationMs: number): string {
+  return `${durationMs.toFixed(2)} ms`;
 }
 
 function sourceLocation(source: string, range: TextRange): string {
