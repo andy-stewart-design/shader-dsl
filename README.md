@@ -61,7 +61,7 @@ In the development host:
 
 `apps/editor-fixture/.vscode/settings.json` enables TS Go and points editor tooling to the workspace TypeScript installation. The fixture extension assigns `.shdr.ts` files the `shdr-typescript` language ID, publishes mapped shader diagnostics, and supplies shader hovers. Ordinary `.ts` files remain owned by the standard TypeScript provider.
 
-Run the complete real-editor checklist automatically against an installed VS Code:
+Run the Shdr-owned real-editor checklist automatically against an installed VS Code. The standard TypeScript provider check for ordinary `.ts` files remains manual:
 
 ```sh
 pnpm --filter @shdr/editor-fixture build

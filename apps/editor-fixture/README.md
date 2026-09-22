@@ -64,7 +64,7 @@ pnpm --filter @shdr/editor-fixture build
 pnpm --filter @shdr/editor-fixture test:editor
 ```
 
-`test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the complete checklist, including live invalid and nested-division edits. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
+`test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned checklist, including live invalid and nested-division edits. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
 
 ## Standalone TypeScript limitation
 

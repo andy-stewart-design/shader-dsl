@@ -16,6 +16,7 @@ try {
       executable,
       [
         "--disable-extensions",
+        "--skip-welcome",
         `--user-data-dir=${join(temporaryDirectory, "user")}`,
         `--extensions-dir=${join(temporaryDirectory, "extensions")}`,
         `--extensionDevelopmentPath=${directory}`,
