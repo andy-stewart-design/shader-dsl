@@ -15,10 +15,6 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
 This is an embedded shader language using TypeScript syntax, not JavaScript execution or TypeScript operator overloading.
 
-- [POC specification](plans/poc/spec.md)
-- [Implementation plan and step results](plans/poc/implementation-plan.md)
-- [POC outcome and decision](plans/poc/outcome.md)
-
 ## Requirements and workspace commands
 
 Use Node.js 24 or newer and pnpm 11.23.0. From the repository root:
@@ -133,7 +129,7 @@ The callback supports only:
 - `vec4(x, y, z, w)`, `vec4(vec2, z, w)`, scalar splat `vec4(value)`, and `Vec4` copy `vec4(value)`.
 - A final `Expr<Vec4<F32>>` result.
 
-Assignment, `let`, `var`, type annotations inside the callback, other operators, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. The complete rules and diagnostic contracts are in the [specification](plans/poc/spec.md).
+Assignment, `let`, `var`, type annotations inside the callback, other operators, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics.
 
 ## Targets, uniforms, and coordinates
 
@@ -155,4 +151,4 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 - WGSL is generated and compile-validated but not rendered.
 - Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout.
 
-These constraints are POC decisions, not silent compatibility claims. See the [outcome document](plans/poc/outcome.md) for the recommended next milestone.
+These constraints are POC decisions, not silent compatibility claims.
