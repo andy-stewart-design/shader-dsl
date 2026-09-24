@@ -105,6 +105,25 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@24.13.3)
 
+  packages/cli:
+    dependencies:
+      '@shdr/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      tsdown:
+        specifier: ^0.22.5
+        version: 0.22.14(typescript@7.0.2)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/core:
     dependencies:
       '@babel/parser':

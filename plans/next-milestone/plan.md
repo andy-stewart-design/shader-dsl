@@ -21,6 +21,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **Verify:** contract tests for help, no matches, explicit paths, ignored paths, invalid arguments, and exit codes. Record the chosen discovery/ignore rules in the CLI README.
 
+**Result — complete (contract only):** `packages/cli` defines the argument/help/exit-code contract and implements deterministic path discovery, with tests for no matches, explicit and ignored paths, deduplication, ordering, invalid input, and symlinks. Its README records the discovery and reporting rules. Build, check, tests, and formatting pass. There is intentionally no executable or shader diagnostic reporting yet; Phase 1.2 connects the contract to `@shdr/core` and installs the command.
+
 ### Phase 1.2 — Implement and integrate
 
 - Recursively discover and read files, call `lowerFragment(source)` once per file, convert original UTF-16 source offsets to line/column consistently, aggregate _all_ returned diagnostics, and continue past other invalid files. Do not generate either target just to check source semantics.
