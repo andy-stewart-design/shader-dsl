@@ -1,6 +1,6 @@
 # PR 2 language slice — semantic contract (Phase 2.1)
 
-Status: **frozen for Phase 2.2**. This describes the intended accepted source language, not features already implemented. The current compiler still accepts only the POC subset until Phase 2.2 lands. Changes to this contract require an explicit decision and parity-test updates.
+Status: **frozen in Phase 2.1; implemented in Phase 2.2**. This is the semantic contract for the expanded source language. Changes to it require an explicit decision and parity-test updates; public usage documentation follows in Phase 2.3.
 
 ## Scope and types
 
@@ -59,7 +59,7 @@ Use TypeScript/JavaScript source precedence: property access and calls bind tigh
 
 ## Representative source cases
 
-Valid whole fragment (not accepted until Phase 2.2):
+Valid whole fragment:
 
 ```ts
 import { createFragmentShader, vec3, vec4 } from "shdr";

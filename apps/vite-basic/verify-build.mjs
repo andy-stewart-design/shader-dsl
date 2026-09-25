@@ -12,7 +12,10 @@ const bundle = (
 
 assertIncludes(bundle, "#version 300 es");
 assertIncludes(bundle, "shdr_fragment_color");
+assertIncludes(bundle, ".xxyy");
+assertIncludes(bundle, "vec3(");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
+assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "createFragmentShader");
 assertExcludes(bundle, 'from "shdr"');
 
@@ -22,7 +25,10 @@ async function listFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
-    const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, directory);
+    const child = new URL(
+      `${entry.name}${entry.isDirectory() ? "/" : ""}`,
+      directory,
+    );
     if (entry.isDirectory()) files.push(...(await listFiles(child)));
     else files.push(child);
   }
@@ -31,12 +37,16 @@ async function listFiles(directory) {
 
 function assertIncludes(source, expected) {
   if (!source.includes(expected)) {
-    throw new Error(`Expected production bundle to contain ${JSON.stringify(expected)}.`);
+    throw new Error(
+      `Expected production bundle to contain ${JSON.stringify(expected)}.`,
+    );
   }
 }
 
 function assertExcludes(source, unexpected) {
   if (source.includes(unexpected)) {
-    throw new Error(`Production bundle contains ${JSON.stringify(unexpected)}.`);
+    throw new Error(
+      `Production bundle contains ${JSON.stringify(unexpected)}.`,
+    );
   }
 }

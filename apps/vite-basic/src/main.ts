@@ -1,6 +1,7 @@
 import type { FragmentShaderSource } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
+import expandedShader from "./expanded.shdr.ts";
 import "./style.css";
 
 const FULLSCREEN_TRIANGLE_VERTEX_SHADER = `#version 300 es
@@ -16,6 +17,10 @@ void main() {
 `;
 
 const shader: FragmentShaderSource = fragmentShader;
+const expanded: FragmentShaderSource = expandedShader;
+if (!expanded.includes("vec3(")) {
+  throw new Error("The expanded shader was not compiled by the Vite plugin.");
+}
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The Vite fixture requires an #app element.");
 
@@ -65,7 +70,9 @@ function render(
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(`WebGL link failed: ${gl.getProgramInfoLog(program) ?? "unknown error"}`);
+    throw new Error(
+      `WebGL link failed: ${gl.getProgramInfoLog(program) ?? "unknown error"}`,
+    );
   }
 
   const resolution = gl.getUniformLocation(program, "u_resolution");

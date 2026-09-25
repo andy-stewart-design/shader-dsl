@@ -17,6 +17,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 ## Fixture files
 
 - `gradient.shdr.ts`: the target shader plus an intentional ordinary TypeScript error outside its callback.
+- `expanded.shdr.ts`: arithmetic, `vec2`/`vec3`, unary minus, and repeated/chained read swizzles.
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
@@ -55,7 +56,8 @@ The successful pinned run used:
 6. Replace that expression with `(coord.xy / uniforms.resolution) / uniforms.resolution`; confirm the shader remains valid and the `uv` hover remains `Expr<Vec2<F32>>`.
 7. Restore the original expression.
 8. Open `test/fixtures/invalid.shdr.ts` and confirm its sole diagnostic covers `coord.xy / coord`.
-9. Open `ordinary.ts`, confirm its language is TypeScript, and hover `ordinaryValue` to verify the standard provider remains active.
+9. Open `expanded.shdr.ts` and confirm zero diagnostics. Hover `reordered` and `repeated` to verify `Expr<Vec3<F32>>` and `Expr<Vec4<F32>>`. Change `uniforms.time * uniforms.time` to `uniforms.time * coord.xy` and confirm one mapped, helper-free operator diagnostic; restore the source.
+10. Open `ordinary.ts`, confirm its language is TypeScript, and hover `ordinaryValue` to verify the standard provider remains active.
 
 ## Automated real-VS-Code verification
 

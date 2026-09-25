@@ -1,4 +1,7 @@
-import type { ShaderBinaryOperator } from "./shader-operator.js";
+import type {
+  ShaderBinaryOperator,
+  ShaderUnaryOperator,
+} from "./shader-operator.js";
 import type { TextRange } from "./source-range.js";
 
 export type SourceMappingKind = "identity" | "expression";
@@ -16,7 +19,14 @@ export interface VirtualBinaryOperation {
   readonly generated: TextRange;
 }
 
-export type VirtualOperation = VirtualBinaryOperation;
+export interface VirtualUnaryOperation {
+  readonly kind: "unary-operation";
+  readonly operator: ShaderUnaryOperator;
+  readonly original: TextRange;
+  readonly generated: TextRange;
+}
+
+export type VirtualOperation = VirtualBinaryOperation | VirtualUnaryOperation;
 
 export interface VirtualSource {
   readonly code: string;
@@ -84,6 +94,21 @@ export class MappedTextWriter {
     assertRangeWithin(generated, this.#length, "generated operation");
     this.#operations.push({
       kind: "binary-operation",
+      operator,
+      original: cloneRange(original),
+      generated: cloneRange(generated),
+    });
+  }
+
+  public addUnaryOperation(
+    operator: ShaderUnaryOperator,
+    original: TextRange,
+    generated: TextRange,
+  ): void {
+    assertRangeWithin(original, this.#source.length, "original operation");
+    assertRangeWithin(generated, this.#length, "generated operation");
+    this.#operations.push({
+      kind: "unary-operation",
       operator,
       original: cloneRange(original),
       generated: cloneRange(generated),
@@ -249,10 +274,13 @@ function cloneMapping(mapping: SourceMapping): SourceMapping {
 }
 
 function cloneOperation(operation: VirtualOperation): VirtualOperation {
-  return {
-    kind: operation.kind,
-    operator: operation.operator,
-    original: cloneRange(operation.original),
-    generated: cloneRange(operation.generated),
-  };
+  switch (operation.kind) {
+    case "binary-operation":
+    case "unary-operation":
+      return {
+        ...operation,
+        original: cloneRange(operation.original),
+        generated: cloneRange(operation.generated),
+      };
+  }
 }

@@ -40,16 +40,16 @@ const invalidSyntaxCases: readonly InvalidSyntaxCase[] = [
     rangeText: "vec4(coord.x, uniforms.time, 0, 1);",
   },
   {
-    fixture: "unary-minus",
+    fixture: "unary-plus",
     code: ShaderDiagnosticCode.UnsupportedOperator,
-    messageCategory: "Unary",
-    rangeText: "-uniforms.time",
+    messageCategory: "unary operator",
+    rangeText: "+uniforms.time",
   },
   {
-    fixture: "addition",
+    fixture: "modulo",
     code: ShaderDiagnosticCode.UnsupportedOperator,
     messageCategory: "binary operator",
-    rangeText: "uniforms.time + 1",
+    rangeText: "uniforms.time % 1",
   },
   {
     fixture: "if-statement",

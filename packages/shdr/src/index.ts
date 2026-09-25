@@ -1,4 +1,4 @@
-export { createFragmentShader, vec4 } from "./dsl.js";
+export { createFragmentShader, vec2, vec3, vec4 } from "./dsl.js";
 export type {
   DefaultUniforms,
   Expr,
@@ -7,6 +7,7 @@ export type {
   FragmentShaderSource,
   ShaderType,
   Vec2,
+  Vec3,
   Vec4,
 } from "./types.js";
 

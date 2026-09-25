@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { lowerFragment } from "@shdr/core";
 import { describe, expect, it } from "vitest";
 
 import { checkShaderPaths } from "../src/check.js";
@@ -103,6 +104,24 @@ describe("installed executable", () => {
         expect.stringMatching(/^imports\.shdr\.ts:1:32: SHDR1007: /),
         expect.stringMatching(/^imports\.shdr\.ts:1:41: SHDR1007: /),
       ]);
+    });
+  });
+
+  it("reports new arithmetic diagnostics matching the core", async () => {
+    await withProject(async (cwd) => {
+      await fixture(cwd, "invalid-arithmetic.shdr.ts");
+      const source = await readFile(
+        join(cwd, "invalid-arithmetic.shdr.ts"),
+        "utf8",
+      );
+      const lowered = lowerFragment(source);
+      expect(lowered.ok).toBe(false);
+      if (lowered.ok) return;
+      const result = invoke(cwd, "check");
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe(
+        `invalid-arithmetic.shdr.ts:4:18: SHDR1205: ${lowered.diagnostics[0]!.message}\n`,
+      );
     });
   });
 

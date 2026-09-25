@@ -78,13 +78,28 @@ function normalizeExpression(expression: Expression): ShaderExpressionSyntax {
       };
 
     case "BinaryExpression":
-      if (expression.operator !== "/") break;
+      if (
+        expression.operator !== "+" &&
+        expression.operator !== "-" &&
+        expression.operator !== "*" &&
+        expression.operator !== "/"
+      )
+        break;
       return {
         kind: "binary-expression",
         range: rangeOf(expression),
         operator: expression.operator,
         left: normalizeExpression(expression.left),
         right: normalizeExpression(expression.right),
+      };
+
+    case "UnaryExpression":
+      if (expression.operator !== "-") break;
+      return {
+        kind: "unary-expression",
+        range: rangeOf(expression),
+        operator: expression.operator,
+        argument: normalizeExpression(expression.argument),
       };
 
     case "CallExpression":

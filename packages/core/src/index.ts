@@ -16,10 +16,7 @@ export {
   type ShaderDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
-export {
-  generateFragment,
-  type ShaderTarget,
-} from "./generate-fragment.js";
+export { generateFragment, type ShaderTarget } from "./generate-fragment.js";
 export {
   lowerFragment,
   type LowerFragmentFailure,
@@ -39,6 +36,7 @@ export {
   type SourceMapping,
   type SourceMappingKind,
   type VirtualBinaryOperation,
+  type VirtualUnaryOperation,
   type VirtualOperation,
   type VirtualSource,
 } from "./mapped-text-writer.js";
@@ -64,9 +62,13 @@ export type {
   ShaderStatement,
   ShaderSwizzleComponents,
   ShaderSwizzleExpression,
+  ShaderUnaryExpression,
   ShaderVectorComponent,
 } from "./shader-ir.js";
-export type { ShaderBinaryOperator } from "./shader-operator.js";
+export type {
+  ShaderBinaryOperator,
+  ShaderUnaryOperator,
+} from "./shader-operator.js";
 export type {
   ShaderScalarKind,
   ShaderScalarType,
@@ -91,6 +93,7 @@ export type {
   ShaderNumericLiteralSyntax,
   ShaderParenthesizedExpressionSyntax,
   ShaderPropertyAccessSyntax,
+  ShaderUnaryExpressionSyntax,
 } from "./shader-syntax.js";
 export type { TextRange } from "./source-range.js";
 

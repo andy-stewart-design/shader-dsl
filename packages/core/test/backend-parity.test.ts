@@ -37,9 +37,7 @@ describe("backend parity at the typed IR boundary", () => {
       /@fragment|@builtin|@location|vec[234]<f32>|var<uniform>/,
     );
 
-    expect(wgslFirst).toContain(
-      "@builtin(position) shdr_coord: vec4<f32>",
-    );
+    expect(wgslFirst).toContain("@builtin(position) shdr_coord: vec4<f32>");
     expect(wgslFirst).not.toMatch(
       /#version|precision highp|\buniform\s+|\bout\s+vec4|gl_FragCoord/,
     );
@@ -82,6 +80,9 @@ function expressionMetadata(
         visit(expression.left);
         visit(expression.right);
         return;
+      case "unary":
+        visit(expression.argument);
+        return;
       case "call":
         for (const argument of expression.arguments) visit(argument);
         return;
@@ -117,9 +118,7 @@ function deepFreeze<T>(value: T): T {
 
 function isDeepFrozen(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return true;
-  return (
-    Object.isFrozen(value) && Object.values(value).every(isDeepFrozen)
-  );
+  return Object.isFrozen(value) && Object.values(value).every(isDeepFrozen);
 }
 
 function assertNever(value: never): never {

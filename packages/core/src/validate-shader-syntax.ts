@@ -207,10 +207,15 @@ function validateExpression(
       return validateExpression(expression.expression, localNames, calleeNames);
 
     case "BinaryExpression":
-      if (expression.operator !== "/") {
+      if (
+        expression.operator !== "+" &&
+        expression.operator !== "-" &&
+        expression.operator !== "*" &&
+        expression.operator !== "/"
+      ) {
         return diagnostic(
           ShaderDiagnosticCode.UnsupportedOperator,
-          `The ${JSON.stringify(expression.operator)} binary operator is not supported; the POC supports only division.`,
+          `The ${JSON.stringify(expression.operator)} binary operator is not supported.`,
           expression,
         );
       }
@@ -286,10 +291,19 @@ function validateExpression(
       return assignmentDiagnostic(expression);
 
     case "UnaryExpression":
+      if (expression.operator === "-") {
+        return validateExpression(expression.argument, localNames, calleeNames);
+      }
+      return diagnostic(
+        ShaderDiagnosticCode.UnsupportedOperator,
+        `The ${JSON.stringify(expression.operator)} unary operator is not supported in shaders.`,
+        expression,
+      );
+
     case "UpdateExpression":
       return diagnostic(
         ShaderDiagnosticCode.UnsupportedOperator,
-        "Unary and update operators are not supported in shaders.",
+        "Update operators are not supported in shaders.",
         expression,
       );
 

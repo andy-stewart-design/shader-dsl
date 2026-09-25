@@ -1,1 +1,2 @@
-export type ShaderBinaryOperator = "/";
+export type ShaderBinaryOperator = "+" | "-" | "*" | "/";
+export type ShaderUnaryOperator = "-";

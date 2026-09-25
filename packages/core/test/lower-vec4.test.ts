@@ -200,7 +200,7 @@ describe("vec4 and final-return lowering", () => {
         {
           code: ShaderDiagnosticCode.UnsupportedCall,
           message:
-            'Unsupported shader call "smoothstep"; the POC supports only "vec4".',
+            'Unsupported shader call "smoothstep"; supported constructors are "vec2", "vec3", and "vec4".',
           range: { start: 7, length: 10 },
           severity: "error",
         },

@@ -181,8 +181,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
     });
   });
 
-  it("rejects an available component outside the POC swizzle set", () => {
-    const expressionSource = "coord.z";
+  it("rejects a non-xyzw spelling", () => {
+    const expressionSource = "coord.rgba";
     const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
@@ -191,8 +191,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
         {
           code: ShaderDiagnosticCode.InvalidSwizzle,
           message:
-            'Swizzle ".z" is not supported; the POC supports only ".x", ".y", and ".xy".',
-          range: { start: source.indexOf(".z") + 1, length: 1 },
+            'Swizzle ".rgba" is not supported; use one to four xyzw components.',
+          range: { start: source.indexOf(".rgba") + 1, length: 4 },
           severity: "error",
         },
       ],
@@ -200,7 +200,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   });
 
   it("rejects an unsupported multi-component spelling", () => {
-    const expressionSource = "coord.yx";
+    const expressionSource = "coord.xyzwx";
     const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
@@ -209,8 +209,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
         expect.objectContaining({
           code: ShaderDiagnosticCode.InvalidSwizzle,
           message:
-            'Swizzle ".yx" is not supported; the POC supports only ".x", ".y", and ".xy".',
-          range: { start: source.indexOf(".yx") + 1, length: 2 },
+            'Swizzle ".xyzwx" is not supported; use one to four xyzw components.',
+          range: { start: source.indexOf(".xyzwx") + 1, length: 5 },
         }),
       ],
     });

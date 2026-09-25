@@ -54,6 +54,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **Verify:** core and language-service unit tests, frozen-IR backend parity/determinism, GLSL WebGL compilation/rendered pixels, WGSL WebGPU shader-module validation where available, Vite dev/build examples, REPL compilation, and the real VS Code hover/diagnostic checklist on the expanded fixture. A new non-gradient shader must exercise the added operators and a `Vec3`/swizzle path through both generators.
 
+**Result — complete (implementation):** The source parser, virtual TypeScript helpers/mappings, explicit public overloads, typed IR, semantics, and both generators implement the Phase 2.1 matrix. TypeScript 7/core parity exercises all 64 binary operand/operator pairs, unary grouping and literal mapping, constructors, and read swizzles. A non-gradient fixture lowers to a frozen target-neutral IR, renders expected WebGL pixels, and compile-validates WGSL in WebGPU; Vite dev/build, browser REPL and the real VS Code editor checklist exercise expanded source. The CLI accepts new valid shaders and matches core diagnostics for a new invalid arithmetic fixture. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, and `pnpm --filter @shdr/editor-fixture test:editor` pass. Existing POC fixture expectations for now-supported features were replaced with permanently unsupported forms. Public language documentation remains Phase 2.3.
+
 ### Phase 2.3 — Document the actual accepted subset
 
 - Update the language reference, error examples, and fixture shaders. Make it clear that this remains a restricted shader language with `const` and a final `return`, not arbitrary TypeScript/GLSL/WGSL.

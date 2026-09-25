@@ -83,13 +83,28 @@ function emitExpression(
     case "swizzle":
       return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
 
-    case "binary":
-      switch (expression.operator) {
+    case "binary": {
+      const operator = expression.operator;
+      switch (operator) {
+        case "+":
+        case "-":
+        case "*":
         case "/":
-          return `(${emitExpression(expression.left, options, state)} / ${emitExpression(expression.right, options, state)})`;
+          return `(${emitExpression(expression.left, options, state)} ${operator} ${emitExpression(expression.right, options, state)})`;
         default:
-          return assertNever(expression.operator);
+          return assertNever(operator);
       }
+    }
+
+    case "unary": {
+      const operator = expression.operator;
+      switch (operator) {
+        case "-":
+          return `(-${emitExpression(expression.argument, options, state)})`;
+        default:
+          return assertNever(operator);
+      }
+    }
 
     case "call":
       return `${callTargetName(expression.target)}(${expression.arguments
