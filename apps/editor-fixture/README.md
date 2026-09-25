@@ -17,7 +17,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 ## Fixture files
 
 - `gradient.shdr.ts`: the target shader plus an intentional ordinary TypeScript error outside its callback.
-- `invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
+- `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
 
@@ -54,7 +54,7 @@ The successful pinned run used:
 5. Confirm its message starts with `Operator "/" cannot be applied` and contains no internal helper name.
 6. Replace that expression with `(coord.xy / uniforms.resolution) / uniforms.resolution`; confirm the shader remains valid and the `uv` hover remains `Expr<Vec2<F32>>`.
 7. Restore the original expression.
-8. Open `invalid.shdr.ts` and confirm its sole diagnostic covers `coord.xy / coord`.
+8. Open `test/fixtures/invalid.shdr.ts` and confirm its sole diagnostic covers `coord.xy / coord`.
 9. Open `ordinary.ts`, confirm its language is TypeScript, and hover `ordinaryValue` to verify the standard provider remains active.
 
 ## Automated real-VS-Code verification

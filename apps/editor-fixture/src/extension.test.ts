@@ -124,7 +124,10 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
   );
 
-  const invalidUri = vscode.Uri.joinPath(workspace.uri, "invalid.shdr.ts");
+  const invalidUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "test/fixtures/invalid.shdr.ts",
+  );
   const invalid = await vscode.workspace.openTextDocument(invalidUri);
   assert.equal(invalid.languageId, "shdr-typescript");
   await vscode.window.showTextDocument(invalid);
