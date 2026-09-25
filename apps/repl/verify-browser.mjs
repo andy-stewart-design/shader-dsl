@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
@@ -49,10 +50,11 @@ try {
     await diagnostics.textContent(),
     /Compilation time: \d+\.\d{2} ms/,
   );
-  const glslValidation = page.locator(
-    '[data-validation-target="glsl-es-300"]',
+  const glslValidation = page.locator('[data-validation-target="glsl-es-300"]');
+  assert.match(
+    await glslValidation.textContent(),
+    /compiled, linked, and rendered/i,
   );
-  assert.match(await glslValidation.textContent(), /compiled, linked, and rendered/i);
   assert.equal(await canvas.getAttribute("data-bound-uniforms"), "resolution");
 
   const wgslValidation = page.locator('[data-validation-target="wgsl"]');
@@ -77,20 +79,23 @@ try {
 
   const initialWidth = initial.width;
   await page.setViewportSize({ width: 1000, height: 900 });
-  await page.waitForFunction(
-    (previousWidth) => {
-      const target = document.querySelector("canvas");
-      if (!(target instanceof HTMLCanvasElement)) return false;
-      return (
-        target.width !== previousWidth &&
-        target.dataset.resolution === `${target.width},${target.height}`
-      );
-    },
-    initialWidth,
-  );
+  await page.waitForFunction((previousWidth) => {
+    const target = document.querySelector("canvas");
+    if (!(target instanceof HTMLCanvasElement)) return false;
+    return (
+      target.width !== previousWidth &&
+      target.dataset.resolution === `${target.width},${target.height}`
+    );
+  }, initialWidth);
   const resized = await readCanvasMetrics(page);
-  assert.equal(resized.width, Math.round(resized.cssWidth * resized.pixelRatio));
-  assert.equal(resized.height, Math.round(resized.cssHeight * resized.pixelRatio));
+  assert.equal(
+    resized.width,
+    Math.round(resized.cssWidth * resized.pixelRatio),
+  );
+  assert.equal(
+    resized.height,
+    Math.round(resized.cssHeight * resized.pixelRatio),
+  );
 
   const glslTab = page.getByRole("tab", { name: "GLSL ES 3.00" });
   const wgslTab = page.getByRole("tab", { name: "WGSL" });
@@ -109,6 +114,33 @@ try {
 
   const editor = page.getByRole("textbox", { name: "Shader source editor" });
   const originalSource = await editor.inputValue();
+  const expandedSource = await readFile(
+    new URL(
+      "../../packages/core/test/fixtures/expanded.shdr.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await compileSource(page, editor, expandedSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  const expandedPixel = await readCenterPixel(page);
+  assertChannel("expanded red", expandedPixel[0], 128, 4);
+  assertChannel("expanded green", expandedPixel[1], 64, 4);
+  assertChannel("expanded blue", expandedPixel[2], 64, 4);
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-validation-target="wgsl"]')
+        ?.getAttribute("data-validation-state") !== "pending",
+  );
+  assert.ok(
+    ["success", "unavailable"].includes(
+      await wgslValidation.getAttribute("data-validation-state"),
+    ),
+  );
+  await compileSource(page, editor, originalSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+
   const implicitResolutionSource = `import { createFragmentShader, vec4 } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -120,7 +152,10 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await compileSource(page, editor, implicitResolutionSource);
   await waitForValidation(page, "glsl-es-300", "success");
   assert.equal(await canvas.getAttribute("data-bound-uniforms"), "resolution");
-  assert.match(await page.getByRole("tabpanel").textContent(), /uniform vec2 u_resolution/);
+  assert.match(
+    await page.getByRole("tabpanel").textContent(),
+    /uniform vec2 u_resolution/,
+  );
   await wgslTab.click();
   assert.doesNotMatch(
     await page.getByRole("tabpanel").textContent(),
@@ -148,13 +183,18 @@ export default createFragmentShader(({ coord, uniforms }) => {
   );
   await waitForValidation(page, "glsl-es-300", "blocked");
   assert.match(await diagnostics.textContent(), /SHDR1203/);
-  assert.match(await glslValidation.textContent(), /blocked by shared source diagnostics/i);
+  assert.match(
+    await glslValidation.textContent(),
+    /blocked by shared source diagnostics/i,
+  );
   assert.equal(
     await wgslValidation.getAttribute("data-validation-state"),
     "blocked",
   );
   assert.deepEqual(await readCenterPixel(page), editedPixel);
-  await page.getByText("The canvas preserves the last successful GLSL render.").waitFor();
+  await page
+    .getByText("The canvas preserves the last successful GLSL render.")
+    .waitFor();
 
   const mouseSource = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -319,7 +359,9 @@ async function readRuntimeMetrics(page) {
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error("The render canvas is unavailable.");
     }
-    const [mouseX, mouseY] = (canvas.dataset.mouse ?? "").split(",").map(Number);
+    const [mouseX, mouseY] = (canvas.dataset.mouse ?? "")
+      .split(",")
+      .map(Number);
     return {
       width: canvas.width,
       height: canvas.height,

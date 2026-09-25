@@ -231,6 +231,9 @@ function collectExpressions(shader: ShaderModule): readonly ShaderExpression[] {
         visit(expression.left);
         visit(expression.right);
         return;
+      case "unary":
+        visit(expression.argument);
+        return;
       case "call":
         for (const argument of expression.arguments) visit(argument);
         return;

@@ -13,7 +13,9 @@ async function waitForDiagnostics(
     if (predicate(diagnostics)) return diagnostics;
     await delay(100);
   }
-  throw new Error(`Timed out waiting for diagnostics for ${uri.toString()}.`);
+  throw new Error(
+    `Timed out waiting for diagnostics for ${uri.toString()}: ${JSON.stringify(vscode.languages.getDiagnostics(uri).map((diagnostic) => ({ code: diagnostic.code, message: diagnostic.message })))}`,
+  );
 }
 
 async function waitForHoverText(
@@ -122,6 +124,31 @@ export async function run(): Promise<void> {
   await waitForDiagnostics(
     gradientUri,
     (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
+  );
+
+  const expandedUri = vscode.Uri.joinPath(workspace.uri, "expanded.shdr.ts");
+  const expanded = await vscode.workspace.openTextDocument(expandedUri);
+  assert.equal(expanded.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(expanded);
+  await waitForDiagnostics(
+    expandedUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(expanded, "reordered.x", /Expr<Vec3<F32>>/);
+  await waitForHoverText(expanded, "repeated.x", /Expr<Vec4<F32>>/);
+  const validMultiply = "uniforms.time * uniforms.time";
+  const invalidMultiply = "uniforms.time * coord.xy";
+  await replaceText(expanded, validMultiply, invalidMultiply);
+  const expandedErrors = await waitForDiagnostics(
+    expandedUri,
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2769,
+  );
+  assert.equal(expanded.getText(expandedErrors[0]?.range), invalidMultiply);
+  assert.doesNotMatch(expandedErrors[0]!.message, /__shdr_internal/);
+  await replaceText(expanded, invalidMultiply, validMultiply);
+  await waitForDiagnostics(
+    expandedUri,
+    (diagnostics) => diagnostics.length === 0,
   );
 
   const invalidUri = vscode.Uri.joinPath(

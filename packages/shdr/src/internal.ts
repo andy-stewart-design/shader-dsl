@@ -1,5 +1,11 @@
 import { shaderSourceWasNotTransformed } from "./runtime-error.js";
-import type { Expr, F32, Vec2, Vec4 } from "./types.js";
+import type { Expr, F32, Vec2, Vec3, Vec4 } from "./types.js";
+export {
+  __shdr_internal_add,
+  __shdr_internal_mul,
+  __shdr_internal_neg,
+  __shdr_internal_sub,
+} from "./operators.js";
 
 export function __shdr_internal_f32(_value: number): Expr<F32> {
   return shaderSourceWasNotTransformed("__shdr_internal_f32");
@@ -17,6 +23,14 @@ export function __shdr_internal_div(
   left: Expr<Vec2<F32>>,
   right: Expr<Vec2<F32>>,
 ): Expr<Vec2<F32>>;
+export function __shdr_internal_div(
+  left: Expr<Vec3<F32>>,
+  right: Expr<F32>,
+): Expr<Vec3<F32>>;
+export function __shdr_internal_div(
+  left: Expr<Vec3<F32>>,
+  right: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
 export function __shdr_internal_div(
   left: Expr<Vec4<F32>>,
   right: Expr<F32>,

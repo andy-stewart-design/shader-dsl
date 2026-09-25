@@ -5,6 +5,7 @@ import type { ShaderExpressionSyntax } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 
 export const DIV_HELPER_NAME = "__shdr_internal_div";
+export const NEG_HELPER_NAME = "__shdr_internal_neg";
 export const F32_HELPER_NAME = "__shdr_internal_f32";
 
 export function transformShaderExpressions(
@@ -69,6 +70,23 @@ function writeExpression(
         },
       );
       writer.addBinaryOperation(
+        expression.operator,
+        expression.range,
+        generatedRange,
+      );
+      return;
+    }
+
+    case "unary-expression": {
+      const generatedRange = writer.writeExpression(
+        expression.range,
+        (generated) => {
+          generated.append(`${NEG_HELPER_NAME}(`);
+          writeExpression(generated, expression.argument);
+          generated.append(")");
+        },
+      );
+      writer.addUnaryOperation(
         expression.operator,
         expression.range,
         generatedRange,
@@ -147,6 +165,11 @@ function visitExpression(
       visitExpression(expression.right, helperNames);
       return;
 
+    case "unary-expression":
+      helperNames.add(NEG_HELPER_NAME);
+      visitExpression(expression.argument, helperNames);
+      return;
+
     case "identifier":
       return;
 
@@ -170,6 +193,12 @@ function visitExpression(
 
 function helperNameForOperator(operator: ShaderBinaryOperator): string {
   switch (operator) {
+    case "+":
+      return "__shdr_internal_add";
+    case "-":
+      return "__shdr_internal_sub";
+    case "*":
+      return "__shdr_internal_mul";
     case "/":
       return DIV_HELPER_NAME;
     default:

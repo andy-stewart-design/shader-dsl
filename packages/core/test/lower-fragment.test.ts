@@ -150,7 +150,7 @@ describe("lowerFragment", () => {
   });
 
   it("returns validation diagnostics in original-source coordinates", () => {
-    const expression = "coord.x + uniforms.time";
+    const expression = "coord.x % uniforms.time";
     const source = shaderSource(`return vec4(${expression});`);
 
     expect(lowerFragment(source)).toEqual({
@@ -158,8 +158,7 @@ describe("lowerFragment", () => {
       diagnostics: [
         {
           code: ShaderDiagnosticCode.UnsupportedOperator,
-          message:
-            'The "+" binary operator is not supported; the POC supports only division.',
+          message: 'The "%" binary operator is not supported.',
           range: rangeOf(source, expression),
           severity: "error",
         },

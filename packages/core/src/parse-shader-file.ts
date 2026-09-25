@@ -21,7 +21,7 @@ import { validateShaderSyntax } from "./validate-shader-syntax.js";
 const SHDR_MODULE_NAME = "shdr";
 const CREATE_FRAGMENT_SHADER = "createFragmentShader";
 const RESERVED_IDENTIFIER_PREFIX = "__shdr_internal_";
-const SUPPORTED_SHADER_CALLABLES = new Set(["vec4"]);
+const SUPPORTED_SHADER_CALLABLES = new Set(["vec2", "vec3", "vec4"]);
 
 export interface ShaderImportInfo {
   readonly importedName: string;

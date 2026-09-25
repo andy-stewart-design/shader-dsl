@@ -418,10 +418,25 @@ function mapShaderOperationDiagnostic(
   const sourceFile = project.program.getSourceFile(fileName);
   if (!sourceFile) return undefined;
   const node = findNodeWithRange(sourceFile, operation.generated);
-  if (!node || !isCallExpression(node) || node.arguments.length !== 2) {
+  if (!node || !isCallExpression(node)) {
     return undefined;
   }
 
+  if (operation.kind === "unary-operation") {
+    const argument = node.arguments[0];
+    if (node.arguments.length !== 1 || !argument) return undefined;
+    const type = project.checker.getTypeAtLocation(argument);
+    if (!type) return undefined;
+    return {
+      fileName: diagnostic.fileName,
+      range: operation.original,
+      code: diagnostic.code,
+      category: diagnosticCategory(diagnostic.category),
+      message: `Unary operator "${operation.operator}" cannot be applied to type "${project.checker.typeToString(type)}".`,
+    };
+  }
+
+  if (node.arguments.length !== 2) return undefined;
   const left = node.arguments[0];
   const right = node.arguments[1];
   if (!left || !right) return undefined;

@@ -1,4 +1,7 @@
-import type { ShaderBinaryOperator } from "./shader-operator.js";
+import type {
+  ShaderBinaryOperator,
+  ShaderUnaryOperator,
+} from "./shader-operator.js";
 import type { ShaderValueType } from "./shader-type.js";
 import type { TextRange } from "./source-range.js";
 
@@ -9,7 +12,7 @@ export type ShaderDefaultUniform = "resolution" | "mouse" | "time";
 /** Stable only within one shader module. */
 export type ShaderLocalSymbolId = number;
 
-export type ShaderConstructorName = "vec4";
+export type ShaderConstructorName = "vec2" | "vec3" | "vec4";
 
 /** No built-in functions are accepted by the POC yet. */
 export type ShaderBuiltinFunctionName = never;
@@ -80,6 +83,12 @@ export interface ShaderBinaryExpression extends ShaderExpressionBase {
   readonly right: ShaderExpression;
 }
 
+export interface ShaderUnaryExpression extends ShaderExpressionBase {
+  readonly kind: "unary";
+  readonly operator: ShaderUnaryOperator;
+  readonly argument: ShaderExpression;
+}
+
 export interface ShaderCallExpression extends ShaderExpressionBase {
   readonly kind: "call";
   readonly target: ShaderCallTarget;
@@ -93,6 +102,7 @@ export type ShaderExpression =
   | ShaderLocalReferenceExpression
   | ShaderSwizzleExpression
   | ShaderBinaryExpression
+  | ShaderUnaryExpression
   | ShaderCallExpression;
 
 export interface ShaderConstDeclaration {

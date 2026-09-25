@@ -44,6 +44,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **Verify:** representative positive/negative source examples and a documented rule matrix reviewed against both targets. If a rule cannot be expressed faithfully in either backend, narrow the matrix rather than adding target-conditioned lowering.
 
+**Result — complete (contract only):** [`language-slice.md`](./language-slice.md) freezes the operator/type matrix, constructors, swizzle spellings, precedence, diagnostic ranges, and representative accepted/rejected source cases. A raw GLSL/WGSL browser feasibility test passes on Chromium 153.0.8010.12 using WebGL 2 and WebGPU; it deliberately does not claim Shdr compiler/editor parity. No new DSL source syntax is accepted yet; implementation starts in Phase 2.2.
+
 ### Phase 2.2 — Extend both type systems together
 
 - Extend `shdr` public `Expr`/constructor types and the private virtual helper overloads; add virtual rewrites and operation metadata for the new operators, including unary minus. Keep ordinary code outside callbacks byte-for-byte intact. Ensure helpers never surface in user diagnostics.
@@ -52,12 +54,16 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **Verify:** core and language-service unit tests, frozen-IR backend parity/determinism, GLSL WebGL compilation/rendered pixels, WGSL WebGPU shader-module validation where available, Vite dev/build examples, REPL compilation, and the real VS Code hover/diagnostic checklist on the expanded fixture. A new non-gradient shader must exercise the added operators and a `Vec3`/swizzle path through both generators.
 
+**Result — complete (implementation):** The source parser, virtual TypeScript helpers/mappings, explicit public overloads, typed IR, semantics, and both generators implement the Phase 2.1 matrix. TypeScript 7/core parity exercises all 64 binary operand/operator pairs, unary grouping and literal mapping, constructors, and read swizzles. A non-gradient fixture lowers to a frozen target-neutral IR, renders expected WebGL pixels, and compile-validates WGSL in WebGPU; Vite dev/build, browser REPL and the real VS Code editor checklist exercise expanded source. The CLI accepts new valid shaders and matches core diagnostics for a new invalid arithmetic fixture. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, and `pnpm --filter @shdr/editor-fixture test:editor` pass. Existing POC fixture expectations for now-supported features were replaced with permanently unsupported forms. Public language documentation remains Phase 2.3.
+
 ### Phase 2.3 — Document the actual accepted subset
 
 - Update the language reference, error examples, and fixture shaders. Make it clear that this remains a restricted shader language with `const` and a final `return`, not arbitrary TypeScript/GLSL/WGSL.
 - Run the PR 1 checker on new valid and invalid fixtures; confirm that CLI and compiler diagnostics match for shader semantics. Do not claim parity for ordinary TypeScript outside callbacks.
 
 **PR gate:** the new shader passes CLI checking, editor semantic tests, both target generators, and browser validation; invalid rules fail in both checker paths with original-source ranges; the entire workspace suite passes.
+
+**Result — complete (documentation and PR 2 gate):** The standalone README language reference now covers the precise operator matrix, constructors, swizzles, unsupported forms, original-range diagnostic examples, and the distinction between Shdr checks and ordinary TypeScript. Vite, REPL, and VS Code fixture guides link to expanded shaders and the reference. The existing valid expanded shader passed `pnpm shdr check apps/vite-basic/src/expanded.shdr.ts`; the explicitly checked invalid arithmetic fixture reported `SHDR1205` at its original `4:18` location with exit 1, matching the CLI/core parity test. TypeScript 7 parity tests cover rejected operand/constructor/swizzle cases and mapped ranges; the expanded shader is validated by both backends and browser tests. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, and the real VS Code checklist passed. Stop here for PR 2 review; PR 3 highlighting/Zed work has not started.
 
 ## PR 3 — Highlighting and Zed/LSP feasibility
 

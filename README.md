@@ -1,6 +1,6 @@
-# Shdr operator-syntax POC
+# Shdr
 
-Shdr is a proof of concept for writing shader expressions with native operators inside TypeScript-shaped source. A custom editor path gives those operators shader-specific types and diagnostics; a target-neutral compiler lowers the same source to typed IR and generates either GLSL ES 3.00 or WGSL.
+Shdr is an experimental language for writing fragment shaders with native operators inside TypeScript-shaped source. A custom editor path gives those operators shader-specific types and diagnostics; a target-neutral compiler lowers the same source to typed IR and generates either GLSL ES 3.00 or WGSL. This is a **restricted shader language**, not arbitrary TypeScript, JavaScript execution, or a general GLSL/WGSL frontend.
 
 ```ts
 import { createFragmentShader, vec4 } from "shdr";
@@ -13,7 +13,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });
 ```
 
-This is an embedded shader language using TypeScript syntax, not JavaScript execution or TypeScript operator overloading.
+The example uses top-left-origin pixel coordinates and the drawing-buffer resolution. For an expanded shader exercising `vec3`, unary minus, arithmetic, and swizzles, see [the checked fixture](packages/core/test/fixtures/expanded.shdr.ts).
 
 ## Requirements and workspace commands
 
@@ -91,7 +91,7 @@ export default defineConfig({
 });
 ```
 
-The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a generated shader string. Its target is intentionally fixed to **GLSL ES 3.00** for this POC.
+The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a generated shader string. Its target is intentionally fixed to **GLSL ES 3.00**; use `@shdr/core` for both targets.
 
 ```ts
 import type { FragmentShaderSource } from "shdr";
@@ -122,7 +122,7 @@ pnpm --filter repl test
 
 Select either generated target in the UI. In a WebGPU-capable browser, the REPL creates a WGSL shader module and displays `getCompilationInfo()` results. If WebGPU or an adapter is unavailable, the UI reports that limitation rather than claiming success. WGSL rendering is deliberately out of scope.
 
-## Exact supported language subset
+## Accepted shader language
 
 A shader module must have:
 
@@ -135,13 +135,41 @@ The callback supports only:
 
 - Simple `const name = expression` declarations followed by one final `return`.
 - Numeric literals, local references, and parenthesized expressions.
-- Binary division with `/` for the supported equal-dimension or vector/scalar combinations.
-- `coord`, `uniforms.resolution`, `uniforms.mouse`, and `uniforms.time`.
-- Read swizzles `.x`, `.y`, and `.xy` on supported vectors.
-- `vec4(x, y, z, w)`, `vec4(vec2, z, w)`, scalar splat `vec4(value)`, and `Vec4` copy `vec4(value)`.
-- A final `Expr<Vec4<F32>>` result.
+- `coord` (`Vec4<F32>`), `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`). Numeric literals are `F32`; vectors have two, three, or four `F32` components.
+- Native `+`, binary `-`, `*`, `/`, and unary `-`, with ordinary TypeScript precedence, left association, and parentheses. The operands and results remain shader expressions—not JavaScript arithmetic.
+- Direct read swizzles of one to four `xyzw` components available on the receiver. Repetition, reordering, and chaining work: `coord.xyz`, `coord.xy.yx`, `coord.xy.xxyy`. A one-component swizzle produces `F32`; two to four produce the corresponding vector type.
+- `vec2`, `vec3`, and `vec4` constructors in the forms below, and a final `Expr<Vec4<F32>>` result.
 
-Assignment, `let`, `var`, type annotations inside the callback, other operators, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics.
+| Operator        | Accepted operands (same `V` means the same vector dimension)   |
+| --------------- | -------------------------------------------------------------- |
+| `+`, binary `-` | `F32` with `F32`, or `V` with `V`                              |
+| `*`, `/`        | The same pairs, or `V` **on the left** with `F32` on the right |
+| unary `-`       | Any scalar or vector shader expression                         |
+
+Operations on vectors are component-wise. **No** scalar-on-the-left vector multiplication/division, scalar/vector addition/subtraction, or mixed vector dimensions are accepted. For example, `coord.xy * 0.5` works; `0.5 * coord.xy` and `coord.xy + uniforms.time` do not. Unary `+` and `%` are unsupported.
+
+| Constructor | Supported arguments                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `vec2`      | One `F32` (splat), two `F32`s, or one `Vec2<F32>` (copy)                                   |
+| `vec3`      | One `F32` (splat), three `F32`s, or one `Vec3<F32>` (copy)                                 |
+| `vec4`      | One `F32` (splat), four `F32`s, one `Vec2<F32>` plus two `F32`s, or one `Vec4<F32>` (copy) |
+
+Other packings such as `vec3(coord.xy, 1)` or `vec4(coord.xyz, 1)` are not yet supported. Swizzles cannot be written to or computed (`coord[0]`); `.rgba` aliases and unavailable components such as `coord.xy.z` are invalid.
+
+Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
+
+### Diagnostic examples
+
+`pnpm shdr check apps/vite-basic/src/expanded.shdr.ts` checks a complete valid shader. To see a failure, run `pnpm shdr check packages/cli/test/fixtures/invalid-arithmetic.shdr.ts`. Shader diagnostics refer to **original source**, never virtual helpers or generated code:
+
+| Expression in a shader callback | Diagnostic                                 | Range                   |
+| ------------------------------- | ------------------------------------------ | ----------------------- |
+| `coord.xy + uniforms.time`      | `SHDR1205` (incompatible binary operands)  | Whole binary expression |
+| `vec3(coord.xy, 1)`             | `SHDR1206` (unsupported constructor form)  | Whole call              |
+| `coord.xy.z`                    | `SHDR1204` (unavailable swizzle component) | `z`                     |
+| `+coord.x`                      | `SHDR1105` (unsupported unary operator)    | Unary expression        |
+
+These are **Shdr syntax and semantic** checks, not checks of ordinary TypeScript outside the callback. The TypeScript 7 editor provider also supplies mapped shader hovers and diagnostics; standalone `tsc` does not understand shader operators in `.shdr.ts` files.
 
 ## Targets, uniforms, and coordinates
 
@@ -161,6 +189,6 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
 - The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.
 - WGSL is generated and compile-validated but not rendered.
-- Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout.
+- Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout; that historical measurement is not a current bundle-size claim.
 
-These constraints are POC decisions, not silent compatibility claims.
+These are current implementation limits, not silent compatibility claims.

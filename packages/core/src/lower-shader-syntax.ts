@@ -29,6 +29,11 @@ const VEC2_F32_TYPE: ShaderVectorType = {
   scalar: "f32",
   size: 2,
 };
+const VEC3_F32_TYPE: ShaderVectorType = {
+  kind: "vector",
+  scalar: "f32",
+  size: 3,
+};
 const VEC4_F32_TYPE: ShaderVectorType = {
   kind: "vector",
   scalar: "f32",
@@ -231,6 +236,21 @@ function lowerExpression(
     case "binary-expression":
       return lowerBinaryExpression(syntax, context);
 
+    case "unary-expression": {
+      const argument = lowerExpression(syntax.argument, context);
+      if (!argument.ok) return argument;
+      return {
+        ok: true,
+        expression: {
+          kind: "unary",
+          operator: syntax.operator,
+          argument: argument.expression,
+          type: argument.expression.type,
+          range: syntax.range,
+        },
+      };
+    }
+
     case "call-expression":
       return lowerCallExpression(syntax, context);
 
@@ -243,10 +263,11 @@ function lowerCallExpression(
   syntax: ShaderCallExpressionSyntax,
   context: LoweringContext,
 ): LowerExpressionResult {
-  if (syntax.calleeName !== "vec4") {
+  const name = syntax.calleeName;
+  if (name !== "vec2" && name !== "vec3" && name !== "vec4") {
     return expressionFailure(
       ShaderDiagnosticCode.UnsupportedCall,
-      `Unsupported shader call ${JSON.stringify(syntax.calleeName)}; the POC supports only "vec4".`,
+      `Unsupported shader call ${JSON.stringify(syntax.calleeName)}; supported constructors are "vec2", "vec3", and "vec4".`,
       syntax.calleeRange,
     );
   }
@@ -258,13 +279,13 @@ function lowerCallExpression(
     args.push(lowered.expression);
   }
 
-  if (!isVec4ConstructorArguments(args)) {
+  if (!isConstructorArguments(name, args)) {
     const argumentTypes = args
       .map((argument) => formatExpressionType(argument.type))
       .join(", ");
     return expressionFailure(
       ShaderDiagnosticCode.InvalidConstructor,
-      `No matching "vec4" constructor for argument types (${argumentTypes}).`,
+      `No matching ${JSON.stringify(syntax.calleeName)} constructor for argument types (${argumentTypes}).`,
       syntax.range,
     );
   }
@@ -273,31 +294,37 @@ function lowerCallExpression(
     ok: true,
     expression: {
       kind: "call",
-      target: { kind: "constructor", name: "vec4" },
+      target: { kind: "constructor", name },
       arguments: args,
-      type: VEC4_F32_TYPE,
+      type:
+        name === "vec2"
+          ? VEC2_F32_TYPE
+          : name === "vec3"
+            ? VEC3_F32_TYPE
+            : VEC4_F32_TYPE,
       range: syntax.range,
     },
   };
 }
 
-function isVec4ConstructorArguments(
+function isConstructorArguments(
+  name: "vec2" | "vec3" | "vec4",
   args: readonly ShaderExpression[],
 ): boolean {
+  const size = name === "vec2" ? 2 : name === "vec3" ? 3 : 4;
   if (args.length === 1) {
-    const [value] = args;
-    return value !== undefined && (isF32(value.type) || isVec4(value.type));
+    const value = args[0];
+    return (
+      value !== undefined &&
+      (isF32(value.type) ||
+        (value.type.kind === "vector" && value.type.size === size))
+    );
   }
-
-  if (args.length === 4) {
-    return args.every((argument) => isF32(argument.type));
-  }
-
-  if (args.length !== 3) return false;
+  if (args.length === size && args.every((arg) => isF32(arg.type))) return true;
+  if (name !== "vec4" || args.length !== 3) return false;
   const [xy, z, w] = args;
   return (
     xy?.type.kind === "vector" &&
-    xy.type.scalar === "f32" &&
     xy.type.size === 2 &&
     z !== undefined &&
     isF32(z.type) &&
@@ -326,8 +353,13 @@ function lowerBinaryExpression(
 
   let type: ShaderValueType | undefined;
   switch (syntax.operator) {
+    case "+":
+    case "-":
+      type = sameTypeResult(left.expression.type, right.expression.type);
+      break;
+    case "*":
     case "/":
-      type = divisionResultType(left.expression.type, right.expression.type);
+      type = vectorScalarResult(left.expression.type, right.expression.type);
       break;
     default:
       return assertNever(syntax.operator);
@@ -354,22 +386,25 @@ function lowerBinaryExpression(
   };
 }
 
-function divisionResultType(
+function sameTypeResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
   if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
-  if (
-    left.kind !== "vector" ||
-    left.scalar !== "f32" ||
-    (left.size !== 2 && left.size !== 4)
-  ) {
-    return undefined;
-  }
-  if (isF32(right)) return left;
-  return right.kind === "vector" &&
-    right.scalar === "f32" &&
-    right.size === left.size
+  return left.kind === "vector" &&
+    right.kind === "vector" &&
+    left.size === right.size
+    ? left
+    : undefined;
+}
+
+function vectorScalarResult(
+  left: ShaderValueType,
+  right: ShaderValueType,
+): ShaderValueType | undefined {
+  if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
+  if (left.kind !== "vector") return undefined;
+  return isF32(right) || (right.kind === "vector" && right.size === left.size)
     ? left
     : undefined;
 }
@@ -394,20 +429,11 @@ function lowerSwizzle(
     );
   }
 
-  const components = supportedSwizzle(syntax.propertyName);
+  const components = parseVectorComponents(syntax.propertyName);
   if (!components) {
-    const parsed = parseVectorComponents(syntax.propertyName);
-    if (parsed?.some((component) => component >= objectType.size)) {
-      return expressionFailure(
-        ShaderDiagnosticCode.InvalidSwizzle,
-        `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not available on type ${JSON.stringify(formatShaderType(objectType))}.`,
-        syntax.propertyRange,
-      );
-    }
-
     return expressionFailure(
       ShaderDiagnosticCode.InvalidSwizzle,
-      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not supported; the POC supports only ".x", ".y", and ".xy".`,
+      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not supported; use one to four xyzw components.`,
       syntax.propertyRange,
     );
   }
@@ -430,21 +456,6 @@ function lowerSwizzle(
       range: syntax.range,
     },
   };
-}
-
-function supportedSwizzle(
-  propertyName: string,
-): ShaderSwizzleComponents | undefined {
-  switch (propertyName) {
-    case "x":
-      return [0];
-    case "y":
-      return [1];
-    case "xy":
-      return [0, 1];
-    default:
-      return undefined;
-  }
 }
 
 function parseVectorComponents(
