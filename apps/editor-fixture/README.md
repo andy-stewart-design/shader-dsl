@@ -17,7 +17,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 ## Fixture files
 
 - `gradient.shdr.ts`: the target shader plus an intentional ordinary TypeScript error outside its callback.
-- `expanded.shdr.ts`: arithmetic, `vec2`/`vec3`, unary minus, and repeated/chained read swizzles.
+- [`expanded.shdr.ts`](expanded.shdr.ts): arithmetic, `vec2`/`vec3`, unary minus, and repeated/reordered read swizzles; see the [language reference](../../README.md#accepted-shader-language).
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
@@ -66,7 +66,7 @@ pnpm --filter @shdr/editor-fixture build
 pnpm --filter @shdr/editor-fixture test:editor
 ```
 
-`test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned checklist, including live invalid and nested-division edits. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
+`test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned checklist, including live invalid arithmetic and nested-division edits plus expanded Vec3/Vec4 hovers. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
 
 ## Standalone TypeScript limitation
 

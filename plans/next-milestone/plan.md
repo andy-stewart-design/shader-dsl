@@ -63,6 +63,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **PR gate:** the new shader passes CLI checking, editor semantic tests, both target generators, and browser validation; invalid rules fail in both checker paths with original-source ranges; the entire workspace suite passes.
 
+**Result — complete (documentation and PR 2 gate):** The standalone README language reference now covers the precise operator matrix, constructors, swizzles, unsupported forms, original-range diagnostic examples, and the distinction between Shdr checks and ordinary TypeScript. Vite, REPL, and VS Code fixture guides link to expanded shaders and the reference. The existing valid expanded shader passed `pnpm shdr check apps/vite-basic/src/expanded.shdr.ts`; the explicitly checked invalid arithmetic fixture reported `SHDR1205` at its original `4:18` location with exit 1, matching the CLI/core parity test. TypeScript 7 parity tests cover rejected operand/constructor/swizzle cases and mapped ranges; the expanded shader is validated by both backends and browser tests. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, and the real VS Code checklist passed. Stop here for PR 2 review; PR 3 highlighting/Zed work has not started.
+
 ## PR 3 — Highlighting and Zed/LSP feasibility
 
 ### Phase 3.1 — Separate visual highlighting from semantic services

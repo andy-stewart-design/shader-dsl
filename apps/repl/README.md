@@ -7,13 +7,13 @@ pnpm --filter repl dev
 pnpm --filter repl build
 ```
 
-Edit the source and choose **Compile both targets**, or press Ctrl/Command+Enter. Source diagnostics are shared by both backends. The generated GLSL is compiled, linked, and rendered in WebGL 2. When WebGPU is available, the generated WGSL is compiled as a shader module and its compilation info is displayed; otherwise the UI reports that validation is unavailable.
+Edit the source and choose **Compile both targets**, or press Ctrl/Command+Enter. To try arithmetic, constructors, and swizzles, paste the whole [expanded shader fixture](../../packages/core/test/fixtures/expanded.shdr.ts) into the REPL. The [language reference](../../README.md#accepted-shader-language) lists accepted and rejected expressions. Source diagnostics are shared by both backends. The generated GLSL is compiled, linked, and rendered in WebGL 2. When WebGPU is available, the generated WGSL is compiled as a shader module and its compilation info is displayed; otherwise the UI reports that validation is unavailable.
 
 ```sh
 pnpm --filter repl test
 ```
 
-The browser test verifies target selection, validation states, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
+The browser test verifies target selection, validation states, the expanded shader's rendered pixels and WGSL compilation, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
 
 ## Runtime uniforms
 
