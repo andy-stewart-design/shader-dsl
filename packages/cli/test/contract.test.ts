@@ -84,6 +84,8 @@ describe("path discovery contract", () => {
         "dist",
         "node_modules",
         "nested/build",
+        "test/fixtures",
+        "nested/test/fixtures",
       ]) {
         await mkdir(join(cwd, directory), { recursive: true });
       }
@@ -93,6 +95,8 @@ describe("path discovery contract", () => {
         "dist/ignored.shdr.ts",
         "node_modules/ignored.shdr.ts",
         "nested/build/ignored.shdr.ts",
+        "test/fixtures/invalid.shdr.ts",
+        "nested/test/fixtures/invalid.shdr.ts",
       ]) {
         await writeFile(join(cwd, name), "");
       }
@@ -107,6 +111,9 @@ describe("path discovery contract", () => {
       ).toEqual(["nested/a.shdr.ts"]);
       expect(names(await discoverShaderFiles(["dist"], cwd))).toEqual([
         "dist/ignored.shdr.ts",
+      ]);
+      expect(names(await discoverShaderFiles(["test/fixtures"], cwd))).toEqual([
+        "test/fixtures/invalid.shdr.ts",
       ]);
       expect(
         names(await discoverShaderFiles(["node_modules/ignored.shdr.ts"], cwd)),

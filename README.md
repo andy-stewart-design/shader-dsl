@@ -31,12 +31,24 @@ The normal test suite includes real Chromium WebGL tests, Vite development/produ
 | Workspace                   | Purpose                                                 |
 | --------------------------- | ------------------------------------------------------- |
 | `packages/shdr`             | Public authoring types and DSL markers                  |
+| `packages/cli`              | Node CLI for shader-source checks in CI                 |
 | `packages/core`             | Parser, validation, typed IR, and GLSL/WGSL generation  |
 | `packages/language-service` | TypeScript 7 virtual-source checking and editor routing |
 | `packages/vite`             | `.shdr.ts` to GLSL Vite pre-transform                   |
 | `apps/editor-fixture`       | Real VS Code diagnostics and hover fixture              |
 | `apps/vite-basic`           | Vanilla TypeScript/WebGL 2 integration fixture          |
 | `apps/repl`                 | React browser compiler, target viewer, and validator    |
+
+## Shader checks in CI
+
+After building the workspace, check authored shader files with the Shdr CLI:
+
+```sh
+pnpm shdr check # recursively check authored shaders in this workspace
+pnpm ci:check # ordinary TypeScript checks plus Shdr checks
+```
+
+`shdr check [paths...]` recursively discovers `.shdr.ts` files under the given files/directories (or the current directory if no paths are given). A search with no matches fails. Default discovery skips `test/fixtures` directories containing deliberately invalid shader samples; new authored shaders elsewhere are picked up automatically. Use `pnpm check` separately for ordinary TypeScript; the Shdr CLI does not type-check code outside shader callbacks or make standalone `tsc` understand shader operators. See [CLI usage and discovery rules](packages/cli/README.md).
 
 ## VS Code and workspace TypeScript
 
@@ -144,7 +156,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 
 ## Known limitations
 
-- **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Normal TypeScript packages are still checked normally.
+- **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
 - The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
 - The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.

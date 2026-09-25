@@ -1,5 +1,5 @@
 import { lstat, readdir } from "node:fs/promises";
-import { relative, resolve, sep } from "node:path";
+import { basename, relative, resolve, sep } from "node:path";
 
 import { CliInputError } from "./contract.js";
 
@@ -40,7 +40,12 @@ export async function discoverShaderFiles(
       if (entry.isSymbolicLink()) continue;
       const fileName = resolve(directory, entry.name);
       if (entry.isDirectory()) {
-        if (!ignored.has(entry.name)) await visitDirectory(fileName);
+        if (
+          !ignored.has(entry.name) &&
+          !(basename(directory) === "test" && entry.name === "fixtures")
+        ) {
+          await visitDirectory(fileName);
+        }
       } else if (entry.isFile() && entry.name.endsWith(".shdr.ts")) {
         files.add(fileName);
       }

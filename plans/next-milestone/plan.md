@@ -31,6 +31,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **PR gate:** clean and invalid projects return the specified results; diagnostic positions point into original files; `pnpm build`, `pnpm check`, and `pnpm test` pass. CLI outputs remain unchanged for existing POC examples.
 
+**Result — complete:** `@shdr/cli` declares a `shdr` binary and the root `pnpm shdr` script runs it. It discovers `.shdr.ts` files, calls public `lowerFragment` per file, prints source-ranged diagnostics in stable order, and uses 0/1/2 exit codes. Subprocess fixtures cover valid files (including ordinary TS outside the callback), invalid boundary/syntax/semantics, nested operations, multiple diagnostics/files, spaces, Unicode/CRLF positions, ignored paths, help and usage failures. `pnpm ci:check` combines ordinary workspace checks with default shader discovery; intentionally invalid examples under `test/fixtures` are skipped by default (but explicit paths still check them), and excluded from standalone `tsc`. The complete `pnpm build`, `pnpm ci:check`, and `pnpm test` suite passed, including browser tests. Distribution outside this private workspace is not yet claimed.
+
 ## PR 2 — Small arithmetic/vector language slice
 
 ### Phase 2.1 — Lock the semantic matrix before coding

@@ -3,8 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "shdr": "./dist/bin.mjs"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsdown",
+    "pretest": "tsdown",
     "check": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },

@@ -8,6 +8,8 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check": "turbo run check",
+    "shdr": "node packages/cli/dist/bin.mjs",
+    "ci:check": "pnpm check && pnpm shdr check",
     "test": "turbo run test"
   },
   "devDependencies": {
