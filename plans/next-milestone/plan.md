@@ -44,6 +44,8 @@ Ship as **three separately reviewable PRs**, in order: (1) checker CLI, (2) arit
 
 **Verify:** representative positive/negative source examples and a documented rule matrix reviewed against both targets. If a rule cannot be expressed faithfully in either backend, narrow the matrix rather than adding target-conditioned lowering.
 
+**Result — complete (contract only):** [`language-slice.md`](./language-slice.md) freezes the operator/type matrix, constructors, swizzle spellings, precedence, diagnostic ranges, and representative accepted/rejected source cases. A raw GLSL/WGSL browser feasibility test passes on Chromium 153.0.8010.12 using WebGL 2 and WebGPU; it deliberately does not claim Shdr compiler/editor parity. No new DSL source syntax is accepted yet; implementation starts in Phase 2.2.
+
 ### Phase 2.2 — Extend both type systems together
 
 - Extend `shdr` public `Expr`/constructor types and the private virtual helper overloads; add virtual rewrites and operation metadata for the new operators, including unary minus. Keep ordinary code outside callbacks byte-for-byte intact. Ensure helpers never surface in user diagnostics.
