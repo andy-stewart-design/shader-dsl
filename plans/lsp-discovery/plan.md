@@ -1,0 +1,31 @@
+# Project-aware Shdr LSP — plan
+
+Status: proposed. Follow-up to the [editor integration decision](../_completed/next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
+
+## Goal and boundary
+
+Make the existing **repo-local** Shdr LSP select the appropriate TypeScript project for each `.shdr.ts` document. From this repository, `zed -n .` should give the same mapped diagnostics and hover as `zed -n ./apps/editor-fixture`, including files in different configured projects. A separate non-fixture project must be exercised through the protocol tests. The current Zed launcher explicitly rejects repository-root worktrees, while the server creates one `TypeScript7EditorAdapter` at initialization using the first workspace root and its `tsconfig.json`; it passes a fixed `projectVersion: 1`. Remove those assumptions without writing a second checker or changing ordinary `.ts` ownership.
+
+**Not this work:** publishing/installing a Zed extension, shipping a Node runtime or bundled server, arbitrary external-project Zed support, switching VS Code to LSP, semantic tokens, completion, formatting, worker isolation or full cancellation. In particular, discovering a `tsconfig.json` for an external project does **not** make the hard-coded repo-local server executable distributable. Keep the fixture formatting workaround separate from semantic project discovery.
+
+## Phase 1 — Project-selection contract
+
+- Establish how a `file:` `.shdr.ts` URI maps to an actual TypeScript config: search upward from the document directory within the relevant workspace; account for nested configs and whether the selected config actually includes the document. Decide explicitly what happens if the nearest config excludes it, no config exists, the config is invalid, a document moves between projects, a worktree contains multiple projects, or project references are present. Do not silently report an unchecked file as clean or fall back to an unrelated config.
+- Define the supported workspace boundary, canonical path/symlink handling, error visibility, cache ownership and lifetime. Keep non-file URIs and ordinary `.ts` isolated. Record which multi-root/reference cases are supported versus deferred. Decide how changes to `tsconfig.json` and relevant project files invalidate/recreate checkers and republish diagnostics without requiring a window restart; distinguish document versions from project/config versions.
+- Use small test workspaces with at least two distinct configs and a `.shdr.ts` in each, plus excluded/missing-config cases. Freeze expected selections and failure messages **before** changing the server.
+
+**Gate:** a reviewed selection table and automated tests for the resolver, including repository-root versus nested-workspace initialization. No Zed success claim from this phase alone.
+
+## Phase 2 — Route the existing adapter per project
+
+- In `packages/lsp`, maintain one `TypeScript7EditorAdapter` per selected config and route open/change/hover/close to the document's owner. Keep distinct document and project versions; dispose old documents/adapters on close, config changes or ownership changes. Recheck affected open documents when their project changes, clear obsolete diagnostics, and preserve original-source UTF-16 ranges and sanitized Shdr messages. Reuse `@shdr/language-service`; do not duplicate TypeScript virtual-source or shader semantics in the server.
+- Extend built-process protocol tests to initialize at the **repository root**, open shaders belonging to two configs, edit one without contaminating the other, check hover and one mapped invalid-operation diagnostic in each, and cover config invalidation, missing/excluded config, stale incoming edits, close/shutdown and ordinary `.ts` isolation. Add a second non-fixture TypeScript project as a real input, not a mock checker. If filesystem notifications or watched-file support is needed, specify and test how the client delivers them; avoid promising automatic refresh without an observed trigger.
+
+**Gate:** `pnpm --filter @shdr/lsp test`, build/check and existing editor-adapter tests pass. The protocol must demonstrate project selection, not merely successful single-project initialization.
+
+## Phase 3 — Wire the repo-local Zed launcher and verify
+
+- Remove the fixture-manifest rejection from the dev extension. Resolve the **built local server** for both the repository-root and `apps/editor-fixture` worktrees without relying on the fixture-only `../../packages/lsp/dist/bin.mjs` path; report a clear error when this repository-local artifact is missing. Do not mistake this development lookup for a distribution strategy.
+- After `pnpm build` and a Zed dev-extension rebuild, separately open `zed -n .` and `zed -n ./apps/editor-fixture`. In each, check the **Shdr** language indicator, mapped `coord.xy / coord` diagnostic, `Expr<Vec2<F32>>` hover and absence of native TypeScript operator errors. Verify another configured shader project from the root worktree and that `ordinary.ts` remains TypeScript. Retest after closing/reopening the workspace; rebuilding the dev extension can stop the running server. Record Zed and TypeScript versions, screenshots/logs, and any limits rather than generalizing from the fixture.
+
+**Gate:** both Zed worktrees demonstrate semantics, the second project passes protocol tests, `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check` and the real VS Code fixture test still pass. Stop for review before language changes. A clean install from an unrelated checkout remains **unverified** until server distribution and runtime provisioning are addressed separately; synchronous-check responsiveness and cancellation remain known follow-ups.
