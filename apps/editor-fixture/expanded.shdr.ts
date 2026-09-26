@@ -5,6 +5,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   const uv = vec2(coord.x, coord.y) / uniforms.resolution;
   const copy = vec2(uv);
   const repeated = copy.xxyy;
+
   const rgb = vec3(repeated.x, repeated.z, 0);
   const shifted = -vec3(rgb) + vec3(1);
   const scaled = (shifted * 0.5) / 1;

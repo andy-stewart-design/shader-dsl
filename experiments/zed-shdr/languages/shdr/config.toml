@@ -1,0 +1,6 @@
+name = "Shdr"
+grammar = "typescript"
+path_suffixes = ["shdr.ts"]
+line_comments = ["// "]
+tab_size = 2
+prettier_parser_name = "typescript"

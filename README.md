@@ -67,7 +67,7 @@ In the development host:
 2. Confirm TypeScript 7.0.2 is selected.
 3. Reload the window after changing the TypeScript selection.
 
-`apps/editor-fixture/.vscode/settings.json` enables TS Go and points editor tooling to the workspace TypeScript installation. The fixture extension assigns `.shdr.ts` files the `shdr-typescript` language ID, publishes mapped shader diagnostics, and supplies shader hovers. Ordinary `.ts` files remain owned by the standard TypeScript provider.
+`apps/editor-fixture/.vscode/settings.json` enables TS Go and points editor tooling to the workspace TypeScript installation. The fixture extension assigns `.shdr.ts` files the `shdr-typescript` language ID, reuses VS Code's TypeScript TextMate grammar for lexical highlighting, publishes mapped shader diagnostics, and supplies shader hovers. Ordinary `.ts` files remain owned by the standard TypeScript provider. The separate [Zed highlighting spike](experiments/zed-shdr/README.md) has been visually verified in Zed 1.21.0 as a local dev extension, but has no shader diagnostics or hovers and is not shipped.
 
 Run the Shdr-owned real-editor checklist automatically against an installed VS Code. The standard TypeScript provider check for ordinary `.ts` files remains manual:
 

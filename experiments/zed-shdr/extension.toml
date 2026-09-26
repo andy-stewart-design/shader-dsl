@@ -1,0 +1,7 @@
+id = "shdr-highlighting-spike"
+name = "Shdr"
+version = "0.0.1"
+schema_version = 1
+authors = ["Shdr contributors"]
+description = "Experimental .shdr.ts file recognition using Zed's built-in TypeScript grammar"
+repository = "https://github.com/andy-stewart-design/shader-dsl"
