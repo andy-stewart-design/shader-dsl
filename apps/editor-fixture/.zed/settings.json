@@ -1,0 +1,17 @@
+{
+  "languages": {
+    "Shdr": {
+      "formatter": {
+        "external": {
+          "command": "sh",
+          "arguments": [
+            "-c",
+            "exec \"$(git -C \"$(dirname \"$1\")\" rev-parse --show-toplevel)/node_modules/.bin/prettier\" --stdin-filepath \"$1\"",
+            "sh",
+            "{buffer_path}"
+          ]
+        }
+      }
+    }
+  }
+}

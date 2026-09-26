@@ -24,6 +24,13 @@
           ".shdr.ts"
         ]
       }
+    ],
+    "grammars": [
+      {
+        "language": "shdr-typescript",
+        "scopeName": "source.shdr.ts",
+        "path": "./syntaxes/shdr-typescript.tmLanguage.json"
+      }
     ]
   },
   "scripts": {
@@ -40,6 +47,8 @@
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/vscode": "1.125.0",
-    "tsdown": "^0.22.5"
+    "tsdown": "^0.22.5",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   }
 }

@@ -12,7 +12,7 @@ The released TypeScript 7.0.2 language server and matching `TypeScriptTeam.nativ
 4. Keeps the unstable `typescript/unstable/sync` API and TypeScript AST details private inside `@shdr/language-service`.
 5. Publishes the adapter's compiler-independent results through stable VS Code diagnostic and hover APIs.
 
-Ordinary TypeScript inside a shader module is checked through the same TypeScript 7 project and preserved by identity mappings. Ordinary `.ts` modules keep the standard TypeScript editor provider.
+Ordinary TypeScript inside a shader module is checked through the same TypeScript 7 project and preserved by identity mappings. Ordinary `.ts` modules keep the standard TypeScript editor provider. For lexical coloring, a contributed TextMate grammar under `source.shdr.ts` includes VS Code's built-in `source.ts` scope: TypeScript tokens are colored without defining a shader regex grammar or altering semantic diagnostics.
 
 ## Fixture files
 
@@ -21,6 +21,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
+- `.zed/settings.json`: in the **local Zed spike only**, finds the repository-root Prettier binary from the buffer's Git worktree and runs it directly. `pnpm install` at the repository root is required; this does not provide semantics or change VS Code formatting.
 
 ## Workspace setup
 
@@ -46,6 +47,8 @@ The successful pinned run used:
 - TypeScript 7.0.2
 - `TypeScriptTeam.native-preview` 0.20260708.2 for protocol investigation; the Shdr provider does not depend on that extension.
 
+For the separate Zed LSP experiment, build the repo and rebuild the Zed dev extension, then run `zed -n "$PWD/apps/editor-fixture"` **from the repository root**. Opening the repository root itself with `zed -n .` only provides recognition and possible formatting, **not** Shdr diagnostics/hover. Reopen the fixture workspace after an extension rebuild: Zed stops the old language server and may not restart it for already-open buffers. See the [Zed checklist](../../experiments/zed-shdr/README.md) for its verified scope; the VS Code fixture is not replaced by LSP.
+
 ## Manual checklist
 
 1. Open `gradient.shdr.ts` and confirm the only diagnostic is the intentional `ordinaryOutside` number-to-string error.
@@ -57,7 +60,8 @@ The successful pinned run used:
 7. Restore the original expression.
 8. Open `test/fixtures/invalid.shdr.ts` and confirm its sole diagnostic covers `coord.xy / coord`.
 9. Open `expanded.shdr.ts` and confirm zero diagnostics. Hover `reordered` and `repeated` to verify `Expr<Vec3<F32>>` and `Expr<Vec4<F32>>`. Change `uniforms.time * uniforms.time` to `uniforms.time * coord.xy` and confirm one mapped, helper-free operator diagnostic; restore the source.
-10. Open `ordinary.ts`, confirm its language is TypeScript, and hover `ordinaryValue` to verify the standard provider remains active.
+10. Run **Developer: Inspect Editor Tokens and Scopes** on `expanded.shdr.ts`. Confirm `import` has a `keyword.control.import.ts` scope under `source.shdr.ts`, `"shdr"` has a `string.quoted.double.ts` scope, and a numeric literal has a `constant.numeric.decimal.ts` scope. Confirm syntax colors appear for keywords, operators, strings, and numbers; lexical coloring does not validate shader semantics.
+11. Open `ordinary.ts`, confirm its language is TypeScript (`source.ts` in the token inspector), and hover `ordinaryValue` to verify the standard provider remains active.
 
 ## Automated real-VS-Code verification
 
@@ -66,7 +70,7 @@ pnpm --filter @shdr/editor-fixture build
 pnpm --filter @shdr/editor-fixture test:editor
 ```
 
-`test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned checklist, including live invalid arithmetic and nested-division edits plus expanded Vec3/Vec4 hovers. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
+`pnpm --filter @shdr/editor-fixture test` tokenizes the expanded fixture with VS Code's installed TypeScript TextMate grammar, asserting `source.shdr.ts` and real TypeScript lexical scopes when the grammar is available. `test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned language-ID and semantic checklist, including live invalid arithmetic and nested-division edits plus expanded Vec3/Vec4 hovers. VS Code has no public token-inspection API for extensions, so perform the visual/token-inspector check above manually. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
 
 ## Standalone TypeScript limitation
 
