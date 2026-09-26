@@ -34,6 +34,7 @@ The normal test suite includes real Chromium WebGL tests, Vite development/produ
 | `packages/cli`              | Node CLI for shader-source checks in CI                 |
 | `packages/core`             | Parser, validation, typed IR, and GLSL/WGSL generation  |
 | `packages/language-service` | TypeScript 7 virtual-source checking and editor routing |
+| `packages/lsp`              | Private stdio LSP feasibility spike (not shipped)       |
 | `packages/vite`             | `.shdr.ts` to GLSL Vite pre-transform                   |
 | `apps/editor-fixture`       | Real VS Code diagnostics and hover fixture              |
 | `apps/vite-basic`           | Vanilla TypeScript/WebGL 2 integration fixture          |
@@ -67,7 +68,7 @@ In the development host:
 2. Confirm TypeScript 7.0.2 is selected.
 3. Reload the window after changing the TypeScript selection.
 
-`apps/editor-fixture/.vscode/settings.json` enables TS Go and points editor tooling to the workspace TypeScript installation. The fixture extension assigns `.shdr.ts` files the `shdr-typescript` language ID, reuses VS Code's TypeScript TextMate grammar for lexical highlighting, publishes mapped shader diagnostics, and supplies shader hovers. Ordinary `.ts` files remain owned by the standard TypeScript provider. The separate [Zed highlighting spike](experiments/zed-shdr/README.md) has been visually verified in Zed 1.21.0 as a local dev extension, but has no shader diagnostics or hovers and is not shipped.
+`apps/editor-fixture/.vscode/settings.json` enables TS Go and points editor tooling to the workspace TypeScript installation. The fixture extension assigns `.shdr.ts` files the `shdr-typescript` language ID, reuses VS Code's TypeScript TextMate grammar for lexical highlighting, publishes mapped shader diagnostics, and supplies shader hovers. Ordinary `.ts` files remain owned by the standard TypeScript provider. A separate [Zed dev-extension spike](experiments/zed-shdr/README.md) verified lexical highlighting, one mapped diagnostic, and hover in Zed 1.21.0 **only with `apps/editor-fixture` opened as the workspace**. Opening the repository root instead still colors and may format `.shdr.ts`, but does not start the Shdr LSP. The Zed extension and LSP are not shipped, and VS Code still uses its existing provider rather than LSP.
 
 Run the Shdr-owned real-editor checklist automatically against an installed VS Code. The standard TypeScript provider check for ordinary `.ts` files remains manual:
 
@@ -185,7 +186,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 ## Known limitations
 
 - **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
-- The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`.
+- The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private Zed LSP wraps the same adapter and has the same project limits; its launcher supports only the editor-fixture worktree.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
 - The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.
 - WGSL is generated and compile-validated but not rendered.
