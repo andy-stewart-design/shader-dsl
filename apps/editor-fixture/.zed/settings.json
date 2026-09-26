@@ -1,0 +1,12 @@
+{
+  "languages": {
+    "Shdr": {
+      "formatter": {
+        "external": {
+          "command": "pnpm",
+          "arguments": ["exec", "prettier", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    }
+  }
+}

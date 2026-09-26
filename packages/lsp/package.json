@@ -1,0 +1,26 @@
+{
+  "name": "@shdr/lsp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "shdr-lsp": "./dist/bin.mjs"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "tsc --noEmit",
+    "pretest": "tsdown",
+    "test": "vitest run --config ../../vitest.config.ts --root ."
+  },
+  "dependencies": {
+    "@shdr/language-service": "workspace:*",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.15"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.3",
+    "tsdown": "^0.22.5",
+    "typescript": "7.0.2"
+  }
+}

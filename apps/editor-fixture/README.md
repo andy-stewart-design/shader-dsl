@@ -21,6 +21,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
+- `.zed/settings.json`: in the **local Zed spike only**, routes Shdr formatting through `pnpm exec prettier --stdin-filepath {buffer_path}`. It does not provide semantics or change VS Code formatting.
 
 ## Workspace setup
 
@@ -45,6 +46,8 @@ The successful pinned run used:
 - VS Code 1.127.0
 - TypeScript 7.0.2
 - `TypeScriptTeam.native-preview` 0.20260708.2 for protocol investigation; the Shdr provider does not depend on that extension.
+
+For the separate Zed LSP experiment, open **this folder** as the Zed workspace after building the repo and rebuilding the Zed dev extension. Reopen the workspace after an extension rebuild: Zed stops the old language server and may not restart it for already-open buffers. See the [Zed checklist](../../experiments/zed-shdr/README.md) for its verified scope; the VS Code fixture is not replaced by LSP.
 
 ## Manual checklist
 
