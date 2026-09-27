@@ -1,6 +1,6 @@
 # Project-aware Shdr LSP — plan
 
-Status: Phase 1 contract and isolated resolver implemented, pending review. Follow-up to the [editor integration decision](../_completed/next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
+Status: Phase 2 project-aware stdio server implemented, pending review. Follow-up to the [editor integration decision](../_completed/next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
 
 ## Goal and boundary
 
@@ -20,6 +20,8 @@ Make the existing **repo-local** Shdr LSP select the appropriate TypeScript proj
 
 - In `packages/lsp`, maintain one `TypeScript7EditorAdapter` per selected config and route open/change/hover/close to the document's owner. Keep distinct document and project versions; dispose old documents/adapters on close, config changes or ownership changes. Recheck affected open documents when their project changes, clear obsolete diagnostics, and preserve original-source UTF-16 ranges and sanitized Shdr messages. Reuse `@shdr/language-service`; do not duplicate TypeScript virtual-source or shader semantics in the server.
 - Extend built-process protocol tests to initialize at the **repository root**, open shaders belonging to two configs, edit one without contaminating the other, check hover and one mapped invalid-operation diagnostic in each, and cover config invalidation, missing/excluded config, stale incoming edits, close/shutdown and ordinary `.ts` isolation. Add a second non-fixture TypeScript project as a real input, not a mock checker. If filesystem notifications or watched-file support is needed, specify and test how the client delivers them; avoid promising automatic refresh without an observed trigger.
+
+**Phase 2 result — stop for review:** The stdio server uses the Phase 1 resolver to assign each open shader to its configured TypeScript 7 adapter, preserving versioned original-source diagnostics and hover. Protocol tests launch the **built** process with the repository root, check `apps/editor-fixture` and a distinct `packages/lsp/test/fixtures/project-b` config, exercise an invalid operation in each independently, and cover project ownership/config changes, explicit missing/excluded/invalid project diagnostics, inherited-config notifications, no-watcher refresh on the next shader edit, symlink aliases, stale versions, close, and ordinary `.ts` isolation. `workspace/didChangeWatchedFiles` is tested via protocol notifications; whether Zed actually sends them is **not** established. The dev extension still rejects `zed -n .`; Phase 3 handles the launcher and real Zed verification. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, the real VS Code fixture test and `git diff --check` passed at this checkpoint (14 LSP tests). No Zed root-worktree or watcher claim has been made.
 
 **Gate:** `pnpm --filter @shdr/lsp test`, build/check and existing editor-adapter tests pass. The protocol must demonstrate project selection, not merely successful single-project initialization.
 

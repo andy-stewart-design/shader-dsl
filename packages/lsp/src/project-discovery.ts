@@ -24,7 +24,7 @@ export type ProjectSelection =
     }
   | { readonly status: "ignored" };
 
-/** Phase 1 selection only; the running LSP does not use this resolver yet. */
+/** Selects the nearest ancestor TypeScript project that includes a shader. */
 export class ProjectDiscovery {
   readonly #roots: readonly string[];
   #api: API | undefined;
@@ -119,6 +119,14 @@ export class ProjectDiscovery {
       status: "no-config",
       message: `No tsconfig.json found for ${filePath} within ${root}.`,
     };
+  }
+
+  /** Discard TypeScript's cached config and directory reads after a file watcher event. */
+  public invalidate(): void {
+    const snapshot = this.#api?.updateSnapshot({
+      fileChanges: { invalidateAll: true },
+    });
+    snapshot?.dispose();
   }
 
   public dispose(): void {

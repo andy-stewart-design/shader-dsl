@@ -186,7 +186,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 ## Known limitations
 
 - **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
-- The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private Zed LSP wraps the same adapter and has the same project limits; its launcher supports only the editor-fixture worktree.
+- The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private stdio LSP now selects a config per shader and has protocol tests across projects, but still checks synchronously. Its **Zed launcher** remains restricted to the editor-fixture worktree; repository-root Zed diagnostics/hover are not yet verified.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
 - The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.
 - WGSL is generated and compile-validated but not rendered.
