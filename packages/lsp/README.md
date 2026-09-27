@@ -1,6 +1,6 @@
 # Shdr LSP transport (local spike)
 
-`@shdr/lsp` is a **local, unshipped stdio LSP process** around the same `TypeScript7EditorAdapter` used by the VS Code fixture. It does not contain another shader checker. Protocol behavior was tested independently; the [`experiments/zed-shdr`](../../experiments/zed-shdr) dev extension launches it from both this checkout's repository root and its `apps/editor-fixture` worktree. The VS Code fixture continues using its existing adapter directly.
+`@shdr/lsp` is a **local, unshipped stdio LSP process** around the same `TypeScript7EditorAdapter` used by the VS Code fixture. It does not contain another shader checker. Protocol behavior was tested independently; the [`extensions/zed-shdr`](../../extensions/zed-shdr) dev extension launches it from both this checkout's repository root and its `apps/editor-fixture` worktree. The VS Code fixture continues using its existing adapter directly.
 
 From the repository root:
 

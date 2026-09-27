@@ -3,6 +3,10 @@ use zed_extension_api as zed;
 
 struct ShdrExtension;
 
+fn launcher_path(root: &Path) -> PathBuf {
+    root.join("extensions/zed-shdr/launch-lsp.cjs")
+}
+
 fn repository_root(worktree_path: &str, manifest: &str) -> Result<PathBuf, String> {
     let worktree = Path::new(worktree_path);
     let package: serde_json::Value = serde_json::from_str(manifest)
@@ -43,9 +47,7 @@ impl zed::Extension for ShdrExtension {
             // Node performs the host-filesystem artifact check; Wasm cannot
             // assume read access outside the active worktree.
             args: vec![
-                root.join("experiments/zed-shdr/launch-lsp.cjs")
-                    .to_string_lossy()
-                    .into_owned(),
+                launcher_path(&root).to_string_lossy().into_owned(),
                 root.to_string_lossy().into_owned(),
             ],
             env: Default::default(),
@@ -65,6 +67,10 @@ mod tests {
         assert_eq!(
             repository_root(root, r#"{"name":"shader-dsl"}"#).unwrap(),
             Path::new(root)
+        );
+        assert_eq!(
+            launcher_path(Path::new(root)),
+            Path::new(root).join("extensions/zed-shdr/launch-lsp.cjs")
         );
         assert_eq!(
             repository_root(
