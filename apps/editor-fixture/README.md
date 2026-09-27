@@ -47,7 +47,7 @@ The successful pinned run used:
 - TypeScript 7.0.2
 - `TypeScriptTeam.native-preview` 0.20260708.2 for protocol investigation; the Shdr provider does not depend on that extension.
 
-For the separate Zed LSP experiment, build the repo and rebuild the Zed dev extension, then run `zed -n "$PWD/apps/editor-fixture"` **from the repository root**. Opening the repository root itself with `zed -n .` only provides recognition and possible formatting, **not** Shdr diagnostics/hover. Reopen the fixture workspace after an extension rebuild: Zed stops the old language server and may not restart it for already-open buffers. See the [Zed checklist](../../experiments/zed-shdr/README.md) for its verified scope; the VS Code fixture is not replaced by LSP.
+For the repo-local Zed extension, build the repo and rebuild the dev extension, then run `zed -n "$PWD/apps/editor-fixture"` **from the repository root**, or `zed -n .` for the repository-root worktree. Both worktrees provide Shdr diagnostics and hover. Reopen a worktree after an extension rebuild: Zed stops the old language server and may not restart it for already-open buffers. See the [Zed checklist](../../extensions/zed-shdr/README.md) for its verified scope; the VS Code fixture is not replaced by LSP.
 
 ## Manual checklist
 
