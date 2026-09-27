@@ -1,6 +1,6 @@
 # Shdr language expansion — plan
 
-Status: proposed; start after the [project-aware LSP](../lsp-discovery/plan.md) is reviewed. Expand the language in **small, separately reviewable slices**, not one broad collection of JavaScript or shader builtins. The [existing arithmetic/vector contract](../_completed/next-milestone/language-slice.md) and [public language reference](../../README.md#accepted-shader-language) remain the baseline. Stop for review at each slice's gate.
+Status: proposed; start after the [project-aware LSP](../_completed/lsp-discovery/plan.md) is reviewed. Expand the language in **small, separately reviewable slices**, not one broad collection of JavaScript or shader builtins. The [existing arithmetic/vector contract](../_completed/next-milestone/language-slice.md) and [public language reference](../../README.md#accepted-shader-language) remain the baseline. Stop for review at each slice's gate.
 
 ## Goal and invariants
 
