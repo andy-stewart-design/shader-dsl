@@ -1,6 +1,6 @@
 # Project-aware Shdr LSP — plan
 
-Status: proposed. Follow-up to the [editor integration decision](../_completed/next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
+Status: Phase 1 contract and isolated resolver implemented, pending review. Follow-up to the [editor integration decision](../_completed/next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
 
 ## Goal and boundary
 
@@ -14,7 +14,7 @@ Make the existing **repo-local** Shdr LSP select the appropriate TypeScript proj
 - Define the supported workspace boundary, canonical path/symlink handling, error visibility, cache ownership and lifetime. Keep non-file URIs and ordinary `.ts` isolated. Record which multi-root/reference cases are supported versus deferred. Decide how changes to `tsconfig.json` and relevant project files invalidate/recreate checkers and republish diagnostics without requiring a window restart; distinguish document versions from project/config versions.
 - Use small test workspaces with at least two distinct configs and a `.shdr.ts` in each, plus excluded/missing-config cases. Freeze expected selections and failure messages **before** changing the server.
 
-**Gate:** a reviewed selection table and automated tests for the resolver, including repository-root versus nested-workspace initialization. No Zed success claim from this phase alone.
+**Phase 1 result — stop for review:** [The selection contract](./project-selection.md) freezes the nearest-including-ancestor, workspace/symlink, reference, error visibility and versioning rules. `packages/lsp/src/project-discovery.ts` implements **only** the isolated selection logic using TypeScript 7's configured-project root files and config diagnostics; tests exercise two configs, root/nested/multi-worktree selection, excluded/invalid/missing configs, references, non-shader URIs, symlinks and re-selection after config edits. The running `packages/lsp/src/server.ts` and the Zed extension are unchanged; mapped diagnostics/hover from a repository-root Zed window are **not** claimed. Phase 2 must connect the resolver and implement error publication, adapter ownership and refresh. `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check` and `git diff --check` passed at this checkpoint; the real Zed LSP behavior was not changed or re-tested.
 
 ## Phase 2 — Route the existing adapter per project
 
