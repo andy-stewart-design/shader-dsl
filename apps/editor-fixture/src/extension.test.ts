@@ -151,6 +151,47 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const mathUri = vscode.Uri.joinPath(workspace.uri, "math-builtins.shdr.ts");
+  const math = await vscode.workspace.openTextDocument(mathUri);
+  assert.equal(math.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(math);
+  await waitForDiagnostics(mathUri, (diagnostics) => diagnostics.length === 0);
+  await waitForHoverText(math, "waves)", /Expr<Vec2<F32>>/);
+  await waitForHoverText(math, "mask.x", /Expr<Vec2<F32>>/);
+  await waitForHoverText(math, "light * mask.x", /Expr<F32>/);
+
+  const goodStep = "smoothstep(vec2(0.2), vec2(0.8), uv)";
+  const equalStep = "smoothstep(vec2(0.2), vec2(0.2), uv)";
+  await replaceText(math, goodStep, equalStep);
+  const domainErrors = await waitForDiagnostics(
+    mathUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1209",
+  );
+  assert.equal(math.getText(domainErrors[0]?.range), equalStep);
+  assert.doesNotMatch(
+    domainErrors[0]!.message,
+    /__shdr_internal|shdr_internal_smoothstep/,
+  );
+  await replaceText(math, equalStep, goodStep);
+  await waitForDiagnostics(mathUri, (diagnostics) => diagnostics.length === 0);
+
+  const validDot = "dot(uv, axis)";
+  const wrongDot = "dot(uv, axis, uv)";
+  await replaceText(math, validDot, wrongDot);
+  const signatureErrors = await waitForDiagnostics(
+    mathUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(math.getText(signatureErrors[0]?.range), wrongDot);
+  assert.doesNotMatch(
+    signatureErrors[0]!.message,
+    /__shdr_internal|shdr_internal_smoothstep/,
+  );
+  await replaceText(math, wrongDot, validDot);
+  await waitForDiagnostics(mathUri, (diagnostics) => diagnostics.length === 0);
+
   const invalidUri = vscode.Uri.joinPath(
     workspace.uri,
     "test/fixtures/invalid.shdr.ts",
@@ -168,6 +209,22 @@ export async function run(): Promise<void> {
     "coord.xy / coord",
   );
 
+  const invalidMathUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "test/fixtures/invalid-math.shdr.ts",
+  );
+  const invalidMath = await vscode.workspace.openTextDocument(invalidMathUri);
+  await vscode.window.showTextDocument(invalidMath);
+  const staticEdgeErrors = await waitForDiagnostics(
+    invalidMathUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1209",
+  );
+  assert.equal(
+    invalidMath.getText(staticEdgeErrors[0]?.range),
+    "smoothstep(0.5, 0.5, coord.x)",
+  );
+
   // The standard TypeScript provider for ordinary .ts files is intentionally
   // covered by the manual editor check, not this isolated extension-host test.
   // This test launches with extensions disabled and should only assert behavior
@@ -176,5 +233,7 @@ export async function run(): Promise<void> {
   const ordinary = await vscode.workspace.openTextDocument(ordinaryUri);
   assert.equal(ordinary.languageId, "typescript");
 
-  console.log("Complete real VS Code Shdr extension checklist verified.");
+  console.log(
+    "Complete real VS Code Shdr extension and math builtin checklist verified.",
+  );
 }

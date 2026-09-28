@@ -1,6 +1,7 @@
 import {
   generateWgslExpression,
   type GeneratedWgslExpression,
+  type WgslSmoothstepShape,
 } from "./generate-wgsl-expression.js";
 import type {
   ShaderDefaultUniform,
@@ -33,10 +34,14 @@ export function generateWgslFragment(module: ShaderModule): string {
 
   const statements = module.statements.map(generateStatement);
   const referencedUniforms = new Set<ShaderDefaultUniform>();
+  const smoothstepShapes = new Set<WgslSmoothstepShape>();
   let usesFragmentPosition = false;
 
   for (const statement of statements) {
     usesFragmentPosition ||= statement.expression.usesFragmentPosition;
+    for (const shape of statement.expression.smoothstepShapes) {
+      smoothstepShapes.add(shape);
+    }
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
     }
@@ -48,6 +53,12 @@ export function generateWgslFragment(module: ShaderModule): string {
   ).map(uniformDeclaration);
   if (uniformDeclarations.length > 0) {
     sections.push(uniformDeclarations.join("\n"));
+  }
+
+  for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
+    if (smoothstepShapes.has(shape)) {
+      sections.push(smoothstepHelper(shape));
+    }
   }
 
   const parameters = usesFragmentPosition
@@ -88,6 +99,13 @@ function generateStatement(statement: ShaderStatement): GeneratedStatement {
   }
 }
 
+function smoothstepHelper(shape: WgslSmoothstepShape): string {
+  const type = shape === "f32" ? "f32" : `${shape}<f32>`;
+  return `fn shdr_internal_smoothstep_${shape}(edge0: ${type}, edge1: ${type}, x: ${type}) -> ${type} {
+  return smoothstep(edge0, edge1, x);
+}`;
+}
+
 function uniformDeclaration(uniform: ShaderDefaultUniform): string {
   switch (uniform) {
     case "resolution":
@@ -123,5 +141,7 @@ function wgslTypeName(type: ShaderValueType): string {
 }
 
 function assertNever(value: never): never {
-  throw new Error(`Unsupported WGSL module IR value: ${JSON.stringify(value)}.`);
+  throw new Error(
+    `Unsupported WGSL module IR value: ${JSON.stringify(value)}.`,
+  );
 }

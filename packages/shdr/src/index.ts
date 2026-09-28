@@ -1,4 +1,17 @@
 export { createFragmentShader, vec2, vec3, vec4 } from "./dsl.js";
+export {
+  abs,
+  cos,
+  dot,
+  floor,
+  fract,
+  length,
+  max,
+  min,
+  normalize,
+  sin,
+  smoothstep,
+} from "./math.js";
 export type {
   DefaultUniforms,
   Expr,

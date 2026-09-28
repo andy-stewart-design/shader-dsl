@@ -97,6 +97,17 @@ export function routeShaderDiagnostics(
         continue;
       }
 
+      // A shadowed shader callable is rejected at its declaration name;
+      // do not add a secondary native "not callable" error at its use.
+      if (
+        core.some((error) => error.code === ShaderDiagnosticCode.DuplicateLocal)
+      ) {
+        continue;
+      }
+      if (core.some((error) => rangesOverlap(error.range, originalRange))) {
+        continue;
+      }
+
       if (
         shaderOperations.some(
           (operation) =>

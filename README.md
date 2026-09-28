@@ -13,7 +13,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });
 ```
 
-The example uses top-left-origin pixel coordinates and the drawing-buffer resolution. For an expanded shader exercising `vec3`, unary minus, arithmetic, and swizzles, see [the checked fixture](packages/core/test/fixtures/expanded.shdr.ts).
+The example uses top-left-origin pixel coordinates and the drawing-buffer resolution. For an expanded shader exercising `vec3`, unary minus, arithmetic, and swizzles, see [the checked fixture](packages/core/test/fixtures/expanded.shdr.ts). For all eleven math builtins, see the [Vite/WebGL fixture](apps/vite-basic/src/math-builtins.shdr.ts), which also runs in the browser REPL and the editor fixture.
 
 ## Requirements and workspace commands
 
@@ -130,7 +130,7 @@ A shader module must have:
 - Direct named imports from exactly `"shdr"`; no aliases or namespace imports.
 - Exactly one default-exported `createFragmentShader(...)` call.
 - A synchronous arrow callback with exactly `({ coord, uniforms })` destructuring.
-- No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_`.
+- No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_` or `shdr_internal_` (reserved for generated helpers).
 
 The callback supports only:
 
@@ -139,7 +139,7 @@ The callback supports only:
 - `coord` (`Vec4<F32>`), `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`). Numeric literals are `F32`; vectors have two, three, or four `F32` components.
 - Native `+`, binary `-`, `*`, `/`, and unary `-`, with ordinary TypeScript precedence, left association, and parentheses. The operands and results remain shader expressions—not JavaScript arithmetic.
 - Direct read swizzles of one to four `xyzw` components available on the receiver. Repetition, reordering, and chaining work: `coord.xyz`, `coord.xy.yx`, `coord.xy.xxyy`. A one-component swizzle produces `F32`; two to four produce the corresponding vector type.
-- `vec2`, `vec3`, and `vec4` constructors in the forms below, and a final `Expr<Vec4<F32>>` result.
+- `vec2`, `vec3`, and `vec4` constructors in the forms below; the eleven direct-import math builtins below; and a final `Expr<Vec4<F32>>` result.
 
 | Operator        | Accepted operands (same `V` means the same vector dimension)   |
 | --------------- | -------------------------------------------------------------- |
@@ -157,11 +157,28 @@ Operations on vectors are component-wise. **No** scalar-on-the-left vector multi
 
 Other packings such as `vec3(coord.xy, 1)` or `vec4(coord.xyz, 1)` are not yet supported. Swizzles cannot be written to or computed (`coord[0]`); `.rgba` aliases and unavailable components such as `coord.xy.z` are invalid.
 
+### Math builtins (f32 common subset)
+
+Let `S = Expr<F32>` and `Vn = Expr<VecN<F32>>` for `n = 2, 3, 4`. Each `Vn` within a signature has the **same** dimension; a `T` is either `S` or one `Vn` for that call. Import each function directly by its exact name from `"shdr"`:
+
+| Builtin(s)                            | Accepted operands → result                                                       |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| `sin`, `cos`, `abs`, `floor`, `fract` | `(S) → S`, `(Vn) → Vn` (component-wise vectors)                                  |
+| `smoothstep`                          | `(T edge0, T edge1, T x) → T` (same shape for all three; component-wise vectors) |
+| `min`, `max`                          | `(S, S) → S`, `(Vn, Vn) → Vn`                                                    |
+| `dot`                                 | `(Vn, Vn) → S`                                                                   |
+| `length`                              | `(S) → S`, `(Vn) → S`                                                            |
+| `normalize`                           | `(Vn) → Vn`                                                                      |
+
+These are 42 signatures across eleven names. No implicit broadcasts, mixed dimensions, scalar `dot`/`normalize`, f16, integer variants, `Math.sin`, unimported calls, aliases or namespace calls. Unsupported builtin arity/types report `SHDR1208` on the whole original call. An invalid argument keeps its more specific diagnostic rather than causing an outer overload cascade.
+
+`smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
+
 Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
 
 ### Diagnostic examples
 
-`pnpm shdr check apps/vite-basic/src/expanded.shdr.ts` checks a complete valid shader. To see a failure, run `pnpm shdr check packages/cli/test/fixtures/invalid-arithmetic.shdr.ts`. Shader diagnostics refer to **original source**, never virtual helpers or generated code:
+`pnpm shdr check apps/vite-basic/src/math-builtins.shdr.ts` checks a complete valid builtin shader. To see an equal-edge builtin failure, run `pnpm shdr check apps/editor-fixture/test/fixtures/invalid-math.shdr.ts`; an arithmetic failure is available at `packages/cli/test/fixtures/invalid-arithmetic.shdr.ts`. Shader diagnostics refer to **original source**, never virtual helpers or generated code:
 
 | Expression in a shader callback | Diagnostic                                 | Range                   |
 | ------------------------------- | ------------------------------------------ | ----------------------- |
@@ -169,6 +186,8 @@ Assignment, `let`, `var`, type annotations inside the callback, comparisons, con
 | `vec3(coord.xy, 1)`             | `SHDR1206` (unsupported constructor form)  | Whole call              |
 | `coord.xy.z`                    | `SHDR1204` (unavailable swizzle component) | `z`                     |
 | `+coord.x`                      | `SHDR1105` (unsupported unary operator)    | Unary expression        |
+| `dot(coord.xy, coord.xyz)`      | `SHDR1208` (unsupported builtin signature) | Whole call              |
+| `smoothstep(0.5, 0.5, coord.x)` | `SHDR1209` (known equal edges)             | Whole call              |
 
 These are **Shdr syntax and semantic** checks, not checks of ordinary TypeScript outside the callback. The TypeScript 7 editor provider also supplies mapped shader hovers and diagnostics; standalone `tsc` does not understand shader operators in `.shdr.ts` files.
 

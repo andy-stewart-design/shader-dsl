@@ -7,13 +7,13 @@ pnpm --filter repl dev
 pnpm --filter repl build
 ```
 
-Edit the source and choose **Compile both targets**, or press Ctrl/Command+Enter. To try arithmetic, constructors, and swizzles, paste the whole [expanded shader fixture](../../packages/core/test/fixtures/expanded.shdr.ts) into the REPL. The [language reference](../../README.md#accepted-shader-language) lists accepted and rejected expressions. Source diagnostics are shared by both backends. The generated GLSL is compiled, linked, and rendered in WebGL 2. When WebGPU is available, the generated WGSL is compiled as a shader module and its compilation info is displayed; otherwise the UI reports that validation is unavailable.
+Edit the source and choose **Compile both targets**, or press Ctrl/Command+Enter. To try all eleven math builtins together, paste the complete [math-builtin shader fixture](../vite-basic/src/math-builtins.shdr.ts) into the REPL; the [expanded shader fixture](../../packages/core/test/fixtures/expanded.shdr.ts) separately exercises arithmetic, constructors and swizzles. The [language reference](../../README.md#accepted-shader-language) lists accepted and rejected expressions. Source diagnostics are shared by both backends. The generated GLSL is compiled, linked, and rendered in WebGL 2. When WebGPU is available, the generated WGSL is compiled as a shader module and its compilation info is displayed; otherwise the UI reports that validation is unavailable.
 
 ```sh
 pnpm --filter repl test
 ```
 
-The browser test verifies target selection, validation states, the expanded shader's rendered pixels and WGSL compilation, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
+The browser test verifies target selection, validation states, the expanded shader's rendered pixels, the eleven-builtin shader's rendered pixels and WGSL helper compilation, an equal-edge `SHDR1209` edit that preserves the last valid frame, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
 
 ## Runtime uniforms
 

@@ -19,6 +19,13 @@ const project = fileURLToPath(
 const fileName = join(project, "gradient.shdr.ts");
 const uri = pathToFileURL(fileName).href;
 const source = readFileSync(fileName, "utf8");
+const mathSource = readFileSync(
+  new URL(
+    "../../../apps/editor-fixture/math-builtins.shdr.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function connect() {
   // Exercise the actual built stdio server with LSP Content-Length framing.
@@ -200,6 +207,85 @@ describe("Shdr LSP protocol", () => {
         }),
       ).toBeNull();
       expect(session.diagnostics).toHaveLength(countAfterClose);
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("routes eleven-builtin hovers and original-source domain/signature diagnostics", async () => {
+    const session = connect();
+    try {
+      await session.initialize();
+      session.client.sendNotification("textDocument/didOpen", {
+        textDocument: {
+          uri,
+          languageId: "shdr-typescript",
+          version: 1,
+          text: mathSource,
+        },
+      });
+      expect((await session.nextDiagnostics(1)).diagnostics).toEqual([]);
+      const hover = await session.client.sendRequest<{
+        contents: { value: string };
+      }>("textDocument/hover", {
+        textDocument: { uri },
+        position: positionAt(mathSource, mathSource.indexOf("mask.x")),
+      });
+      expect(hover.contents.value).toBe("Expr<Vec2<F32>>");
+
+      const originalStep = "smoothstep(vec2(0.2), vec2(0.8), uv)";
+      const equalStep = "smoothstep(vec2(0.2), vec2(0.2), uv)";
+      const invalidDomain = mathSource.replace(originalStep, equalStep);
+      session.client.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version: 2 },
+        contentChanges: [{ text: invalidDomain }],
+      });
+      const domain = await session.nextDiagnostics(2);
+      expect(domain.diagnostics).toEqual([
+        expect.objectContaining({
+          code: "SHDR1209",
+          source: "shdr",
+          range: {
+            start: positionAt(invalidDomain, invalidDomain.indexOf(equalStep)),
+            end: positionAt(
+              invalidDomain,
+              invalidDomain.indexOf(equalStep) + equalStep.length,
+            ),
+          },
+        }),
+      ]);
+      const originalDot = "dot(uv, axis)";
+      const wrongDot = "dot(uv, axis, uv)";
+      const invalidSignature = mathSource.replace(originalDot, wrongDot);
+      session.client.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version: 3 },
+        contentChanges: [{ text: invalidSignature }],
+      });
+      const signature = await session.nextDiagnostics(3);
+      expect(signature.diagnostics).toEqual([
+        expect.objectContaining({
+          code: "SHDR1208",
+          source: "shdr",
+          range: {
+            start: positionAt(
+              invalidSignature,
+              invalidSignature.indexOf(wrongDot),
+            ),
+            end: positionAt(
+              invalidSignature,
+              invalidSignature.indexOf(wrongDot) + wrongDot.length,
+            ),
+          },
+        }),
+      ]);
+      expect(signature.diagnostics[0]?.message).not.toMatch(
+        /__shdr_internal|shdr_internal_smoothstep/,
+      );
+      session.client.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version: 4 },
+        contentChanges: [{ text: mathSource }],
+      });
+      expect((await session.nextDiagnostics(4)).diagnostics).toEqual([]);
     } finally {
       await session.close();
     }

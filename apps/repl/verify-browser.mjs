@@ -138,6 +138,39 @@ try {
       await wgslValidation.getAttribute("data-validation-state"),
     ),
   );
+  const mathSource = await readFile(
+    new URL("../vite-basic/src/math-builtins.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, mathSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  const mathPixel = await readCenterPixel(page);
+  assertChannel("math red", mathPixel[0], 91, 6);
+  assertChannel("math green", mathPixel[1], 112, 6);
+  assertChannel("math blue", mathPixel[2], 106, 6);
+  await waitForValidation(page, "wgsl", "success");
+  await wgslTab.click();
+  assert.match(
+    await page.getByRole("tabpanel").textContent(),
+    /fn shdr_internal_smoothstep_vec2/,
+  );
+  await glslTab.click();
+  const invalidMathSource = await readFile(
+    new URL(
+      "../editor-fixture/test/fixtures/invalid-math.shdr.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await compileSource(page, editor, invalidMathSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1209/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.deepEqual(await readCenterPixel(page), mathPixel);
   await compileSource(page, editor, originalSource);
   await waitForValidation(page, "glsl-es-300", "success");
 
@@ -266,7 +299,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   }
 
   console.log(
-    `Verified REPL rendering, all default uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
+    `Verified REPL math builtins, rendering, all default uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
   );
 } finally {
   if (browser) await browser.close();

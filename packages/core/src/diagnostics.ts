@@ -35,6 +35,8 @@ export const ShaderDiagnosticCode = {
   InvalidBinaryOperation: "SHDR1205",
   InvalidConstructor: "SHDR1206",
   InvalidReturnType: "SHDR1207",
+  InvalidBuiltin: "SHDR1208",
+  InvalidBuiltinDomain: "SHDR1209",
 } as const;
 
 export type ShaderDiagnosticCode =

@@ -18,6 +18,8 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 
 - `gradient.shdr.ts`: the target shader plus an intentional ordinary TypeScript error outside its callback.
 - [`expanded.shdr.ts`](expanded.shdr.ts): arithmetic, `vec2`/`vec3`, unary minus, and repeated/reordered read swizzles; see the [language reference](../../README.md#accepted-shader-language).
+- [`math-builtins.shdr.ts`](math-builtins.shdr.ts): all eleven f32 math builtins, scalar and vector `smoothstep`, and scalar/vector hovers, matching the Vite/REPL source.
+- [`test/fixtures/invalid-math.shdr.ts`](test/fixtures/invalid-math.shdr.ts): statically equal `smoothstep` edges, one original-call `SHDR1209` diagnostic.
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.
 - `ordinary.ts`: a deliberate hover location owned by the standard TypeScript provider.
 - `.vscode/settings.json`: enables TS Go and points editor TypeScript tooling at the workspace TypeScript installation.
@@ -61,7 +63,8 @@ For the repo-local Zed extension, build the repo and rebuild the dev extension, 
 8. Open `test/fixtures/invalid.shdr.ts` and confirm its sole diagnostic covers `coord.xy / coord`.
 9. Open `expanded.shdr.ts` and confirm zero diagnostics. Hover `reordered` and `repeated` to verify `Expr<Vec3<F32>>` and `Expr<Vec4<F32>>`. Change `uniforms.time * uniforms.time` to `uniforms.time * coord.xy` and confirm one mapped, helper-free operator diagnostic; restore the source.
 10. Run **Developer: Inspect Editor Tokens and Scopes** on `expanded.shdr.ts`. Confirm `import` has a `keyword.control.import.ts` scope under `source.shdr.ts`, `"shdr"` has a `string.quoted.double.ts` scope, and a numeric literal has a `constant.numeric.decimal.ts` scope. Confirm syntax colors appear for keywords, operators, strings, and numbers; lexical coloring does not validate shader semantics.
-11. Open `ordinary.ts`, confirm its language is TypeScript (`source.ts` in the token inspector), and hover `ordinaryValue` to verify the standard provider remains active.
+11. Open `math-builtins.shdr.ts`, confirm zero diagnostics, and hover `waves` and `mask` to see `Expr<Vec2<F32>>`. Temporarily replace `vec2(0.8)` in `smoothstep(vec2(0.2), vec2(0.8), uv)` with `vec2(0.2)`; confirm exactly one `SHDR1209` over the whole call. Restore it. Try `dot(uv, axis, uv)` in place of `dot(uv, axis)` and confirm one `SHDR1208`; restore it. Open `test/fixtures/invalid-math.shdr.ts` for a permanent equal-edge example.
+12. Open `ordinary.ts`, confirm its language is TypeScript (`source.ts` in the token inspector), and hover `ordinaryValue` to verify the standard provider remains active.
 
 ## Automated real-VS-Code verification
 
@@ -70,7 +73,7 @@ pnpm --filter @shdr/editor-fixture build
 pnpm --filter @shdr/editor-fixture test:editor
 ```
 
-`pnpm --filter @shdr/editor-fixture test` tokenizes the expanded fixture with VS Code's installed TypeScript TextMate grammar, asserting `source.shdr.ts` and real TypeScript lexical scopes when the grammar is available. `test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned language-ID and semantic checklist, including live invalid arithmetic and nested-division edits plus expanded Vec3/Vec4 hovers. VS Code has no public token-inspection API for extensions, so perform the visual/token-inspector check above manually. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
+`pnpm --filter @shdr/editor-fixture test` tokenizes the expanded fixture with VS Code's installed TypeScript TextMate grammar, asserting `source.shdr.ts` and real TypeScript lexical scopes when the grammar is available. `test:editor` starts the installed VS Code executable in an isolated Extension Development Host and automates the Shdr-owned language-ID and semantic checklist, including live invalid arithmetic and nested-division edits, expanded Vec3/Vec4 hovers, eleven-builtin hovers, and `SHDR1208`/`SHDR1209` source ranges. VS Code has no public token-inspection API for extensions, so perform the visual/token-inspector check above manually. It does not assert hovers from VS Code's standard TypeScript provider for ordinary `.ts` files; verify that behavior with the manual checklist above. Set `VSCODE_EXECUTABLE_PATH` if VS Code is not installed at the default macOS path used by `run-editor-test.mjs`.
 
 ## Standalone TypeScript limitation
 
