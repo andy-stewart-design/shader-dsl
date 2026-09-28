@@ -2,6 +2,7 @@ import type { FragmentShaderSource } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
+import mathBuiltinsShader from "./math-builtins.shdr.ts";
 import "./style.css";
 
 const FULLSCREEN_TRIANGLE_VERTEX_SHADER = `#version 300 es
@@ -18,6 +19,7 @@ void main() {
 
 const shader: FragmentShaderSource = fragmentShader;
 const expanded: FragmentShaderSource = expandedShader;
+const math: FragmentShaderSource = mathBuiltinsShader;
 if (!expanded.includes("vec3(")) {
   throw new Error("The expanded shader was not compiled by the Vite plugin.");
 }
@@ -29,20 +31,33 @@ app.innerHTML = `
     <h1>Shdr Vite/WebGL 2 fixture</h1>
     <canvas id="shader-canvas" width="512" height="512"></canvas>
     <p id="status" role="status">Compiling generated shader…</p>
+    <h2>Eleven math builtins</h2>
+    <canvas id="math-canvas" width="128" height="128"></canvas>
+    <p id="math-status" role="status">Compiling generated math shader…</p>
   </main>
 `;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#shader-canvas");
 const status = document.querySelector<HTMLParagraphElement>("#status");
-if (!canvas || !status) throw new Error("The shader fixture UI is incomplete.");
+const mathCanvas = document.querySelector<HTMLCanvasElement>("#math-canvas");
+const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
+if (!canvas || !status || !mathCanvas || !mathStatus) {
+  throw new Error("The shader fixture UI is incomplete.");
+}
 
 try {
   render(canvas, shader);
   canvas.dataset.renderStatus = "success";
   status.textContent = "Generated GLSL compiled, linked, and rendered.";
+  render(mathCanvas, math);
+  mathCanvas.dataset.renderStatus = "success";
+  mathStatus.textContent =
+    "Generated math GLSL compiled, linked, and rendered.";
 } catch (error) {
   canvas.dataset.renderStatus = "error";
+  mathCanvas.dataset.renderStatus = "error";
   status.textContent = error instanceof Error ? error.message : String(error);
+  mathStatus.textContent = status.textContent;
   throw error;
 }
 

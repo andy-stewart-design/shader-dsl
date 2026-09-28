@@ -34,6 +34,11 @@ canvas {
   background: #000;
 }
 
+#math-canvas {
+  width: min(80vw, 256px);
+  height: min(80vw, 256px);
+}
+
 p {
   margin: 0;
   color: #b9c0d8;

@@ -117,7 +117,6 @@ describe("f32 builtin matrix", () => {
     ["dot(v2, v3)", ShaderDiagnosticCode.InvalidBuiltin],
     ["normalize(s)", ShaderDiagnosticCode.InvalidBuiltin],
     ["smoothstep(0, 0, s)", ShaderDiagnosticCode.InvalidBuiltinDomain],
-    ["smoothstep(1, 0, s)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     [
       "smoothstep(vec2(0), vec2(0, 1), v2)",
       ShaderDiagnosticCode.InvalidBuiltinDomain,
@@ -136,6 +135,18 @@ describe("f32 builtin matrix", () => {
       ]);
     });
   }
+
+  it("accepts reversed scalar and vector edges without promising GLSL pixels", () => {
+    for (const [call, shape] of [
+      ["smoothstep(0.8, 0.2, s)", "s"],
+      ["smoothstep(vec2(0.8, 0.2), vec2(0.2, 0.8), v2)", "v2"],
+      ["smoothstep(cos(0), sin(0), s)", "s"],
+    ] as const) {
+      for (const target of ["glsl-es-300", "wgsl"] as const) {
+        successful(call, compileFragment(source(call, shape), { target }));
+      }
+    }
+  });
 
   it("keeps import, call-boundary, shadowing and helper names distinct", () => {
     const unimported = source("sin(s)", "s").replace(", sin,", ",");
@@ -190,10 +201,15 @@ describe("f32 builtin matrix", () => {
     expect(lowerFragment(source("smoothstep(s, s + 1, s)", "s")).ok).toBe(true);
   });
 
-  it("validates generated WGSL for all 42 shapes and otherwise const-equal edges", async () => {
+  it("compiles both targets for all 42 shapes, reversed edges and unprovable const-equal edges", async () => {
     const browser = await chromium.launch({
       headless: true,
-      args: ["--enable-unsafe-swiftshader", "--enable-unsafe-webgpu"],
+      args: [
+        "--enable-webgl",
+        "--enable-unsafe-swiftshader",
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+      ],
     });
     try {
       const page = await browser.newPage();
@@ -203,39 +219,60 @@ describe("f32 builtin matrix", () => {
       await page.goto("http://localhost/");
       const shaders = [
         ...examples.map(({ call, shape }) => ({ call, shape })),
+        { call: "smoothstep(0.8, 0.2, s)", shape: "s" },
+        {
+          call: "smoothstep(vec2(0.8, 0.2), vec2(0.2, 0.8), v2)",
+          shape: "v2",
+        },
         { call: "smoothstep(sin(1), sin(1 + 0), s)", shape: "s" },
         {
           call: "smoothstep(vec2(sin(1)), vec2(sin(1 + 0)), v2)",
           shape: "v2",
         },
       ].map(({ call, shape }) => {
-        const compiled = compileFragment(source(call, shape as Shape), {
-          target: "wgsl",
-        });
-        successful(call, compiled);
-        return compiled.code;
+        const input = source(call, shape as Shape);
+        const wgsl = compileFragment(input, { target: "wgsl" });
+        const glsl = compileFragment(input, { target: "glsl-es-300" });
+        successful(call, wgsl);
+        successful(call, glsl);
+        expect(wgsl.ir).toEqual(glsl.ir);
+        return { wgsl: wgsl.code, glsl: glsl.code };
       });
-      const errors = await page.evaluate(async (codes) => {
+      const results = await page.evaluate(async (codes) => {
+        const canvas = document.createElement("canvas");
+        const gl = canvas.getContext("webgl2");
+        if (!gl) throw new Error("WebGL 2 unavailable");
+        const glslErrors = codes.map(({ glsl: text }) => {
+          const shader = gl.createShader(gl.FRAGMENT_SHADER)!;
+          gl.shaderSource(shader, text);
+          gl.compileShader(shader);
+          const message = gl.getShaderParameter(shader, gl.COMPILE_STATUS)
+            ? []
+            : [gl.getShaderInfoLog(shader) ?? "GLSL compilation failed"];
+          gl.deleteShader(shader);
+          return message;
+        });
         const adapter = await navigator.gpu?.requestAdapter();
         if (!adapter) throw new Error("WebGPU adapter unavailable");
         const device = await adapter.requestDevice();
         try {
-          const result: string[][] = [];
-          for (const code of codes) {
-            const module = device.createShaderModule({ code });
+          const wgslErrors: string[][] = [];
+          for (const shader of codes) {
+            const module = device.createShaderModule({ code: shader.wgsl });
             const info = await module.getCompilationInfo();
-            result.push(
+            wgslErrors.push(
               info.messages
                 .filter((message) => message.type === "error")
                 .map((message) => message.message),
             );
           }
-          return result;
+          return { glslErrors, wgslErrors };
         } finally {
           device.destroy();
         }
       }, shaders);
-      expect(errors).toEqual(shaders.map(() => []));
+      expect(results.glslErrors).toEqual(shaders.map(() => []));
+      expect(results.wgslErrors).toEqual(shaders.map(() => []));
     } finally {
       await browser.close();
     }

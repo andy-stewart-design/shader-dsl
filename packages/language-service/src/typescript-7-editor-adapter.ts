@@ -158,8 +158,8 @@ export class TypeScript7EditorAdapter {
     }
 
     const lowered = lowerFragment(input.source);
-    const parsed = !lowered.ok
-      ? parseShaderFile(input.source, fileName)
+    const parsedInfo = !lowered.ok
+      ? parseShaderFile(input.source, fileName).info
       : undefined;
     // When no expression needed rewriting, reuse the original TS snapshot.
     // Updating the same file with identical virtual text can otherwise leave
@@ -188,12 +188,23 @@ export class TypeScript7EditorAdapter {
               (diagnostic) =>
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
-                (parsed?.info !== undefined &&
+                (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
+                  parsedInfo !== undefined &&
+                  parsedInfo.callback.syntax.declarations.some(
+                    (declaration) =>
+                      declaration.nameRange.start === diagnostic.range.start &&
+                      declaration.nameRange.length ===
+                        diagnostic.range.length &&
+                      parsedInfo.shaderCallableImports.some(
+                        (entry) => entry.localName === declaration.name,
+                      ),
+                  )) ||
+                (parsedInfo !== undefined &&
                   [
-                    ...parsed.info.callback.syntax.declarations.map(
+                    ...parsedInfo.callback.syntax.declarations.map(
                       (declaration) => declaration.initializer,
                     ),
-                    parsed.info.callback.syntax.returnExpression,
+                    parsedInfo.callback.syntax.returnExpression,
                   ].some((expression) =>
                     hasEnclosingBuiltinCall(expression, diagnostic.range),
                   )),

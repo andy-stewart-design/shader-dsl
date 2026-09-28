@@ -132,13 +132,15 @@ describe("installed executable", () => {
         `import { createFragmentShader, vec4, sin, smoothstep } from "shdr";\nexport default createFragmentShader(({ coord, uniforms }) => {\n  const value = ${expression};\n  return vec4(value, 0, 0, 1);\n});\n`;
       await writeFile(file, shader("sin(uniforms.time)"));
       expect(invoke(cwd, "check").status).toBe(0);
+      await writeFile(file, shader("smoothstep(0.8, 0.2, uniforms.time)"));
+      expect(invoke(cwd, "check").status).toBe(0);
       await writeFile(file, shader("sin(uniforms.time, coord.xy)"));
       expect(invoke(cwd, "check").stdout).toMatch(
         /^math\.shdr\.ts:3:17: SHDR1208: No matching "sin" builtin/,
       );
       await writeFile(file, shader("smoothstep(0, 0, uniforms.time)"));
       expect(invoke(cwd, "check").stdout).toMatch(
-        /^math\.shdr\.ts:3:17: SHDR1209: smoothstep requires edge0 < edge1/,
+        /^math\.shdr\.ts:3:17: SHDR1209: smoothstep requires distinct edges/,
       );
     });
   });

@@ -322,13 +322,11 @@ function lowerCallExpression(
     if (name === "smoothstep") {
       const edge0 = evaluateShaderConstant(args[0]!, context.constantLocals);
       const edge1 = evaluateShaderConstant(args[1]!, context.constantLocals);
-      const invalidIndex =
+      const equalIndex =
         edge0 && edge1
           ? edge0.findIndex(
               (component, index) =>
-                Number.isFinite(component) &&
-                Number.isFinite(edge1[index]) &&
-                component >= edge1[index]!,
+                Number.isFinite(component) && component === edge1[index],
             )
           : -1;
       const identical = identicalConstantExpressions(
@@ -336,10 +334,10 @@ function lowerCallExpression(
         args[1]!,
         context.localInitializers,
       );
-      if (invalidIndex >= 0 || identical) {
+      if (equalIndex >= 0 || identical) {
         return expressionFailure(
           ShaderDiagnosticCode.InvalidBuiltinDomain,
-          `smoothstep requires edge0 < edge1 in every component; ${type.kind === "vector" ? `component ${Math.max(0, invalidIndex)} has` : "edges have"} known edge0 >= edge1.`,
+          `smoothstep requires distinct edges in every component; ${type.kind === "vector" ? `component ${Math.max(0, equalIndex)} has` : "edges have"} known edge0 == edge1.`,
           syntax.range,
         );
       }

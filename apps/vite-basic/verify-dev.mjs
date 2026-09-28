@@ -11,7 +11,9 @@ const originalSource = await readFile(shaderFile, "utf8");
 const originalConstructor = "vec4(uv.x, uv.y, 0, 1)";
 const editedConstructor = "vec4(uv.x, uv.y, 0.25, 1)";
 if (!originalSource.includes(originalConstructor)) {
-  throw new Error("The dev verification fixture has an unexpected shader body.");
+  throw new Error(
+    "The dev verification fixture has an unexpected shader body.",
+  );
 }
 
 const server = await createServer({
@@ -53,7 +55,7 @@ try {
   });
 
   await page.goto(baseUrl, { waitUntil: "load" });
-  await page.locator('canvas[data-render-status="success"]').waitFor();
+  await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
   await page.evaluate(() => {
     window.__shdrBeforeEdit = true;
   });
@@ -71,9 +73,8 @@ try {
   await page.waitForFunction(
     () =>
       window.__shdrBeforeEdit !== true &&
-      document
-        .querySelector("canvas")
-        ?.getAttribute("data-render-status") === "success",
+      document.querySelector("canvas")?.getAttribute("data-render-status") ===
+        "success",
   );
   if (browserErrors.length > 0) {
     throw new Error(`Browser reported errors:\n${browserErrors.join("\n")}`);
@@ -115,7 +116,9 @@ async function waitForEditedTransform(baseUrl) {
 
 function assertIncludes(source, expected) {
   if (!source.includes(expected)) {
-    throw new Error(`Expected response to contain ${JSON.stringify(expected)}.`);
+    throw new Error(
+      `Expected response to contain ${JSON.stringify(expected)}.`,
+    );
   }
 }
 

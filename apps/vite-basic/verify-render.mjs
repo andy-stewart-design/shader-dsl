@@ -50,7 +50,9 @@ try {
     message: document.querySelector("#status")?.textContent,
   }));
   if (renderState.status !== "success") {
-    throw new Error(`Shader render failed: ${renderState.message ?? "unknown error"}`);
+    throw new Error(
+      `Shader render failed: ${renderState.message ?? "unknown error"}`,
+    );
   }
 
   const samples = await page.evaluate(() => {
@@ -80,17 +82,49 @@ try {
   });
 
   if (samples.error !== 0) {
-    throw new Error(`WebGL readback failed with error 0x${samples.error.toString(16)}.`);
+    throw new Error(
+      `WebGL readback failed with error 0x${samples.error.toString(16)}.`,
+    );
   }
   assertPixel("center", samples.center, [128, 128, 0, 255], 3);
   assertPixel("top row", samples.top, [128, 0, 0, 255], 3);
   assertPixel("bottom row", samples.bottom, [128, 255, 0, 255], 3);
 
+  await page.locator('#math-canvas[data-render-status="success"]').waitFor();
+  const mathSamples = await page.evaluate(() => {
+    const mathCanvas = document.querySelector("#math-canvas");
+    if (!(mathCanvas instanceof HTMLCanvasElement)) {
+      throw new Error("Math shader canvas is unavailable.");
+    }
+    const gl = mathCanvas.getContext("webgl2");
+    if (!gl) throw new Error("Math shader WebGL 2 context is unavailable.");
+    gl.finish();
+    const sample = (x, y) => {
+      const pixel = new Uint8Array(4);
+      gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      return [...pixel];
+    };
+    return {
+      center: sample(64, 64),
+      corner: sample(32, 32),
+      error: gl.getError(),
+    };
+  });
+  if (mathSamples.error !== 0) {
+    throw new Error(
+      `Math shader readback failed with error 0x${mathSamples.error.toString(16)}.`,
+    );
+  }
+  assertPixel("math center", mathSamples.center, [91, 112, 106, 255], 6);
+  assertPixel("math corner", mathSamples.corner, [4, 34, 175, 255], 6);
+
   if (browserErrors.length > 0) {
     throw new Error(`Browser reported errors:\n${browserErrors.join("\n")}`);
   }
 
-  console.log("Verified rendered gradient pixels and top-left Y semantics.");
+  console.log(
+    "Verified rendered gradient and eleven-builtin shader pixels and top-left Y semantics.",
+  );
 } finally {
   if (browser) await browser.close();
   await server.close();
