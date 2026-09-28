@@ -1,4 +1,12 @@
-import { createVirtualSource, type TextRange } from "@shdr/core";
+import {
+  createVirtualSource,
+  lowerFragment,
+  isShaderBuiltinName,
+  parseShaderFile,
+  ShaderDiagnosticCode,
+  type ShaderExpressionSyntax,
+  type TextRange,
+} from "@shdr/core";
 import { resolve } from "node:path";
 
 import {
@@ -149,10 +157,17 @@ export class TypeScript7EditorAdapter {
       });
     }
 
-    const virtual = this.#checker.checkVirtualSource(
-      fileName,
-      transformed.virtualSource,
-    );
+    const lowered = lowerFragment(input.source);
+    const parsed = !lowered.ok
+      ? parseShaderFile(input.source, fileName)
+      : undefined;
+    // When no expression needed rewriting, reuse the original TS snapshot.
+    // Updating the same file with identical virtual text can otherwise leave
+    // TypeScript 7 QuickInfo stale after a transformed previous version.
+    const unchanged = transformed.virtualSource.code === input.source;
+    const virtual = unchanged
+      ? undefined
+      : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
     return new TypeScript7EditorDocumentImpl({
       fileName,
       source: input.source,
@@ -164,12 +179,30 @@ export class TypeScript7EditorAdapter {
         virtualSource: transformed.virtualSource,
         originalSyntacticDiagnostics: original.syntacticDiagnostics,
         originalSemanticDiagnostics: original.semanticDiagnostics,
-        virtualSemanticDiagnostics: virtual.semanticDiagnostics,
-        shaderOperationDiagnostics: virtual.shaderOperationDiagnostics,
+        virtualSemanticDiagnostics:
+          virtual?.semanticDiagnostics ?? original.semanticDiagnostics,
+        shaderOperationDiagnostics: virtual?.shaderOperationDiagnostics ?? [],
+        coreDiagnostics: lowered.ok
+          ? []
+          : lowered.diagnostics.filter(
+              (diagnostic) =>
+                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
+                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                (parsed?.info !== undefined &&
+                  [
+                    ...parsed.info.callback.syntax.declarations.map(
+                      (declaration) => declaration.initializer,
+                    ),
+                    parsed.info.callback.syntax.returnExpression,
+                  ].some((expression) =>
+                    hasEnclosingBuiltinCall(expression, diagnostic.range),
+                  )),
+            ),
       }),
       shaderRegion: transformed.virtualSource.shaderRegion,
       original,
       virtual,
+      useOriginalForShader: unchanged,
     });
   }
 
@@ -191,12 +224,14 @@ interface EditorDocumentState {
   readonly shaderRegion?: TextRange;
   readonly original?: CheckedTypeScriptSource;
   readonly virtual?: CheckedVirtualSource;
+  readonly useOriginalForShader?: boolean;
 }
 
 class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
   readonly #original?: CheckedTypeScriptSource;
   readonly #virtual?: CheckedVirtualSource;
   readonly #shaderRegion?: TextRange;
+  readonly #useOriginalForShader: boolean;
   #disposed = false;
 
   public readonly fileName: string;
@@ -218,16 +253,32 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     this.#shaderRegion = state.shaderRegion;
     this.#original = state.original;
     this.#virtual = state.virtual;
+    this.#useOriginalForShader = state.useOriginalForShader ?? false;
   }
 
   public getQuickInfoAtPosition(
     position: number,
   ): TypeScriptQuickInfo | undefined {
     if (this.#disposed) return undefined;
+    if (
+      this.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.source === "shdr" &&
+          (diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
+            diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain) &&
+          containsPosition(diagnostic.range, position),
+      )
+    ) {
+      return undefined;
+    }
     if (this.#virtual) {
       return this.#virtual.getQuickInfoAtOriginalPosition(position);
     }
-    if (this.#shaderRegion && containsPosition(this.#shaderRegion, position)) {
+    if (
+      !this.#useOriginalForShader &&
+      this.#shaderRegion &&
+      containsPosition(this.#shaderRegion, position)
+    ) {
       return undefined;
     }
     return this.#original?.getQuickInfoAtPosition(position);
@@ -239,6 +290,47 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     this.#virtual?.dispose();
     this.#original?.dispose();
   }
+}
+
+function hasEnclosingBuiltinCall(
+  expression: ShaderExpressionSyntax,
+  range: TextRange,
+): boolean {
+  if (
+    expression.kind === "call-expression" &&
+    isShaderBuiltinName(expression.calleeName) &&
+    range.start >= expression.range.start &&
+    range.start + range.length <=
+      expression.range.start + expression.range.length
+  ) {
+    return true;
+  }
+  switch (expression.kind) {
+    case "call-expression":
+      return expression.arguments.some((argument) =>
+        hasEnclosingBuiltinCall(argument, range),
+      );
+    case "parenthesized-expression":
+      return hasEnclosingBuiltinCall(expression.expression, range);
+    case "unary-expression":
+      return hasEnclosingBuiltinCall(expression.argument, range);
+    case "binary-expression":
+      return (
+        hasEnclosingBuiltinCall(expression.left, range) ||
+        hasEnclosingBuiltinCall(expression.right, range)
+      );
+    case "property-access":
+      return hasEnclosingBuiltinCall(expression.object, range);
+    case "numeric-literal":
+    case "identifier":
+      return false;
+    default:
+      return assertNever(expression);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected shader syntax: ${JSON.stringify(value)}`);
 }
 
 function containsPosition(range: TextRange, position: number): boolean {

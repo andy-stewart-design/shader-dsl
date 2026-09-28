@@ -12,6 +12,11 @@ export {
   type CreateVirtualSourceSuccess,
 } from "./create-virtual-source.js";
 export {
+  SHADER_BUILTINS,
+  builtinResultType,
+  isShaderBuiltinName,
+} from "./shader-builtin.js";
+export {
   ShaderDiagnosticCode,
   type ShaderDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,

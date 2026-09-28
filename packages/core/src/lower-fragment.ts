@@ -24,7 +24,10 @@ export function lowerFragment(source: string): LowerFragmentResult {
     return { ok: false, diagnostics: parsed.diagnostics };
   }
 
-  const lowered = lowerShaderSyntax(parsed.info.callback.syntax);
+  const lowered = lowerShaderSyntax(
+    parsed.info.callback.syntax,
+    new Set(parsed.info.shaderCallableImports.map((entry) => entry.localName)),
+  );
   if (!lowered.ok) {
     return { ok: false, diagnostics: lowered.diagnostics };
   }

@@ -12,6 +12,7 @@ import {
   type ObjectPattern,
 } from "@babel/types";
 
+import { isShaderBuiltinName } from "./shader-builtin.js";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
 import type { ShaderCallbackSyntax } from "./shader-syntax.js";
@@ -21,6 +22,7 @@ import { validateShaderSyntax } from "./validate-shader-syntax.js";
 const SHDR_MODULE_NAME = "shdr";
 const CREATE_FRAGMENT_SHADER = "createFragmentShader";
 const RESERVED_IDENTIFIER_PREFIX = "__shdr_internal_";
+const WGSL_HELPER_IDENTIFIER_PREFIX = "shdr_internal_";
 const SUPPORTED_SHADER_CALLABLES = new Set(["vec2", "vec3", "vec4"]);
 
 export interface ShaderImportInfo {
@@ -77,7 +79,7 @@ export function parseShaderFile(
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.ReservedIdentifier,
-          `Identifiers beginning with ${RESERVED_IDENTIFIER_PREFIX} are reserved for generated shader code.`,
+          `Identifiers beginning with ${reservedIdentifier.name.startsWith(WGSL_HELPER_IDENTIFIER_PREFIX) ? WGSL_HELPER_IDENTIFIER_PREFIX : RESERVED_IDENTIFIER_PREFIX} are reserved for generated shader code.`,
           rangeOf(reservedIdentifier),
         ),
       ],
@@ -311,7 +313,8 @@ function findReservedIdentifier(node: Node): Identifier | undefined {
     if (
       !match &&
       current.type === "Identifier" &&
-      current.name.startsWith(RESERVED_IDENTIFIER_PREFIX)
+      (current.name.startsWith(RESERVED_IDENTIFIER_PREFIX) ||
+        current.name.startsWith(WGSL_HELPER_IDENTIFIER_PREFIX))
     ) {
       match = current;
     }
@@ -437,7 +440,10 @@ function parseShdrImport(
 
     if (importedName === CREATE_FRAGMENT_SHADER) {
       setCreateFragmentShaderImport(importInfo);
-    } else if (SUPPORTED_SHADER_CALLABLES.has(importedName)) {
+    } else if (
+      SUPPORTED_SHADER_CALLABLES.has(importedName) ||
+      isShaderBuiltinName(importedName)
+    ) {
       shaderCallableImports.push(importInfo);
     } else {
       diagnostics.push(

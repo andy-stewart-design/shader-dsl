@@ -163,7 +163,22 @@ function callTargetName(target: ShaderCallTarget): string {
     case "constructor":
       return target.name;
     case "builtin-function":
-      throw new Error("No GLSL built-in function calls are supported.");
+      switch (target.name) {
+        case "sin":
+        case "cos":
+        case "smoothstep":
+        case "abs":
+        case "floor":
+        case "fract":
+        case "min":
+        case "max":
+        case "dot":
+        case "length":
+        case "normalize":
+          return target.name;
+        default:
+          return assertNever(target);
+      }
     default:
       return assertNever(target);
   }

@@ -125,6 +125,24 @@ describe("installed executable", () => {
     });
   });
 
+  it("checks math builtin calls and preserves SHDR1208/SHDR1209 in CLI output", async () => {
+    await withProject(async (cwd) => {
+      const file = join(cwd, "math.shdr.ts");
+      const shader = (expression: string) =>
+        `import { createFragmentShader, vec4, sin, smoothstep } from "shdr";\nexport default createFragmentShader(({ coord, uniforms }) => {\n  const value = ${expression};\n  return vec4(value, 0, 0, 1);\n});\n`;
+      await writeFile(file, shader("sin(uniforms.time)"));
+      expect(invoke(cwd, "check").status).toBe(0);
+      await writeFile(file, shader("sin(uniforms.time, coord.xy)"));
+      expect(invoke(cwd, "check").stdout).toMatch(
+        /^math\.shdr\.ts:3:17: SHDR1208: No matching "sin" builtin/,
+      );
+      await writeFile(file, shader("smoothstep(0, 0, uniforms.time)"));
+      expect(invoke(cwd, "check").stdout).toMatch(
+        /^math\.shdr\.ts:3:17: SHDR1209: smoothstep requires edge0 < edge1/,
+      );
+    });
+  });
+
   it("preserves original UTF-16 offsets, including CRLF and characters outside the BMP", async () => {
     await withProject(async (cwd) => {
       const source = await readFile(

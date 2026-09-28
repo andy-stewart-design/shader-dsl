@@ -97,6 +97,10 @@ export function routeShaderDiagnostics(
         continue;
       }
 
+      if (core.some((error) => rangesOverlap(error.range, originalRange))) {
+        continue;
+      }
+
       if (
         shaderOperations.some(
           (operation) =>

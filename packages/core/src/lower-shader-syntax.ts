@@ -1,4 +1,9 @@
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import {
+  evaluateShaderConstant,
+  identicalConstantExpressions,
+} from "./evaluate-shader-constant.js";
+import { builtinResultType, isShaderBuiltinName } from "./shader-builtin.js";
 import type {
   ShaderConstDeclaration,
   ShaderDefaultUniform,
@@ -64,6 +69,8 @@ interface LocalBinding {
 interface LoweringContext {
   readonly locals: Map<string, LocalBinding>;
   readonly futureNames: ReadonlySet<string>;
+  readonly constantLocals: Map<ShaderLocalSymbolId, readonly number[]>;
+  readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
 }
 
 type LowerExpressionResult =
@@ -73,8 +80,11 @@ type LowerExpressionResult =
 /** Lowers normalized callback syntax without consulting a target backend. */
 export function lowerShaderSyntax(
   syntax: ShaderCallbackSyntax,
+  importedCallables: ReadonlySet<string> = new Set(),
 ): LowerShaderSyntaxResult {
   const locals = new Map<string, LocalBinding>();
+  const constantLocals = new Map<ShaderLocalSymbolId, readonly number[]>();
+  const localInitializers = new Map<ShaderLocalSymbolId, ShaderExpression>();
   const futureNames = new Set(
     syntax.declarations.map((declaration) => declaration.name),
   );
@@ -84,6 +94,7 @@ export function lowerShaderSyntax(
   for (const declaration of syntax.declarations) {
     if (
       CONTEXT_BINDING_NAMES.has(declaration.name) ||
+      importedCallables.has(declaration.name) ||
       locals.has(declaration.name)
     ) {
       return failure(
@@ -91,7 +102,9 @@ export function lowerShaderSyntax(
           ShaderDiagnosticCode.DuplicateLocal,
           CONTEXT_BINDING_NAMES.has(declaration.name)
             ? `Shader local ${JSON.stringify(declaration.name)} conflicts with a shader context binding.`
-            : `Shader local ${JSON.stringify(declaration.name)} is declared more than once.`,
+            : importedCallables.has(declaration.name)
+              ? `Shader local ${JSON.stringify(declaration.name)} shadows an imported shader callable.`
+              : `Shader local ${JSON.stringify(declaration.name)} is declared more than once.`,
           declaration.nameRange,
         ),
       );
@@ -100,11 +113,19 @@ export function lowerShaderSyntax(
     const initializer = lowerExpression(declaration.initializer, {
       locals,
       futureNames,
+      constantLocals,
+      localInitializers,
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
 
     const symbolId = nextSymbolId;
     nextSymbolId += 1;
+    const constant = evaluateShaderConstant(
+      initializer.expression,
+      constantLocals,
+    );
+    if (constant) constantLocals.set(symbolId, constant);
+    localInitializers.set(symbolId, initializer.expression);
     futureNames.delete(declaration.name);
     locals.set(declaration.name, {
       name: declaration.name,
@@ -124,6 +145,8 @@ export function lowerShaderSyntax(
   const returned = lowerExpression(syntax.returnExpression, {
     locals,
     futureNames,
+    constantLocals,
+    localInitializers,
   });
   if (!returned.ok) return failure(returned.diagnostic);
   if (!isVec4(returned.expression.type)) {
@@ -264,10 +287,15 @@ function lowerCallExpression(
   context: LoweringContext,
 ): LowerExpressionResult {
   const name = syntax.calleeName;
-  if (name !== "vec2" && name !== "vec3" && name !== "vec4") {
+  if (
+    name !== "vec2" &&
+    name !== "vec3" &&
+    name !== "vec4" &&
+    !isShaderBuiltinName(name)
+  ) {
     return expressionFailure(
       ShaderDiagnosticCode.UnsupportedCall,
-      `Unsupported shader call ${JSON.stringify(syntax.calleeName)}; supported constructors are "vec2", "vec3", and "vec4".`,
+      `Unsupported shader call ${JSON.stringify(syntax.calleeName)}.`,
       syntax.calleeRange,
     );
   }
@@ -277,6 +305,55 @@ function lowerCallExpression(
     const lowered = lowerExpression(argument, context);
     if (!lowered.ok) return lowered;
     args.push(lowered.expression);
+  }
+
+  if (isShaderBuiltinName(name)) {
+    const type = builtinResultType(
+      name,
+      args.map((arg) => arg.type),
+    );
+    if (!type) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidBuiltin,
+        `No matching ${JSON.stringify(name)} builtin for argument types (${args.map((arg) => formatExpressionType(arg.type)).join(", ")}).`,
+        syntax.range,
+      );
+    }
+    if (name === "smoothstep") {
+      const edge0 = evaluateShaderConstant(args[0]!, context.constantLocals);
+      const edge1 = evaluateShaderConstant(args[1]!, context.constantLocals);
+      const invalidIndex =
+        edge0 && edge1
+          ? edge0.findIndex(
+              (component, index) =>
+                Number.isFinite(component) &&
+                Number.isFinite(edge1[index]) &&
+                component >= edge1[index]!,
+            )
+          : -1;
+      const identical = identicalConstantExpressions(
+        args[0]!,
+        args[1]!,
+        context.localInitializers,
+      );
+      if (invalidIndex >= 0 || identical) {
+        return expressionFailure(
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+          `smoothstep requires edge0 < edge1 in every component; ${type.kind === "vector" ? `component ${Math.max(0, invalidIndex)} has` : "edges have"} known edge0 >= edge1.`,
+          syntax.range,
+        );
+      }
+    }
+    return {
+      ok: true,
+      expression: {
+        kind: "call",
+        target: { kind: "builtin-function", name },
+        arguments: args,
+        type,
+        range: syntax.range,
+      },
+    };
   }
 
   if (!isConstructorArguments(name, args)) {

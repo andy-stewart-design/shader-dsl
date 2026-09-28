@@ -15,14 +15,19 @@ export interface GenerateWgslExpressionOptions {
   readonly fragmentPositionName?: string;
 }
 
+export type WgslSmoothstepShape = "f32" | "vec2" | "vec3" | "vec4";
+
 export interface GeneratedWgslExpression {
   readonly code: string;
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
   readonly usesFragmentPosition: boolean;
+  /** Module-level helpers needed to prevent WGSL const-edge shader-creation errors. */
+  readonly smoothstepShapes: readonly WgslSmoothstepShape[];
 }
 
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
+  readonly smoothstepShapes: Set<WgslSmoothstepShape>;
   usesFragmentPosition: boolean;
 }
 
@@ -33,6 +38,7 @@ export function generateWgslExpression(
 ): GeneratedWgslExpression {
   const state: GenerationState = {
     referencedUniforms: new Set(),
+    smoothstepShapes: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -43,6 +49,9 @@ export function generateWgslExpression(
       state.referencedUniforms.has(uniform),
     ),
     usesFragmentPosition: state.usesFragmentPosition,
+    smoothstepShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
+      (shape) => state.smoothstepShapes.has(shape),
+    ),
   };
 }
 
@@ -97,10 +106,23 @@ function emitExpression(
       }
     }
 
-    case "call":
-      return `${callTargetName(expression.target)}(${expression.arguments
+    case "call": {
+      let name = callTargetName(expression.target);
+      if (
+        expression.target.kind === "builtin-function" &&
+        expression.target.name === "smoothstep"
+      ) {
+        const shape: WgslSmoothstepShape =
+          expression.type.kind === "scalar"
+            ? "f32"
+            : `vec${expression.type.size}`;
+        state.smoothstepShapes.add(shape);
+        name = `shdr_internal_smoothstep_${shape}`;
+      }
+      return `${name}(${expression.arguments
         .map((argument) => emitExpression(argument, options, state))
         .join(", ")})`;
+    }
 
     default:
       return assertNever(expression);
@@ -161,7 +183,22 @@ function callTargetName(target: ShaderCallTarget): string {
           return "vec4<f32>";
       }
     case "builtin-function":
-      throw new Error("No WGSL built-in function calls are supported.");
+      switch (target.name) {
+        case "sin":
+        case "cos":
+        case "smoothstep":
+        case "abs":
+        case "floor":
+        case "fract":
+        case "min":
+        case "max":
+        case "dot":
+        case "length":
+        case "normalize":
+          return target.name;
+        default:
+          return assertNever(target);
+      }
     default:
       return assertNever(target);
   }

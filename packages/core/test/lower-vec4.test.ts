@@ -187,10 +187,10 @@ describe("vec4 and final-return lowering", () => {
       returnRange: { start: 0, length: 30 },
       returnExpression: {
         kind: "call-expression",
-        calleeName: "smoothstep",
-        calleeRange: { start: 7, length: 10 },
+        calleeName: "notABuiltin",
+        calleeRange: { start: 7, length: 11 },
         arguments: [],
-        range: { start: 7, length: 12 },
+        range: { start: 7, length: 13 },
       },
     };
 
@@ -199,9 +199,8 @@ describe("vec4 and final-return lowering", () => {
       diagnostics: [
         {
           code: ShaderDiagnosticCode.UnsupportedCall,
-          message:
-            'Unsupported shader call "smoothstep"; supported constructors are "vec2", "vec3", and "vec4".',
-          range: { start: 7, length: 10 },
+          message: 'Unsupported shader call "notABuiltin".',
+          range: { start: 7, length: 11 },
           severity: "error",
         },
       ],

@@ -1,3 +1,4 @@
+import type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 import type {
   ShaderBinaryOperator,
   ShaderUnaryOperator,
@@ -14,8 +15,7 @@ export type ShaderLocalSymbolId = number;
 
 export type ShaderConstructorName = "vec2" | "vec3" | "vec4";
 
-/** No built-in functions are accepted by the POC yet. */
-export type ShaderBuiltinFunctionName = never;
+export type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 
 export type ShaderCallTarget =
   | {

@@ -59,6 +59,7 @@ describe("WGSL expression generation", () => {
       code: expected,
       referencedUniforms: [],
       usesFragmentPosition: false,
+      smoothstepShapes: [],
     });
   });
 
@@ -82,6 +83,7 @@ describe("WGSL expression generation", () => {
       code: "((1.0 / 2.0) / shdr_time)",
       referencedUniforms: ["time"],
       usesFragmentPosition: false,
+      smoothstepShapes: [],
     });
     expect(generateWgslExpression(right).code).toBe(
       "(1.0 / (2.0 / shdr_time))",
@@ -100,7 +102,30 @@ describe("WGSL expression generation", () => {
       code: "shdr_coord",
       referencedUniforms: [],
       usesFragmentPosition: true,
+      smoothstepShapes: [],
     });
+  });
+
+  it("tracks a directly constructed typed smoothstep call and its helper shape", () => {
+    const smooth: ShaderExpression = {
+      kind: "call",
+      target: { kind: "builtin-function", name: "smoothstep" },
+      arguments: [numeric(0.2), numeric(0.8), numeric(0.5)],
+      type: f32,
+      range,
+    };
+    expect(generateWgslExpression(smooth)).toEqual({
+      code: "shdr_internal_smoothstep_f32(0.2, 0.8, 0.5)",
+      referencedUniforms: [],
+      usesFragmentPosition: false,
+      smoothstepShapes: ["f32"],
+    });
+    expect(() =>
+      generateWgslExpression({
+        ...smooth,
+        target: { kind: "builtin-function", name: "notABuiltin" },
+      } as unknown as ShaderExpression),
+    ).toThrow("Unsupported WGSL IR value");
   });
 
   it("emits local swizzles and every accepted vec4 constructor shape", () => {
@@ -113,9 +138,7 @@ describe("WGSL expression generation", () => {
       type: f32,
       range,
     };
-    const call = (
-      args: readonly ShaderExpression[],
-    ): ShaderExpression => ({
+    const call = (args: readonly ShaderExpression[]): ShaderExpression => ({
       kind: "call",
       target: { kind: "constructor", name: "vec4" },
       arguments: args,
@@ -123,18 +146,16 @@ describe("WGSL expression generation", () => {
       range,
     });
 
-    expect(generateWgslExpression(call([uvX, uvX, numeric(0), numeric(1)])).code).toBe(
-      "vec4<f32>((uv).x, (uv).x, 0.0, 1.0)",
-    );
-    expect(generateWgslExpression(call([uv, numeric(0), numeric(1)])).code).toBe(
-      "vec4<f32>(uv, 0.0, 1.0)",
-    );
+    expect(
+      generateWgslExpression(call([uvX, uvX, numeric(0), numeric(1)])).code,
+    ).toBe("vec4<f32>((uv).x, (uv).x, 0.0, 1.0)");
+    expect(
+      generateWgslExpression(call([uv, numeric(0), numeric(1)])).code,
+    ).toBe("vec4<f32>(uv, 0.0, 1.0)");
     expect(generateWgslExpression(call([numeric(1)])).code).toBe(
       "vec4<f32>(1.0)",
     );
-    expect(generateWgslExpression(call([color])).code).toBe(
-      "vec4<f32>(color)",
-    );
+    expect(generateWgslExpression(call([color])).code).toBe("vec4<f32>(color)");
   });
 });
 
@@ -145,7 +166,8 @@ describe("WGSL fragment module generation", () => {
     expect(lowered.ok).toBe(true);
     if (!lowered.ok) return;
 
-    expect(generateWgslFragment(lowered.ir)).toBe(`@group(0) @binding(0) var<uniform> shdr_resolution: vec2<f32>;
+    expect(generateWgslFragment(lowered.ir))
+      .toBe(`@group(0) @binding(0) var<uniform> shdr_resolution: vec2<f32>;
 
 @fragment
 fn shdr_fragment_main(
@@ -181,7 +203,8 @@ fn shdr_fragment_main(
     expect(allUniforms.ok).toBe(true);
     if (!allUniforms.ok) return;
 
-    expect(generateWgslFragment(allUniforms.ir)).toContain(`@group(0) @binding(0) var<uniform> shdr_resolution: vec2<f32>;
+    expect(generateWgslFragment(allUniforms.ir))
+      .toContain(`@group(0) @binding(0) var<uniform> shdr_resolution: vec2<f32>;
 @group(0) @binding(1) var<uniform> shdr_mouse: vec2<f32>;
 @group(0) @binding(2) var<uniform> shdr_time: f32;`);
 
