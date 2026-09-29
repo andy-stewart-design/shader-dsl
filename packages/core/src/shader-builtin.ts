@@ -4,6 +4,7 @@ import type { ShaderValueType } from "./shader-type.js";
 export const SHADER_BUILTINS = {
   sin: "unary-same",
   cos: "unary-same",
+  ceil: "unary-same",
   smoothstep: "ternary-same",
   abs: "unary-same",
   floor: "unary-same",
@@ -11,6 +12,8 @@ export const SHADER_BUILTINS = {
   min: "binary-same",
   max: "binary-same",
   dot: "binary-vector-reduce",
+  distance: "binary-reduce",
+  cross: "binary-vec3",
   length: "unary-reduce",
   normalize: "unary-vector",
 } as const;
@@ -46,6 +49,17 @@ export function builtinResultType(
     case "binary-vector-reduce":
       return args.length === 2 && first.kind === "vector" && sameShape(args[1])
         ? { kind: "scalar", scalar: "f32" }
+        : undefined;
+    case "binary-reduce":
+      return args.length === 2 && sameShape(args[1])
+        ? { kind: "scalar", scalar: "f32" }
+        : undefined;
+    case "binary-vec3":
+      return args.length === 2 &&
+        first.kind === "vector" &&
+        first.size === 3 &&
+        sameShape(args[1])
+        ? first
         : undefined;
     case "ternary-same":
       return args.length === 3 && sameShape(args[1]) && sameShape(args[2])

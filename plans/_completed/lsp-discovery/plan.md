@@ -1,6 +1,6 @@
 # Project-aware Shdr LSP — plan
 
-Status: Phase 3 repo-local Zed launcher verified; stop for review before language expansion. Follow-up to the [editor integration decision](../next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
+Status: Phase 3 repo-local Zed launcher verified; stop for review before language expansion. Follow-up to the [editor integration decision](../next-milestone/editor-integration-decision.md). Finish and review this work before starting the [language expansion](../language-expansion/plan.md). Use small, independently verified changes; stop at each gate.
 
 ## Goal and boundary
 

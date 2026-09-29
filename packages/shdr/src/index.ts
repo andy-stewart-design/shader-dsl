@@ -1,7 +1,10 @@
 export { createFragmentShader, vec2, vec3, vec4 } from "./dsl.js";
 export {
   abs,
+  ceil,
   cos,
+  cross,
+  distance,
   dot,
   floor,
   fract,
