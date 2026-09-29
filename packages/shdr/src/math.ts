@@ -17,6 +17,14 @@ export function cos(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("cos");
 }
 
+export function ceil(x: Expr<F32>): Expr<F32>;
+export function ceil(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function ceil(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function ceil(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function ceil(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("ceil");
+}
+
 export function smoothstep(
   edge0: Expr<F32>,
   edge1: Expr<F32>,
@@ -79,6 +87,19 @@ export function max(x: Expr<Vec3<F32>>, y: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
 export function max(x: Expr<Vec4<F32>>, y: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
 export function max(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("max");
+}
+
+export function distance(x: Expr<F32>, y: Expr<F32>): Expr<F32>;
+export function distance(x: Expr<Vec2<F32>>, y: Expr<Vec2<F32>>): Expr<F32>;
+export function distance(x: Expr<Vec3<F32>>, y: Expr<Vec3<F32>>): Expr<F32>;
+export function distance(x: Expr<Vec4<F32>>, y: Expr<Vec4<F32>>): Expr<F32>;
+export function distance(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("distance");
+}
+
+export function cross(x: Expr<Vec3<F32>>, y: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function cross(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("cross");
 }
 
 export function dot(x: Expr<Vec2<F32>>, y: Expr<Vec2<F32>>): Expr<F32>;

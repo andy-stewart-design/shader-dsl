@@ -129,11 +129,22 @@ describe("installed executable", () => {
     await withProject(async (cwd) => {
       const file = join(cwd, "math.shdr.ts");
       const shader = (expression: string) =>
-        `import { createFragmentShader, vec4, sin, smoothstep } from "shdr";\nexport default createFragmentShader(({ coord, uniforms }) => {\n  const value = ${expression};\n  return vec4(value, 0, 0, 1);\n});\n`;
+        `import { createFragmentShader, vec4, sin, smoothstep, ceil, distance, cross } from "shdr";\nexport default createFragmentShader(({ coord, uniforms }) => {\n  const value = ${expression};\n  return vec4(value, 0, 0, 1);\n});\n`;
       await writeFile(file, shader("sin(uniforms.time)"));
       expect(invoke(cwd, "check").status).toBe(0);
       await writeFile(file, shader("smoothstep(0.8, 0.2, uniforms.time)"));
       expect(invoke(cwd, "check").status).toBe(0);
+      await writeFile(
+        file,
+        shader(
+          "ceil(distance(coord.xy, coord.xy)) + cross(coord.xyz, coord.xyz).x",
+        ),
+      );
+      expect(invoke(cwd, "check").status).toBe(0);
+      await writeFile(file, shader("cross(coord.xy, coord.xy).x"));
+      expect(invoke(cwd, "check").stdout).toMatch(
+        /SHDR1208: No matching "cross" builtin/,
+      );
       await writeFile(file, shader("sin(uniforms.time, coord.xy)"));
       expect(invoke(cwd, "check").stdout).toMatch(
         /^math\.shdr\.ts:3:17: SHDR1208: No matching "sin" builtin/,

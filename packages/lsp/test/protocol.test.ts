@@ -26,6 +26,13 @@ const mathSource = readFileSync(
   ),
   "utf8",
 );
+const geometrySource = readFileSync(
+  new URL(
+    "../../../apps/editor-fixture/geometry-math.shdr.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function connect() {
   // Exercise the actual built stdio server with LSP Content-Length framing.
@@ -212,7 +219,7 @@ describe("Shdr LSP protocol", () => {
     }
   });
 
-  it("routes eleven-builtin hovers and original-source domain/signature diagnostics", async () => {
+  it("routes math builtin hovers and original-source domain/signature diagnostics", async () => {
     const session = connect();
     try {
       await session.initialize();
@@ -286,6 +293,43 @@ describe("Shdr LSP protocol", () => {
         contentChanges: [{ text: mathSource }],
       });
       expect((await session.nextDiagnostics(4)).diagnostics).toEqual([]);
+
+      session.client.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version: 5 },
+        contentChanges: [{ text: geometrySource }],
+      });
+      expect((await session.nextDiagnostics(5)).diagnostics).toEqual([]);
+      const geometryHover = await session.client.sendRequest<{
+        contents: { value: string };
+      }>("textDocument/hover", {
+        textDocument: { uri },
+        position: positionAt(
+          geometrySource,
+          geometrySource.indexOf("normal.z"),
+        ),
+      });
+      expect(geometryHover.contents.value).toBe("Expr<Vec3<F32>>");
+
+      const validCross = "cross(vec3(1, 0, 0), vec3(0, 1, 0))";
+      const wrongCross = "cross(uv, uv)";
+      const invalidCross = geometrySource.replace(validCross, wrongCross);
+      session.client.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version: 6 },
+        contentChanges: [{ text: invalidCross }],
+      });
+      expect((await session.nextDiagnostics(6)).diagnostics).toEqual([
+        expect.objectContaining({
+          code: "SHDR1208",
+          source: "shdr",
+          range: {
+            start: positionAt(invalidCross, invalidCross.indexOf(wrongCross)),
+            end: positionAt(
+              invalidCross,
+              invalidCross.indexOf(wrongCross) + wrongCross.length,
+            ),
+          },
+        }),
+      ]);
     } finally {
       await session.close();
     }

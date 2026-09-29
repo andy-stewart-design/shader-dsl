@@ -67,6 +67,8 @@ export function evaluateShaderConstant(
           return first.map((value) => Math.abs(value));
         case "floor":
           return first.map((value) => Math.floor(value));
+        case "ceil":
+          return first.map((value) => Math.ceil(value));
         case "length":
           return first.length === 1 && first[0] === 0 ? [0] : undefined;
         case "fract":
@@ -76,6 +78,8 @@ export function evaluateShaderConstant(
           // ordering; unknown values are handled by the WGSL helper.
           return undefined;
         case "dot":
+        case "distance":
+        case "cross":
         case "normalize":
         case "smoothstep":
           return undefined;

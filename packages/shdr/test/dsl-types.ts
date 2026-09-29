@@ -1,5 +1,13 @@
 import * as shdr from "../src/index.js";
-import { createFragmentShader, vec2, vec3, vec4 } from "../src/index.js";
+import {
+  ceil,
+  createFragmentShader,
+  cross,
+  distance,
+  vec2,
+  vec3,
+  vec4,
+} from "../src/index.js";
 import {
   __shdr_internal_add,
   __shdr_internal_div,
@@ -59,6 +67,17 @@ const splatVec2 = vec2(scalar);
 const constructedVec3 = vec3(scalar, scalar, scalar);
 const copiedVec3 = vec3(vector3);
 const splatVec3 = vec3(scalar);
+const ceilScalar = ceil(scalar);
+const ceilVector = ceil(vector4);
+const distanceScalar = distance(scalar, scalar);
+const distanceVector = distance(vector2, vector2);
+const crossVector = cross(vector3, vector3);
+// @ts-expect-error cross is only defined for Vec3.
+const invalidCross = cross(vector2, vector2);
+// @ts-expect-error distance requires equal shapes.
+const invalidDistance = distance(vector2, vector3);
+// @ts-expect-error ceil accepts exactly one argument.
+const invalidCeil = ceil(vector2, vector2);
 const color = vec4(scalar, scalar, scalar, scalar);
 const colorFromVector2 = vec4(vector2, scalar, scalar);
 const colorFromScalarSplat = vec4(scalar);
@@ -117,6 +136,14 @@ type TopLevelInternalHelper = (typeof shdr)["__shdr_internal_f32"];
 
 type DslTypeAssertions = [
   Expect<Equal<typeof literal, Expr<F32>>>,
+  Expect<Equal<typeof ceilScalar, Expr<F32>>>,
+  Expect<Equal<typeof ceilVector, Expr<Vec4<F32>>>>,
+  Expect<Equal<typeof distanceScalar, Expr<F32>>>,
+  Expect<Equal<typeof distanceVector, Expr<F32>>>,
+  Expect<Equal<typeof crossVector, Expr<Vec3<F32>>>>,
+  typeof invalidCross,
+  typeof invalidDistance,
+  typeof invalidCeil,
   Expect<Equal<typeof scalarByScalar, Expr<F32>>>,
   Expect<Equal<typeof vector2ByScalar, Expr<Vec2<F32>>>>,
   Expect<Equal<typeof vector2ByVector2, Expr<Vec2<F32>>>>,

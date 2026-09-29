@@ -192,6 +192,35 @@ export async function run(): Promise<void> {
   await replaceText(math, wrongDot, validDot);
   await waitForDiagnostics(mathUri, (diagnostics) => diagnostics.length === 0);
 
+  const geometryUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "geometry-math.shdr.ts",
+  );
+  const geometry = await vscode.workspace.openTextDocument(geometryUri);
+  assert.equal(geometry.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(geometry);
+  await waitForDiagnostics(
+    geometryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(geometry, "rounded, uv", /Expr<Vec2<F32>>/);
+  await waitForHoverText(geometry, "separation, normal", /Expr<F32>/);
+  await waitForHoverText(geometry, "normal.z", /Expr<Vec3<F32>>/);
+  const validCross = "cross(vec3(1, 0, 0), vec3(0, 1, 0))";
+  const invalidCross = "cross(uv, uv)";
+  await replaceText(geometry, validCross, invalidCross);
+  const crossErrors = await waitForDiagnostics(
+    geometryUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(geometry.getText(crossErrors[0]?.range), invalidCross);
+  await replaceText(geometry, invalidCross, validCross);
+  await waitForDiagnostics(
+    geometryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   const invalidUri = vscode.Uri.joinPath(
     workspace.uri,
     "test/fixtures/invalid.shdr.ts",

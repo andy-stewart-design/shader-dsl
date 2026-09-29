@@ -166,6 +166,9 @@ function callTargetName(target: ShaderCallTarget): string {
       switch (target.name) {
         case "sin":
         case "cos":
+        case "ceil":
+        case "distance":
+        case "cross":
         case "smoothstep":
         case "abs":
         case "floor":

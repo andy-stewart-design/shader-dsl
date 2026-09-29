@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Plugin } from "vite";
 
@@ -45,6 +46,29 @@ describe("@shdr/vite package", () => {
     expect(generated).toContain("shdr_fragment_color");
     expect(generated).not.toContain('from "shdr"');
     expect(generated).not.toContain("coord.xy / uniforms.resolution");
+  });
+
+  it("pre-transforms ceil, distance and cross to generated GLSL", async () => {
+    const source = readFileSync(
+      new URL(
+        "../../../apps/editor-fixture/geometry-math.shdr.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const result = await transform(
+      shdr(),
+      source,
+      "/src/geometry-math.shdr.ts",
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    const generated = JSON.parse(
+      result.code.slice("export default ".length, -";\n".length),
+    ) as string;
+    expect(generated).toContain("ceil(");
+    expect(generated).toContain("distance(");
+    expect(generated).toContain("cross(");
   });
 
   it("throws a source-located Vite error for an invalid shader", async () => {

@@ -171,6 +171,17 @@ try {
     "blocked",
   );
   assert.deepEqual(await readCenterPixel(page), mathPixel);
+  const geometrySource = await readFile(
+    new URL("../editor-fixture/geometry-math.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, geometrySource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  const geometryPixel = await readCenterPixel(page);
+  assertChannel("geometry green", geometryPixel[1], 255, 1);
+  assertChannel("geometry alpha", geometryPixel[3], 255, 1);
   await compileSource(page, editor, originalSource);
   await waitForValidation(page, "glsl-es-300", "success");
 
