@@ -15,6 +15,8 @@ pnpm --filter repl test
 
 The browser test verifies target selection, validation states, the expanded shader's rendered pixels, the eleven-builtin shader's rendered pixels and WGSL helper compilation, `ceil`/`distance`/`cross` pixels and WGSL validation, an equal-edge `SHDR1209` edit that preserves the last valid frame, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
 
+A separate **Phase 1 feasibility probe** runs with `pnpm --filter repl test:webgpu-feasibility` (after `pnpm build`). It proves generated WGSL can draw to and read back pixels from a separate WebGPU canvas in the tested Chromium/SwiftShader environment, including position and resolution uniforms. See the [WebGPU REPL plan](../../plans/repl-webgpu/plan.md). This probe has not yet added a WebGPU preview to the REPL.
+
 ## Runtime uniforms
 
 - `resolution` is the WebGL drawing-buffer size in physical pixels. The canvas backing size follows its displayed size and device pixel ratio.

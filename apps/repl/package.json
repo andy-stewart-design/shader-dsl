@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "pretest": "playwright install chromium",
-    "test": "node verify-browser.mjs"
+    "test": "node verify-browser.mjs",
+    "test:webgpu-feasibility": "node verify-webgpu-feasibility.mjs"
   },
   "dependencies": {
     "@shdr/core": "workspace:*",
