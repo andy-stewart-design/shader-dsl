@@ -1,6 +1,6 @@
 # Render WGSL/WebGPU in the browser REPL
 
-Status: proposed implementation plan; review each gate before widening scope. This is a REPL integration, **not** a published browser runtime API or a change to Shdr's accepted language. The existing shared lowering pass must continue to generate GLSL ES 3.00 and WGSL from the same target-neutral IR. Keep the WebGL preview usable when WebGPU is unavailable.
+Status: Phases 1 and 2 verified; stop at Gate 2 for review before connecting the renderer to the REPL UI. This is a REPL integration, **not** a published browser runtime API or a change to Shdr's accepted language. The existing shared lowering pass must continue to generate GLSL ES 3.00 and WGSL from the same target-neutral IR. Keep the WebGL preview usable when WebGPU is unavailable.
 
 ## Current baseline and desired result
 
@@ -23,7 +23,7 @@ Status: proposed implementation plan; review each gate before widening scope. Th
 3. Prepare candidate resources **before** replacing the last successful pipeline. Draw once successfully before reporting `success`; retain the prior pipeline/frame if a new WGSL module or pipeline fails. On resize or device loss, report the appropriate status rather than promising preservation when the surface itself is invalidated. Destroy retired GPU buffers and drop obsolete pipeline references when replaced or disposed.
 4. Use a monotonically increasing compile generation across asynchronous WGSL steps. An older compilation must never commit a pipeline, draw over a newer result, or overwrite its status; destroy stale resources. A shared-source diagnostic blocks both new targets without discarding their last successful renders. A WebGPU-only failure must not stop WebGL rendering.
 
-**Gate 2:** renderer tests or a focused browser probe exercise no/some/all default bindings, pipeline errors, stale compilation, disposal and device loss. Keep the renderer independent of React state so lifecycle behavior is testable.
+**Gate 2 result — stop for review:** [`WebGpuRenderer`](../../apps/repl/src/webgpu-renderer.ts) is a REPL-local, React-independent renderer that owns one device/context, validates generated WGSL, builds pipelines, binds only declared fixed-index default uniforms, and draws to a separate canvas. It preflights candidate draws offscreen before replacing the previous frame, serializes device error scopes for concurrent edits, drops superseded compilations, maintains an animation loop, and handles resize, disposal and device loss. [`verify-webgpu-renderer.mjs`](../../apps/repl/verify-webgpu-renderer.mjs) uses the real Vite-transformed class in Chromium/SwiftShader: no bindings, only resolution, only binding-2 time, and all three bindings succeed; generated WGSL pixels appear on the canvas; module/pipeline errors preserve the prior displayed frame; supersession, device loss and disposal behave as specified. Run `pnpm --filter repl test:webgpu-renderer`. **This class is not yet mounted in `App.tsx`; the visible REPL still uses `validateWgsl()` and renders only WebGL.** Phase 3 owns UI wiring, cross-renderer clock/mouse coordination, and unavailable-browser presentation.
 
 ## Phase 3 — connect the two previews and default uniforms
 

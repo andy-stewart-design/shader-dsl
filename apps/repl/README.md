@@ -15,7 +15,7 @@ pnpm --filter repl test
 
 The browser test verifies target selection, validation states, the expanded shader's rendered pixels, the eleven-builtin shader's rendered pixels and WGSL helper compilation, `ceil`/`distance`/`cross` pixels and WGSL validation, an equal-edge `SHDR1209` edit that preserves the last valid frame, visible render changes, every default uniform binding, canonical coordinate orientation, responsive drawing-buffer sizing, and preservation of the last successful frame when the current source is invalid.
 
-A separate **Phase 1 feasibility probe** runs with `pnpm --filter repl test:webgpu-feasibility` (after `pnpm build`). It proves generated WGSL can draw to and read back pixels from a separate WebGPU canvas in the tested Chromium/SwiftShader environment, including position and resolution uniforms. See the [WebGPU REPL plan](../../plans/repl-webgpu/plan.md). This probe has not yet added a WebGPU preview to the REPL.
+A separate **Phase 1 feasibility probe** runs with `pnpm --filter repl test:webgpu-feasibility` (after `pnpm build`). It proves generated WGSL can draw to and read back pixels from a separate WebGPU canvas in the tested Chromium/SwiftShader environment, including position and resolution uniforms. See the [WebGPU REPL plan](../../plans/repl-webgpu/plan.md). This probe has not yet added a WebGPU preview to the REPL. The separate **Phase 2 renderer probe**, `pnpm --filter repl test:webgpu-renderer`, exercises the new REPL-local `WebGpuRenderer` with real canvas pixels, selective default uniforms, compilation/pipeline failures, superseded edits, disposal and device loss. It is not mounted in the UI yet; WebGL remains the only rendered REPL preview.
 
 ## Runtime uniforms
 
