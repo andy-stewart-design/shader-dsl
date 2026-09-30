@@ -113,7 +113,7 @@ The production check confirms that generated GLSL—not the original operator ex
 
 ## Multi-target browser REPL
 
-The REPL runs `@shdr/core` entirely in the browser. It lowers once, generates GLSL ES 3.00 and WGSL from the same typed IR, displays shared source diagnostics, renders GLSL through WebGL 2, and preserves the last valid frame after an invalid edit.
+The REPL runs `@shdr/core` entirely in the browser. It lowers once, generates GLSL ES 3.00 and WGSL from the same typed IR, displays shared source diagnostics, and renders the two targets on separate WebGL 2 and WebGPU canvases where available. Invalid edits preserve the last successful render on each canvas.
 
 ```sh
 pnpm --filter repl dev
@@ -121,7 +121,7 @@ pnpm --filter repl build
 pnpm --filter repl test
 ```
 
-Select either generated target in the UI. In a WebGPU-capable browser, the REPL creates a WGSL shader module and displays `getCompilationInfo()` results. If WebGPU or an adapter is unavailable, the UI reports that limitation rather than claiming success. WGSL rendering is deliberately out of scope.
+Select either generated target in the UI. WGSL only reports rendered after successful module compilation, pipeline creation and a draw. If WebGPU or an adapter is unavailable, the WebGL 2 preview remains usable and the WebGPU preview reports unavailable. Chromium/SwiftShader browser tests compare rendered pixels within channel tolerances, exercise the default uniforms and fallback paths, and keep backend messages distinct from shared source diagnostics. This renderer belongs to the REPL, not a published runtime API.
 
 ## Accepted shader language
 
@@ -210,7 +210,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 - The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private stdio LSP now selects a config per shader and has protocol tests across projects, but still checks synchronously. Its **Zed dev launcher** works only within this checkout's repository root and `apps/editor-fixture` worktrees; distribution and other projects remain unverified.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
 - The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.
-- WGSL is generated and compile-validated but not rendered.
+- WGSL renders in the REPL on WebGPU-capable browsers; the Vite adapter still emits only GLSL, and no host-facing WebGPU runtime is published.
 - Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout; that historical measurement is not a current bundle-size claim.
 
 These are current implementation limits, not silent compatibility claims.

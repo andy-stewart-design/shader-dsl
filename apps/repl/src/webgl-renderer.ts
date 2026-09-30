@@ -16,7 +16,9 @@ interface ShaderResources {
   readonly program: WebGLProgram;
   readonly vertex: WebGLShader;
   readonly fragment: WebGLShader;
-  readonly locations: Readonly<Record<DefaultUniform, WebGLUniformLocation | null>>;
+  readonly locations: Readonly<
+    Record<DefaultUniform, WebGLUniformLocation | null>
+  >;
   readonly boundUniforms: readonly DefaultUniform[];
 }
 
@@ -43,14 +45,15 @@ export class WebGlRenderer {
     this.#canvas = canvas;
     this.#gl = gl;
     this.#vertexArray = vertexArray;
-    canvas.addEventListener("pointermove", this.#updateMouse);
     this.#animationFrame = requestAnimationFrame(this.#drawFrame);
   }
 
-  setFragmentShader(fragmentSource: string): readonly DefaultUniform[] {
+  setFragmentShader(
+    fragmentSource: string,
+    startedAt = performance.now(),
+  ): readonly DefaultUniform[] {
     const resources = this.#createResources(fragmentSource);
     const previous = this.#resources;
-    const startedAt = performance.now();
 
     try {
       this.#draw(resources, startedAt, startedAt);
@@ -69,11 +72,16 @@ export class WebGlRenderer {
     }
   }
 
+  /** Mouse is a shared position normalized to [0, 1] in both previews. */
+  setMouse(x: number, y: number): void {
+    this.#mouseX = x;
+    this.#mouseY = y;
+  }
+
   dispose(): void {
     if (this.#animationFrame !== undefined) {
       cancelAnimationFrame(this.#animationFrame);
     }
-    this.#canvas.removeEventListener("pointermove", this.#updateMouse);
     if (this.#resources) this.#deleteResources(this.#resources);
     this.#gl.deleteVertexArray(this.#vertexArray);
   }
@@ -106,9 +114,9 @@ export class WebGlRenderer {
         mouse: gl.getUniformLocation(program, "u_mouse"),
         time: gl.getUniformLocation(program, "u_time"),
       };
-      const boundUniforms = (
-        ["resolution", "mouse", "time"] as const
-      ).filter((uniform) => locations[uniform] !== null);
+      const boundUniforms = (["resolution", "mouse", "time"] as const).filter(
+        (uniform) => locations[uniform] !== null,
+      );
       return { program, vertex, fragment, locations, boundUniforms };
     } catch (error) {
       if (program) gl.deleteProgram(program);
@@ -145,7 +153,11 @@ export class WebGlRenderer {
       );
     }
     if (locations.mouse) {
-      gl.uniform2f(locations.mouse, this.#mouseX, this.#mouseY);
+      gl.uniform2f(
+        locations.mouse,
+        this.#mouseX * this.#canvas.width,
+        this.#mouseY * this.#canvas.height,
+      );
     }
     const elapsedSeconds = (timestamp - startedAt) / 1_000;
     if (locations.time) {
@@ -159,7 +171,7 @@ export class WebGlRenderer {
     }
 
     this.#canvas.dataset.resolution = `${this.#canvas.width},${this.#canvas.height}`;
-    this.#canvas.dataset.mouse = `${this.#mouseX},${this.#mouseY}`;
+    this.#canvas.dataset.mouse = `${this.#mouseX * this.#canvas.width},${this.#mouseY * this.#canvas.height}`;
     this.#canvas.dataset.time = String(elapsedSeconds);
   }
 
@@ -173,14 +185,6 @@ export class WebGlRenderer {
       this.#canvas.height = height;
     }
   }
-
-  #updateMouse = (event: PointerEvent): void => {
-    const rect = this.#canvas.getBoundingClientRect();
-    this.#mouseX =
-      ((event.clientX - rect.left) / rect.width) * this.#canvas.width;
-    this.#mouseY =
-      ((event.clientY - rect.top) / rect.height) * this.#canvas.height;
-  };
 
   #drawFrame = (timestamp: number): void => {
     if (this.#resources) {

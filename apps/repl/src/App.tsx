@@ -1,13 +1,10 @@
 import { generateFragment, lowerFragment } from "@shdr/core";
-import type {
-  ShaderDiagnostic,
-  ShaderTarget,
-  TextRange,
-} from "@shdr/core";
+import type { ShaderDiagnostic, ShaderTarget, TextRange } from "@shdr/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import "./App.css";
 import { WebGlRenderer } from "./webgl-renderer.ts";
-import { validateWgsl } from "./wgsl-validator.ts";
+import { WebGpuRenderer, WebGpuUnavailableError } from "./webgpu-renderer.ts";
 
 const INITIAL_SOURCE = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -44,11 +41,7 @@ interface CompilationFailure {
 
 type Compilation = CompilationSuccess | CompilationFailure;
 type ValidationState =
-  | "pending"
-  | "success"
-  | "error"
-  | "unavailable"
-  | "blocked";
+  "pending" | "success" | "error" | "unavailable" | "blocked";
 
 interface ValidationResult {
   readonly state: ValidationState;
@@ -66,7 +59,7 @@ const PENDING_VALIDATIONS: TargetValidations = {
   },
   wgsl: {
     state: "pending",
-    message: "Checking WebGPU availability.",
+    message: "Starting the WebGPU renderer.",
   },
 };
 
@@ -90,16 +83,72 @@ function App() {
     useState<ShaderTarget>("glsl-es-300");
   const [validations, setValidations] =
     useState<TargetValidations>(PENDING_VALIDATIONS);
-  const [hasSuccessfulRender, setHasSuccessfulRender] = useState(false);
+  const [hasSuccessfulRender, setHasSuccessfulRender] = useState<
+    Readonly<Record<ShaderTarget, boolean>>
+  >({
+    "glsl-es-300": false,
+    wgsl: false,
+  });
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gpuCanvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<WebGlRenderer>(null);
+  const gpuRendererRef = useRef<WebGpuRenderer>(null);
   const validationRun = useRef(0);
+  const requestedOutputs = useRef<{
+    readonly outputs: Readonly<Record<ShaderTarget, string>>;
+    readonly run: number;
+    readonly startedAt: number;
+  } | null>(null);
+  const gpuInitialization = useRef<ValidationResult | null>(null);
+  const mouse = useRef({ x: 0, y: 0 });
   const isDirty = source !== compiledSource;
 
-  const validateOutputs = useCallback(
-    async (outputs: Readonly<Record<ShaderTarget, string>>) => {
+  const renderWgsl = useCallback(
+    async (
+      renderer: WebGpuRenderer,
+      source: string,
+      run: number,
+      startedAt: number,
+    ) => {
+      try {
+        const boundUniforms = await renderer.setFragmentShader(
+          source,
+          startedAt,
+        );
+        if (!boundUniforms || validationRun.current !== run) return;
+        setHasSuccessfulRender((current) => ({ ...current, wgsl: true }));
+        setValidations((current) => ({
+          ...current,
+          wgsl: {
+            state: "success",
+            message:
+              "WGSL compiled, pipelined, and rendered in WebGPU. " +
+              `Bound uniforms: ${boundUniforms.join(", ") || "none"}.` +
+              (renderer.warnings.length
+                ? ` WGSL warnings: ${renderer.warnings.join("; ")}`
+                : ""),
+          },
+        }));
+      } catch (error) {
+        if (validationRun.current !== run) return;
+        setValidations((current) => ({
+          ...current,
+          wgsl: { state: "error", message: errorMessage(error) },
+        }));
+      }
+    },
+    [],
+  );
+
+  const renderOutputs = useCallback(
+    (outputs: Readonly<Record<ShaderTarget, string>>) => {
       const run = ++validationRun.current;
-      setValidations(PENDING_VALIDATIONS);
+      const startedAt = performance.now();
+      requestedOutputs.current = { outputs, run, startedAt };
+      setValidations({
+        ...PENDING_VALIDATIONS,
+        wgsl: gpuInitialization.current ?? PENDING_VALIDATIONS.wgsl,
+      });
 
       const renderer = rendererRef.current;
       if (!renderer) {
@@ -114,8 +163,12 @@ function App() {
         try {
           const boundUniforms = renderer.setFragmentShader(
             outputs["glsl-es-300"],
+            startedAt,
           );
-          setHasSuccessfulRender(true);
+          setHasSuccessfulRender((current) => ({
+            ...current,
+            "glsl-es-300": true,
+          }));
           setValidations((current) => ({
             ...current,
             "glsl-es-300": {
@@ -128,25 +181,19 @@ function App() {
         } catch (error) {
           setValidations((current) => ({
             ...current,
-            "glsl-es-300": {
-              state: "error",
-              message: errorMessage(error),
-            },
+            "glsl-es-300": { state: "error", message: errorMessage(error) },
           }));
         }
       }
-
-      const wgsl = await validateWgsl(outputs.wgsl);
-      if (validationRun.current !== run) return;
-      setValidations((current) => ({
-        ...current,
-        wgsl,
-      }));
+      if (gpuRendererRef.current) {
+        void renderWgsl(gpuRendererRef.current, outputs.wgsl, run, startedAt);
+      }
     },
-    [],
+    [renderWgsl],
   );
 
   useEffect(() => {
+    let active = true;
     if (canvasRef.current) {
       try {
         rendererRef.current = new WebGlRenderer(canvasRef.current);
@@ -154,16 +201,64 @@ function App() {
         rendererRef.current = null;
       }
     }
+    const glRenderer = rendererRef.current;
+    let gpuRenderer: WebGpuRenderer | null = null;
+    // Defer device acquisition until after the first frame: StrictMode's
+    // discarded effect must not configure the same canvas as the live effect.
     const frame = requestAnimationFrame(() => {
-      void validateOutputs(INITIAL_COMPILATION.outputs);
+      if (!active) return;
+      renderOutputs(INITIAL_COMPILATION.outputs);
+      const canvas = gpuCanvasRef.current;
+      if (!canvas) return;
+      void WebGpuRenderer.create(canvas, (message) => {
+        if (!active || !requestedOutputs.current) return;
+        ++validationRun.current;
+        setValidations((current) => ({
+          ...current,
+          wgsl: { state: "error", message },
+        }));
+      }).then(
+        (renderer) => {
+          if (!active) {
+            renderer.dispose();
+            return;
+          }
+          gpuRenderer = renderer;
+          gpuRendererRef.current = renderer;
+          renderer.setMouse(mouse.current.x, mouse.current.y);
+          const requested = requestedOutputs.current;
+          if (requested)
+            void renderWgsl(
+              renderer,
+              requested.outputs.wgsl,
+              requested.run,
+              requested.startedAt,
+            );
+        },
+        (error: unknown) => {
+          if (!active) return;
+          const failure: ValidationResult = {
+            state:
+              error instanceof WebGpuUnavailableError ? "unavailable" : "error",
+            message: errorMessage(error),
+          };
+          gpuInitialization.current = failure;
+          if (requestedOutputs.current) {
+            setValidations((current) => ({ ...current, wgsl: failure }));
+          }
+        },
+      );
     });
     return () => {
+      active = false;
       cancelAnimationFrame(frame);
-      validationRun.current += 1;
-      rendererRef.current?.dispose();
+      requestedOutputs.current = null;
+      gpuRenderer?.dispose();
+      gpuRendererRef.current = null;
+      glRenderer?.dispose();
       rendererRef.current = null;
     };
-  }, [validateOutputs]);
+  }, [renderOutputs, renderWgsl]);
 
   const compile = () => {
     const next = compileBothTargets(source);
@@ -171,22 +266,28 @@ function App() {
     setCompiledSource(source);
 
     if (!next.ok) {
-      validationRun.current += 1;
+      validationRun.current++;
+      requestedOutputs.current = null;
+      gpuRendererRef.current?.cancelPendingCompilation();
       setValidations(BLOCKED_VALIDATIONS);
       return;
     }
-
-    void validateOutputs(next.outputs);
+    renderOutputs(next.outputs);
   };
 
-  const selected = TARGETS.find(
-    ({ target }) => target === selectedTarget,
-  );
+  const updateMouse = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    mouse.current = {
+      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
+    };
+    rendererRef.current?.setMouse(mouse.current.x, mouse.current.y);
+    gpuRendererRef.current?.setMouse(mouse.current.x, mouse.current.y);
+  };
+
+  const selected = TARGETS.find(({ target }) => target === selectedTarget);
   if (!selected) throw new Error(`Unknown selected target: ${selectedTarget}`);
   const selectedValidation = validations[selectedTarget];
-  const previewIsPreserved =
-    hasSuccessfulRender && validations["glsl-es-300"].state !== "success";
-
   return (
     <div className="repl-shell">
       <header className="app-header">
@@ -194,8 +295,8 @@ function App() {
           <p className="eyebrow">Shdr proof of concept</p>
           <h1>Fragment shader REPL</h1>
           <p className="subtitle">
-            Compile one typed IR to two targets, validate both in the browser,
-            and render the GLSL result with WebGL 2.
+            Compile one typed IR to two targets and render it in WebGL 2 and
+            WebGPU where available.
           </p>
         </div>
         <button className="compile-button" type="button" onClick={compile}>
@@ -281,58 +382,69 @@ function App() {
           </div>
         </section>
 
-        <section className="panel preview-panel" aria-labelledby="preview-title">
+        <section
+          className="panel preview-panel"
+          aria-labelledby="preview-title"
+        >
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">WebGL 2</p>
-              <h2 id="preview-title">Rendered GLSL</h2>
+              <p className="panel-kicker">WebGL 2 / WebGPU</p>
+              <h2 id="preview-title">Fragment previews</h2>
             </div>
-            <Status
-              state={validations["glsl-es-300"].state}
-              label={validationLabel(validations["glsl-es-300"].state)}
-            />
           </div>
           <div className="preview-body">
-            <div className="preview-canvas">
-              <canvas ref={canvasRef} width="512" height="512" />
-              <p>
-                Resolution follows the display size. Pointer coordinates use a
-                top-left origin; time restarts at zero after each successful
-                compile and advances in seconds.
-              </p>
-            </div>
-            <div className="validation-list" aria-label="Target validation results">
+            <div className="preview-grid" aria-label="Target render results">
               {TARGETS.map(({ target, label }) => {
-                const validation = validations[target];
+                const result = validations[target];
                 return (
                   <div
-                    className="validation-result"
-                    data-validation-state={validation.state}
+                    className="preview-target"
+                    data-validation-state={result.state}
                     data-validation-target={target}
                     key={target}
                   >
-                    <div>
-                      <strong>{label}</strong>
+                    <div className="preview-target-header">
+                      <strong>
+                        {target === "wgsl" ? "WebGPU" : "WebGL 2"} · {label}
+                      </strong>
                       <Status
-                        state={validation.state}
-                        label={validationLabel(validation.state)}
+                        state={result.state}
+                        label={validationLabel(result.state)}
                       />
                     </div>
-                    <p>{validation.message}</p>
+                    <canvas
+                      aria-label={`${label} preview`}
+                      data-render-target={target}
+                      height="512"
+                      onPointerMove={updateMouse}
+                      ref={target === "wgsl" ? gpuCanvasRef : canvasRef}
+                      width="512"
+                    />
+                    <p className="render-message">{result.message}</p>
+                    {hasSuccessfulRender[target] &&
+                    result.state !== "success" ? (
+                      <p className="preserved-note">
+                        Last successful {label} render remains visible.
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}
-              {previewIsPreserved ? (
-                <p className="preserved-note">
-                  The canvas preserves the last successful GLSL render.
-                </p>
-              ) : null}
             </div>
+            <p className="preview-hint">
+              Both previews use physical-pixel resolution, a shared top-left
+              pointer position, and a shared time origin for each successfully
+              lowered source. WebGL 2 stays usable when WebGPU is unavailable.
+            </p>
           </div>
         </section>
 
         <section className="panel output-panel" aria-labelledby="output-title">
-          <div className="target-tabs" role="tablist" aria-label="Shader output target">
+          <div
+            className="target-tabs"
+            role="tablist"
+            aria-label="Shader output target"
+          >
             {TARGETS.map(({ target, label }) => (
               <button
                 aria-controls="target-output"
@@ -430,11 +542,11 @@ function sourceLocation(source: string, range: TextRange): string {
 function validationLabel(state: ValidationState): string {
   switch (state) {
     case "pending":
-      return "Validating";
+      return "Rendering";
     case "success":
-      return "Valid";
+      return "Rendered";
     case "error":
-      return "Invalid";
+      return "Error";
     case "unavailable":
       return "Unavailable";
     case "blocked":
