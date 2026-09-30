@@ -1,0 +1,42 @@
+# Render WGSL/WebGPU in the browser REPL
+
+Status: proposed implementation plan; review each gate before widening scope. This is a REPL integration, **not** a published browser runtime API or a change to Shdr's accepted language. The existing shared lowering pass must continue to generate GLSL ES 3.00 and WGSL from the same target-neutral IR. Keep the WebGL preview usable when WebGPU is unavailable.
+
+## Current baseline and desired result
+
+- [`apps/repl/src/App.tsx`](../../apps/repl/src/App.tsx) lowers source once, generates both targets, renders GLSL through [`WebGlRenderer`](../../apps/repl/src/webgl-renderer.ts), and calls [`validateWgsl`](../../apps/repl/src/wgsl-validator.ts). Validation requests a device per compile, reports module compilation, then destroys the device; **it does not create a pipeline or draw**.
+- WGSL generation already emits a fragment entry point `shdr_fragment_main`, fragment position in top-left pixel coordinates, and only referenced default uniforms at **group 0, bindings 0 (`resolution`: `vec2<f32>`), 1 (`mouse`: `vec2<f32>`), and 2 (`time`: `f32`)**. Bindings are not renumbered when omitted.
+- Result: two visibly labeled previews of the **same compiled source**, one WebGL 2 and one WebGPU where available. `success` for WGSL must mean a pixel was drawn, not just that `getCompilationInfo()` returned no errors. No adapter/device means an honest `unavailable` state, not a simulated render or a failure of the WebGL side.
+
+## Phase 1 — prove canvas rendering and readback
+
+1. In Chromium/Playwright with the existing SwiftShader WebGPU flags, request an adapter/device and obtain a `webgpu` context on a **second canvas**. A canvas cannot host both `webgl2` and `webgpu` contexts. Configure its preferred format and `alphaMode: "opaque"`.
+2. Use a fixed fullscreen-triangle WGSL vertex entry point and one known-good generated Shdr fragment. Create a render pipeline with `createRenderPipelineAsync`, issue a draw, and observe real pixels at left/center/top/bottom. Verify that WGSL fragment position already has top-left Y; keep GLSL's existing Y conversion unchanged.
+3. Demonstrate deterministic pixel readback (for example, `COPY_SRC` canvas texture plus `copyTextureToBuffer`, observing the required 256-byte row alignment; if unsupported, render the same pipeline to a test-only offscreen texture). Also verify a color and resolution with no uniforms, then one using binding 0. Do **not** equate module validation with pipeline creation or a successful draw.
+
+**Gate 1:** record the chosen format/readback method and expected pixels. If browser canvas or readback support blocks this check, stop and revise the plan rather than claiming rendered WGSL.
+
+## Phase 2 — own one WebGPU renderer lifecycle
+
+1. Add a REPL-local `WebGpuRenderer` (separate from the public compiler). Acquire the device/context once, handle `device.lost`, resize/configure its drawing buffer, and release the renderer's resources on unmount. Replace the per-compile device acquisition/destruction in `wgsl-validator.ts` with module compilation **inside this renderer**, so there is one authoritative WGSL status path.
+2. For each generated WGSL source, inspect shader-module compilation messages, then build the pipeline and the bind group for only the default uniforms actually declared. Preserve fixed binding numbers when a subset is present; use the pipeline's bind-group layout and correctly sized/aligned GPU buffers. No bind group is required when the module references no uniforms. Check pipeline/draw validation errors as well as module errors, and show backend messages without mislabeling them as original-source Shdr diagnostics.
+3. Prepare candidate resources **before** replacing the last successful pipeline. Draw once successfully before reporting `success`; retain the prior pipeline/frame if a new WGSL module or pipeline fails. On resize or device loss, report the appropriate status rather than promising preservation when the surface itself is invalidated. Destroy retired GPU buffers and drop obsolete pipeline references when replaced or disposed.
+4. Use a monotonically increasing compile generation across asynchronous WGSL steps. An older compilation must never commit a pipeline, draw over a newer result, or overwrite its status; destroy stale resources. A shared-source diagnostic blocks both new targets without discarding their last successful renders. A WebGPU-only failure must not stop WebGL rendering.
+
+**Gate 2:** renderer tests or a focused browser probe exercise no/some/all default bindings, pipeline errors, stale compilation, disposal and device loss. Keep the renderer independent of React state so lifecycle behavior is testable.
+
+## Phase 3 — connect the two previews and default uniforms
+
+1. Add a WebGPU canvas to [`App.tsx`](../../apps/repl/src/App.tsx) and layout in [`App.css`](../../apps/repl/src/App.css). Prefer side-by-side previews for visual parity, stacking at narrow widths. Give each canvas an explicit target selector/data attribute; preserve the current generated-code tabs and the WebGL preview when WebGPU is unavailable. Update preview labels and messages from **validation** to **rendering** only where a frame was actually drawn.
+2. Keep both drawing buffers the same physical-pixel size (`CSS size × devicePixelRatio`) and honor the existing resolution, mouse (+X right, +Y down), and time contracts. Pointer movement over either preview should update a single logical mouse location for both, scaled to their drawing buffers. `time` restarts for a successful source compile and advances from a common epoch; tests should sample at a controlled time for pixel comparisons.
+3. Explicitly handle initial render, rapid recompiles, invalid source, backend-specific errors, resize, unmount and unavailable WebGPU. Do not change `@shdr/core`, the Vite transform, shader syntax, or public runtime APIs unless Gate 1 shows a concrete metadata gap; if binding metadata is needed, prefer an explicit small contract over general parsing of arbitrary WGSL.
+
+**Gate 3:** manually inspect both previews in a WebGPU-capable browser and the WebGL-only fallback. Status text must distinguish `rendered`, `unavailable`, `blocked by source diagnostics`, and backend errors. Generated output stays inspectable even when a backend fails.
+
+## Phase 4 — browser parity, regression and documentation
+
+- Extend [`verify-browser.mjs`](../../apps/repl/verify-browser.mjs) to select canvases explicitly rather than relying on `querySelector("canvas")`. Test generated gradient pixels at multiple coordinates including top/bottom; compare WebGL and WebGPU on finite, non-degenerate inputs with documented channel tolerances, not bit identity. Exercise the expanded and math fixtures where useful without claiming portable pixels for reversed `smoothstep` edges.
+- Cover no/some/all bindings (including implicit GLSL resolution from `coord` but **no** implicit WGSL resolution), pointer movement over both previews, time reset/advance, DPR/resize, invalid-source last-frame preservation, a WGSL-specific pipeline failure, and rapid successive compilations. Mock missing `navigator.gpu`/adapter in a separate browser context; WebGL must still render and the WGSL preview must say unavailable. Use a controlled harness for device-loss tests if the browser cannot trigger it reliably.
+- Update [`apps/repl/README.md`](../../apps/repl/README.md), the root REPL description and UI copy to describe rendered WGSL, the unsupported-browser fallback and limits. Keep backend compilation/pipeline messages separate from source-mapped Shdr diagnostics; generated-code-to-source error attribution is a later milestone.
+
+**Final gate:** `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, `pnpm --filter repl test`, formatting and `git diff --check` pass. Verify the WebGPU-capable preview in an actual browser and the unavailable path. Stop for review before generalizing this renderer into a host-facing API, custom uniforms, textures or new shader stages.
