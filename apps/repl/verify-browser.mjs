@@ -44,7 +44,7 @@ try {
         ?.getAttribute("data-validation-state") !== "pending",
   );
 
-  const canvas = page.locator("canvas");
+  const canvas = page.locator('[data-render-target="glsl-es-300"]');
   const diagnostics = page.getByRole("region", { name: "Diagnostics" });
   assert.match(
     await diagnostics.textContent(),
@@ -59,15 +59,19 @@ try {
 
   const wgslValidation = page.locator('[data-validation-target="wgsl"]');
   const wgslState = await wgslValidation.getAttribute("data-validation-state");
-  assert.ok(
-    wgslState === "success" || wgslState === "unavailable",
-    `Unexpected WGSL validation state: ${wgslState}`,
+  // This context explicitly enables SwiftShader WebGPU. Availability is a
+  // requirement here; separate contexts below prove the unavailable paths.
+  assert.equal(
+    wgslState,
+    "success",
+    `WebGPU did not render: ${await wgslValidation.textContent()}`,
   );
-  if (wgslState === "success") {
-    assert.match(await wgslValidation.textContent(), /compiled successfully/i);
-  } else {
-    assert.match(await wgslValidation.textContent(), /unavailable|no adapter/i);
-  }
+  assert.match(await wgslValidation.textContent(), /rendered in WebGPU/i);
+  const gpuCanvas = page.locator('[data-render-target="wgsl"]');
+  assert.equal(
+    await gpuCanvas.getAttribute("data-bound-uniforms"),
+    "resolution",
+  );
 
   const initial = await readGradientSamples(page);
   assertChannel("center red", initial.center[0], 128, 3);
@@ -76,11 +80,23 @@ try {
   assertChannel("bottom green", initial.bottom[1], 255, 3);
   assertChannel("initial blue", initial.center[2], 0, 1);
   assertChannel("initial alpha", initial.center[3], 255, 1);
+  await assertPixelParity(
+    page,
+    "gradient",
+    [
+      [0.03, 0.03],
+      [0.5, 0.5],
+      [0.97, 0.03],
+      [0.03, 0.97],
+      [0.97, 0.97],
+    ],
+    5,
+  );
 
   const initialWidth = initial.width;
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.waitForFunction((previousWidth) => {
-    const target = document.querySelector("canvas");
+    const target = document.querySelector('[data-render-target="glsl-es-300"]');
     if (!(target instanceof HTMLCanvasElement)) return false;
     return (
       target.width !== previousWidth &&
@@ -127,16 +143,15 @@ try {
   assertChannel("expanded red", expandedPixel[0], 128, 4);
   assertChannel("expanded green", expandedPixel[1], 64, 4);
   assertChannel("expanded blue", expandedPixel[2], 64, 4);
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('[data-validation-target="wgsl"]')
-        ?.getAttribute("data-validation-state") !== "pending",
-  );
-  assert.ok(
-    ["success", "unavailable"].includes(
-      await wgslValidation.getAttribute("data-validation-state"),
-    ),
+  await waitForValidation(page, "wgsl", "success");
+  await assertPixelParity(
+    page,
+    "expanded",
+    [
+      [0.5, 0.5],
+      [0.25, 0.75],
+    ],
+    5,
   );
   const mathSource = await readFile(
     new URL("../vite-basic/src/math-builtins.shdr.ts", import.meta.url),
@@ -150,6 +165,18 @@ try {
   assertChannel("math green", mathPixel[1], 112, 6);
   assertChannel("math blue", mathPixel[2], 106, 6);
   await waitForValidation(page, "wgsl", "success");
+  // Finite, increasing-edge smoothstep and nonzero normalize inputs only.
+  // Do not assert bit identity or reversed-edge portability.
+  await assertPixelParity(
+    page,
+    "math builtins",
+    [
+      [0.5, 0.5],
+      [0.25, 0.75],
+    ],
+    8,
+  );
+  const validMathGpuPixel = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
   await wgslTab.click();
   assert.match(
     await page.getByRole("tabpanel").textContent(),
@@ -171,6 +198,10 @@ try {
     "blocked",
   );
   assert.deepEqual(await readCenterPixel(page), mathPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    validMathGpuPixel,
+  );
   const geometrySource = await readFile(
     new URL("../editor-fixture/geometry-math.shdr.ts", import.meta.url),
     "utf8",
@@ -182,6 +213,14 @@ try {
   const geometryPixel = await readCenterPixel(page);
   assertChannel("geometry green", geometryPixel[1], 255, 1);
   assertChannel("geometry alpha", geometryPixel[3], 255, 1);
+  // Geometry fixture has a time-dependent alpha; compare only its constant
+  // green channel instead of promising a portable ceil(time) sample.
+  assertChannel(
+    "geometry WebGPU green",
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0][1],
+    255,
+    1,
+  );
   await compileSource(page, editor, originalSource);
   await waitForValidation(page, "glsl-es-300", "success");
 
@@ -206,6 +245,36 @@ export default createFragmentShader(({ coord, uniforms }) => {
     /shdr_resolution/,
   );
   await glslTab.click();
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "");
+  await assertPixelParity(
+    page,
+    "implicit GLSL resolution only",
+    [[0.25, 0.5]],
+    5,
+  );
+  const constantSource = shaderColor("vec4(0.25, 0.5, 0.75, 1)");
+  await compileSource(page, editor, constantSource);
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(await canvas.getAttribute("data-bound-uniforms"), "");
+  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "");
+  await assertPixelParity(
+    page,
+    "no bindings",
+    [
+      [0.25, 0.25],
+      [0.75, 0.75],
+    ],
+    2,
+  );
+  for (const pixel of await readWebGpuPixels(page, [
+    [0.25, 0.25],
+    [0.75, 0.75],
+  ])) {
+    for (const [index, value] of [64, 128, 191, 255].entries()) {
+      assertChannel(`constant channel ${index}`, pixel[index], value, 2);
+    }
+  }
 
   await compileSource(
     page,
@@ -219,6 +288,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
   const editedPixel = await readCenterPixel(page);
   assertChannel("edited blue", editedPixel[2], 191, 3);
   assertChannel("edited alpha", editedPixel[3], 255, 1);
+  await waitForValidation(page, "wgsl", "success");
+  const editedGpuPixel = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
 
   await compileSource(
     page,
@@ -237,8 +308,15 @@ export default createFragmentShader(({ coord, uniforms }) => {
   );
   assert.deepEqual(await readCenterPixel(page), editedPixel);
   await page
-    .getByText("The canvas preserves the last successful GLSL render.")
+    .getByText("Last successful GLSL ES 3.00 render remains visible.")
     .waitFor();
+  await page
+    .getByText("Last successful WGSL render remains visible.")
+    .waitFor();
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    editedGpuPixel,
+  );
 
   const mouseSource = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -264,7 +342,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
     canvasBox.y + canvasBox.height * 0.2,
   );
   await page.waitForFunction(() => {
-    const target = document.querySelector("canvas");
+    const target = document.querySelector('[data-render-target="glsl-es-300"]');
     if (!(target instanceof HTMLCanvasElement)) return false;
     const [x, y] = (target.dataset.mouse ?? "").split(",").map(Number);
     return x > target.width * 0.2 && y > target.height * 0.15;
@@ -275,6 +353,22 @@ export default createFragmentShader(({ coord, uniforms }) => {
   const mousePixel = await readCenterPixel(page);
   assertChannel("mouse red", mousePixel[0], 64, 4);
   assertChannel("mouse green", mousePixel[1], 51, 4);
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(
+    await gpuCanvas.getAttribute("data-bound-uniforms"),
+    "resolution,mouse",
+  );
+  await assertSharedMouse(page, 0.25, 0.2);
+  await assertPixelParity(page, "pointer over WebGL", [[0.5, 0.5]], 5);
+  const gpuBox = await gpuCanvas.boundingBox();
+  if (!gpuBox) throw new Error("WebGPU canvas has no browser layout box");
+  await page.mouse.move(
+    gpuBox.x + gpuBox.width * 0.72,
+    gpuBox.y + gpuBox.height * 0.8,
+  );
+  await assertSharedMouse(page, 0.72, 0.8);
+  await assertPixelParity(page, "pointer over WebGPU", [[0.5, 0.5]], 5);
+  assertChannel("WebGPU pointer red", (await readCenterPixel(page))[0], 184, 5);
 
   const timeSource = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -290,12 +384,17 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await compileSource(page, editor, timeSource);
   await waitForValidation(page, "glsl-es-300", "success");
   assert.equal(await canvas.getAttribute("data-bound-uniforms"), "time");
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "time");
   const timeBefore = await readRuntimeMetrics(page);
   assert.ok(
     timeBefore.time < previousShaderTime.time,
     `u_time did not reset after compilation: ${previousShaderTime.time} -> ${timeBefore.time}`,
   );
   const timePixelBefore = await readCenterPixel(page);
+  const gpuTimeBefore = await readRuntimeMetrics(page, "wgsl");
+  const gpuTimePixelBefore = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  assertNear("shared time origin", timeBefore.time, gpuTimeBefore.time, 0.12);
   await page.waitForTimeout(300);
   const timeAfter = await readRuntimeMetrics(page);
   const timePixelAfter = await readCenterPixel(page);
@@ -304,6 +403,37 @@ export default createFragmentShader(({ coord, uniforms }) => {
     timePixelAfter[0] > timePixelBefore[0],
     `Time-driven red channel did not increase: ${timePixelBefore[0]} -> ${timePixelAfter[0]}`,
   );
+  const gpuTimeAfter = await readRuntimeMetrics(page, "wgsl");
+  const gpuTimePixelAfter = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  assert.ok(gpuTimeAfter.time > gpuTimeBefore.time);
+  assert.ok(gpuTimePixelAfter[0] > gpuTimePixelBefore[0]);
+  assertNear(
+    "shared time after advance",
+    timeAfter.time,
+    gpuTimeAfter.time,
+    0.12,
+  );
+  await assertPixelParity(page, "advancing time", [[0.5, 0.5]], 5);
+  const allUniformsSource = `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const uv = coord.xy / uniforms.resolution;
+  const mouse = uniforms.mouse / uniforms.resolution;
+  return vec4(uv.x, mouse.y, uniforms.time / 20, 1);
+});`;
+  await compileSource(page, editor, allUniformsSource);
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(
+    await canvas.getAttribute("data-bound-uniforms"),
+    "resolution,mouse,time",
+  );
+  assert.equal(
+    await gpuCanvas.getAttribute("data-bound-uniforms"),
+    "resolution,mouse,time",
+  );
+  await assertPixelParity(page, "all three uniforms", [[0.25, 0.75]], 5);
+  await verifyDprAndResize(browser, address.port);
+  await verifyUnavailableFallbacks(browser, address.port);
+  await verifyBackendFailureAndRaces(browser, address.port);
 
   if (browserErrors.length > 0) {
     throw new Error(`Browser reported errors:\n${browserErrors.join("\n")}`);
@@ -315,6 +445,318 @@ export default createFragmentShader(({ coord, uniforms }) => {
 } finally {
   if (browser) await browser.close();
   await server.close();
+}
+
+async function verifyDprAndResize(browser, port) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}`);
+    await waitForValidation(page, "wgsl", "success");
+    for (const target of ["glsl-es-300", "wgsl"]) {
+      const metrics = await readCanvasMetrics(page, target);
+      assert.equal(metrics.width, Math.round(metrics.cssWidth * 2));
+      assert.equal(metrics.height, Math.round(metrics.cssHeight * 2));
+    }
+    await assertEqualBuffers(page);
+    await assertPixelParity(
+      page,
+      "DPR 2 gradient",
+      [
+        [0.25, 0.25],
+        [0.75, 0.75],
+      ],
+      5,
+    );
+    const gpuCanvas = page.locator('[data-render-target="wgsl"]');
+    await gpuCanvas.scrollIntoViewIfNeeded();
+    const box = await gpuCanvas.boundingBox();
+    if (!box) throw new Error("No DPR 2 WebGPU canvas box");
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.7);
+    await assertSharedMouse(page, 0.3, 0.7);
+    const initialWidth = (await readCanvasMetrics(page)).width;
+    await page.setViewportSize({ width: 680, height: 850 });
+    await page.waitForFunction(
+      (old) =>
+        [...document.querySelectorAll("[data-render-target]")].every(
+          (canvas) =>
+            canvas.width !== old &&
+            canvas.dataset.resolution === `${canvas.width},${canvas.height}`,
+        ),
+      initialWidth,
+    );
+    await assertEqualBuffers(page);
+    await assertSharedMouse(page, 0.3, 0.7);
+    const boxes = await Promise.all([
+      page.locator('[data-render-target="glsl-es-300"]').boundingBox(),
+      gpuCanvas.boundingBox(),
+    ]);
+    if (!boxes[0] || !boxes[1] || boxes[1].y < boxes[0].y + boxes[0].height)
+      throw new Error("Narrow previews did not stack vertically");
+    await assertPixelParity(
+      page,
+      "DPR 2 resized gradient",
+      [
+        [0.25, 0.25],
+        [0.75, 0.75],
+      ],
+      5,
+    );
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyUnavailableFallbacks(browser, port) {
+  for (const absence of ["api", "adapter"]) {
+    const context = await browser.newContext();
+    try {
+      await context.addInitScript((mode) => {
+        if (mode === "api") {
+          Object.defineProperty(navigator, "gpu", {
+            configurable: true,
+            value: undefined,
+          });
+        } else {
+          navigator.gpu.requestAdapter = async () => null;
+        }
+      }, absence);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}`);
+      await waitForValidation(page, "glsl-es-300", "success");
+      await waitForValidation(page, "wgsl", "unavailable");
+      const unavailable = await page
+        .locator('[data-validation-target="wgsl"]')
+        .textContent();
+      assert.match(unavailable, /unavailable|no adapter/i);
+      assert.equal(
+        await page
+          .locator('[data-render-target="wgsl"]')
+          .getAttribute("data-render-status"),
+        null,
+      );
+      const editor = page.getByRole("textbox", {
+        name: "Shader source editor",
+      });
+      await compileSource(page, editor, shaderColor("vec4(0, 0.75, 0, 1)"));
+      await waitForValidation(page, "glsl-es-300", "success");
+      assert.equal(
+        await page
+          .locator('[data-validation-target="wgsl"]')
+          .getAttribute("data-validation-state"),
+        "unavailable",
+      );
+      assertChannel(
+        `${absence} fallback WebGL green`,
+        (await readCenterPixel(page))[1],
+        191,
+        2,
+      );
+      await page.getByRole("tab", { name: "WGSL" }).click();
+      assert.match(await page.getByRole("tabpanel").textContent(), /@fragment/);
+    } finally {
+      await context.close();
+    }
+  }
+}
+
+async function verifyBackendFailureAndRaces(browser, port) {
+  const context = await browser.newContext();
+  try {
+    await context.addInitScript(() => {
+      const gpu = navigator.gpu;
+      const requestAdapter = gpu.requestAdapter.bind(gpu);
+      gpu.requestAdapter = async (...args) => {
+        const adapter = await requestAdapter(...args);
+        if (!adapter) return adapter;
+        return new Proxy(adapter, {
+          get(target, property) {
+            if (property === "requestDevice")
+              return async (...options) => {
+                const device = await target.requestDevice(...options);
+                window.testGpuDevice = device;
+                const createPipeline =
+                  device.createRenderPipelineAsync.bind(device);
+                device.createRenderPipelineAsync = (...descriptors) => {
+                  if (window.testFailPipeline) {
+                    window.testFailPipeline = false;
+                    return Promise.reject(
+                      new Error("Injected WGSL pipeline failure"),
+                    );
+                  }
+                  if (window.testDelayPipelineMs) {
+                    const delay = window.testDelayPipelineMs;
+                    window.testDelayPipelineMs = 0;
+                    return new Promise((resolve) =>
+                      setTimeout(resolve, delay),
+                    ).then(() => createPipeline(...descriptors));
+                  }
+                  return createPipeline(...descriptors);
+                };
+                return device;
+              };
+            return Reflect.get(target, property, target);
+          },
+        });
+      };
+    });
+    const page = await context.newPage();
+    const browserErrors = [];
+    page.on("pageerror", (error) => browserErrors.push(error.message));
+    await page.goto(`http://127.0.0.1:${port}`);
+    await waitForValidation(page, "wgsl", "success");
+    assert.equal(
+      await page.evaluate(() => Boolean(window.testGpuDevice)),
+      true,
+    );
+    const editor = page.getByRole("textbox", { name: "Shader source editor" });
+    const green = shaderColor("vec4(0, 0.75, 0, 1)");
+    const red = shaderColor("vec4(1, 0, 0, 1)");
+    const blue = shaderColor("vec4(0, 0, 1, 1)");
+    const yellow = shaderColor("vec4(1, 1, 0, 1)");
+    await compileSource(page, editor, green);
+    await waitForValidation(page, "wgsl", "success");
+    assertChannel(
+      "pre-failure green",
+      (await readWebGpuPixels(page, [[0.5, 0.5]]))[0][1],
+      191,
+      2,
+    );
+
+    await page.evaluate(() => {
+      window.testFailPipeline = true;
+    });
+    await compileSource(page, editor, red);
+    await waitForValidation(page, "wgsl", "error");
+    assert.match(
+      await page.locator('[data-validation-target="wgsl"]').textContent(),
+      /pipeline creation failed.*Injected WGSL pipeline failure/i,
+    );
+    assert.match(
+      await page.getByRole("region", { name: "Diagnostics" }).textContent(),
+      /No shared compiler diagnostics/,
+    );
+    assert.equal(
+      await page
+        .locator('[data-validation-target="glsl-es-300"]')
+        .getAttribute("data-validation-state"),
+      "success",
+    );
+    assertChannel(
+      "WebGL updated independently",
+      (await readCenterPixel(page))[0],
+      255,
+      2,
+    );
+    assertChannel(
+      "WebGPU preserved last frame",
+      (await readWebGpuPixels(page, [[0.5, 0.5]]))[0][1],
+      191,
+      2,
+    );
+    await page.getByRole("tab", { name: "WGSL" }).click();
+    assert.match(await page.getByRole("tabpanel").textContent(), /@fragment/);
+    await page
+      .getByText("Last successful WGSL render remains visible.")
+      .waitFor();
+
+    await page.evaluate(() => {
+      window.testDelayPipelineMs = 220;
+    });
+    await compileSource(page, editor, blue);
+    await page.waitForFunction(() => window.testDelayPipelineMs === 0);
+    await compileSource(page, editor, yellow);
+    await waitForValidation(page, "wgsl", "success");
+    await page.waitForTimeout(260);
+    for (const pixel of [
+      await readCenterPixel(page),
+      (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    ]) {
+      assertChannel("latest red", pixel[0], 255, 2);
+      assertChannel("latest green", pixel[1], 255, 2);
+      assertChannel("latest blue", pixel[2], 0, 2);
+    }
+
+    // A source diagnostic cancels an in-flight GPU pipeline. WebGL has
+    // already drawn blue; WebGPU still displays its last valid yellow.
+    await page.evaluate(() => {
+      window.testDelayPipelineMs = 250;
+    });
+    await compileSource(page, editor, blue);
+    await page.waitForFunction(() => window.testDelayPipelineMs === 0);
+    await compileSource(
+      page,
+      editor,
+      `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  return vec4(uniforms.missing, 0, 0, 1);
+});`,
+    );
+    await waitForValidation(page, "glsl-es-300", "blocked");
+    await waitForValidation(page, "wgsl", "blocked");
+    await page.waitForTimeout(300);
+    assertChannel(
+      "blocked WebGL last frame",
+      (await readCenterPixel(page))[2],
+      255,
+      2,
+    );
+    assertChannel(
+      "blocked WebGPU last frame",
+      (await readWebGpuPixels(page, [[0.5, 0.5]]))[0][1],
+      255,
+      2,
+    );
+    await compileSource(page, editor, green);
+    await waitForValidation(page, "wgsl", "success");
+
+    // Real GPUDevice destruction, not a simulated status transition.
+    await page.evaluate(async () => {
+      window.testGpuDevice.destroy();
+      await window.testGpuDevice.lost;
+    });
+    await waitForValidation(page, "wgsl", "error");
+    assert.match(
+      await page.locator('[data-validation-target="wgsl"]').textContent(),
+      /device lost/i,
+    );
+    assert.equal(
+      await page
+        .locator('[data-validation-target="glsl-es-300"]')
+        .getAttribute("data-validation-state"),
+      "success",
+    );
+    await compileSource(page, editor, red);
+    await waitForValidation(page, "glsl-es-300", "success");
+    assertChannel(
+      "WebGL after device loss",
+      (await readCenterPixel(page))[0],
+      255,
+      2,
+    );
+    assert.equal(
+      await page
+        .locator('[data-validation-target="wgsl"]')
+        .getAttribute("data-validation-state"),
+      "error",
+    );
+    assert.match(await page.getByRole("tabpanel").textContent(), /@fragment/);
+    assert.deepEqual(browserErrors, []);
+  } finally {
+    await context.close();
+  }
+}
+
+async function assertEqualBuffers(page) {
+  const metrics = await Promise.all([
+    readCanvasMetrics(page, "glsl-es-300"),
+    readCanvasMetrics(page, "wgsl"),
+  ]);
+  assert.equal(metrics[0].width, metrics[1].width);
+  assert.equal(metrics[0].height, metrics[1].height);
 }
 
 async function compileSource(page, editor, source) {
@@ -334,7 +776,7 @@ async function waitForValidation(page, target, state) {
 
 async function readGradientSamples(page) {
   return page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
+    const canvas = document.querySelector('[data-render-target="glsl-es-300"]');
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error("The render canvas is unavailable.");
     }
@@ -360,7 +802,7 @@ async function readGradientSamples(page) {
 
 async function readCenterPixel(page) {
   return page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
+    const canvas = document.querySelector('[data-render-target="glsl-es-300"]');
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error("The render canvas is unavailable.");
     }
@@ -380,9 +822,9 @@ async function readCenterPixel(page) {
   });
 }
 
-async function readCanvasMetrics(page) {
-  return page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
+async function readCanvasMetrics(page, target = "glsl-es-300") {
+  return page.evaluate((selected) => {
+    const canvas = document.querySelector(`[data-render-target="${selected}"]`);
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error("The render canvas is unavailable.");
     }
@@ -394,12 +836,12 @@ async function readCanvasMetrics(page) {
       cssHeight: rect.height,
       pixelRatio: window.devicePixelRatio,
     };
-  });
+  }, target);
 }
 
-async function readRuntimeMetrics(page) {
-  return page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
+async function readRuntimeMetrics(page, target = "glsl-es-300") {
+  return page.evaluate((selected) => {
+    const canvas = document.querySelector(`[data-render-target="${selected}"]`);
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error("The render canvas is unavailable.");
     }
@@ -413,7 +855,107 @@ async function readRuntimeMetrics(page) {
       mouseY,
       time: Number(canvas.dataset.time),
     };
-  });
+  }, target);
+}
+
+function shaderColor(color) {
+  return `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  return ${color};
+});`;
+}
+
+async function assertSharedMouse(page, x, y) {
+  await page.waitForFunction(
+    ([expectedX, expectedY]) =>
+      [...document.querySelectorAll("[data-render-target]")].every((canvas) => {
+        const [actualX, actualY] = (canvas.dataset.mouse ?? "")
+          .split(",")
+          .map(Number);
+        return (
+          Math.abs(actualX / canvas.width - expectedX) < 0.02 &&
+          Math.abs(actualY / canvas.height - expectedY) < 0.02
+        );
+      }),
+    [x, y],
+  );
+  for (const target of ["glsl-es-300", "wgsl"]) {
+    const metrics = await readRuntimeMetrics(page, target);
+    assertNear(`${target} mouse X`, metrics.mouseX, metrics.width * x, 2);
+    assertNear(`${target} mouse Y`, metrics.mouseY, metrics.height * y, 2);
+  }
+}
+
+async function assertPixelParity(page, name, locations, tolerance) {
+  const [glsl, wgsl] = await Promise.all([
+    readWebGlPixels(page, locations),
+    readWebGpuPixels(page, locations),
+  ]);
+  for (let index = 0; index < locations.length; index++) {
+    for (let channel = 0; channel < 4; channel++) {
+      assertNear(
+        `${name} at ${locations[index].join(",")} channel ${channel} (WebGL vs WebGPU)`,
+        glsl[index][channel],
+        wgsl[index][channel],
+        tolerance,
+      );
+    }
+  }
+}
+
+async function readWebGlPixels(page, locations) {
+  return page.evaluate((points) => {
+    const canvas = document.querySelector('[data-render-target="glsl-es-300"]');
+    if (!(canvas instanceof HTMLCanvasElement))
+      throw new Error("Missing WebGL canvas");
+    const gl = canvas.getContext("webgl2");
+    if (!gl) throw new Error("Missing WebGL 2 context");
+    return points.map(([x, y]) => {
+      const rgba = new Uint8Array(4);
+      gl.readPixels(
+        Math.min(canvas.width - 1, Math.floor(canvas.width * x)),
+        canvas.height -
+          1 -
+          Math.min(canvas.height - 1, Math.floor(canvas.height * y)),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        rgba,
+      );
+      return [...rgba];
+    });
+  }, locations);
+}
+
+async function readWebGpuPixels(page, locations) {
+  // Chromium screenshots contain the presented WebGPU canvas. Decode on a
+  // separate 2D canvas; getImageData cannot use a WebGPU canvas context.
+  const png = await page.locator('[data-render-target="wgsl"]').screenshot();
+  return page.evaluate(
+    async ({ bytes, points }) => {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(bytes)], { type: "image/png" }),
+      );
+      const copy = document.createElement("canvas");
+      copy.width = image.width;
+      copy.height = image.height;
+      const ctx = copy.getContext("2d");
+      if (!ctx) throw new Error("Missing 2D pixel decoder");
+      ctx.drawImage(image, 0, 0);
+      const pixels = points.map(([x, y]) => [
+        ...ctx.getImageData(
+          Math.min(copy.width - 1, Math.floor(copy.width * x)),
+          Math.min(copy.height - 1, Math.floor(copy.height * y)),
+          1,
+          1,
+        ).data,
+      ]);
+      image.close();
+      return pixels;
+    },
+    { bytes: [...png], points: locations },
+  );
 }
 
 function assertChannel(name, actual, expected, tolerance) {

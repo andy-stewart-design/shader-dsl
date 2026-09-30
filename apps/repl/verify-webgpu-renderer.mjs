@@ -88,7 +88,7 @@ try {
       const noBindings = canvas.dataset.boundUniforms;
       const resolution = await renderer.setFragmentShader(withResolution);
       const resolutionBindings = canvas.dataset.boundUniforms;
-      renderer.setMouse(1, 2);
+      renderer.setMouse(0.25, 0.5);
       const time = await renderer.setFragmentShader(timeOnly);
       const timeBindings = canvas.dataset.boundUniforms;
       const all = await renderer.setFragmentShader(withAll);

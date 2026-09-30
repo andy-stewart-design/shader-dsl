@@ -124,11 +124,12 @@ export class WebGpuRenderer {
 
   setFragmentShader(
     source: string,
+    startedAt = performance.now(),
   ): Promise<readonly DefaultUniform[] | undefined> {
     this.#assertUsable();
     const generation = ++this.#generation;
     const result = this.#compilations.then(() =>
-      this.#installFragmentShader(source, generation),
+      this.#installFragmentShader(source, generation, startedAt),
     );
     this.#compilations = result.then(
       () => undefined,
@@ -140,6 +141,7 @@ export class WebGpuRenderer {
   async #installFragmentShader(
     source: string,
     generation: number,
+    startedAt: number,
   ): Promise<readonly DefaultUniform[] | undefined> {
     if (!this.#isCurrent(generation)) return undefined;
     let candidate: ShaderResources | undefined;
@@ -147,7 +149,6 @@ export class WebGpuRenderer {
       candidate = await this.#prepare(source, generation);
       if (!candidate || !this.#isCurrent(generation)) return undefined;
       this.#resizeDrawingBuffer();
-      const startedAt = performance.now();
       // A failed candidate draw must not clear the last successful canvas frame.
       const preflight = this.#device.createTexture({
         size: [this.#canvas.width, this.#canvas.height],
@@ -211,9 +212,15 @@ export class WebGpuRenderer {
     return this.#resources?.warnings ?? [];
   }
 
+  /** Mouse is a shared position normalized to [0, 1] in both previews. */
   setMouse(x: number, y: number): void {
     this.#mouseX = x;
     this.#mouseY = y;
+  }
+
+  /** Shared source diagnostics invalidate pending work, not the last frame. */
+  cancelPendingCompilation(): void {
+    this.#generation++;
   }
 
   dispose(): void {
@@ -381,7 +388,10 @@ export class WebGpuRenderer {
       this.#device.queue.writeBuffer(
         mouse,
         0,
-        new Float32Array([this.#mouseX, this.#mouseY]),
+        new Float32Array([
+          this.#mouseX * this.#canvas.width,
+          this.#mouseY * this.#canvas.height,
+        ]),
       );
     const time = buffers.get("time");
     if (time)
@@ -416,7 +426,7 @@ export class WebGpuRenderer {
           timestamp,
           this.#shaderStartedAt,
         );
-        this.#canvas.dataset.mouse = `${this.#mouseX},${this.#mouseY}`;
+        this.#canvas.dataset.mouse = `${this.#mouseX * this.#canvas.width},${this.#mouseY * this.#canvas.height}`;
         this.#canvas.dataset.time = String(
           (timestamp - this.#shaderStartedAt) / 1_000,
         );
