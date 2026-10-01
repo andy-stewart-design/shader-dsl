@@ -155,7 +155,19 @@ try {
         gl.setShader(time),
         gpu.setShader(time),
       ]);
-      return { implicit, tracked, pixels, resized, reset };
+      const canvasDataAttributes = ["gl", "gpu"].map((id) =>
+        [...document.querySelector(`#${id}`).attributes]
+          .filter((attribute) => attribute.name.startsWith("data-"))
+          .map((attribute) => attribute.name),
+      );
+      return {
+        implicit,
+        tracked,
+        pixels,
+        resized,
+        reset,
+        canvasDataAttributes,
+      };
     },
     { coord, defaults, time },
   );
@@ -173,6 +185,7 @@ try {
   assert.ok(Math.abs(bindings.pixels.gl[0] - 64) <= 1, bindings.pixels.gl);
   assert.ok(Math.abs(bindings.pixels.gl[1] - 191) <= 1, bindings.pixels.gl);
   assert.deepEqual(bindings.resized, [20, 20]);
+  assert.deepEqual(bindings.canvasDataAttributes, [[], []]);
   assert.deepEqual(
     bindings.reset.map((item) => item.status),
     ["installed", "installed"],

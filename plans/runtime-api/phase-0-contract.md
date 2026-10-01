@@ -1,6 +1,6 @@
 # Runtime API — frozen v1 surface (gate 0)
 
-Status: API design, with the phase 1 artifact/compiler and phase 2 renderer entries implemented locally. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) checks their real source types; workspace subpaths are tested separately. Host migration remains phase 3.
+Status: API design, now implemented and exercised by both workspace hosts (phase 3); not published. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) checks real source types; workspace subpaths are tested separately.
 
 ## Packages and imports
 

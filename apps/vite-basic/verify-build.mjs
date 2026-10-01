@@ -1,5 +1,8 @@
-import { readdir, readFile } from "node:fs/promises";
-import { extname } from "node:path";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { extname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "vite";
 
 const outputDirectory = new URL("./dist/", import.meta.url);
 const files = await listFiles(outputDirectory);
@@ -38,6 +41,14 @@ const sources = (
 if (!sources.some((source) => source.endsWith("/src/main.ts"))) {
   throw new Error("Production source maps omitted the app's module graph.");
 }
+if (
+  !sources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||
+  !sources.some((source) => source.endsWith("/runtime/dist/webgpu.mjs"))
+) {
+  throw new Error(
+    "Static dual-backend fixture did not bundle both runtime entries.",
+  );
+}
 for (const source of sources) {
   if (
     /@babel[+/]parser|packages\/core\/|packages\/shdr\/|node_modules\/(?:@shdr\/core|shdr)\/|browser-compiler-smoke/.test(
@@ -50,8 +61,57 @@ for (const source of sources) {
   }
 }
 
+// Also prove the *one-backend* static consumer excludes the opposite runtime.
+const temporary = await mkdtemp(join(tmpdir(), "shdr-static-webgl-"));
+try {
+  await build({
+    root: fileURLToPath(new URL("./", import.meta.url)),
+    logLevel: "silent",
+    build: {
+      lib: {
+        entry: fileURLToPath(new URL("./src/webgl-only.ts", import.meta.url)),
+        formats: ["es"],
+        fileName: "webgl-only",
+      },
+      outDir: temporary,
+      sourcemap: true,
+      emptyOutDir: true,
+    },
+  });
+  const oneBackend = await listFiles(pathToFileURL(`${temporary}/`));
+  const oneCode = (
+    await Promise.all(
+      oneBackend
+        .filter((file) => file.pathname.endsWith(".js"))
+        .map((file) => readFile(file, "utf8")),
+    )
+  ).join("\n");
+  const oneSources = (
+    await Promise.all(
+      oneBackend
+        .filter((file) => file.pathname.endsWith(".js.map"))
+        .map(async (file) => JSON.parse(await readFile(file, "utf8")).sources),
+    )
+  ).flat();
+  assertIncludes(oneCode, "#version 300 es");
+  assertExcludes(oneCode, "createFragmentShader");
+  if (
+    !oneSources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||
+    oneSources.some((source) =>
+      /runtime\/dist\/webgpu\.mjs|packages\/core\/|@babel[+/]parser|browser-compiler-smoke/.test(
+        source,
+      ),
+    )
+  ) {
+    throw new Error(
+      `Static WebGL-only module graph violated renderer/compiler boundary: ${oneSources.join(", ")}`,
+    );
+  }
+} finally {
+  await rm(temporary, { recursive: true, force: true });
+}
 console.log(
-  "Verified production bundle contains dual-target artifact data, not the parser/compiler.",
+  "Verified dual/static WebGL-only artifact bundles contain no parser/compiler or unused renderer.",
 );
 
 async function listFiles(directory) {

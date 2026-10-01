@@ -35,8 +35,8 @@ canvas {
 }
 
 #math-canvas {
-  width: min(80vw, 256px);
-  height: min(80vw, 256px);
+  width: min(80vw, 128px);
+  height: min(80vw, 128px);
 }
 
 p {

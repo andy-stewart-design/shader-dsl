@@ -292,18 +292,27 @@ export class WebGpuRenderer extends CanvasRenderer {
         `WGSL module compilation failed: ${errors.map((message) => `${message.lineNum}:${message.linePos}: ${message.message}`).join("\n")}`,
       );
     let pipeline: GPURenderPipeline | undefined;
-    await this.scoped("shader", async () => {
-      pipeline = await this.device.createRenderPipelineAsync({
-        layout: "auto",
-        vertex: { module: this.vertex, entryPoint: "shdr_fullscreen_vertex" },
-        fragment: {
-          module: module!,
-          entryPoint: "shdr_fragment_main",
-          targets: [{ format: this.format }],
-        },
-        primitive: { topology: "triangle-list" },
+    try {
+      await this.scoped("shader", async () => {
+        pipeline = await this.device.createRenderPipelineAsync({
+          layout: "auto",
+          vertex: { module: this.vertex, entryPoint: "shdr_fullscreen_vertex" },
+          fragment: {
+            module: module!,
+            entryPoint: "shdr_fragment_main",
+            targets: [{ format: this.format }],
+          },
+          primitive: { topology: "triangle-list" },
+        });
       });
-    });
+    } catch (error) {
+      throw new ShdrRuntimeError(
+        "webgpu",
+        "shader",
+        `WGSL pipeline creation failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
     const buffers = new Map<ShaderDefaultUniform, GPUBuffer>();
     let bindGroup: GPUBindGroup | undefined;
     try {

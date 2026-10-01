@@ -1,6 +1,6 @@
 # Browser runtime API — v1 contract
 
-Status: design contract for a workspace-local implementation, **not** a claim that the API already exists or is published. This follows the completed [REPL WebGPU plan](../_completed/repl-webgpu/plan.md) and the separate [runtime/resource follow-ups](../notes.md). V1 is for the current fragment-only Shdr language; it does not add shader syntax.
+Status: agreed v1 design, implemented and tested in this workspace; **not published**. This follows the completed [REPL WebGPU plan](../_completed/repl-webgpu/plan.md) and the separate [runtime/resource follow-ups](../notes.md). V1 is for the current fragment-only Shdr language; it does not add shader syntax.
 
 ## Agreed decisions
 

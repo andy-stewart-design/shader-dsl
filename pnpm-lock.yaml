@@ -57,12 +57,18 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@shdr/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       react:
         specifier: ^19.2.8
         version: 19.3.0
       react-dom:
         specifier: ^19.2.8
         version: 19.3.0(react@19.3.0)
+      shdr:
+        specifier: workspace:*
+        version: link:../../packages/shdr
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -97,6 +103,9 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@shdr/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@shdr/vite':
         specifier: workspace:*
         version: link:../../packages/vite

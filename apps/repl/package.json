@@ -10,12 +10,14 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "pretest": "playwright install chromium",
-    "test": "node verify-browser.mjs && node verify-webgpu-renderer.mjs",
+    "test": "node verify-browser.mjs",
     "test:webgpu-feasibility": "node verify-webgpu-feasibility.mjs",
-    "test:webgpu-renderer": "node verify-webgpu-renderer.mjs"
+    "test:webgpu-renderer": "pnpm --filter @shdr/runtime test"
   },
   "dependencies": {
     "@shdr/core": "workspace:*",
+    "@shdr/runtime": "workspace:*",
+    "shdr": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
