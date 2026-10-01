@@ -1,6 +1,6 @@
 # Vite/WebGL 2 fixture
 
-This app proves the `@shdr/vite` pre-transform from a `.shdr.ts` module to a rendered WebGL 2 fragment shader. The displayed `gradient.shdr.ts` is the minimal example; [`src/expanded.shdr.ts`](src/expanded.shdr.ts) exercises arithmetic, unary minus, `vec2`/`vec3`, and swizzles. A second canvas renders [`src/math-builtins.shdr.ts`](src/math-builtins.shdr.ts), exercising all eleven f32 math builtins through the same production transform. The [root language reference](../../README.md#accepted-shader-language) defines the supported subset.
+This app proves the `@shdr/vite` pre-transform from a `.shdr.ts` module to a dual-target artifact. The fixture renders its GLSL side using direct WebGL 2 code; the reusable renderer is future work. The development-only `src/browser-compiler-smoke.ts` verifies the opt-in browser compiler against the static artifact; it is not imported by the production app. The displayed `gradient.shdr.ts` is the minimal example; [`src/expanded.shdr.ts`](src/expanded.shdr.ts) exercises arithmetic, unary minus, `vec2`/`vec3`, and swizzles. A second canvas renders [`src/math-builtins.shdr.ts`](src/math-builtins.shdr.ts), exercising all eleven f32 math builtins through the same production transform. The [root language reference](../../README.md#accepted-shader-language) defines the supported subset.
 
 ```sh
 pnpm --filter vite-basic dev

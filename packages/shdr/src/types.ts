@@ -1,6 +1,5 @@
 declare const shaderType: unique symbol;
 declare const expressionType: unique symbol;
-declare const fragmentShaderSource: unique symbol;
 
 export interface F32 {
   readonly [shaderType]: "f32";
@@ -72,6 +71,14 @@ export interface FragmentContext {
   readonly uniforms: DefaultUniforms;
 }
 
-export type FragmentShaderSource = string & {
-  readonly [fragmentShaderSource]: true;
-};
+export type ShaderDefaultUniform = "resolution" | "mouse" | "time";
+
+/** JSON-serializable, immutable-by-contract output of one Shdr compilation. */
+export interface CompiledFragmentArtifact {
+  readonly glsl: string;
+  readonly wgsl: string;
+  readonly defaults: {
+    readonly glsl: readonly ShaderDefaultUniform[];
+    readonly wgsl: readonly ShaderDefaultUniform[];
+  };
+}

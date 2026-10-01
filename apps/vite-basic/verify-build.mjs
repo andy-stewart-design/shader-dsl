@@ -11,6 +11,8 @@ const bundle = (
 ).join("\n");
 
 assertIncludes(bundle, "#version 300 es");
+assertIncludes(bundle, "shdr_fragment_main");
+assertIncludes(bundle, "@fragment");
 assertIncludes(bundle, "shdr_fragment_color");
 assertIncludes(bundle, ".xxyy");
 assertIncludes(bundle, "vec3(");
@@ -22,8 +24,35 @@ assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "const waves = sin(uv * 2) + cos(uv * 3)");
 assertExcludes(bundle, "createFragmentShader");
 assertExcludes(bundle, 'from "shdr"');
+assertExcludes(bundle, "@babel/parser");
 
-console.log("Verified production bundle contains generated GLSL only.");
+const maps = files.filter((file) => file.pathname.endsWith(".js.map"));
+if (maps.length !== scripts.length) {
+  throw new Error("Expected production source maps for all browser scripts.");
+}
+const sources = (
+  await Promise.all(
+    maps.map(async (file) => JSON.parse(await readFile(file, "utf8")).sources),
+  )
+).flat();
+if (!sources.some((source) => source.endsWith("/src/main.ts"))) {
+  throw new Error("Production source maps omitted the app's module graph.");
+}
+for (const source of sources) {
+  if (
+    /@babel[+/]parser|packages\/core\/|packages\/shdr\/|node_modules\/(?:@shdr\/core|shdr)\/|browser-compiler-smoke/.test(
+      source,
+    )
+  ) {
+    throw new Error(
+      `Static browser bundle includes compiler/DSL module: ${source}`,
+    );
+  }
+}
+
+console.log(
+  "Verified production bundle contains dual-target artifact data, not the parser/compiler.",
+);
 
 async function listFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

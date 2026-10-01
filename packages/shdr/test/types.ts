@@ -1,8 +1,8 @@
 import type {
+  CompiledFragmentArtifact,
   Expr,
   F32,
   FragmentContext,
-  FragmentShaderSource,
   Vec2,
   Vec4,
 } from "../src/index.js";
@@ -38,12 +38,19 @@ declare const vec2: Vec2<F32>;
 // @ts-expect-error Vec2 and Vec4 are structurally distinct shader types.
 const vec4: Vec4<F32> = vec2;
 
-declare const shaderSource: FragmentShaderSource;
+declare const shader: CompiledFragmentArtifact;
 
-const plainString: string = shaderSource;
+const glsl: string = shader.glsl;
+const wgsl: string = shader.wgsl;
 
-// @ts-expect-error A plain string is not branded fragment shader source.
-const fragmentShaderSource: FragmentShaderSource = "fragment shader";
+// @ts-expect-error Shader artifacts are not GLSL source strings.
+const plainString: string = shader;
+
+// @ts-expect-error A plain string is not a compiled fragment artifact.
+const fragmentArtifact: CompiledFragmentArtifact = "fragment shader";
+
+// @ts-expect-error An artifact requires the WGSL backend and metadata.
+const glslOnly: CompiledFragmentArtifact = { glsl: "#version 300 es" };
 
 export type TypeAssertions = [
   CoordXyIsVec2,
@@ -52,7 +59,10 @@ export type TypeAssertions = [
   ResolutionXyIsVec2,
   MouseXIsF32,
   typeof vec4,
+  typeof glsl,
+  typeof wgsl,
   typeof plainString,
-  typeof fragmentShaderSource,
+  typeof fragmentArtifact,
+  typeof glslOnly,
   ScalarX,
 ];

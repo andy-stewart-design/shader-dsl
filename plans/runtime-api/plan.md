@@ -1,6 +1,6 @@
 # Implement the browser runtime API
 
-Status: proposed implementation plan; review each gate before widening scope. The agreed [v1 contract](./spec.md) is authoritative. This plan delivers workspace-local browser APIs for the **existing fragment shader subset**, not npm distribution, custom uniforms, textures, native runtimes or transparent canvas output. Preserve the user's other in-progress plans and changes; do not silently omit them from a later PR.
+Status: phase 1 (artifact/browser compiler/Vite transform) implemented locally; phases 2–3 remain. Review each gate before widening scope. The agreed [v1 contract](./spec.md) is authoritative. This plan delivers workspace-local browser APIs for the **existing fragment shader subset**, not npm distribution, custom uniforms, textures, native runtimes or transparent canvas output. Preserve the user's other in-progress plans and changes; do not silently omit them from a later PR.
 
 ## Starting point and invariants
 
@@ -29,6 +29,8 @@ Freeze default input behavior: draw buffer tracks CSS size × DPR; pointer liste
 4. Make the default Vite `.shdr.ts` transform emit the artifact as literal module data, without runtime `@shdr/core`, DSL stubs or Babel Parser imports. Retain source-located Vite errors. Provide a separately importable browser compiler operation that returns the **same** artifact/result shape; the REPL can load it normally or lazily, but static consumers must not acquire it transitively.
 
 **Gate 1 acceptance:** core tests cover diagnostic ranges, deterministic outputs/metadata, all default-uniform subsets and one-lowering parity; Vite unit/dev/build tests prove the default import is an artifact and edits invalidate both targets; public and editor-facing TS tests agree. A production static fixture contains generated GLSL **and** WGSL but excludes parser/compiler code (inspect emitted chunks/module graph, not just an easily minified-away string). The browser compiler produces byte-for-byte equivalent artifact fields for the same source. Stop if artifact shape or compiler splitting makes the static bundle pull in the parser.
+
+Phase 1 verification: core IR/metadata and source-diagnostic tests, Vite transform parity, real-browser opt-in compiler parity and original-source diagnostics, static production source-map audit (no parser/compiler), Vite development edits and unchanged WebGL pixel tests. The Vite fixture still uses its direct WebGL renderer until phase 3.
 
 ## Phase 2 — isolated owned renderers
 

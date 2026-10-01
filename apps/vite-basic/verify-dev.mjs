@@ -56,6 +56,40 @@ try {
 
   await page.goto(baseUrl, { waitUntil: "load" });
   await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
+  const browserCompile = await page.evaluate(async (source) => {
+    const { compileFragmentArtifact } =
+      await import("/src/browser-compiler-smoke.ts");
+    const { default: staticArtifact } = await import("/src/gradient.shdr.ts");
+    const compiled = compileFragmentArtifact(source);
+    const invalid = source.replace(
+      "vec4(uv.x, uv.y, 0, 1)",
+      "vec4(coord.xy + uniforms.time)",
+    );
+    const failure = compileFragmentArtifact(invalid);
+    return {
+      compiled,
+      equal:
+        compiled.ok &&
+        JSON.stringify(compiled.artifact) === JSON.stringify(staticArtifact),
+      failure,
+      invalidExpressionStart: invalid.indexOf("coord.xy + uniforms.time"),
+    };
+  }, originalSource);
+  if (!browserCompile.equal || !browserCompile.compiled.ok) {
+    throw new Error(
+      "Opt-in browser compiler did not match the static Vite artifact.",
+    );
+  }
+  if (
+    browserCompile.failure.ok ||
+    browserCompile.failure.diagnostics[0]?.code !== "SHDR1205" ||
+    browserCompile.failure.diagnostics[0]?.range.start !==
+      browserCompile.invalidExpressionStart
+  ) {
+    throw new Error(
+      "Opt-in browser compiler did not return original-source diagnostics.",
+    );
+  }
   await page.evaluate(() => {
     window.__shdrBeforeEdit = true;
   });

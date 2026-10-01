@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Plugin } from "vite";
+import { compileFragmentArtifact } from "@shdr/core/browser";
 
 import shdr, { vitePackageName } from "../src/index.js";
 
@@ -35,17 +36,29 @@ describe("@shdr/vite package", () => {
     if (!result) return;
 
     expect(result.map).toBeNull();
-    expect(result.code).toMatch(/^export default "/);
+    expect(result.code).toMatch(/^export default \{/);
     expect(result.code).not.toContain('from \\"shdr\\"');
     expect(result.code).not.toContain("createFragmentShader");
 
     const generated = JSON.parse(
       result.code.slice("export default ".length, -";\n".length),
-    ) as string;
-    expect(generated).toMatch(/^#version 300 es/);
-    expect(generated).toContain("shdr_fragment_color");
-    expect(generated).not.toContain('from "shdr"');
-    expect(generated).not.toContain("coord.xy / uniforms.resolution");
+    ) as {
+      glsl: string;
+      wgsl: string;
+      defaults: { glsl: string[]; wgsl: string[] };
+    };
+    expect(generated.glsl).toMatch(/^#version 300 es/);
+    expect(generated.glsl).toContain("shdr_fragment_color");
+    expect(generated.wgsl).toContain("shdr_fragment_main");
+    expect(generated.defaults).toEqual({
+      glsl: ["resolution"],
+      wgsl: ["resolution"],
+    });
+    expect(generated.glsl).not.toContain('from "shdr"');
+    expect(generated.glsl).not.toContain("coord.xy / uniforms.resolution");
+    const compiled = compileFragmentArtifact(source);
+    expect(compiled.ok).toBe(true);
+    if (compiled.ok) expect(generated).toEqual(compiled.artifact);
   });
 
   it("pre-transforms ceil, distance and cross to generated GLSL", async () => {
@@ -65,10 +78,11 @@ describe("@shdr/vite package", () => {
     if (!result) return;
     const generated = JSON.parse(
       result.code.slice("export default ".length, -";\n".length),
-    ) as string;
-    expect(generated).toContain("ceil(");
-    expect(generated).toContain("distance(");
-    expect(generated).toContain("cross(");
+    ) as { glsl: string; wgsl: string };
+    expect(generated.glsl).toContain("ceil(");
+    expect(generated.glsl).toContain("distance(");
+    expect(generated.glsl).toContain("cross(");
+    expect(generated.wgsl).toContain("cross(");
   });
 
   it("throws a source-located Vite error for an invalid shader", async () => {

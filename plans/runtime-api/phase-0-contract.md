@@ -1,6 +1,6 @@
 # Runtime API — frozen v1 surface (gate 0)
 
-Status: **API design, not implementation**. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) type-checks the call shapes against local declarations until the packages exist; phases 1–2 must replace those declarations with real package imports and keep the examples checking. Do not mistake the local declarations for published or working exports.
+Status: API design, with the phase 1 artifact/browser compiler implemented. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) checks the real phase 1 compiler/artifact source types; renderer declarations remain local sketches until phase 2. Do not mistake the renderer sketches for working exports.
 
 ## Packages and imports
 
@@ -104,6 +104,6 @@ With `{ animate: false }` there is no RAF loop and no spontaneous pointer/resize
 
 ## Typed usage to preserve
 
-The independently type-checked [`contract.typecheck.ts`](./contract.typecheck.ts) covers all of these without depending on unfinished package exports. In phase 1 replace its local artifact/compiler declarations with real `shdr` and `@shdr/core/browser` imports; in phase 2 replace its local renderer declarations with `@shdr/runtime/*` imports. In the eventual Vite fixture, an authored `import effect from "./effect.shdr.ts"` must infer the artifact type **without** a per-file ambient module declaration; a WebGL-only static app must not bundle the parser or WebGPU renderer.
+The independently type-checked [`contract.typecheck.ts`](./contract.typecheck.ts) uses real phase 1 source-relative artifact/compiler imports (the plan directory is not a linked workspace package). In phase 2 replace its remaining local renderer declarations with `@shdr/runtime/*` imports. In the eventual Vite fixture, an authored `import effect from "./effect.shdr.ts"` must infer the artifact type **without** a per-file ambient module declaration; a WebGL-only static app must not bundle the parser or WebGPU renderer.
 
 **Gate 0 complete when:** this file and the type-check fixture pass format, link and TS 7 checks, and the API choices above are reviewed. Do not implement shader/runtime behavior as part of phase 0.

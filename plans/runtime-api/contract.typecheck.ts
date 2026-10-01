@@ -1,36 +1,13 @@
-// Gate 0 only: compile-only API sketches against local declarations. These
-// declarations are NOT implementations or package exports. Replace them with
-// actual type/value imports from shdr, @shdr/core/browser and the three
-// @shdr/runtime subpaths as phases 1 and 2 land.
-export {};
-
-type ShaderDefaultUniform = "resolution" | "mouse" | "time";
-interface CompiledFragmentArtifact {
-  readonly glsl: string;
-  readonly wgsl: string;
-  readonly defaults: {
-    readonly glsl: readonly ShaderDefaultUniform[];
-    readonly wgsl: readonly ShaderDefaultUniform[];
-  };
-}
-interface ShaderDiagnostic {
-  readonly code: string;
-  readonly message: string;
-  readonly range: { readonly start: number; readonly end: number };
-  readonly severity: "error";
-}
-type CompileArtifactResult =
-  | {
-      readonly ok: true;
-      readonly artifact: CompiledFragmentArtifact;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly artifact?: undefined;
-      readonly diagnostics: readonly ShaderDiagnostic[];
-    };
-declare function compileFragmentArtifact(source: string): CompileArtifactResult;
+// Phase 1: compiler/artifact use real source types and values. Plans are not a
+// workspace package, so use source-relative imports here; the Vite fixture
+// checks the published workspace subpath and authored-module type. Renderer
+// declarations below remain sketches until phase 2 supplies @shdr/runtime.
+import { compileFragmentArtifact } from "../../packages/core/src/browser.js";
+import type { ShaderDiagnostic } from "../../packages/core/src/index.js";
+import type {
+  CompiledFragmentArtifact,
+  ShaderDefaultUniform,
+} from "../../packages/shdr/src/index.js";
 
 type RendererBackend = "webgl" | "webgpu";
 type RuntimeErrorKind =
@@ -87,8 +64,8 @@ declare function createWebGpuRenderer(
 ): Promise<WebGpuRenderer>;
 
 // Actual host: import effect from "./effect.shdr.ts";
-// Its default export is typed CompiledFragmentArtifact by shdr's DSL typing;
-// Vite transforms it into literal artifact data before it runs in the browser.
+// The Vite fixture checks that default export is typed CompiledFragmentArtifact
+// by shdr's DSL; Vite transforms it into literal artifact data.
 declare const effect: CompiledFragmentArtifact;
 declare const glCanvas: HTMLCanvasElement;
 declare const gpuCanvas: HTMLCanvasElement;

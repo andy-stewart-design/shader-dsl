@@ -1,4 +1,4 @@
-import type { FragmentShaderSource } from "shdr";
+import type { CompiledFragmentArtifact } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
@@ -17,11 +17,14 @@ void main() {
 }
 `;
 
-const shader: FragmentShaderSource = fragmentShader;
-const expanded: FragmentShaderSource = expandedShader;
-const math: FragmentShaderSource = mathBuiltinsShader;
-if (!expanded.includes("vec3(")) {
-  throw new Error("The expanded shader was not compiled by the Vite plugin.");
+const shader: CompiledFragmentArtifact = fragmentShader;
+const expanded: CompiledFragmentArtifact = expandedShader;
+const math: CompiledFragmentArtifact = mathBuiltinsShader;
+if (
+  !expanded.glsl.includes("vec3(") ||
+  !shader.wgsl.includes("shdr_fragment_main")
+) {
+  throw new Error("The shader artifacts were not compiled by the Vite plugin.");
 }
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The Vite fixture requires an #app element.");
@@ -63,7 +66,7 @@ try {
 
 function render(
   target: HTMLCanvasElement,
-  fragmentSource: FragmentShaderSource,
+  fragmentSource: CompiledFragmentArtifact,
 ): void {
   const gl = target.getContext("webgl2", {
     alpha: false,
@@ -77,7 +80,7 @@ function render(
     gl.VERTEX_SHADER,
     FULLSCREEN_TRIANGLE_VERTEX_SHADER,
   );
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource.glsl);
   const program = gl.createProgram();
   if (!program) throw new Error("Unable to create a WebGL program.");
 

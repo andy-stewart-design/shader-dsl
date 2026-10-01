@@ -94,6 +94,9 @@ importers:
 
   apps/vite-basic:
     dependencies:
+      '@shdr/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@shdr/vite':
         specifier: workspace:*
         version: link:../../packages/vite
