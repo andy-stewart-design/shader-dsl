@@ -1,0 +1,46 @@
+{
+  "name": "@shdr/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./webgl": {
+      "types": "./dist/webgl.d.mts",
+      "import": "./dist/webgl.mjs"
+    },
+    "./webgpu": {
+      "types": "./dist/webgpu.d.mts",
+      "import": "./dist/webgpu.mjs"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.mts",
+      "import": "./dist/errors.mjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/types.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "check": "tsc --noEmit",
+    "pretest": "playwright install chromium",
+    "test": "node test/verify-browser.mjs"
+  },
+  "dependencies": {
+    "shdr": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@shdr/core": "workspace:*",
+    "@webgpu/types": "^0.1.69",
+    "playwright": "^1.63.0",
+    "tsdown": "^0.22.5",
+    "typescript": "7.0.2",
+    "vite": "^8.3.0"
+  }
+}

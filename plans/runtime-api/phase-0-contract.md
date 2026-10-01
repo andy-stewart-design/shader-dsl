@@ -1,6 +1,6 @@
 # Runtime API — frozen v1 surface (gate 0)
 
-Status: API design, with the phase 1 artifact/browser compiler implemented. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) checks the real phase 1 compiler/artifact source types; renderer declarations remain local sketches until phase 2. Do not mistake the renderer sketches for working exports.
+Status: API design, with the phase 1 artifact/compiler and phase 2 renderer entries implemented locally. This fixes the provisional choices in the [spec](./spec.md) for [phase 0 of the plan](./plan.md). [`contract.typecheck.ts`](./contract.typecheck.ts) checks their real source types; workspace subpaths are tested separately. Host migration remains phase 3.
 
 ## Packages and imports
 
@@ -104,6 +104,6 @@ With `{ animate: false }` there is no RAF loop and no spontaneous pointer/resize
 
 ## Typed usage to preserve
 
-The independently type-checked [`contract.typecheck.ts`](./contract.typecheck.ts) uses real phase 1 source-relative artifact/compiler imports (the plan directory is not a linked workspace package). In phase 2 replace its remaining local renderer declarations with `@shdr/runtime/*` imports. In the eventual Vite fixture, an authored `import effect from "./effect.shdr.ts"` must infer the artifact type **without** a per-file ambient module declaration; a WebGL-only static app must not bundle the parser or WebGPU renderer.
+The independently type-checked [`contract.typecheck.ts`](./contract.typecheck.ts) uses real source-relative imports (the plan directory is not a linked workspace package). Workspace subpaths are verified by package tests. In the eventual Vite fixture, an authored `import effect from "./effect.shdr.ts"` must infer the artifact type **without** a per-file ambient module declaration; a WebGL-only static app must not bundle the parser or WebGPU renderer.
 
 **Gate 0 complete when:** this file and the type-check fixture pass format, link and TS 7 checks, and the API choices above are reviewed. Do not implement shader/runtime behavior as part of phase 0.

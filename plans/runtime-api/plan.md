@@ -1,6 +1,6 @@
 # Implement the browser runtime API
 
-Status: phase 1 (artifact/browser compiler/Vite transform) implemented locally; phases 2–3 remain. Review each gate before widening scope. The agreed [v1 contract](./spec.md) is authoritative. This plan delivers workspace-local browser APIs for the **existing fragment shader subset**, not npm distribution, custom uniforms, textures, native runtimes or transparent canvas output. Preserve the user's other in-progress plans and changes; do not silently omit them from a later PR.
+Status: phases 1–2 (artifact/compiler and workspace runtime renderers) implemented locally; phase 3 host migration remains. Review each gate before widening scope. The agreed [v1 contract](./spec.md) is authoritative. This plan delivers workspace-local browser APIs for the **existing fragment shader subset**, not npm distribution, custom uniforms, textures, native runtimes or transparent canvas output. Preserve the user's other in-progress plans and changes; do not silently omit them from a later PR.
 
 ## Starting point and invariants
 
@@ -40,6 +40,8 @@ Phase 1 verification: core IR/metadata and source-diagnostic tests, Vite transfo
 4. Report unsupported adapter/device, compile/link/pipeline, draw and async loss errors through the frozen channels; do not leave WebGL RAF exceptions unhandled. WebGPU device loss and WebGL context loss stop further draws, invalidate pending installs and require host recreation; disposal cancels RAF/listeners, invalidates in-flight work and releases owned resources. Verify StrictMode-style mount/unmount before async device creation completes, and double-dispose. Resize/loss may invalidate a previously displayed frame; do not promise preservation there.
 
 **Gate 2 acceptance:** independent browser tests import each entry and verify real first-frame pixels; static and manual frames; resolution/DPR, mouse origin and time reset/advance; missing WebGPU API/adapter; no/some/all bindings; malformed artifact rejection; failed replacement; rapid installs; terminal loss; disposal and no lingering RAF/GPU work. Test generated shader warning/error messages without turning them into Shdr diagnostics. Inspect production imports/bundles: WebGL-only contains no WebGPU renderer, WebGPU-only contains no WebGL renderer, and neither contains the compiler/parser. Record minified/gzip sizes rather than promising a fixed threshold without a baseline.
+
+Phase 2 verification: the workspace-only [`@shdr/runtime`](../../packages/runtime/README.md) exposes isolated WebGL/WebGPU/errors/types subpaths. Independent browser tests prove real initial/presented pixels, opaque alpha, binding subsets, physical DPR/automatic pointer/time, manual and animated draws, failure preservation, supersession, abort, terminal loss and disposal. Production-sized isolated renderer bundles have no compiler/parser or opposite backend; the existing REPL and Vite fixture still own their original rendering code until phase 3.
 
 ## Phase 3 — adopt the API in both hosts
 

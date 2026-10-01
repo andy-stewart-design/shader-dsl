@@ -1,67 +1,26 @@
-// Phase 1: compiler/artifact use real source types and values. Plans are not a
-// workspace package, so use source-relative imports here; the Vite fixture
-// checks the published workspace subpath and authored-module type. Renderer
-// declarations below remain sketches until phase 2 supplies @shdr/runtime.
+// Phase 2: use real compiler and renderer source imports. Plans are not a
+// workspace package, so this uses source-relative paths. Workspace package
+// exports and bundle isolation are checked by their own package tests.
 import { compileFragmentArtifact } from "../../packages/core/src/browser.js";
 import type { ShaderDiagnostic } from "../../packages/core/src/index.js";
+import { ShdrRuntimeError } from "../../packages/runtime/src/errors.js";
+import type {
+  RendererBackend,
+  RuntimeErrorKind,
+} from "../../packages/runtime/src/errors.js";
+import type { Renderer } from "../../packages/runtime/src/types.js";
+import {
+  createWebGlRenderer,
+  type WebGlRenderer,
+} from "../../packages/runtime/src/webgl.js";
+import {
+  createWebGpuRenderer,
+  type WebGpuRenderer,
+} from "../../packages/runtime/src/webgpu.js";
 import type {
   CompiledFragmentArtifact,
   ShaderDefaultUniform,
 } from "../../packages/shdr/src/index.js";
-
-type RendererBackend = "webgl" | "webgpu";
-type RuntimeErrorKind =
-  | "unavailable"
-  | "surface"
-  | "artifact"
-  | "shader"
-  | "draw"
-  | "lost"
-  | "aborted"
-  | "disposed";
-declare class ShdrRuntimeError extends Error {
-  readonly backend: RendererBackend;
-  readonly kind: RuntimeErrorKind;
-  readonly cause?: unknown;
-}
-interface RendererOptions {
-  readonly animate?: boolean;
-  readonly onError?: (error: ShdrRuntimeError) => void;
-  readonly signal?: AbortSignal;
-  readonly startedAt?: number;
-}
-interface ShaderInstallOptions {
-  readonly startedAt?: number;
-}
-type ShaderInstallResult =
-  | {
-      readonly status: "installed";
-      readonly boundUniforms: readonly ShaderDefaultUniform[];
-      readonly warnings: readonly string[];
-    }
-  | { readonly status: "superseded" };
-interface Renderer {
-  setShader(
-    artifact: CompiledFragmentArtifact,
-    options?: ShaderInstallOptions,
-  ): Promise<ShaderInstallResult>;
-  cancelPendingShader(): void;
-  setPointerNormalized(x: number, y: number): void;
-  draw(): Promise<void>;
-  dispose(): void;
-}
-type WebGlRenderer = Renderer;
-type WebGpuRenderer = Renderer;
-declare function createWebGlRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: RendererOptions,
-): Promise<WebGlRenderer>;
-declare function createWebGpuRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: RendererOptions,
-): Promise<WebGpuRenderer>;
 
 // Actual host: import effect from "./effect.shdr.ts";
 // The Vite fixture checks that default export is typed CompiledFragmentArtifact
