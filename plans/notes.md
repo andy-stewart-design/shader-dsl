@@ -30,6 +30,11 @@ Keep the first pass to explicit f32 signatures. In particular, decide `clamp` bo
 - Design a supported way to compile, bind, draw, update, and dispose a Shdr shader in the browser. Decide whether one facade over WebGL 2 and WebGPU is honest or separate target-specific functions are clearer; `createProgram` is only a working name. Specify canvas sizing, existing default uniforms, errors, and ownership/lifetime.
 - Agree on the host-facing binding/update model before implementing custom resources. The current REPL and Vite fixture are demonstrations, **not** a reusable runtime API; this design need not block unrelated language work.
 
+### Transparent canvas output (after the opaque runtime v1)
+
+- The [runtime v1 contract](./runtime-api/spec.md) deliberately uses opaque WebGL/WebGPU canvases: shader alpha is still computed, but it does not make the canvas translucent over the page. Treat transparency as a separately reviewed runtime feature, not an implicit consequence of returning `vec4` with alpha below 1.
+- Specify straight versus premultiplied alpha, canvas configuration, blending/compositing and color-space expectations across both backends. Test alpha below 1 against a visible page background and through pixel readback on real WebGL and WebGPU paths before claiming transparent output. Keep this independent of custom-uniform and texture work.
+
 ### Custom uniforms
 
 - Define the source types, host-side value/update API, binding names/layout, defaults, and lifetime for both targets. Preserve the existing resolution/mouse/time semantics and test binding behavior, not just generated declarations. Start with a small f32/vector subset; arrays or structured buffers need separate review.

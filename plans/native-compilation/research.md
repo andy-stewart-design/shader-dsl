@@ -14,15 +14,15 @@ The distinction between **source generation**, **semantic compatibility**, and *
 - Preserving coordinates, numeric behavior, alpha, color spaces, and resource bindings requires explicit contracts and tests.
 - Providing a supported native runtime is a separate undertaking from adding a compiler output target.
 
-| Candidate | Assessment | Main qualification |
-| --- | --- | --- |
-| Existing GLSL ES 3.00 / Android OpenGL ES 3.0 | No new output language needed in principle | Native host, context/lifecycle management, and compilation/pixel validation |
-| MSL / Metal | Highly feasible; small independent emitter | Native binding contract and rendering validation |
-| AGSL / Android RuntimeShader | Highly feasible for position-to-color effects; close to GLSL | Local 2D coordinates, premultiplied alpha, and color management |
-| Desktop GLSL / OpenGL | Low incremental source-generation effort | Version/profile, coordinates, and host integration still need validation |
-| HLSL / Direct3D | Highly feasible for the current subset | Builtin differences, resource bindings, and pipeline integration |
-| SPIR-V / Vulkan | Feasible through established tooling | Prefer an existing compiler/translator over hand-emitting binary SPIR-V |
-| CPU / JavaScript evaluator | Plausible as a reference/testing target | Deliberate f32 rounding and builtin semantics; not automatically a GPU oracle |
+| Candidate                                     | Assessment                                                   | Main qualification                                                            |
+| --------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Existing GLSL ES 3.00 / Android OpenGL ES 3.0 | No new output language needed in principle                   | Native host, context/lifecycle management, and compilation/pixel validation   |
+| MSL / Metal                                   | Highly feasible; small independent emitter                   | Native binding contract and rendering validation                              |
+| AGSL / Android RuntimeShader                  | Highly feasible for position-to-color effects; close to GLSL | Local 2D coordinates, premultiplied alpha, and color management               |
+| Desktop GLSL / OpenGL                         | Low incremental source-generation effort                     | Version/profile, coordinates, and host integration still need validation      |
+| HLSL / Direct3D                               | Highly feasible for the current subset                       | Builtin differences, resource bindings, and pipeline integration              |
+| SPIR-V / Vulkan                               | Feasible through established tooling                         | Prefer an existing compiler/translator over hand-emitting binary SPIR-V       |
+| CPU / JavaScript evaluator                    | Plausible as a reference/testing target                      | Deliberate f32 rounding and builtin semantics; not automatically a GPU oracle |
 
 These assessments are relative judgments, not delivery estimates or claims of working native integrations.
 
@@ -67,10 +67,10 @@ The raw source exercised equivalents of all **51 current builtin signatures**, p
 
 The first compilation rejected two direct translations:
 
-| Shdr operation | Probe result | Adaptation that compiled |
-| --- | --- | --- |
-| Scalar `length(x)` | Ambiguous MSL call; available geometric overloads were vector forms | `abs(x)` |
-| Scalar `distance(a, b)` | Ambiguous MSL call; available geometric overloads were vector forms | `abs(a - b)` |
+| Shdr operation          | Probe result                                                        | Adaptation that compiled |
+| ----------------------- | ------------------------------------------------------------------- | ------------------------ |
+| Scalar `length(x)`      | Ambiguous MSL call; available geometric overloads were vector forms | `abs(x)`                 |
+| Scalar `distance(a, b)` | Ambiguous MSL call; available geometric overloads were vector forms | `abs(a - b)`             |
 
 With those scalar adaptations, all 51 signature equivalents compiled. The other builtin calls in the probe used their existing names directly.
 
@@ -145,9 +145,9 @@ Shdr currently promises pixel coordinates in physical drawing-buffer space and e
 
 Two possible policies are materially different:
 
-| Policy | Consequence |
-| --- | --- |
-| Strict portability | Diagnose dependencies on unavailable Z/W values; require a host coordinate mapping for canonical XY |
+| Policy              | Consequence                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Strict portability  | Diagnose dependencies on unavailable Z/W values; require a host coordinate mapping for canonical XY                             |
 | Explicit 2D profile | Construct a value such as `float4(position, 0, 1)` and document Z/W as profile constants, not actual fragment depth/perspective |
 
 Silently synthesizing those components would overstate compatibility. Even strict rejection needs to account for whole-vector uses and intermediate expressions, not just literal `.z`/`.w` accesses.
@@ -202,13 +202,13 @@ AGSL evaluates child `shader` objects, including BitmapShader and other RuntimeS
 
 Kotlin usually controls the effect or scene while a graphics API or engine handles GPU execution. Kotlin is not itself the GPU shader language.
 
-| Kind of effect | Suitable Android route | Distinction |
-| --- | --- | --- |
-| Card flips, tilted panels, parallax, perspective UI | Compose `graphicsLayer` / View transformations | Transformed flat layers, often called 2.5D; no mesh renderer needed |
-| Procedural backgrounds, shading, self-contained ray-marched effects | AGSL / RuntimeShader | Position-to-color function integrated into Android drawing |
-| Model viewers, cameras, lights, animated meshes | Filament, optionally through SceneView | An engine owns the conventional 3D scene and rendering |
-| Custom shaders, geometry, depth, textures, render passes | OpenGL ES or Vulkan | Application or rendering library owns the graphics pipeline |
-| Full games | A game engine such as Unity, Unreal, or Godot | Engine-managed scene, resources, and platform integration |
+| Kind of effect                                                      | Suitable Android route                         | Distinction                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| Card flips, tilted panels, parallax, perspective UI                 | Compose `graphicsLayer` / View transformations | Transformed flat layers, often called 2.5D; no mesh renderer needed |
+| Procedural backgrounds, shading, self-contained ray-marched effects | AGSL / RuntimeShader                           | Position-to-color function integrated into Android drawing          |
+| Model viewers, cameras, lights, animated meshes                     | Filament, optionally through SceneView         | An engine owns the conventional 3D scene and rendering              |
+| Custom shaders, geometry, depth, textures, render passes            | OpenGL ES or Vulkan                            | Application or rendering library owns the graphics pipeline         |
+| Full games                                                          | A game engine such as Unity, Unreal, or Godot  | Engine-managed scene, resources, and platform integration           |
 
 Compose's `graphicsLayer` exposes properties such as `rotationX`, `rotationY`, and `cameraDistance`. This is useful for perspective UI effects, but should not be mistaken for arbitrary 3D mesh rendering.
 
@@ -283,10 +283,10 @@ Neither path automatically turns Shdr into a full 3D engine.
 
 Two routes are plausible for Metal and several other native APIs:
 
-| Route | Advantages | Costs |
-| --- | --- | --- |
-| Shdr typed IR → target source directly | Small for the current subset; browser-compatible implementation; explicit control over bindings and semantics | Each backend needs maintained adapters and validation |
-| Shdr → WGSL → Naga → native target | Reuses an established shader translator; opens multiple native targets | Additional toolchain or WASM integration, versioning, binding configuration, and diagnostic mapping |
+| Route                                  | Advantages                                                                                                    | Costs                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Shdr typed IR → target source directly | Small for the current subset; browser-compatible implementation; explicit control over bindings and semantics | Each backend needs maintained adapters and validation                                               |
+| Shdr → WGSL → Naga → native target     | Reuses an established shader translator; opens multiple native targets                                        | Additional toolchain or WASM integration, versioning, binding configuration, and diagnostic mapping |
 
 Naga documents WGSL input and MSL, HLSL, GLSL, and SPIR-V outputs. That makes it a credible option for exploring multiple native APIs. It does **not** establish AGSL output support; AGSL would still need its own route. Existing GLSL ES output does not require a translator merely to be consumed by an Android OpenGL ES host.
 
