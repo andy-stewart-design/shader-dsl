@@ -16,11 +16,12 @@ export {
   smoothstep,
 } from "./math.js";
 export type {
+  CompiledFragmentArtifact,
   DefaultUniforms,
   Expr,
   F32,
   FragmentContext,
-  FragmentShaderSource,
+  ShaderDefaultUniform,
   ShaderType,
   Vec2,
   Vec3,

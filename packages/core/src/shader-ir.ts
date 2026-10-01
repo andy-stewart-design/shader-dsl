@@ -1,3 +1,4 @@
+import type { ShaderDefaultUniform } from "shdr";
 import type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 import type {
   ShaderBinaryOperator,
@@ -8,7 +9,7 @@ import type { TextRange } from "./source-range.js";
 
 export type ShaderBuiltinInput = "fragment-position";
 
-export type ShaderDefaultUniform = "resolution" | "mouse" | "time";
+export type { ShaderDefaultUniform } from "shdr";
 
 /** Stable only within one shader module. */
 export type ShaderLocalSymbolId = number;

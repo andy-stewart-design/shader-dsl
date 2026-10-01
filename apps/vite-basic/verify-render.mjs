@@ -23,6 +23,7 @@ try {
       "--enable-webgl",
       "--enable-unsafe-swiftshader",
       "--use-angle=swiftshader",
+      "--enable-unsafe-webgpu",
     ],
   });
   const page = await browser.newPage();
@@ -118,12 +119,56 @@ try {
   assertPixel("math center", mathSamples.center, [91, 112, 106, 255], 6);
   assertPixel("math corner", mathSamples.corner, [4, 34, 175, 255], 6);
 
+  await page.locator('#webgpu-canvas[data-render-status="success"]').waitFor();
+  const gpuPixels = await page.locator("#webgpu-canvas").screenshot();
+  const gpuSample = await page.evaluate(
+    async (png) => {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(png)], { type: "image/png" }),
+      );
+      const target = document.createElement("canvas");
+      target.width = image.width;
+      target.height = image.height;
+      const context = target.getContext("2d");
+      if (!context) throw new Error("No WebGPU screenshot readback context.");
+      context.drawImage(image, 0, 0);
+      return [
+        ...context.getImageData(
+          Math.floor(image.width / 2),
+          Math.floor(image.height / 2),
+          1,
+          1,
+        ).data,
+      ];
+    },
+    [...gpuPixels],
+  );
+  assertPixel("static WGSL center", gpuSample, [128, 128, 0, 255], 5);
+
+  const unavailable = await browser.newPage();
+  await unavailable.addInitScript(() =>
+    Object.defineProperty(navigator, "gpu", {
+      configurable: true,
+      value: undefined,
+    }),
+  );
+  await unavailable.goto(`http://127.0.0.1:${address.port}`, {
+    waitUntil: "load",
+  });
+  await unavailable
+    .locator('#shader-canvas[data-render-status="success"]')
+    .waitFor();
+  await unavailable
+    .locator('#webgpu-canvas[data-render-status="unavailable"]')
+    .waitFor();
+  await unavailable.close();
+
   if (browserErrors.length > 0) {
     throw new Error(`Browser reported errors:\n${browserErrors.join("\n")}`);
   }
 
   console.log(
-    "Verified rendered gradient and eleven-builtin shader pixels and top-left Y semantics.",
+    "Verified static GLSL/WGSL pixels, math shader, top-left Y and missing-WebGPU fallback.",
   );
 } finally {
   if (browser) await browser.close();

@@ -107,7 +107,7 @@ describe("original-source QuickInfo", () => {
         expect(outside).toMatchObject({
           name: "createFragmentShader",
           display:
-            "(_callback: (context: FragmentContext) => Expr<Vec4<F32>>) => FragmentShaderSource",
+            "(_callback: (context: FragmentContext) => Expr<Vec4<F32>>) => CompiledFragmentArtifact",
           range: {
             start: outsidePosition,
             length: "createFragmentShader".length,

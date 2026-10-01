@@ -3,7 +3,7 @@ import type {
   Expr,
   F32,
   FragmentContext,
-  FragmentShaderSource,
+  CompiledFragmentArtifact,
   Vec2,
   Vec3,
   Vec4,
@@ -11,7 +11,7 @@ import type {
 
 export function createFragmentShader(
   _callback: (context: FragmentContext) => Expr<Vec4<F32>>,
-): FragmentShaderSource {
+): CompiledFragmentArtifact {
   return shaderSourceWasNotTransformed("createFragmentShader");
 }
 

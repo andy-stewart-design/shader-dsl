@@ -1,15 +1,11 @@
-import {
-  compileFragment,
-  type CorePackage,
-  type ShaderDiagnostic,
-} from "@shdr/core";
+import { compileFragmentArtifact } from "@shdr/core/browser";
+import type { ShaderDiagnostic } from "@shdr/core";
 import type { Plugin } from "vite";
 
 export type VitePackage = "@shdr/vite";
-export type ViteWorkspaceSmoke = CorePackage;
 export const vitePackageName: VitePackage = "@shdr/vite";
 
-/** Creates the pre-transform that compiles `.shdr.ts` modules to GLSL strings. */
+/** Creates the pre-transform that compiles `.shdr.ts` modules to dual-target artifacts. */
 export function shdr(): Plugin {
   return {
     name: "shdr",
@@ -18,7 +14,7 @@ export function shdr(): Plugin {
       const fileName = stripViteQuery(id);
       if (!fileName.endsWith(".shdr.ts")) return null;
 
-      const compiled = compileFragment(source, { target: "glsl-es-300" });
+      const compiled = compileFragmentArtifact(source);
       if (!compiled.ok) {
         const primary = compiled.diagnostics[0];
         if (!primary) {
@@ -38,7 +34,7 @@ export function shdr(): Plugin {
       }
 
       return {
-        code: `export default ${JSON.stringify(compiled.code)};\n`,
+        code: `export default ${JSON.stringify(compiled.artifact)};\n`,
         map: null,
       };
     },

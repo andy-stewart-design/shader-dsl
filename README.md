@@ -35,9 +35,10 @@ The normal test suite includes real Chromium WebGL tests, Vite development/produ
 | `packages/core`             | Parser, validation, typed IR, and GLSL/WGSL generation  |
 | `packages/language-service` | TypeScript 7 virtual-source checking and editor routing |
 | `packages/lsp`              | Private stdio LSP feasibility spike (not shipped)       |
-| `packages/vite`             | `.shdr.ts` to GLSL Vite pre-transform                   |
+| `packages/vite`             | `.shdr.ts` to dual-target artifact Vite pre-transform   |
+| `packages/runtime`          | Workspace-only WebGL 2 and WebGPU browser renderers     |
 | `apps/editor-fixture`       | Real VS Code diagnostics and hover fixture              |
-| `apps/vite-basic`           | Vanilla TypeScript/WebGL 2 integration fixture          |
+| `apps/vite-basic`           | Static Vite/WebGL 2 + WebGPU integration fixture        |
 | `apps/repl`                 | React browser compiler, target viewer, and validator    |
 
 ## Shader checks in CI
@@ -92,16 +93,19 @@ export default defineConfig({
 });
 ```
 
-The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a generated shader string. Its target is intentionally fixed to **GLSL ES 3.00**; use `@shdr/core` for both targets.
+The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a dual-target artifact (GLSL ES 3.00, WGSL and referenced default-binding metadata). A static import does not ship the Shdr parser/compiler. For edited source in the browser, explicitly import `compileFragmentArtifact` from `@shdr/core/browser`; this opt-in path returns the same artifact or original-source diagnostics.
 
 ```ts
-import type { FragmentShaderSource } from "shdr";
-import fragmentShader from "./gradient.shdr.ts";
+import shader from "./gradient.shdr.ts";
+import { createWebGlRenderer } from "@shdr/runtime/webgl";
+// Or choose createWebGpuRenderer from "@shdr/runtime/webgpu" explicitly.
 
-const source: FragmentShaderSource = fragmentShader;
+const renderer = await createWebGlRenderer(canvas, shader);
+await renderer.setShader(shader); // Hot replacement; initial frame already drawn.
+renderer.dispose();
 ```
 
-Run the complete vanilla Vite/WebGL fixture:
+Run the complete vanilla Vite/WebGL/WebGPU fixture:
 
 ```sh
 pnpm --filter vite-basic dev
@@ -109,11 +113,11 @@ pnpm --filter vite-basic build
 pnpm --filter vite-basic test
 ```
 
-The production check confirms that generated GLSL—not the original operator expression—is bundled. The browser checks cover development edits/reloads and expected GPU pixels.
+The production check confirms that generated GLSL and WGSL—but not the parser/compiler or original operator expression—are bundled. Browser tests check both GPU paths with real pixels plus a WebGL-only fallback. The [runtime package guide](packages/runtime/README.md) covers explicit backend selection, automatic inputs, `{ animate: false }`, errors, loss and canvas ownership. This is a **workspace-local API, not a published package**.
 
 ## Multi-target browser REPL
 
-The REPL runs `@shdr/core` entirely in the browser. It lowers once, generates GLSL ES 3.00 and WGSL from the same typed IR, displays shared source diagnostics, and renders the two targets on separate WebGL 2 and WebGPU canvases where available. Invalid edits preserve the last successful render on each canvas.
+The REPL deliberately imports the opt-in browser compiler from `@shdr/core/browser`. It lowers once and produces the same dual-target artifact as Vite, displays shared source diagnostics, and installs that artifact through both workspace renderers on separate WebGL 2 and WebGPU canvases where available. Invalid edits preserve the last successful render on each valid canvas.
 
 ```sh
 pnpm --filter repl dev
@@ -121,7 +125,7 @@ pnpm --filter repl build
 pnpm --filter repl test
 ```
 
-Select either generated target in the UI. WGSL only reports rendered after successful module compilation, pipeline creation and a draw. If WebGPU or an adapter is unavailable, the WebGL 2 preview remains usable and the WebGPU preview reports unavailable. Chromium/SwiftShader browser tests compare rendered pixels within channel tolerances, exercise the default uniforms and fallback paths, and keep backend messages distinct from shared source diagnostics. This renderer belongs to the REPL, not a published runtime API.
+Select either generated target in the UI. WGSL only reports rendered after successful module compilation, pipeline creation and a draw. If WebGPU or an adapter is unavailable, the WebGL 2 preview remains usable and the WebGPU preview reports unavailable. Chromium/SwiftShader browser tests compare rendered pixels within channel tolerances, exercise the default uniforms and fallback paths, and keep backend messages distinct from shared source diagnostics. Both previews use the shared workspace runtime; it has **not** been published.
 
 ## Accepted shader language
 
@@ -209,8 +213,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 - **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
 - The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private stdio LSP now selects a config per shader and has protocol tests across projects, but still checks synchronously. Its **Zed dev launcher** works only within this checkout's repository root and `apps/editor-fixture` worktrees; distribution and other projects remain unverified.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
-- The Vite adapter emits GLSL only. Use `@shdr/core` directly, as the REPL does, for multi-target generation.
-- WGSL renders in the REPL on WebGPU-capable browsers; the Vite adapter still emits only GLSL, and no host-facing WebGPU runtime is published.
+- The Vite adapter emits both targets in one artifact. The Vite fixture and REPL use the same workspace-only browser runtime. It owns dedicated opaque canvases; transparent compositing, custom resources, and npm publishing require separate review.
 - Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout; that historical measurement is not a current bundle-size claim.
 
 These are current implementation limits, not silent compatibility claims.

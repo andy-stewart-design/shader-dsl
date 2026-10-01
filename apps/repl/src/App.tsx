@@ -1,10 +1,12 @@
-import { generateFragment, lowerFragment } from "@shdr/core";
+import { useState } from "react";
+import { compileFragmentArtifact } from "@shdr/core/browser";
+import {
+  useShaderPreviews,
+  type ValidationState,
+} from "./use-shader-previews.ts";
 import type { ShaderDiagnostic, ShaderTarget, TextRange } from "@shdr/core";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { CompiledFragmentArtifact } from "shdr";
 import "./App.css";
-import { WebGlRenderer } from "./webgl-renderer.ts";
-import { WebGpuRenderer, WebGpuUnavailableError } from "./webgpu-renderer.ts";
 
 const INITIAL_SOURCE = `import { createFragmentShader, vec4 } from "shdr";
 
@@ -29,50 +31,18 @@ interface CompilationSuccess {
   readonly ok: true;
   readonly durationMs: number;
   readonly diagnostics: readonly [];
-  readonly outputs: Readonly<Record<ShaderTarget, string>>;
+  readonly artifact: CompiledFragmentArtifact;
 }
 
 interface CompilationFailure {
   readonly ok: false;
   readonly durationMs: number;
   readonly diagnostics: readonly ShaderDiagnostic[];
-  readonly outputs?: undefined;
+  readonly artifact?: undefined;
 }
 
 type Compilation = CompilationSuccess | CompilationFailure;
-type ValidationState =
-  "pending" | "success" | "error" | "unavailable" | "blocked";
-
-interface ValidationResult {
-  readonly state: ValidationState;
-  readonly message: string;
-}
-
-type TargetValidations = Readonly<Record<ShaderTarget, ValidationResult>>;
-
 const INITIAL_COMPILATION = compileInitialSource();
-
-const PENDING_VALIDATIONS: TargetValidations = {
-  "glsl-es-300": {
-    state: "pending",
-    message: "Waiting for WebGL 2 compilation and rendering.",
-  },
-  wgsl: {
-    state: "pending",
-    message: "Starting the WebGPU renderer.",
-  },
-};
-
-const BLOCKED_VALIDATIONS: TargetValidations = {
-  "glsl-es-300": {
-    state: "blocked",
-    message: "Blocked by shared source diagnostics.",
-  },
-  wgsl: {
-    state: "blocked",
-    message: "Blocked by shared source diagnostics.",
-  },
-};
 
 function App() {
   const [source, setSource] = useState(INITIAL_SOURCE);
@@ -81,208 +51,23 @@ function App() {
     useState<Compilation>(INITIAL_COMPILATION);
   const [selectedTarget, setSelectedTarget] =
     useState<ShaderTarget>("glsl-es-300");
-  const [validations, setValidations] =
-    useState<TargetValidations>(PENDING_VALIDATIONS);
-  const [hasSuccessfulRender, setHasSuccessfulRender] = useState<
-    Readonly<Record<ShaderTarget, boolean>>
-  >({
-    "glsl-es-300": false,
-    wgsl: false,
-  });
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gpuCanvasRef = useRef<HTMLCanvasElement>(null);
-  const rendererRef = useRef<WebGlRenderer>(null);
-  const gpuRendererRef = useRef<WebGpuRenderer>(null);
-  const validationRun = useRef(0);
-  const requestedOutputs = useRef<{
-    readonly outputs: Readonly<Record<ShaderTarget, string>>;
-    readonly run: number;
-    readonly startedAt: number;
-  } | null>(null);
-  const gpuInitialization = useRef<ValidationResult | null>(null);
-  const mouse = useRef({ x: 0, y: 0 });
+  const {
+    canvasRef,
+    gpuCanvasRef,
+    validations,
+    hasSuccessfulRender,
+    renderOutputs,
+    block,
+    updateMouse,
+  } = useShaderPreviews(INITIAL_COMPILATION.artifact);
   const isDirty = source !== compiledSource;
-
-  const renderWgsl = useCallback(
-    async (
-      renderer: WebGpuRenderer,
-      source: string,
-      run: number,
-      startedAt: number,
-    ) => {
-      try {
-        const boundUniforms = await renderer.setFragmentShader(
-          source,
-          startedAt,
-        );
-        if (!boundUniforms || validationRun.current !== run) return;
-        setHasSuccessfulRender((current) => ({ ...current, wgsl: true }));
-        setValidations((current) => ({
-          ...current,
-          wgsl: {
-            state: "success",
-            message:
-              "WGSL compiled, pipelined, and rendered in WebGPU. " +
-              `Bound uniforms: ${boundUniforms.join(", ") || "none"}.` +
-              (renderer.warnings.length
-                ? ` WGSL warnings: ${renderer.warnings.join("; ")}`
-                : ""),
-          },
-        }));
-      } catch (error) {
-        if (validationRun.current !== run) return;
-        setValidations((current) => ({
-          ...current,
-          wgsl: { state: "error", message: errorMessage(error) },
-        }));
-      }
-    },
-    [],
-  );
-
-  const renderOutputs = useCallback(
-    (outputs: Readonly<Record<ShaderTarget, string>>) => {
-      const run = ++validationRun.current;
-      const startedAt = performance.now();
-      requestedOutputs.current = { outputs, run, startedAt };
-      setValidations({
-        ...PENDING_VALIDATIONS,
-        wgsl: gpuInitialization.current ?? PENDING_VALIDATIONS.wgsl,
-      });
-
-      const renderer = rendererRef.current;
-      if (!renderer) {
-        setValidations((current) => ({
-          ...current,
-          "glsl-es-300": {
-            state: "error",
-            message: "WebGL 2 renderer initialization failed.",
-          },
-        }));
-      } else {
-        try {
-          const boundUniforms = renderer.setFragmentShader(
-            outputs["glsl-es-300"],
-            startedAt,
-          );
-          setHasSuccessfulRender((current) => ({
-            ...current,
-            "glsl-es-300": true,
-          }));
-          setValidations((current) => ({
-            ...current,
-            "glsl-es-300": {
-              state: "success",
-              message:
-                "GLSL compiled, linked, and rendered in WebGL 2. " +
-                `Bound uniforms: ${boundUniforms.join(", ") || "none"}.`,
-            },
-          }));
-        } catch (error) {
-          setValidations((current) => ({
-            ...current,
-            "glsl-es-300": { state: "error", message: errorMessage(error) },
-          }));
-        }
-      }
-      if (gpuRendererRef.current) {
-        void renderWgsl(gpuRendererRef.current, outputs.wgsl, run, startedAt);
-      }
-    },
-    [renderWgsl],
-  );
-
-  useEffect(() => {
-    let active = true;
-    if (canvasRef.current) {
-      try {
-        rendererRef.current = new WebGlRenderer(canvasRef.current);
-      } catch {
-        rendererRef.current = null;
-      }
-    }
-    const glRenderer = rendererRef.current;
-    let gpuRenderer: WebGpuRenderer | null = null;
-    // Defer device acquisition until after the first frame: StrictMode's
-    // discarded effect must not configure the same canvas as the live effect.
-    const frame = requestAnimationFrame(() => {
-      if (!active) return;
-      renderOutputs(INITIAL_COMPILATION.outputs);
-      const canvas = gpuCanvasRef.current;
-      if (!canvas) return;
-      void WebGpuRenderer.create(canvas, (message) => {
-        if (!active || !requestedOutputs.current) return;
-        ++validationRun.current;
-        setValidations((current) => ({
-          ...current,
-          wgsl: { state: "error", message },
-        }));
-      }).then(
-        (renderer) => {
-          if (!active) {
-            renderer.dispose();
-            return;
-          }
-          gpuRenderer = renderer;
-          gpuRendererRef.current = renderer;
-          renderer.setMouse(mouse.current.x, mouse.current.y);
-          const requested = requestedOutputs.current;
-          if (requested)
-            void renderWgsl(
-              renderer,
-              requested.outputs.wgsl,
-              requested.run,
-              requested.startedAt,
-            );
-        },
-        (error: unknown) => {
-          if (!active) return;
-          const failure: ValidationResult = {
-            state:
-              error instanceof WebGpuUnavailableError ? "unavailable" : "error",
-            message: errorMessage(error),
-          };
-          gpuInitialization.current = failure;
-          if (requestedOutputs.current) {
-            setValidations((current) => ({ ...current, wgsl: failure }));
-          }
-        },
-      );
-    });
-    return () => {
-      active = false;
-      cancelAnimationFrame(frame);
-      requestedOutputs.current = null;
-      gpuRenderer?.dispose();
-      gpuRendererRef.current = null;
-      glRenderer?.dispose();
-      rendererRef.current = null;
-    };
-  }, [renderOutputs, renderWgsl]);
 
   const compile = () => {
     const next = compileBothTargets(source);
     setCompilation(next);
     setCompiledSource(source);
-
-    if (!next.ok) {
-      validationRun.current++;
-      requestedOutputs.current = null;
-      gpuRendererRef.current?.cancelPendingCompilation();
-      setValidations(BLOCKED_VALIDATIONS);
-      return;
-    }
-    renderOutputs(next.outputs);
-  };
-
-  const updateMouse = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    mouse.current = {
-      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
-      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
-    };
-    rendererRef.current?.setMouse(mouse.current.x, mouse.current.y);
-    gpuRendererRef.current?.setMouse(mouse.current.x, mouse.current.y);
+    if (next.ok) renderOutputs(next.artifact);
+    else block();
   };
 
   const selected = TARGETS.find(({ target }) => target === selectedTarget);
@@ -477,7 +262,9 @@ function App() {
           >
             <code>
               {compilation.ok
-                ? compilation.outputs[selectedTarget]
+                ? selectedTarget === "wgsl"
+                  ? compilation.artifact.wgsl
+                  : compilation.artifact.glsl
                 : "Fix the shared source diagnostics to generate this target."}
             </code>
           </pre>
@@ -507,26 +294,19 @@ function compileInitialSource(): CompilationSuccess {
 
 function compileBothTargets(source: string): Compilation {
   const startedAt = performance.now();
-  const lowered = lowerFragment(source);
-
-  if (!lowered.ok) {
-    return {
-      ok: false,
-      durationMs: performance.now() - startedAt,
-      diagnostics: lowered.diagnostics,
-    };
-  }
-
-  const outputs = {
-    "glsl-es-300": generateFragment(lowered.ir, "glsl-es-300"),
-    wgsl: generateFragment(lowered.ir, "wgsl"),
-  };
-  return {
-    ok: true,
-    durationMs: performance.now() - startedAt,
-    diagnostics: [],
-    outputs,
-  };
+  const compiled = compileFragmentArtifact(source);
+  return compiled.ok
+    ? {
+        ok: true,
+        durationMs: performance.now() - startedAt,
+        diagnostics: [],
+        artifact: compiled.artifact,
+      }
+    : {
+        ok: false,
+        durationMs: performance.now() - startedAt,
+        diagnostics: compiled.diagnostics,
+      };
 }
 
 function formatDuration(durationMs: number): string {
@@ -565,10 +345,6 @@ function statusTone(state: ValidationState): "ready" | "pending" | "error" {
     case "blocked":
       return "error";
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export default App;

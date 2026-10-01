@@ -55,7 +55,7 @@ try {
     await glslValidation.textContent(),
     /compiled, linked, and rendered/i,
   );
-  assert.equal(await canvas.getAttribute("data-bound-uniforms"), "resolution");
+  await assertBindings(page, "glsl-es-300", "resolution");
 
   const wgslValidation = page.locator('[data-validation-target="wgsl"]');
   const wgslState = await wgslValidation.getAttribute("data-validation-state");
@@ -68,10 +68,7 @@ try {
   );
   assert.match(await wgslValidation.textContent(), /rendered in WebGPU/i);
   const gpuCanvas = page.locator('[data-render-target="wgsl"]');
-  assert.equal(
-    await gpuCanvas.getAttribute("data-bound-uniforms"),
-    "resolution",
-  );
+  await assertBindings(page, "wgsl", "resolution");
 
   const initial = await readGradientSamples(page);
   assertChannel("center red", initial.center[0], 128, 3);
@@ -98,10 +95,7 @@ try {
   await page.waitForFunction((previousWidth) => {
     const target = document.querySelector('[data-render-target="glsl-es-300"]');
     if (!(target instanceof HTMLCanvasElement)) return false;
-    return (
-      target.width !== previousWidth &&
-      target.dataset.resolution === `${target.width},${target.height}`
-    );
+    return target.width !== previousWidth;
   }, initialWidth);
   const resized = await readCanvasMetrics(page);
   assert.equal(
@@ -234,7 +228,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 `;
   await compileSource(page, editor, implicitResolutionSource);
   await waitForValidation(page, "glsl-es-300", "success");
-  assert.equal(await canvas.getAttribute("data-bound-uniforms"), "resolution");
+  await assertBindings(page, "glsl-es-300", "resolution");
   assert.match(
     await page.getByRole("tabpanel").textContent(),
     /uniform vec2 u_resolution/,
@@ -245,8 +239,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
     /shdr_resolution/,
   );
   await glslTab.click();
-  await waitForValidation(page, "wgsl", "success");
-  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "");
+  await assertBindings(page, "wgsl", "");
   await assertPixelParity(
     page,
     "implicit GLSL resolution only",
@@ -255,9 +248,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
   );
   const constantSource = shaderColor("vec4(0.25, 0.5, 0.75, 1)");
   await compileSource(page, editor, constantSource);
-  await waitForValidation(page, "wgsl", "success");
-  assert.equal(await canvas.getAttribute("data-bound-uniforms"), "");
-  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "");
+  await assertBindings(page, "glsl-es-300", "");
+  await assertBindings(page, "wgsl", "");
   await assertPixelParity(
     page,
     "no bindings",
@@ -329,10 +321,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 `;
   await compileSource(page, editor, mouseSource);
   await waitForValidation(page, "glsl-es-300", "success");
-  assert.equal(
-    await canvas.getAttribute("data-bound-uniforms"),
-    "resolution,mouse",
-  );
+  await assertBindings(page, "glsl-es-300", "resolution,mouse");
 
   await canvas.scrollIntoViewIfNeeded();
   const canvasBox = await canvas.boundingBox();
@@ -341,23 +330,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
     canvasBox.x + canvasBox.width * 0.25,
     canvasBox.y + canvasBox.height * 0.2,
   );
-  await page.waitForFunction(() => {
-    const target = document.querySelector('[data-render-target="glsl-es-300"]');
-    if (!(target instanceof HTMLCanvasElement)) return false;
-    const [x, y] = (target.dataset.mouse ?? "").split(",").map(Number);
-    return x > target.width * 0.2 && y > target.height * 0.15;
-  });
-  const mouseMetrics = await readRuntimeMetrics(page);
-  assertNear("mouse X", mouseMetrics.mouseX, mouseMetrics.width * 0.25, 2);
-  assertNear("mouse Y", mouseMetrics.mouseY, mouseMetrics.height * 0.2, 2);
-  const mousePixel = await readCenterPixel(page);
-  assertChannel("mouse red", mousePixel[0], 64, 4);
-  assertChannel("mouse green", mousePixel[1], 51, 4);
-  await waitForValidation(page, "wgsl", "success");
-  assert.equal(
-    await gpuCanvas.getAttribute("data-bound-uniforms"),
-    "resolution,mouse",
-  );
+  await assertBindings(page, "wgsl", "resolution,mouse");
   await assertSharedMouse(page, 0.25, 0.2);
   await assertPixelParity(page, "pointer over WebGL", [[0.5, 0.5]], 5);
   const gpuBox = await gpuCanvas.boundingBox();
@@ -379,39 +352,48 @@ export default createFragmentShader(({ coord, uniforms }) => {
   return color;
 });
 `;
-  await page.waitForTimeout(500);
-  const previousShaderTime = await readRuntimeMetrics(page);
   await compileSource(page, editor, timeSource);
-  await waitForValidation(page, "glsl-es-300", "success");
-  assert.equal(await canvas.getAttribute("data-bound-uniforms"), "time");
-  await waitForValidation(page, "wgsl", "success");
-  assert.equal(await gpuCanvas.getAttribute("data-bound-uniforms"), "time");
-  const timeBefore = await readRuntimeMetrics(page);
-  assert.ok(
-    timeBefore.time < previousShaderTime.time,
-    `u_time did not reset after compilation: ${previousShaderTime.time} -> ${timeBefore.time}`,
-  );
+  await assertBindings(page, "glsl-es-300", "time");
+  await assertBindings(page, "wgsl", "time");
+  await page.waitForTimeout(800);
+  const beforeReset = await readCenterPixel(page);
+  const gpuBeforeReset = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  // Reinstall the same time-driven shader: a new clock must start at zero.
+  await compileSource(page, editor, timeSource);
+  await assertBindings(page, "glsl-es-300", "time");
+  await assertBindings(page, "wgsl", "time");
   const timePixelBefore = await readCenterPixel(page);
-  const gpuTimeBefore = await readRuntimeMetrics(page, "wgsl");
   const gpuTimePixelBefore = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
-  assertNear("shared time origin", timeBefore.time, gpuTimeBefore.time, 0.12);
+  assert.ok(
+    beforeReset[0] > timePixelBefore[0] + 3,
+    `WebGL time did not reset: ${beforeReset[0]} -> ${timePixelBefore[0]}`,
+  );
+  assert.ok(
+    gpuBeforeReset[0] > gpuTimePixelBefore[0] + 3,
+    `WebGPU time did not reset: ${gpuBeforeReset[0]} -> ${gpuTimePixelBefore[0]}`,
+  );
+  assertNear(
+    "shared time origin pixel",
+    timePixelBefore[0],
+    gpuTimePixelBefore[0],
+    5,
+  );
   await page.waitForTimeout(300);
-  const timeAfter = await readRuntimeMetrics(page);
   const timePixelAfter = await readCenterPixel(page);
-  assert.ok(timeAfter.time > timeBefore.time, "u_time did not advance.");
+  const gpuTimePixelAfter = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
   assert.ok(
     timePixelAfter[0] > timePixelBefore[0],
-    `Time-driven red channel did not increase: ${timePixelBefore[0]} -> ${timePixelAfter[0]}`,
+    `WebGL time did not advance: ${timePixelBefore[0]} -> ${timePixelAfter[0]}`,
   );
-  const gpuTimeAfter = await readRuntimeMetrics(page, "wgsl");
-  const gpuTimePixelAfter = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
-  assert.ok(gpuTimeAfter.time > gpuTimeBefore.time);
-  assert.ok(gpuTimePixelAfter[0] > gpuTimePixelBefore[0]);
+  assert.ok(
+    gpuTimePixelAfter[0] > gpuTimePixelBefore[0],
+    `WebGPU time did not advance: ${gpuTimePixelBefore[0]} -> ${gpuTimePixelAfter[0]}`,
+  );
   assertNear(
-    "shared time after advance",
-    timeAfter.time,
-    gpuTimeAfter.time,
-    0.12,
+    "shared time after advance pixel",
+    timePixelAfter[0],
+    gpuTimePixelAfter[0],
+    5,
   );
   await assertPixelParity(page, "advancing time", [[0.5, 0.5]], 5);
   const allUniformsSource = `import { createFragmentShader, vec4 } from "shdr";
@@ -422,16 +404,10 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });`;
   await compileSource(page, editor, allUniformsSource);
   await waitForValidation(page, "wgsl", "success");
-  assert.equal(
-    await canvas.getAttribute("data-bound-uniforms"),
-    "resolution,mouse,time",
-  );
-  assert.equal(
-    await gpuCanvas.getAttribute("data-bound-uniforms"),
-    "resolution,mouse,time",
-  );
+  await assertBindings(page, "glsl-es-300", "resolution,mouse,time");
+  await assertBindings(page, "wgsl", "resolution,mouse,time");
   await assertPixelParity(page, "all three uniforms", [[0.25, 0.75]], 5);
-  await verifyDprAndResize(browser, address.port);
+  await verifyDprAndResize(browser, address.port, mouseSource, originalSource);
   await verifyUnavailableFallbacks(browser, address.port);
   await verifyBackendFailureAndRaces(browser, address.port);
 
@@ -447,7 +423,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await server.close();
 }
 
-async function verifyDprAndResize(browser, port) {
+async function verifyDprAndResize(browser, port, mouseSource, gradientSource) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,
@@ -471,6 +447,9 @@ async function verifyDprAndResize(browser, port) {
       ],
       5,
     );
+    const editor = page.getByRole("textbox", { name: "Shader source editor" });
+    await compileSource(page, editor, mouseSource);
+    await assertBindings(page, "wgsl", "resolution,mouse");
     const gpuCanvas = page.locator('[data-render-target="wgsl"]');
     await gpuCanvas.scrollIntoViewIfNeeded();
     const box = await gpuCanvas.boundingBox();
@@ -482,9 +461,7 @@ async function verifyDprAndResize(browser, port) {
     await page.waitForFunction(
       (old) =>
         [...document.querySelectorAll("[data-render-target]")].every(
-          (canvas) =>
-            canvas.width !== old &&
-            canvas.dataset.resolution === `${canvas.width},${canvas.height}`,
+          (canvas) => canvas.width !== old,
         ),
       initialWidth,
     );
@@ -496,6 +473,8 @@ async function verifyDprAndResize(browser, port) {
     ]);
     if (!boxes[0] || !boxes[1] || boxes[1].y < boxes[0].y + boxes[0].height)
       throw new Error("Narrow previews did not stack vertically");
+    await compileSource(page, editor, gradientSource);
+    await waitForValidation(page, "wgsl", "success");
     await assertPixelParity(
       page,
       "DPR 2 resized gradient",
@@ -532,12 +511,6 @@ async function verifyUnavailableFallbacks(browser, port) {
         .locator('[data-validation-target="wgsl"]')
         .textContent();
       assert.match(unavailable, /unavailable|no adapter/i);
-      assert.equal(
-        await page
-          .locator('[data-render-target="wgsl"]')
-          .getAttribute("data-render-status"),
-        null,
-      );
       const editor = page.getByRole("textbox", {
         name: "Shader source editor",
       });
@@ -774,6 +747,19 @@ async function waitForValidation(page, target, state) {
   );
 }
 
+async function assertBindings(page, target, bindings) {
+  await waitForValidation(page, target, "success");
+  const message = await page
+    .locator(`[data-validation-target="${target}"] .render-message`)
+    .textContent();
+  assert.ok(
+    message.includes(
+      `Bound uniforms: ${bindings ? bindings.split(",").join(", ") : "none"}.`,
+    ),
+    `${target} did not report ${bindings || "none"} bindings: ${message}`,
+  );
+}
+
 async function readGradientSamples(page) {
   return page.evaluate(() => {
     const canvas = document.querySelector('[data-render-target="glsl-es-300"]');
@@ -839,25 +825,6 @@ async function readCanvasMetrics(page, target = "glsl-es-300") {
   }, target);
 }
 
-async function readRuntimeMetrics(page, target = "glsl-es-300") {
-  return page.evaluate((selected) => {
-    const canvas = document.querySelector(`[data-render-target="${selected}"]`);
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new Error("The render canvas is unavailable.");
-    }
-    const [mouseX, mouseY] = (canvas.dataset.mouse ?? "")
-      .split(",")
-      .map(Number);
-    return {
-      width: canvas.width,
-      height: canvas.height,
-      mouseX,
-      mouseY,
-      time: Number(canvas.dataset.time),
-    };
-  }, target);
-}
-
 function shaderColor(color) {
   return `import { createFragmentShader, vec4 } from "shdr";
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -866,24 +833,29 @@ export default createFragmentShader(({ coord, uniforms }) => {
 }
 
 async function assertSharedMouse(page, x, y) {
-  await page.waitForFunction(
-    ([expectedX, expectedY]) =>
-      [...document.querySelectorAll("[data-render-target]")].every((canvas) => {
-        const [actualX, actualY] = (canvas.dataset.mouse ?? "")
-          .split(",")
-          .map(Number);
-        return (
-          Math.abs(actualX / canvas.width - expectedX) < 0.02 &&
-          Math.abs(actualY / canvas.height - expectedY) < 0.02
-        );
-      }),
-    [x, y],
+  // The shader encodes normalized mouse position into RG. Check submitted
+  // WebGL pixels and presented WebGPU pixels, not test-only canvas metadata.
+  const expected = [Math.round(x * 255), Math.round(y * 255)];
+  const deadline = Date.now() + 5_000;
+  let actual;
+  do {
+    actual = await Promise.all([
+      readWebGlPixels(page, [[0.5, 0.5]]),
+      readWebGpuPixels(page, [[0.5, 0.5]]),
+    ]);
+    if (
+      actual.every(([pixel]) =>
+        expected.every(
+          (value, channel) => Math.abs(pixel[channel] - value) <= 5,
+        ),
+      )
+    )
+      return;
+    await page.waitForTimeout(30);
+  } while (Date.now() < deadline);
+  throw new Error(
+    `Both previews did not receive pointer (${x}, ${y}): ${JSON.stringify(actual)}`,
   );
-  for (const target of ["glsl-es-300", "wgsl"]) {
-    const metrics = await readRuntimeMetrics(page, target);
-    assertNear(`${target} mouse X`, metrics.mouseX, metrics.width * x, 2);
-    assertNear(`${target} mouse Y`, metrics.mouseY, metrics.height * y, 2);
-  }
 }
 
 async function assertPixelParity(page, name, locations, tolerance) {

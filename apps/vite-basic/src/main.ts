@@ -1,131 +1,116 @@
-import type { FragmentShaderSource } from "shdr";
+import { ShdrRuntimeError } from "@shdr/runtime/errors";
+import { createWebGlRenderer } from "@shdr/runtime/webgl";
+import { createWebGpuRenderer } from "@shdr/runtime/webgpu";
+import type { Renderer } from "@shdr/runtime/types";
+import type { CompiledFragmentArtifact } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
 import "./style.css";
 
-const FULLSCREEN_TRIANGLE_VERTEX_SHADER = `#version 300 es
-precision highp float;
+const shader: CompiledFragmentArtifact = fragmentShader;
+const expanded: CompiledFragmentArtifact = expandedShader;
+const math: CompiledFragmentArtifact = mathBuiltinsShader;
+if (
+  !expanded.glsl.includes("vec3(") ||
+  !shader.wgsl.includes("shdr_fragment_main")
+)
+  throw new Error("The shader artifacts were not compiled by the Vite plugin.");
 
-void main() {
-  vec2 position = vec2(
-    float((gl_VertexID << 1) & 2),
-    float(gl_VertexID & 2)
-  );
-  gl_Position = vec4(position * 2.0 - 1.0, 0.0, 1.0);
-}
-`;
-
-const shader: FragmentShaderSource = fragmentShader;
-const expanded: FragmentShaderSource = expandedShader;
-const math: FragmentShaderSource = mathBuiltinsShader;
-if (!expanded.includes("vec3(")) {
-  throw new Error("The expanded shader was not compiled by the Vite plugin.");
-}
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("The Vite fixture requires an #app element.");
-
 app.innerHTML = `
   <main>
-    <h1>Shdr Vite/WebGL 2 fixture</h1>
+    <h1>Shdr Vite/WebGL 2 + WebGPU fixture</h1>
     <canvas id="shader-canvas" width="512" height="512"></canvas>
-    <p id="status" role="status">Compiling generated shader…</p>
-    <h2>Eleven math builtins</h2>
+    <p id="status" role="status">Compiling generated GLSL…</p>
+    <canvas id="webgpu-canvas" width="512" height="512"></canvas>
+    <p id="webgpu-status" role="status">Starting WebGPU…</p>
+    <h2>Math builtins</h2>
     <canvas id="math-canvas" width="128" height="128"></canvas>
     <p id="math-status" role="status">Compiling generated math shader…</p>
   </main>
 `;
-
 const canvas = document.querySelector<HTMLCanvasElement>("#shader-canvas");
 const status = document.querySelector<HTMLParagraphElement>("#status");
+const gpuCanvas = document.querySelector<HTMLCanvasElement>("#webgpu-canvas");
+const gpuStatus =
+  document.querySelector<HTMLParagraphElement>("#webgpu-status");
 const mathCanvas = document.querySelector<HTMLCanvasElement>("#math-canvas");
 const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
-if (!canvas || !status || !mathCanvas || !mathStatus) {
+if (
+  !canvas ||
+  !status ||
+  !gpuCanvas ||
+  !gpuStatus ||
+  !mathCanvas ||
+  !mathStatus
+)
   throw new Error("The shader fixture UI is incomplete.");
-}
 
-try {
-  render(canvas, shader);
-  canvas.dataset.renderStatus = "success";
-  status.textContent = "Generated GLSL compiled, linked, and rendered.";
-  render(mathCanvas, math);
-  mathCanvas.dataset.renderStatus = "success";
-  mathStatus.textContent =
-    "Generated math GLSL compiled, linked, and rendered.";
-} catch (error) {
-  canvas.dataset.renderStatus = "error";
-  mathCanvas.dataset.renderStatus = "error";
-  status.textContent = error instanceof Error ? error.message : String(error);
-  mathStatus.textContent = status.textContent;
-  throw error;
-}
+const renderers: Renderer[] = [];
+const lifetime = new AbortController();
+window.addEventListener(
+  "pagehide",
+  () => {
+    lifetime.abort();
+    renderers.forEach((renderer) => renderer.dispose());
+  },
+  { once: true },
+);
 
-function render(
+async function renderWebGl(
   target: HTMLCanvasElement,
-  fragmentSource: FragmentShaderSource,
-): void {
-  const gl = target.getContext("webgl2", {
-    alpha: false,
-    antialias: false,
-    preserveDrawingBuffer: true,
-  });
-  if (!gl) throw new Error("WebGL 2 is unavailable.");
-
-  const vertex = compileShader(
-    gl,
-    gl.VERTEX_SHADER,
-    FULLSCREEN_TRIANGLE_VERTEX_SHADER,
-  );
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-  const program = gl.createProgram();
-  if (!program) throw new Error("Unable to create a WebGL program.");
-
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(
-      `WebGL link failed: ${gl.getProgramInfoLog(program) ?? "unknown error"}`,
-    );
+  label: HTMLParagraphElement,
+  artifact: CompiledFragmentArtifact,
+): Promise<void> {
+  try {
+    const renderer = await createWebGlRenderer(target, artifact, {
+      signal: lifetime.signal,
+      animate: false,
+      onError(error) {
+        target.dataset.renderStatus = "error";
+        label.textContent = error.message;
+      },
+    });
+    renderers.push(renderer);
+    target.dataset.renderStatus = "success";
+    label.textContent = "Generated GLSL compiled, linked, and rendered.";
+  } catch (error) {
+    target.dataset.renderStatus = "error";
+    label.textContent = error instanceof Error ? error.message : String(error);
+    throw error;
   }
-
-  const resolution = gl.getUniformLocation(program, "u_resolution");
-  if (resolution === null) {
-    throw new Error("Generated shader did not expose u_resolution.");
-  }
-
-  const vertexArray = gl.createVertexArray();
-  if (!vertexArray) throw new Error("Unable to create a WebGL vertex array.");
-
-  gl.viewport(0, 0, target.width, target.height);
-  gl.useProgram(program);
-  gl.uniform2f(resolution, target.width, target.height);
-  gl.bindVertexArray(vertexArray);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-  gl.deleteVertexArray(vertexArray);
-  gl.deleteProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
 }
 
-function compileShader(
-  gl: WebGL2RenderingContext,
-  type: number,
-  source: string,
-): WebGLShader {
-  const shaderObject = gl.createShader(type);
-  if (!shaderObject) throw new Error("Unable to create a WebGL shader.");
-
-  gl.shaderSource(shaderObject, source);
-  gl.compileShader(shaderObject);
-  if (!gl.getShaderParameter(shaderObject, gl.COMPILE_STATUS)) {
-    const stage = type === gl.VERTEX_SHADER ? "vertex" : "fragment";
-    throw new Error(
-      `WebGL ${stage} compilation failed: ${gl.getShaderInfoLog(shaderObject) ?? "unknown error"}`,
-    );
+async function renderWebGpu(): Promise<void> {
+  try {
+    const renderer = await createWebGpuRenderer(gpuCanvas!, shader, {
+      signal: lifetime.signal,
+      animate: false,
+      onError(error) {
+        gpuCanvas!.dataset.renderStatus = "error";
+        gpuStatus!.textContent = error.message;
+      },
+    });
+    renderers.push(renderer);
+    gpuCanvas!.dataset.renderStatus = "success";
+    gpuStatus!.textContent = "Generated WGSL pipelined and rendered in WebGPU.";
+  } catch (error) {
+    gpuCanvas!.dataset.renderStatus =
+      error instanceof ShdrRuntimeError && error.kind === "unavailable"
+        ? "unavailable"
+        : "error";
+    gpuStatus!.textContent =
+      error instanceof Error ? error.message : String(error);
   }
-
-  return shaderObject;
 }
+
+// The host chooses both explicit backends. Each preview reports its own error;
+// missing WebGPU never interrupts WebGL, and no rejected setup goes unhandled.
+void Promise.allSettled([
+  renderWebGl(canvas, status, shader),
+  renderWebGl(mathCanvas, mathStatus, math),
+  renderWebGpu(),
+]);

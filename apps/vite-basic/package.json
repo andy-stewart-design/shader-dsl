@@ -13,6 +13,8 @@
     "test:render": "playwright install chromium && node verify-render.mjs"
   },
   "dependencies": {
+    "@shdr/core": "workspace:*",
+    "@shdr/runtime": "workspace:*",
     "@shdr/vite": "workspace:*",
     "shdr": "workspace:*"
   },
