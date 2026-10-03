@@ -1,5 +1,5 @@
-// Gate-0 TypeScript 7 quick-info probe; these are draft type declarations,
-// NOT compiler/editor-adapter integration tests for authored shader syntax.
+// TypeScript 7 quick-info probe against the real DSL exports.
+// The language-service suite separately tests shader editor transformation.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -36,7 +36,7 @@ try {
     snapshot.dispose();
     snapshot = undefined;
   }
-  console.log("Verified TypeScript 7 draft uniform QuickInfo for both forms.");
+  console.log("Verified TypeScript 7 workspace uniform QuickInfo for both forms.");
 } finally {
   snapshot?.dispose();
   api.close();

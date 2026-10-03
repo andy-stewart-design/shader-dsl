@@ -10,6 +10,7 @@ import type {
   ShaderInstallOptions,
   ShaderInstallResult,
 } from "./types.js";
+import { UniformState, type UniformPatch } from "./uniforms.js";
 
 const owners = new WeakSet<HTMLCanvasElement>();
 const order: readonly ShaderDefaultUniform[] = ["resolution", "mouse", "time"];
@@ -99,6 +100,7 @@ export abstract class CanvasRenderer implements Renderer {
   protected lost = false;
   protected mouseX = 0;
   protected mouseY = 0;
+  protected readonly uniformState: UniformState;
   private frame: number | undefined;
   private drawing = false;
   private failed = false;
@@ -111,6 +113,7 @@ export abstract class CanvasRenderer implements Renderer {
     protected readonly backend: RendererBackend,
     options: RendererOptions,
   ) {
+    this.uniformState = new UniformState(backend);
     this.animate = options.animate !== false;
     this.onError = options.onError;
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -185,6 +188,14 @@ export abstract class CanvasRenderer implements Renderer {
       );
     this.mouseX = Math.max(0, Math.min(1, x));
     this.mouseY = Math.max(0, Math.min(1, y));
+  }
+  setUniforms(values: UniformPatch): void {
+    this.assertUsable();
+    this.uniformState.set(values);
+  }
+  resetUniforms(...names: readonly string[]): void {
+    this.assertUsable();
+    this.uniformState.reset(...names);
   }
   cancelPendingShader(): void {
     this.assertUsable();

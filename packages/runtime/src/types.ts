@@ -1,4 +1,11 @@
-import type { CompiledFragmentArtifact, ShaderDefaultUniform } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  HostUniforms,
+  ShaderDefaultUniform,
+  TypedCompiledFragmentArtifact,
+  UniformSchema,
+} from "shdr";
+import type { UniformPatch } from "./uniforms.js";
 import type { ShdrRuntimeError } from "./errors.js";
 
 export interface RendererOptions {
@@ -8,6 +15,21 @@ export interface RendererOptions {
   /** Optional shared initial time origin, in performance.now() milliseconds. */
   readonly startedAt?: number;
 }
+export interface InternalRendererOptions extends RendererOptions {
+  readonly uniforms?: UniformPatch;
+}
+export type StaticRendererOptions<
+  S extends UniformSchema,
+  V extends Partial<HostUniforms<S>>,
+> = RendererOptions & {
+  readonly uniforms?: V & Record<Exclude<keyof V, keyof S>, never>;
+};
+export type DynamicRendererOptions = RendererOptions & {
+  readonly uniforms?: UniformPatch;
+};
+export type LegacyRendererOptions = RendererOptions & {
+  readonly uniforms?: never;
+};
 export interface ShaderInstallOptions {
   /** Optional shared time origin, in performance.now() milliseconds. */
   readonly startedAt?: number;
@@ -25,7 +47,22 @@ export interface Renderer {
     options?: ShaderInstallOptions,
   ): Promise<ShaderInstallResult>;
   cancelPendingShader(): void;
+  setUniforms(values: UniformPatch): void;
+  resetUniforms(...names: readonly string[]): void;
   setPointerNormalized(x: number, y: number): void;
   draw(): Promise<void>;
   dispose(): void;
+}
+export interface StaticRenderer<S extends UniformSchema> extends Pick<
+  Renderer,
+  "cancelPendingShader" | "setPointerNormalized" | "draw" | "dispose"
+> {
+  setShader(
+    artifact: TypedCompiledFragmentArtifact<S>,
+    options?: ShaderInstallOptions,
+  ): Promise<ShaderInstallResult>;
+  setUniforms<const V extends Partial<HostUniforms<S>>>(
+    values: V & Record<Exclude<keyof V, keyof S>, never>,
+  ): void;
+  resetUniforms(...names: readonly (keyof S & string)[]): void;
 }

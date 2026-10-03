@@ -1,5 +1,4 @@
-// Type-check-only authored module: compilation does not execute this source.
-import { defineUniforms, vec4 } from "../../../../packages/shdr/src/index.js";
+import { defineUniforms, vec4 } from "shdr";
 
 export default defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),

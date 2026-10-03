@@ -92,6 +92,9 @@ type ShaderValue<T extends ShaderCustomUniformType> = T extends "f32"
 export type UniformExpressions<S extends UniformSchema> = {
   readonly [K in keyof S]: Expr<ShaderValue<UniformTypeOf<S[K]>>>;
 };
+export type HostUniforms<S extends UniformSchema> = {
+  readonly [K in keyof S]: UniformValue<UniformTypeOf<S[K]>>;
+};
 export interface UniformBuilder {
   f32(value: number): UniformDeclaration<"f32">;
   vec2(x: number, y: number): UniformDeclaration<"vec2">;
@@ -113,6 +116,10 @@ export type TypedCompiledFragmentArtifact<S extends UniformSchema> =
   CompiledFragmentArtifact & {
     readonly [uniformSchemaBrand]: (schema: S) => S;
   };
+declare const dynamicArtifactBrand: unique symbol;
+export type DynamicCompiledFragmentArtifact = CompiledFragmentArtifact & {
+  readonly [dynamicArtifactBrand]: true;
+};
 export interface UniformDefinition<S extends UniformSchema> {
   readonly schema: S;
   createFragmentShader(

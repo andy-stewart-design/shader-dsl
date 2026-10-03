@@ -29,6 +29,7 @@ async function consume(renderer: Renderer): Promise<ShaderInstallResult> {
         | "draw"
         | "lost"
         | "artifact"
+        | "uniform"
         | "disposed"
         | "unavailable"
         | "surface"

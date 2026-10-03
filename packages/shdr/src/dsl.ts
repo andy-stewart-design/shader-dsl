@@ -25,7 +25,7 @@ export function createFragmentShader<const S extends UniformSchema>(
 ): TypedCompiledFragmentArtifact<S>;
 export function createFragmentShader(
   callback: (context: FragmentContext) => Expr<Vec4<F32>>,
-): CompiledFragmentArtifact;
+): TypedCompiledFragmentArtifact<Record<never, never>>;
 export function createFragmentShader(
   _callback: (context: FragmentContext) => Expr<Vec4<F32>>,
   _options?: { readonly uniforms: UniformDefinition<UniformSchema> },

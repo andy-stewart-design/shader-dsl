@@ -1,4 +1,8 @@
-import type { CompiledFragmentArtifact, ShaderDefaultUniform } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  DynamicCompiledFragmentArtifact,
+  ShaderDefaultUniform,
+} from "shdr";
 import type { ShaderDiagnostic } from "./diagnostics.js";
 import { generateFragment } from "./generate-fragment.js";
 import { lowerFragment } from "./lower-fragment.js";
@@ -6,7 +10,7 @@ import type { ShaderExpression, ShaderModule } from "./shader-ir.js";
 
 export interface CompileArtifactSuccess {
   readonly ok: true;
-  readonly artifact: CompiledFragmentArtifact;
+  readonly artifact: DynamicCompiledFragmentArtifact;
   readonly diagnostics: readonly [];
 }
 
@@ -39,7 +43,7 @@ export function compileFragmentArtifact(source: string): CompileArtifactResult {
       ...(lowered.ir.customUniforms?.length
         ? { custom: collectCustomBindings(lowered.ir) }
         : {}),
-    },
+    } as DynamicCompiledFragmentArtifact,
     diagnostics: [],
   };
 }

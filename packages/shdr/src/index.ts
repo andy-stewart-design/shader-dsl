@@ -24,9 +24,11 @@ export {
 export type {
   CompiledFragmentArtifact,
   DefaultUniforms,
+  DynamicCompiledFragmentArtifact,
   Expr,
   F32,
   FragmentContext,
+  HostUniforms,
   ShaderDefaultUniform,
   ShaderCustomUniformDeclaration,
   ShaderCustomUniformType,

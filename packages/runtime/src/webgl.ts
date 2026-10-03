@@ -1,4 +1,16 @@
-import type { CompiledFragmentArtifact, ShaderDefaultUniform } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  DynamicCompiledFragmentArtifact,
+  HostUniforms,
+  ShaderDefaultUniform,
+  TypedCompiledFragmentArtifact,
+  UniformSchema,
+} from "shdr";
+import {
+  readCustomMetadata,
+  type CustomMetadata,
+  type UniformValues,
+} from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
 import {
   aborted,
@@ -12,6 +24,11 @@ import type {
   RendererOptions,
   ShaderInstallOptions,
   ShaderInstallResult,
+  StaticRenderer,
+  StaticRendererOptions,
+  DynamicRendererOptions,
+  LegacyRendererOptions,
+  InternalRendererOptions,
 } from "./types.js";
 
 const VERTEX = `#version 300 es
@@ -28,6 +45,8 @@ interface Program {
     Record<ShaderDefaultUniform, WebGLUniformLocation | null>
   >;
   readonly boundUniforms: readonly ShaderDefaultUniform[];
+  readonly custom?: CustomMetadata;
+  readonly customLocations: readonly (WebGLUniformLocation | null)[];
 }
 
 export class WebGlRenderer extends CanvasRenderer {
@@ -43,16 +62,35 @@ export class WebGlRenderer extends CanvasRenderer {
     this.vao = vao;
     canvas.addEventListener("webglcontextlost", this.contextLost);
   }
+  static create<
+    const S extends UniformSchema,
+    const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+  >(
+    canvas: HTMLCanvasElement,
+    artifact: TypedCompiledFragmentArtifact<S>,
+    options?: StaticRendererOptions<S, V>,
+  ): Promise<StaticRenderer<S>>;
+  static create(
+    canvas: HTMLCanvasElement,
+    artifact: DynamicCompiledFragmentArtifact,
+    options?: DynamicRendererOptions,
+  ): Promise<WebGlRenderer>;
+  static create(
+    canvas: HTMLCanvasElement,
+    artifact: CompiledFragmentArtifact,
+    options?: LegacyRendererOptions,
+  ): Promise<WebGlRenderer>;
   static async create(
     canvas: HTMLCanvasElement,
     artifact: CompiledFragmentArtifact,
-    options: RendererOptions = {},
+    options: InternalRendererOptions = {},
   ): Promise<WebGlRenderer> {
     aborted("webgl", options.signal);
     claim(canvas, "webgl");
     let renderer: WebGlRenderer | undefined;
     try {
       checkArtifact(artifact, "webgl");
+      const custom = readCustomMetadata(artifact, "webgl");
       const gl = canvas.getContext("webgl2", {
         alpha: false,
         antialias: false,
@@ -72,6 +110,7 @@ export class WebGlRenderer extends CanvasRenderer {
           "Could not create a WebGL vertex array.",
         );
       renderer = new WebGlRenderer(canvas, gl, vao, options);
+      renderer.uniformState.creation(custom, options.uniforms);
       aborted("webgl", options.signal);
       await renderer.setShader(artifact, { startedAt: options.startedAt });
       aborted("webgl", options.signal);
@@ -94,10 +133,15 @@ export class WebGlRenderer extends CanvasRenderer {
     this.assertUsable();
     const generation = ++this.generation;
     checkArtifact(artifact, "webgl");
+    const custom = readCustomMetadata(artifact, "webgl");
     const gl = this.gl;
     let candidate: Program | undefined;
     try {
-      candidate = this.makeProgram(artifact.glsl, artifact.defaults.glsl);
+      candidate = this.makeProgram(
+        artifact.glsl,
+        artifact.defaults.glsl,
+        custom,
+      );
       if (!this.current(generation)) return { status: "superseded" };
       const requestedEpoch =
         options.startedAt === undefined
@@ -142,6 +186,7 @@ export class WebGlRenderer extends CanvasRenderer {
           requestedEpoch === undefined
             ? 0
             : Math.max(0, (performance.now() - requestedEpoch) / 1000),
+          this.uniformState.resolve(custom),
         );
       } catch (error) {
         throw runtimeError("webgl", "draw", error);
@@ -152,16 +197,19 @@ export class WebGlRenderer extends CanvasRenderer {
       }
       if (!this.current(generation)) return { status: "superseded" };
       const startedAt = requestedEpoch ?? performance.now();
+      const values = this.uniformState.resolve(custom);
       try {
         this.submit(
           candidate,
           Math.max(0, (performance.now() - startedAt) / 1000),
+          values,
         );
       } catch (error) {
         throw runtimeError("webgl", "draw", error);
       }
       const previous = this.program;
       this.program = candidate;
+      this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) this.deleteProgram(previous);
       this.installed(startedAt);
@@ -184,7 +232,11 @@ export class WebGlRenderer extends CanvasRenderer {
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
     this.submit(program, this.elapsed(timestamp));
   }
-  private submit(resource: Program, seconds: number): void {
+  private submit(
+    resource: Program,
+    seconds: number,
+    values: UniformValues = this.uniformState.current(),
+  ): void {
     const gl = this.gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(resource.program);
@@ -202,6 +254,37 @@ export class WebGlRenderer extends CanvasRenderer {
         this.mouseY * this.canvas.height,
       );
     if (resource.uniforms.time) gl.uniform1f(resource.uniforms.time, seconds);
+    resource.custom?.declarations.forEach((item, index) => {
+      const location = resource.customLocations[index];
+      if (!location) return;
+      const value = values.get(item.name)!;
+      if (item.type === "f32") gl.uniform1f(location, value as number);
+      else {
+        const components = value as readonly number[];
+        switch (item.type) {
+          case "vec2":
+            gl.uniform2f(location, components[0]!, components[1]!);
+            break;
+          case "vec3":
+            gl.uniform3f(
+              location,
+              components[0]!,
+              components[1]!,
+              components[2]!,
+            );
+            break;
+          case "vec4":
+            gl.uniform4f(
+              location,
+              components[0]!,
+              components[1]!,
+              components[2]!,
+              components[3]!,
+            );
+            break;
+        }
+      }
+    });
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     const error = gl.getError();
     if (error !== gl.NO_ERROR)
@@ -210,6 +293,7 @@ export class WebGlRenderer extends CanvasRenderer {
   private makeProgram(
     source: string,
     declared: readonly ShaderDefaultUniform[],
+    custom: CustomMetadata | undefined,
   ): Program {
     const gl = this.gl;
     const compile = (kind: number, text: string): WebGLShader => {
@@ -253,7 +337,31 @@ export class WebGlRenderer extends CanvasRenderer {
           "artifact",
           "GLSL uniform metadata does not match active bindings.",
         );
-      return { program, vertex, fragment, uniforms, boundUniforms };
+      const customLocations =
+        custom?.declarations.map((item, index) =>
+          gl.getUniformLocation(program!, `shdr_custom_${index}`),
+        ) ?? [];
+      if (
+        custom?.declarations.some(
+          (item, index) =>
+            customLocations[index] !== null &&
+            !custom.referenced.glsl.includes(item.name),
+        )
+      )
+        throw new ShdrRuntimeError(
+          "webgl",
+          "artifact",
+          "GLSL custom uniform metadata does not match active bindings.",
+        );
+      return {
+        program,
+        vertex,
+        fragment,
+        uniforms,
+        boundUniforms,
+        custom,
+        customLocations,
+      };
     } catch (error) {
       if (program) gl.deleteProgram(program);
       if (fragment) gl.deleteShader(fragment);
@@ -274,10 +382,32 @@ export class WebGlRenderer extends CanvasRenderer {
   }
 }
 
-export async function createWebGlRenderer(
+export function createWebGlRenderer<
+  const S extends UniformSchema,
+  const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+>(
+  canvas: HTMLCanvasElement,
+  artifact: TypedCompiledFragmentArtifact<S>,
+  options?: StaticRendererOptions<S, V>,
+): Promise<StaticRenderer<S>>;
+export function createWebGlRenderer(
+  canvas: HTMLCanvasElement,
+  artifact: DynamicCompiledFragmentArtifact,
+  options?: DynamicRendererOptions,
+): Promise<WebGlRenderer>;
+export function createWebGlRenderer(
   canvas: HTMLCanvasElement,
   artifact: CompiledFragmentArtifact,
-  options?: RendererOptions,
+  options?: LegacyRendererOptions,
+): Promise<WebGlRenderer>;
+export function createWebGlRenderer(
+  canvas: HTMLCanvasElement,
+  artifact: CompiledFragmentArtifact,
+  options?: InternalRendererOptions,
 ): Promise<WebGlRenderer> {
-  return WebGlRenderer.create(canvas, artifact, options);
+  return WebGlRenderer.create(
+    canvas,
+    artifact,
+    options as LegacyRendererOptions,
+  );
 }

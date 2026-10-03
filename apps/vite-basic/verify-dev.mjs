@@ -131,6 +131,11 @@ try {
   )
     throw new Error("Custom-uniform browser/static compilation diverged.");
 
+  // This imported module triggers a full HMR navigation. Wait for it before
+  // marking the page for the second edit, or a late reload can race evaluate().
+  const customReload = page.waitForEvent("framenavigated", {
+    predicate: (frame) => frame === page.mainFrame(),
+  });
   await writeFile(
     customShaderFile,
     customSource.replace("u.f32(12)", "u.f32(24)"),
@@ -140,6 +145,8 @@ try {
   if (!/"default":\s*24/.test(customEdit))
     throw new Error("Edited custom default was not emitted.");
   assertIncludes(customEdit, "shdr_custom_0");
+  await customReload;
+  await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
 
   await page.evaluate(() => {
     window.__shdrBeforeEdit = true;

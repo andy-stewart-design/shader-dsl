@@ -1,25 +1,23 @@
-// Gate 0 compile-only probe: fixtures import draft declarations, not public APIs.
-// They model the TypeScript types of normal Vite imports from .shdr.ts files.
+// Compile-only probe against actual workspace exports for static and dynamic artifacts.
+// These fixtures model normal Vite imports from .shdr.ts files.
 import {
   vec4,
   type CompiledFragmentArtifact,
   type Expr,
   type F32,
+  type FragmentContext,
   type Vec3,
+  createFragmentShader,
+  defineUniforms,
 } from "../../packages/shdr/src/index.js";
 import type {
   Renderer,
   RendererOptions,
 } from "../../packages/runtime/src/types.js";
-import {
-  compileEditedSource,
-  createFragmentShader,
-  createWebGlRenderer,
-  createWebGpuRenderer,
-  defineUniforms,
-  type UniformContext,
-  type CustomUniformErrorKind,
-} from "./contract-draft.js";
+import type { RuntimeErrorKind } from "../../packages/runtime/src/errors.js";
+import { createWebGlRenderer } from "../../packages/runtime/src/webgl.js";
+import { createWebGpuRenderer } from "../../packages/runtime/src/webgpu.js";
+import { compileFragmentArtifact } from "../../packages/core/src/compile-fragment-artifact.js";
 import different from "./test/fixtures/different.shdr.js";
 import inline from "./test/fixtures/inline.shdr.js";
 import named from "./test/fixtures/named.shdr.js";
@@ -41,12 +39,12 @@ const uniformDefinition = defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),
   dpi: u.f32(12),
 }));
-type Context = UniformContext<typeof uniformDefinition.schema>;
+type Context = FragmentContext<typeof uniformDefinition.schema>;
 type _Tint = Expect<Equal<Context["uniforms"]["color"], Expr<Vec3<F32>>>>;
 type _TintX = Expect<Equal<Context["uniforms"]["color"]["x"], Expr<F32>>>;
 type _Dpi = Expect<Equal<Context["uniforms"]["dpi"], Expr<F32>>>;
 type _Time = Expect<Equal<Context["uniforms"]["time"], Expr<F32>>>;
-const invalidHostValueKind: CustomUniformErrorKind = "uniform";
+const invalidHostValueKind: RuntimeErrorKind = "uniform";
 void invalidHostValueKind;
 
 // No change to the previously accepted callback-only form.
@@ -138,10 +136,10 @@ async function staticGpuHost(): Promise<void> {
 }
 
 async function browserEditor(source: string): Promise<void> {
-  const initial = compileEditedSource(source);
+  const initial = compileFragmentArtifact(source);
   if (!initial.ok) return;
   const renderer = await createWebGlRenderer(canvas, initial.artifact);
-  const next = compileEditedSource(source);
+  const next = compileFragmentArtifact(source);
   if (!next.ok) return;
   await renderer.setShader(next.artifact); // Any runtime schema is allowed.
   renderer.setUniforms({ dpi: 2, color: [0, 1, 0] });
