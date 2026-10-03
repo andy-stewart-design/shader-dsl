@@ -1,6 +1,6 @@
 // This replacement must not type-check on a statically typed inline renderer.
-import { vec4 } from "../../../packages/shdr/src/index.js";
-import { defineUniforms } from "../contract-draft.js";
+import { vec4 } from "../../../../packages/shdr/src/index.js";
+import { defineUniforms } from "../../contract-draft.js";
 
 export default defineUniforms((u) => ({
   color: u.f32(0.7),

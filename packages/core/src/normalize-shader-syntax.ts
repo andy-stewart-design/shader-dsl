@@ -10,8 +10,25 @@ import type { TextRange } from "./source-range.js";
 export function normalizeShaderSyntax(
   callback: ArrowFunctionExpression,
 ): ShaderCallbackSyntax {
+  const bindings =
+    callback.params[0]?.type === "ObjectPattern"
+      ? callback.params[0].properties.map((property) =>
+          property.type === "ObjectProperty" &&
+          property.key.type === "Identifier"
+            ? (property.key.name as "coord" | "uniforms")
+            : "uniforms",
+        )
+      : [];
+  const contextBindings =
+    bindings.length === 1 ? { contextBindings: bindings } : {};
   if (callback.body.type !== "BlockStatement") {
-    throw new Error("Cannot normalize an expression-bodied shader callback.");
+    return {
+      range: rangeOf(callback),
+      declarations: [],
+      ...contextBindings,
+      returnRange: rangeOf(callback.body),
+      returnExpression: normalizeExpression(callback.body),
+    };
   }
 
   const declarations: ShaderConstDeclarationSyntax[] = [];
@@ -49,6 +66,7 @@ export function normalizeShaderSyntax(
   return {
     range: rangeOf(callback),
     declarations,
+    ...contextBindings,
     returnRange: rangeOf(returnStatement),
     returnExpression: normalizeExpression(returnStatement.argument),
   };

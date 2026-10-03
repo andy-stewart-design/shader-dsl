@@ -32,8 +32,13 @@ export function generateWgslFragment(module: ShaderModule): string {
     return assertNever(module.stage);
   }
 
-  const statements = module.statements.map(generateStatement);
+  const custom = module.customUniforms ?? [];
+  const customNames = custom.map((item) => item.name);
+  const statements = module.statements.map((statement) =>
+    generateStatement(statement, customNames),
+  );
   const referencedUniforms = new Set<ShaderDefaultUniform>();
+  const referencedCustom = new Set<string>();
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
   let usesFragmentPosition = false;
 
@@ -45,6 +50,8 @@ export function generateWgslFragment(module: ShaderModule): string {
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
     }
+    for (const name of statement.expression.referencedCustomUniforms ?? [])
+      referencedCustom.add(name);
   }
 
   const sections: string[] = [];
@@ -53,6 +60,17 @@ export function generateWgslFragment(module: ShaderModule): string {
   ).map(uniformDeclaration);
   if (uniformDeclarations.length > 0) {
     sections.push(uniformDeclarations.join("\n"));
+  }
+  if (referencedCustom.size) {
+    const members = custom
+      .map(
+        (item, index) =>
+          `  shdr_custom_${index}: ${item.type === "f32" ? "f32" : `${item.type}<f32>`},`,
+      )
+      .join("\n");
+    sections.push(
+      `struct ShdrCustomUniforms {\n${members}\n}\n@group(1) @binding(0) var<uniform> shdr_custom: ShdrCustomUniforms;`,
+    );
   }
 
   for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
@@ -72,11 +90,15 @@ export function generateWgslFragment(module: ShaderModule): string {
   return `${sections.join("\n\n")}\n`;
 }
 
-function generateStatement(statement: ShaderStatement): GeneratedStatement {
+function generateStatement(
+  statement: ShaderStatement,
+  customUniforms: readonly string[],
+): GeneratedStatement {
   switch (statement.kind) {
     case "const-declaration": {
       const expression = generateWgslExpression(statement.initializer, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
+        customUniforms,
       });
       return {
         code: `  let ${statement.name}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
@@ -87,6 +109,7 @@ function generateStatement(statement: ShaderStatement): GeneratedStatement {
     case "return-statement": {
       const expression = generateWgslExpression(statement.expression, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
+        customUniforms,
       });
       return {
         code: `  return ${expression.code};`,

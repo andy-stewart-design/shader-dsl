@@ -7,6 +7,6 @@
   "include": [
     "contract-draft.ts",
     "contract.typecheck.ts",
-    "fixtures/*.shdr.ts"
+    "test/fixtures/*.shdr.ts"
   ]
 }

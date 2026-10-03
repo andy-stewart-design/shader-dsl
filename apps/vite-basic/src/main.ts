@@ -7,11 +7,19 @@ import type { CompiledFragmentArtifact } from "shdr";
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import customUniformsShader from "./custom-uniforms.shdr.ts";
 import "./style.css";
 
 const shader: CompiledFragmentArtifact = fragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+if (
+  customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
+  !customUniformsShader.wgsl.includes("@group(1) @binding(0)")
+)
+  throw new Error(
+    "The custom-uniform artifact was not generated at build time.",
+  );
 if (
   !expanded.glsl.includes("vec3(") ||
   !shader.wgsl.includes("shdr_fragment_main")

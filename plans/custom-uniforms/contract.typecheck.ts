@@ -20,9 +20,9 @@ import {
   type UniformContext,
   type CustomUniformErrorKind,
 } from "./contract-draft.js";
-import different from "./fixtures/different.shdr.js";
-import inline from "./fixtures/inline.shdr.js";
-import named from "./fixtures/named.shdr.js";
+import different from "./test/fixtures/different.shdr.js";
+import inline from "./test/fixtures/inline.shdr.js";
+import named from "./test/fixtures/named.shdr.js";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2

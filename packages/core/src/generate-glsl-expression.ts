@@ -12,6 +12,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 ];
 
 export interface GenerateGlslExpressionOptions {
+  readonly customUniforms?: readonly string[];
   /**
    * Name of a module-level value containing canonical fragment position.
    * When omitted, the canonical value is constructed inline.
@@ -23,11 +24,13 @@ export interface GeneratedGlslExpression {
   readonly code: string;
   /** Explicit and backend-implicit uniform dependencies in stable order. */
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
+  readonly referencedCustomUniforms?: readonly string[];
   readonly usesFragmentPosition: boolean;
 }
 
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
+  readonly referencedCustomUniforms: Set<string>;
   usesFragmentPosition: boolean;
 }
 
@@ -38,6 +41,7 @@ export function generateGlslExpression(
 ): GeneratedGlslExpression {
   const state: GenerationState = {
     referencedUniforms: new Set(),
+    referencedCustomUniforms: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -47,6 +51,13 @@ export function generateGlslExpression(
     referencedUniforms: DEFAULT_UNIFORM_ORDER.filter((uniform) =>
       state.referencedUniforms.has(uniform),
     ),
+    ...(options.customUniforms
+      ? {
+          referencedCustomUniforms: options.customUniforms.filter((name) =>
+            state.referencedCustomUniforms.has(name),
+          ),
+        }
+      : {}),
     usesFragmentPosition: state.usesFragmentPosition,
   };
 }
@@ -76,6 +87,14 @@ function emitExpression(
     case "default-uniform":
       state.referencedUniforms.add(expression.uniform);
       return defaultUniformName(expression.uniform);
+
+    case "custom-uniform": {
+      state.referencedCustomUniforms.add(expression.name);
+      const index = options.customUniforms?.indexOf(expression.name) ?? -1;
+      if (index < 0)
+        throw new Error(`Missing custom uniform ${expression.name}.`);
+      return `shdr_custom_${index}`;
+    }
 
     case "local-reference":
       return expression.name;

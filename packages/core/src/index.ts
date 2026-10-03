@@ -54,6 +54,7 @@ export type {
   ShaderCallTarget,
   ShaderConstDeclaration,
   ShaderConstructorName,
+  ShaderCustomUniformExpression,
   ShaderDefaultUniform,
   ShaderDefaultUniformExpression,
   ShaderExpression,

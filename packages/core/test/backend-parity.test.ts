@@ -71,6 +71,7 @@ function expressionMetadata(
       case "numeric-literal":
       case "builtin-input":
       case "default-uniform":
+      case "custom-uniform":
       case "local-reference":
         return;
       case "swizzle":

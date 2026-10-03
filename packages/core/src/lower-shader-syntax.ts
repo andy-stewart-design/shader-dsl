@@ -15,6 +15,10 @@ import type {
   ShaderVectorComponent,
 } from "./shader-ir.js";
 import type {
+  ShaderCustomUniformDeclaration,
+  ShaderCustomUniformType,
+} from "shdr";
+import type {
   ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,
   ShaderCallExpressionSyntax,
@@ -71,6 +75,8 @@ interface LoweringContext {
   readonly futureNames: ReadonlySet<string>;
   readonly constantLocals: Map<ShaderLocalSymbolId, readonly number[]>;
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
+  readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
+  readonly contextBindings: ReadonlySet<string>;
 }
 
 type LowerExpressionResult =
@@ -81,6 +87,7 @@ type LowerExpressionResult =
 export function lowerShaderSyntax(
   syntax: ShaderCallbackSyntax,
   importedCallables: ReadonlySet<string> = new Set(),
+  customUniforms: readonly ShaderCustomUniformDeclaration[] = [],
 ): LowerShaderSyntaxResult {
   const locals = new Map<string, LocalBinding>();
   const constantLocals = new Map<ShaderLocalSymbolId, readonly number[]>();
@@ -89,6 +96,10 @@ export function lowerShaderSyntax(
     syntax.declarations.map((declaration) => declaration.name),
   );
   const statements: ShaderConstDeclaration[] = [];
+  const custom = new Map(customUniforms.map((item) => [item.name, item]));
+  const contextBindings = new Set(
+    syntax.contextBindings ?? ["coord", "uniforms"],
+  );
   let nextSymbolId = 0;
 
   for (const declaration of syntax.declarations) {
@@ -115,6 +126,8 @@ export function lowerShaderSyntax(
       futureNames,
       constantLocals,
       localInitializers,
+      customUniforms: custom,
+      contextBindings,
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
 
@@ -147,6 +160,8 @@ export function lowerShaderSyntax(
     futureNames,
     constantLocals,
     localInitializers,
+    customUniforms: custom,
+    contextBindings,
   });
   if (!returned.ok) return failure(returned.diagnostic);
   if (!isVec4(returned.expression.type)) {
@@ -164,6 +179,7 @@ export function lowerShaderSyntax(
     module: {
       kind: "shader-module",
       stage: "fragment",
+      ...(customUniforms.length ? { customUniforms } : {}),
       statements: [
         ...statements,
         {
@@ -195,7 +211,7 @@ function lowerExpression(
       };
 
     case "identifier": {
-      if (syntax.name === "coord") {
+      if (syntax.name === "coord" && context.contextBindings.has("coord")) {
         return {
           ok: true,
           expression: {
@@ -207,7 +223,10 @@ function lowerExpression(
         };
       }
 
-      if (syntax.name === "uniforms") {
+      if (
+        syntax.name === "uniforms" &&
+        context.contextBindings.has("uniforms")
+      ) {
         return expressionFailure(
           ShaderDiagnosticCode.InvalidUniform,
           "The uniforms context must be accessed through a supported property.",
@@ -250,9 +269,10 @@ function lowerExpression(
     case "property-access":
       if (
         syntax.object.kind === "identifier" &&
-        syntax.object.name === "uniforms"
+        syntax.object.name === "uniforms" &&
+        context.contextBindings.has("uniforms")
       ) {
-        return lowerDefaultUniform(syntax);
+        return lowerDefaultUniform(syntax, context.customUniforms);
       }
       return lowerSwizzle(syntax, context);
 
@@ -582,6 +602,7 @@ function formatShaderType(type: ShaderValueType): string {
 
 function lowerDefaultUniform(
   syntax: ShaderPropertyAccessSyntax,
+  customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>,
 ): LowerExpressionResult {
   let uniform: ShaderDefaultUniform;
   let type: ShaderValueType;
@@ -599,12 +620,24 @@ function lowerDefaultUniform(
       uniform = "time";
       type = F32_TYPE;
       break;
-    default:
+    default: {
+      const custom = customUniforms.get(syntax.propertyName);
+      if (custom)
+        return {
+          ok: true,
+          expression: {
+            kind: "custom-uniform",
+            name: custom.name,
+            type: customType(custom.type),
+            range: syntax.range,
+          },
+        };
       return expressionFailure(
         ShaderDiagnosticCode.InvalidUniform,
-        `Unknown default uniform ${JSON.stringify(syntax.propertyName)}.`,
+        `Unknown ${customUniforms.size ? "uniform" : "default uniform"} ${JSON.stringify(syntax.propertyName)}.`,
         syntax.propertyRange,
       );
+    }
   }
 
   const expression: ShaderDefaultUniformExpression = {
@@ -614,6 +647,21 @@ function lowerDefaultUniform(
     range: syntax.range,
   };
   return { ok: true, expression };
+}
+
+function customType(type: ShaderCustomUniformType): ShaderValueType {
+  switch (type) {
+    case "f32":
+      return F32_TYPE;
+    case "vec2":
+      return VEC2_F32_TYPE;
+    case "vec3":
+      return VEC3_F32_TYPE;
+    case "vec4":
+      return VEC4_F32_TYPE;
+    default:
+      return assertNever(type);
+  }
 }
 
 function expressionFailure(

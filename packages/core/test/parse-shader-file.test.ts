@@ -26,7 +26,7 @@ describe("parseShaderFile", () => {
       importedName: "createFragmentShader",
       localName: "createFragmentShader",
     });
-    expect(textAt(source, info.createFragmentShaderImport.range)).toBe(
+    expect(textAt(source, info.createFragmentShaderImport!.range)).toBe(
       "createFragmentShader",
     );
     expect(info.shaderCallableImports).toHaveLength(1);

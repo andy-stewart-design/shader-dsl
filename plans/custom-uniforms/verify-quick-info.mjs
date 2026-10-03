@@ -11,7 +11,7 @@ const api = new API({ cwd });
 let snapshot;
 try {
   for (const name of ["inline", "named"]) {
-    const file = resolve(`plans/custom-uniforms/fixtures/${name}.shdr.ts`);
+    const file = resolve(`plans/custom-uniforms/test/fixtures/${name}.shdr.ts`);
     const source = readFileSync(file, "utf8");
     snapshot = api.updateSnapshot({
       openProjects: [projectFile],

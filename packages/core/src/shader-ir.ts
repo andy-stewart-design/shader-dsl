@@ -1,4 +1,7 @@
-import type { ShaderDefaultUniform } from "shdr";
+import type {
+  ShaderDefaultUniform,
+  ShaderCustomUniformDeclaration,
+} from "shdr";
 import type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 import type {
   ShaderBinaryOperator,
@@ -65,6 +68,11 @@ export interface ShaderDefaultUniformExpression extends ShaderExpressionBase {
   readonly uniform: ShaderDefaultUniform;
 }
 
+export interface ShaderCustomUniformExpression extends ShaderExpressionBase {
+  readonly kind: "custom-uniform";
+  readonly name: string;
+}
+
 export interface ShaderLocalReferenceExpression extends ShaderExpressionBase {
   readonly kind: "local-reference";
   readonly name: string;
@@ -100,6 +108,7 @@ export type ShaderExpression =
   | ShaderNumericLiteralExpression
   | ShaderBuiltinInputExpression
   | ShaderDefaultUniformExpression
+  | ShaderCustomUniformExpression
   | ShaderLocalReferenceExpression
   | ShaderSwizzleExpression
   | ShaderBinaryExpression
@@ -129,5 +138,6 @@ export interface ShaderModule {
   readonly kind: "shader-module";
   readonly stage: ShaderStage;
   readonly statements: readonly ShaderStatement[];
+  readonly customUniforms?: readonly ShaderCustomUniformDeclaration[];
   readonly range: TextRange;
 }

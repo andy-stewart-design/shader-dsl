@@ -1,6 +1,6 @@
 // Same names/types as inline.shdr.ts, but different defaults.
-import { vec4 } from "../../../packages/shdr/src/index.js";
-import { createFragmentShader, defineUniforms } from "../contract-draft.js";
+import { vec4 } from "../../../../packages/shdr/src/index.js";
+import { createFragmentShader, defineUniforms } from "../../contract-draft.js";
 
 const uniforms = defineUniforms((u) => ({
   color: u.vec3(1, 0, 0),

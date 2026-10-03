@@ -20,12 +20,15 @@ assertIncludes(bundle, "shdr_fragment_color");
 assertIncludes(bundle, ".xxyy");
 assertIncludes(bundle, "vec3(");
 assertIncludes(bundle, "smoothstep(");
+assertIncludes(bundle, "shdr_custom_0");
+assertIncludes(bundle, "@group(1) @binding(0)");
 assertIncludes(bundle, "normalize(");
 assertIncludes(bundle, "fract(");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
 assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "const waves = sin(uv * 2) + cos(uv * 3)");
 assertExcludes(bundle, "createFragmentShader");
+assertExcludes(bundle, "defineUniforms");
 assertExcludes(bundle, 'from "shdr"');
 assertExcludes(bundle, "@babel/parser");
 

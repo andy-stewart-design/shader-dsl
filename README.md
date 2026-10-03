@@ -132,15 +132,15 @@ Select either generated target in the UI. WGSL only reports rendered after succe
 A shader module must have:
 
 - Direct named imports from exactly `"shdr"`; no aliases or namespace imports.
-- Exactly one default-exported `createFragmentShader(...)` call.
-- A synchronous arrow callback with exactly `({ coord, uniforms })` destructuring.
+- Exactly one default-exported `createFragmentShader(...)` call, or a direct `defineUniforms(...).createFragmentShader(...)` chain. A same-file `const uniforms = defineUniforms(...)` may instead be linked with `createFragmentShader(callback, { uniforms })`.
+- A synchronous arrow callback with `({ coord, uniforms })` or `({ uniforms })` destructuring.
 - No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_` or `shdr_internal_` (reserved for generated helpers).
 
 The callback supports only:
 
-- Simple `const name = expression` declarations followed by one final `return`.
+- Simple `const name = expression` declarations followed by one final `return`, or a single expression-bodied callback.
 - Numeric literals, local references, and parenthesized expressions.
-- `coord` (`Vec4<F32>`), `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`). Numeric literals are `F32`; vectors have two, three, or four `F32` components.
+- `coord` (`Vec4<F32>`) when destructured, `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`); custom `uniforms.name` has its statically declared f32/vector type. Numeric literals are `F32`; vectors have two, three, or four `F32` components.
 - Native `+`, binary `-`, `*`, `/`, and unary `-`, with ordinary TypeScript precedence, left association, and parentheses. The operands and results remain shader expressions—not JavaScript arithmetic.
 - Direct read swizzles of one to four `xyzw` components available on the receiver. Repetition, reordering, and chaining work: `coord.xyz`, `coord.xy.yx`, `coord.xy.xxyy`. A one-component swizzle produces `F32`; two to four produce the corresponding vector type.
 - `vec2`, `vec3`, and `vec4` constructors in the forms below; the fourteen direct-import math builtins below; and a final `Expr<Vec4<F32>>` result.
@@ -180,7 +180,7 @@ These are 51 signatures across fourteen names. No implicit broadcasts, mixed dim
 
 `smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. `distance` is equivalent to `length(x - y)` for ordinary finite values, but avoid exact equality or overflow guarantees. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
 
-Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
+Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
 
 ### Diagnostic examples
 
@@ -206,7 +206,7 @@ These are **Shdr syntax and semantic** checks, not checks of ordinary TypeScript
 | `uniforms.mouse`      | `u_mouse`                                   | Group 0, binding 1                | Pointer position in pixels, top-left origin, no browser-input Y flip           |
 | `uniforms.time`       | `u_time`                                    | Group 0, binding 2                | Seconds since the most recent successful shader compilation                    |
 
-GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore creates an implicit GLSL resolution dependency. WGSL uses fragment position directly and does not add that dependency. Fragment depth follows the canonical `0.0` near to `1.0` far convention in both targets. Unreferenced uniforms are omitted.
+Custom f32/vector declarations now compile via `defineUniforms` with literal defaults in either [supported authoring form](plans/custom-uniforms/spec.md). **Runtime binding and host updates are not implemented yet**; compiling a custom-uniform shader does not make it renderable with the current browser runtime. See the [implementation plan](plans/custom-uniforms/plan.md) before using this feature in an app. GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore creates an implicit GLSL resolution dependency. WGSL uses fragment position directly and does not add that dependency. Fragment depth follows the canonical `0.0` near to `1.0` far convention in both targets. Unreferenced uniforms are omitted.
 
 ## Known limitations
 

@@ -66,12 +66,64 @@ export interface DefaultUniforms {
   readonly time: Expr<F32>;
 }
 
-export interface FragmentContext {
+export type ShaderCustomUniformType = "f32" | "vec2" | "vec3" | "vec4";
+export type UniformValue<T extends ShaderCustomUniformType> = T extends "f32"
+  ? number
+  : T extends "vec2"
+    ? readonly [number, number]
+    : T extends "vec3"
+      ? readonly [number, number, number]
+      : readonly [number, number, number, number];
+export interface UniformDeclaration<
+  T extends ShaderCustomUniformType = ShaderCustomUniformType,
+> {
+  readonly type: T;
+  readonly default: UniformValue<T>;
+}
+export type UniformSchema = Readonly<Record<string, UniformDeclaration>>;
+type UniformTypeOf<D> = D extends UniformDeclaration<infer T> ? T : never;
+type ShaderValue<T extends ShaderCustomUniformType> = T extends "f32"
+  ? F32
+  : T extends "vec2"
+    ? Vec2<F32>
+    : T extends "vec3"
+      ? Vec3<F32>
+      : Vec4<F32>;
+export type UniformExpressions<S extends UniformSchema> = {
+  readonly [K in keyof S]: Expr<ShaderValue<UniformTypeOf<S[K]>>>;
+};
+export interface UniformBuilder {
+  f32(value: number): UniformDeclaration<"f32">;
+  vec2(x: number, y: number): UniformDeclaration<"vec2">;
+  vec3(x: number, y: number, z: number): UniformDeclaration<"vec3">;
+  vec4(x: number, y: number, z: number, w: number): UniformDeclaration<"vec4">;
+}
+export interface FragmentContext<
+  S extends UniformSchema = Record<never, never>,
+> {
   readonly coord: Expr<Vec4<F32>>;
-  readonly uniforms: DefaultUniforms;
+  readonly uniforms: DefaultUniforms & UniformExpressions<S>;
 }
 
 export type ShaderDefaultUniform = "resolution" | "mouse" | "time";
+
+// Type-only invariant schema marker; compiled artifacts remain JSON data.
+declare const uniformSchemaBrand: unique symbol;
+export type TypedCompiledFragmentArtifact<S extends UniformSchema> =
+  CompiledFragmentArtifact & {
+    readonly [uniformSchemaBrand]: (schema: S) => S;
+  };
+export interface UniformDefinition<S extends UniformSchema> {
+  readonly schema: S;
+  createFragmentShader(
+    callback: (context: FragmentContext<S>) => Expr<Vec4<F32>>,
+  ): TypedCompiledFragmentArtifact<S>;
+}
+export interface ShaderCustomUniformDeclaration {
+  readonly name: string;
+  readonly type: ShaderCustomUniformType;
+  readonly default: UniformValue<ShaderCustomUniformType>;
+}
 
 /** JSON-serializable, immutable-by-contract output of one Shdr compilation. */
 export interface CompiledFragmentArtifact {
@@ -80,5 +132,12 @@ export interface CompiledFragmentArtifact {
   readonly defaults: {
     readonly glsl: readonly ShaderDefaultUniform[];
     readonly wgsl: readonly ShaderDefaultUniform[];
+  };
+  readonly custom?: {
+    readonly declarations: readonly ShaderCustomUniformDeclaration[];
+    readonly referenced: {
+      readonly glsl: readonly string[];
+      readonly wgsl: readonly string[];
+    };
   };
 }

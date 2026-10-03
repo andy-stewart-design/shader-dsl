@@ -85,6 +85,62 @@ describe("@shdr/vite package", () => {
     expect(generated.wgsl).toContain("cross(");
   });
 
+  it("emits identical static and browser artifacts for both custom-uniform forms", async () => {
+    const inline = readFileSync(
+      new URL(
+        "../../../apps/vite-basic/src/custom-uniforms.shdr.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const named = `import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const uniforms = defineUniforms((u) => ({ color: u.vec3(0, 0, 1), dpi: u.f32(12) }));
+export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uniforms.color.y, uniforms.dpi, 1), { uniforms });`;
+    for (const source of [inline, named]) {
+      const transformed = await transform(
+        shdr(),
+        source,
+        "/src/custom.shdr.ts",
+      );
+      expect(transformed).not.toBeNull();
+      if (!transformed) continue;
+      expect(transformed.code).not.toContain("defineUniforms");
+      const staticArtifact = JSON.parse(
+        transformed.code.slice("export default ".length, -";\n".length),
+      );
+      const browser = compileFragmentArtifact(source);
+      expect(browser.ok).toBe(true);
+      if (browser.ok) expect(staticArtifact).toEqual(browser.artifact);
+      expect(staticArtifact.custom.declarations).toHaveLength(2);
+      expect(staticArtifact.wgsl).toContain("@group(1) @binding(0)");
+    }
+  });
+
+  it("reports a source-located Vite error for a dynamic uniform default", async () => {
+    const source = readFileSync(
+      new URL(
+        "../../../apps/vite-basic/src/custom-uniforms.shdr.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ).replace("u.f32(12)", "u.f32(window.devicePixelRatio)");
+    const expected = locationAt(
+      source,
+      source.indexOf("window.devicePixelRatio"),
+    );
+    let thrown: unknown;
+    try {
+      await transform(shdr(), source, "/src/custom-uniforms.shdr.ts");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
+      name: "ShdrCompileError",
+      pluginCode: "SHDR1210",
+      loc: { file: "/src/custom-uniforms.shdr.ts", ...expected },
+    });
+  });
+
   it("throws a source-located Vite error for an invalid shader", async () => {
     const expression = "coord.xy + uniforms.time";
     const source = shaderSource(`return vec4(${expression});`);

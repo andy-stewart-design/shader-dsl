@@ -1,6 +1,6 @@
 # Custom uniforms — proposed contract
 
-Status: phase-0 [typed/layout contract](./phase-0-contract.md) complete; **feature not implemented**. This extends the [workspace browser runtime](../_completed/runtime-api/spec.md) and the existing fragment-only, f32 shader subset. The examples below describe the intended API, not syntax accepted by the current compiler. Do not change the three automatic uniforms, canvas ownership, opaque output, backend selection, or current renderer failure/loss contract. Textures, samplers, matrices, arrays, structs, other scalar types, native runtimes, and npm publication are out of scope.
+Status: phase-0 [typed/layout contract](./phase-0-contract.md) and phase-1 compiler/editor work implemented locally; **runtime binding and host updates are not implemented**. This extends the [workspace browser runtime](../_completed/runtime-api/spec.md) and the existing fragment-only, f32 shader subset. The authored-shader examples now compile; the host update/rendering examples describe the intended phase-2 API. Do not change the three automatic uniforms, canvas ownership, opaque output, backend selection, or current renderer failure/loss contract. Textures, samplers, matrices, arrays, structs, other scalar types, native runtimes, and npm publication are out of scope.
 
 ## Authored shader and static defaults
 

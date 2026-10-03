@@ -8,6 +8,10 @@ const shaderFile = fileURLToPath(
   new URL("./src/gradient.shdr.ts", import.meta.url),
 );
 const originalSource = await readFile(shaderFile, "utf8");
+const customShaderFile = fileURLToPath(
+  new URL("./src/custom-uniforms.shdr.ts", import.meta.url),
+);
+const customSource = await readFile(customShaderFile, "utf8");
 const originalConstructor = "vec4(uv.x, uv.y, 0, 1)";
 const editedConstructor = "vec4(uv.x, uv.y, 0.25, 1)";
 if (!originalSource.includes(originalConstructor)) {
@@ -23,6 +27,7 @@ const server = await createServer({
 });
 let browser;
 let sourceWasEdited = false;
+let customWasEdited = false;
 
 try {
   await server.listen();
@@ -33,6 +38,13 @@ try {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   const initialModule = await requestShaderModule(baseUrl, "initial");
+  const initialCustom = await requestShaderModule(
+    baseUrl,
+    "initial-custom",
+    "custom-uniforms",
+  );
+  assertIncludes(initialCustom, "shdr_custom_0");
+  assertExcludes(initialCustom, "defineUniforms");
   assertIncludes(initialModule, "export default");
   assertIncludes(initialModule, "#version 300 es");
   assertIncludes(initialModule, "shdr_fragment_color");
@@ -90,6 +102,45 @@ try {
       "Opt-in browser compiler did not return original-source diagnostics.",
     );
   }
+  const customParity = await page.evaluate(async (source) => {
+    const { compileFragmentArtifact } =
+      await import("/src/browser-compiler-smoke.ts");
+    const { default: staticCustom } =
+      await import("/src/custom-uniforms.shdr.ts");
+    const compiled = compileFragmentArtifact(source);
+    const invalidSource = source.replace(
+      "u.f32(12)",
+      "u.f32(window.devicePixelRatio)",
+    );
+    const invalid = compileFragmentArtifact(invalidSource);
+    return {
+      equal:
+        compiled.ok &&
+        JSON.stringify(compiled.artifact) === JSON.stringify(staticCustom),
+      invalidCode: invalid.ok ? undefined : invalid.diagnostics[0]?.code,
+      invalidOffset: invalid.ok
+        ? undefined
+        : invalid.diagnostics[0]?.range.start,
+      expectedOffset: invalidSource.indexOf("window.devicePixelRatio"),
+    };
+  }, customSource);
+  if (
+    !customParity.equal ||
+    customParity.invalidCode !== "SHDR1210" ||
+    customParity.invalidOffset !== customParity.expectedOffset
+  )
+    throw new Error("Custom-uniform browser/static compilation diverged.");
+
+  await writeFile(
+    customShaderFile,
+    customSource.replace("u.f32(12)", "u.f32(24)"),
+  );
+  customWasEdited = true;
+  const customEdit = await waitForCustomTransform(baseUrl);
+  if (!/"default":\s*24/.test(customEdit))
+    throw new Error("Edited custom default was not emitted.");
+  assertIncludes(customEdit, "shdr_custom_0");
+
   await page.evaluate(() => {
     window.__shdrBeforeEdit = true;
   });
@@ -119,13 +170,14 @@ try {
   );
 } finally {
   if (sourceWasEdited) await writeFile(shaderFile, originalSource);
+  if (customWasEdited) await writeFile(customShaderFile, customSource);
   if (browser) await browser.close();
   await server.close();
 }
 
-async function requestShaderModule(baseUrl, cacheKey) {
+async function requestShaderModule(baseUrl, cacheKey, shaderName = "gradient") {
   const response = await fetch(
-    `${baseUrl}/src/gradient.shdr.ts?t=${encodeURIComponent(cacheKey)}`,
+    `${baseUrl}/src/${shaderName}.shdr.ts?t=${encodeURIComponent(cacheKey)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -145,6 +197,23 @@ async function waitForEditedTransform(baseUrl) {
   }
   throw new Error(
     `Vite did not invalidate the edited shader transform. Last response:\n${latest}`,
+  );
+}
+
+async function waitForCustomTransform(baseUrl) {
+  const timeoutAt = Date.now() + 5_000;
+  let latest = "";
+  while (Date.now() < timeoutAt) {
+    latest = await requestShaderModule(
+      baseUrl,
+      String(Date.now()),
+      "custom-uniforms",
+    );
+    if (/"default":\s*24/.test(latest)) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Vite did not invalidate the custom-uniform transform: ${latest}`,
   );
 }
 
