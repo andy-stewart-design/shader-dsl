@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node verify-build.mjs",
+    "check": "tsc --noEmit -p tsconfig.uniform-host.json",
     "preview": "vite preview",
     "pretest": "playwright install chromium",
     "test": "vite build && node verify-build.mjs && node verify-dev.mjs && node verify-render.mjs",

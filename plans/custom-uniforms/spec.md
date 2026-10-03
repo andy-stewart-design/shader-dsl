@@ -1,6 +1,6 @@
-# Custom uniforms — proposed contract
+# Custom uniforms — workspace contract
 
-Status: phase-0 [typed/layout contract](./phase-0-contract.md) and phases 1–2 compiler/editor/runtime work implemented locally; **host fixture and REPL integration remain phase 3**. This extends the [workspace browser runtime](../_completed/runtime-api/spec.md) and the existing fragment-only, f32 shader subset. Both authored-shader and host API examples are implemented in the workspace; full app/REPL integration remains phase 3. Do not change the three automatic uniforms, canvas ownership, opaque output, backend selection, or current renderer failure/loss contract. Textures, samplers, matrices, arrays, structs, other scalar types, native runtimes, and npm publication are out of scope.
+Status: [phase-0 typed/layout contract](./phase-0-contract.md) and phases 1–3 implemented locally; Vite and REPL host/browser verification complete. This extends the [workspace browser runtime](../_completed/runtime-api/spec.md) and the existing fragment-only, f32 shader subset. Both authored-shader and host API examples are implemented in the workspace. Do not change the three automatic uniforms, canvas ownership, opaque output, backend selection, or current renderer failure/loss contract. Textures, samplers, matrices, arrays, structs, other scalar types, native runtimes, and npm publication are out of scope.
 
 ## Authored shader and static defaults
 

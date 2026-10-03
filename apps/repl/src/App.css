@@ -275,6 +275,30 @@ kbd {
   color: var(--warning);
 }
 
+.example-uniform-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.example-uniform-actions button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-muted);
+  background: var(--code-background);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.example-uniform-actions button:hover,
+.example-uniform-actions button:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .target-tabs {
   display: flex;
   gap: 4px;

@@ -310,6 +310,14 @@ export default createFragmentShader(({ coord, uniforms }) => {
     editedGpuPixel,
   );
 
+  await verifyCustomUniforms(
+    page,
+    editor,
+    diagnostics,
+    glslValidation,
+    wgslValidation,
+  );
+
   const mouseSource = `import { createFragmentShader, vec4 } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -416,11 +424,151 @@ export default createFragmentShader(({ coord, uniforms }) => {
   }
 
   console.log(
-    `Verified REPL math builtins, rendering, all default uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
+    `Verified REPL custom uniforms, math builtins, all automatic uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
   );
 } finally {
   if (browser) await browser.close();
   await server.close();
+}
+
+async function verifyCustomUniforms(
+  page,
+  editor,
+  diagnostics,
+  glslValidation,
+  wgslValidation,
+) {
+  const inline = await readFile(
+    new URL("../vite-basic/src/custom-demo-inline.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  const named = await readFile(
+    new URL("../vite-basic/src/custom-demo-named.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, inline);
+  await assertBindings(page, "glsl-es-300", "");
+  await assertBindings(page, "wgsl", "");
+  await assertCustomPixel(page, "inline authored defaults", [51, 102, 64, 255]);
+  await page.getByRole("button", { name: "Set example uniforms" }).click();
+  await assertCustomPixel(
+    page,
+    "erased live-editor host update",
+    [191, 64, 128, 255],
+  );
+  await compileSource(page, editor, named);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await assertCustomPixel(
+    page,
+    "same schema preserves explicit overrides",
+    [191, 64, 128, 255],
+  );
+  await page.getByRole("button", { name: "Reset custom defaults" }).click();
+  await assertCustomPixel(
+    page,
+    "named defaults after reset",
+    [153, 51, 191, 255],
+  );
+
+  const editedDefaults = named.replace("u.f32(0.75)", "u.f32(0.3)");
+  await compileSource(page, editor, editedDefaults);
+  await waitForValidation(page, "wgsl", "success");
+  await assertCustomPixel(page, "live edited defaults", [153, 51, 77, 255]);
+  await page.getByRole("button", { name: "Set example uniforms" }).click();
+  await assertCustomPixel(page, "new explicit overrides", [191, 64, 128, 255]);
+  const changedSchema = `import { defineUniforms, vec4 } from "shdr";
+export default defineUniforms((u) => ({
+  color: u.f32(0.1),
+  gain: u.f32(0.3),
+  spin: u.f32(0.6),
+})).createFragmentShader(({ uniforms }) =>
+  vec4(uniforms.color, uniforms.gain, uniforms.spin, 1),
+);`;
+  await compileSource(page, editor, changedSchema);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await assertCustomPixel(
+    page,
+    "changed schema prunes vector but carries scalar",
+    [26, 128, 153, 255],
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Set example uniforms" }).count(),
+    0,
+  );
+  await compileSource(page, editor, inline);
+  await waitForValidation(page, "wgsl", "success");
+  await assertCustomPixel(
+    page,
+    "pruned vector does not reappear",
+    [51, 102, 128, 255],
+  );
+  await page.getByRole("button", { name: "Reset custom defaults" }).click();
+  await assertCustomPixel(
+    page,
+    "reset current inline defaults",
+    [51, 102, 64, 255],
+  );
+  const lastGoodGl = await readCenterPixel(page);
+  const lastGoodGpu = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  await compileSource(
+    page,
+    editor,
+    inline.replace("u.f32(0.25)", "u.f32(window.devicePixelRatio)"),
+  );
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1210/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.match(
+    await glslValidation.textContent(),
+    /blocked by shared source diagnostics/i,
+  );
+  assert.deepEqual(await readCenterPixel(page), lastGoodGl);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    lastGoodGpu,
+  );
+  await compileSource(
+    page,
+    editor,
+    inline.replace("uniforms.gain", "uniforms.missing"),
+  );
+  await page.waitForFunction(() =>
+    document.querySelector(".diagnostics")?.textContent?.includes("SHDR1203"),
+  );
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1203/);
+  assert.deepEqual(await readCenterPixel(page), lastGoodGl);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    lastGoodGpu,
+  );
+}
+
+async function assertCustomPixel(page, name, expected) {
+  const deadline = Date.now() + 5_000;
+  let gl, gpu;
+  do {
+    [gl, gpu] = await Promise.all([
+      readWebGlPixels(page, [[0.5, 0.5]]),
+      readWebGpuPixels(page, [[0.5, 0.5]]),
+    ]);
+    if (
+      [gl[0], gpu[0]].every((pixel) =>
+        pixel.every((value, index) => Math.abs(value - expected[index]) <= 4),
+      )
+    )
+      return;
+    await page.waitForTimeout(40);
+  } while (Date.now() < deadline);
+  assert.fail(
+    `${name}: WebGL ${gl?.[0]}, WebGPU ${gpu?.[0]}, expected ${expected} (±4).`,
+  );
 }
 
 async function verifyDprAndResize(browser, port, mouseSource, gradientSource) {
@@ -528,6 +676,47 @@ async function verifyUnavailableFallbacks(browser, port) {
         191,
         2,
       );
+      const customSource = await readFile(
+        new URL(
+          "../vite-basic/src/custom-demo-inline.shdr.ts",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      await compileSource(page, editor, customSource);
+      await page.waitForFunction(() => {
+        const canvas = document.querySelector(
+          '[data-render-target="glsl-es-300"]',
+        );
+        const gl = canvas?.getContext("webgl2");
+        if (!gl) return false;
+        const rgba = new Uint8Array(4);
+        gl.readPixels(
+          Math.floor(canvas.width / 2),
+          Math.floor(canvas.height / 2),
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          rgba,
+        );
+        return Math.abs(rgba[0] - 51) <= 4;
+      });
+      await waitForValidation(page, "glsl-es-300", "success");
+      assert.equal(
+        await page
+          .locator('[data-validation-target="wgsl"]')
+          .getAttribute("data-validation-state"),
+        "unavailable",
+      );
+      const customPixel = await readCenterPixel(page);
+      for (const [index, expected] of [51, 102, 64, 255].entries())
+        assertChannel(
+          `${absence} custom WebGL channel ${index}`,
+          customPixel[index],
+          expected,
+          4,
+        );
       await page.getByRole("tab", { name: "WGSL" }).click();
       assert.match(await page.getByRole("tabpanel").textContent(), /@fragment/);
     } finally {

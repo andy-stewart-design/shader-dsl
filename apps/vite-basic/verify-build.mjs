@@ -44,6 +44,14 @@ const sources = (
 if (!sources.some((source) => source.endsWith("/src/main.ts"))) {
   throw new Error("Production source maps omitted the app's module graph.");
 }
+for (const form of ["inline", "named"]) {
+  if (
+    !sources.some((source) =>
+      source.endsWith(`/src/custom-demo-${form}.shdr.ts`),
+    )
+  )
+    throw new Error(`Static build omitted the ${form} custom-uniform shader.`);
+}
 if (
   !sources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||
   !sources.some((source) => source.endsWith("/runtime/dist/webgpu.mjs"))

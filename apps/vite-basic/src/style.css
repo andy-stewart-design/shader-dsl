@@ -34,9 +34,32 @@ canvas {
   background: #000;
 }
 
-#math-canvas {
+#math-canvas,
+#custom-gl-canvas,
+#custom-gpu-canvas {
   width: min(80vw, 128px);
   height: min(80vw, 128px);
+}
+
+.uniform-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.uniform-actions button {
+  border: 1px solid #69779a;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: #f5f7ff;
+  background: #202535;
+  cursor: pointer;
+}
+
+.uniform-actions button:hover,
+.uniform-actions button:focus-visible {
+  border-color: #b7c5eb;
 }
 
 p {
