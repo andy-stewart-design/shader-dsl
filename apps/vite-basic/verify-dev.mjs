@@ -8,6 +8,18 @@ const shaderFile = fileURLToPath(
   new URL("./src/gradient.shdr.ts", import.meta.url),
 );
 const originalSource = await readFile(shaderFile, "utf8");
+const customShaderFile = fileURLToPath(
+  new URL("./src/custom-uniforms.shdr.ts", import.meta.url),
+);
+const customSource = await readFile(customShaderFile, "utf8");
+const namedShaderFile = fileURLToPath(
+  new URL("./src/custom-demo-named.shdr.ts", import.meta.url),
+);
+const namedSource = await readFile(namedShaderFile, "utf8");
+const inlineDemoSource = await readFile(
+  new URL("./src/custom-demo-inline.shdr.ts", import.meta.url),
+  "utf8",
+);
 const originalConstructor = "vec4(uv.x, uv.y, 0, 1)";
 const editedConstructor = "vec4(uv.x, uv.y, 0.25, 1)";
 if (!originalSource.includes(originalConstructor)) {
@@ -23,6 +35,8 @@ const server = await createServer({
 });
 let browser;
 let sourceWasEdited = false;
+let customWasEdited = false;
+let namedWasEdited = false;
 
 try {
   await server.listen();
@@ -33,6 +47,21 @@ try {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   const initialModule = await requestShaderModule(baseUrl, "initial");
+  const initialCustom = await requestShaderModule(
+    baseUrl,
+    "initial-custom",
+    "custom-uniforms",
+  );
+  assertIncludes(initialCustom, "shdr_custom_0");
+  assertExcludes(initialCustom, "defineUniforms");
+  const namedModule = await requestShaderModule(
+    baseUrl,
+    "initial-named",
+    "custom-demo-named",
+  );
+  assertIncludes(namedModule, "@group(1) @binding(0)");
+  assertIncludes(namedModule, "shdr_custom_1");
+  assertExcludes(namedModule, "defineUniforms");
   assertIncludes(initialModule, "export default");
   assertIncludes(initialModule, "#version 300 es");
   assertIncludes(initialModule, "shdr_fragment_color");
@@ -90,6 +119,129 @@ try {
       "Opt-in browser compiler did not return original-source diagnostics.",
     );
   }
+  const customParity = await page.evaluate(async (source) => {
+    const { compileFragmentArtifact } =
+      await import("/src/browser-compiler-smoke.ts");
+    const { default: staticCustom } =
+      await import("/src/custom-uniforms.shdr.ts");
+    const compiled = compileFragmentArtifact(source);
+    const invalidSource = source.replace(
+      "u.f32(12)",
+      "u.f32(window.devicePixelRatio)",
+    );
+    const invalid = compileFragmentArtifact(invalidSource);
+    return {
+      equal:
+        compiled.ok &&
+        JSON.stringify(compiled.artifact) === JSON.stringify(staticCustom),
+      invalidCode: invalid.ok ? undefined : invalid.diagnostics[0]?.code,
+      invalidOffset: invalid.ok
+        ? undefined
+        : invalid.diagnostics[0]?.range.start,
+      expectedOffset: invalidSource.indexOf("window.devicePixelRatio"),
+    };
+  }, customSource);
+  if (
+    !customParity.equal ||
+    customParity.invalidCode !== "SHDR1210" ||
+    customParity.invalidOffset !== customParity.expectedOffset
+  )
+    throw new Error("Custom-uniform browser/static compilation diverged.");
+
+  const demoParity = await page.evaluate(
+    async ({ named, inline }) => {
+      const { compileFragmentArtifact } =
+        await import("/src/browser-compiler-smoke.ts");
+      const { default: staticNamed } =
+        await import("/src/custom-demo-named.shdr.ts");
+      const { default: staticInline } =
+        await import("/src/custom-demo-inline.shdr.ts");
+      const browserNamed = compileFragmentArtifact(named);
+      const browserInline = compileFragmentArtifact(inline);
+      const equivalentNamed = compileFragmentArtifact(
+        named
+          .replace("u.vec3(0.6, 0.2, 0.4)", "u.vec3(0.2, 0.4, 0.6)")
+          .replace("u.f32(0.75)", "u.f32(0.25)"),
+      );
+      return (
+        browserNamed.ok &&
+        browserInline.ok &&
+        equivalentNamed.ok &&
+        JSON.stringify(browserNamed.artifact) === JSON.stringify(staticNamed) &&
+        JSON.stringify(browserInline.artifact) ===
+          JSON.stringify(staticInline) &&
+        JSON.stringify(equivalentNamed.artifact) ===
+          JSON.stringify(staticInline)
+      );
+    },
+    { named: namedSource, inline: inlineDemoSource },
+  );
+  if (!demoParity)
+    throw new Error(
+      "Inline/named custom-uniform Vite/browser artifacts differ.",
+    );
+
+  const namedReload = page.waitForEvent("framenavigated", {
+    predicate: (frame) => frame === page.mainFrame(),
+  });
+  await writeFile(
+    namedShaderFile,
+    namedSource
+      .replace("u.f32(0.75)", "u.f32(0.5)")
+      .replace(
+        "vec4(uniforms.color.x, uniforms.color.y, uniforms.gain, uniforms.color.z)",
+        "vec4(uniforms.color.x, uniforms.gain, uniforms.color.y, uniforms.color.z)",
+      ),
+  );
+  namedWasEdited = true;
+  const namedEdit = await waitForNamedTransform(baseUrl);
+  assertIncludes(namedEdit, "@group(1) @binding(0)");
+  assertIncludes(namedEdit, "shdr_custom_1");
+  assertIncludes(namedEdit, "uniform float shdr_custom_1");
+  assertIncludes(namedEdit, "shdr_custom_1, (shdr_custom_0).y");
+  assertIncludes(
+    namedEdit,
+    "shdr_custom.shdr_custom_1, (shdr_custom.shdr_custom_0).y",
+  );
+  await namedReload;
+  await page
+    .locator('#custom-gl-canvas[data-render-status="success"]')
+    .waitFor();
+  await page.getByRole("button", { name: "Use named shader" }).click();
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("#custom-gl-canvas");
+    const gl = canvas?.getContext("webgl2");
+    if (!gl) return false;
+    const rgba = new Uint8Array(4);
+    gl.readPixels(
+      Math.floor(canvas.width / 2),
+      Math.floor(canvas.height / 2),
+      1,
+      1,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      rgba,
+    );
+    return Math.abs(rgba[1] - 128) <= 2 && Math.abs(rgba[2] - 51) <= 2;
+  });
+
+  // This imported module triggers a full HMR navigation. Wait for it before
+  // marking the page for the second edit, or a late reload can race evaluate().
+  const customReload = page.waitForEvent("framenavigated", {
+    predicate: (frame) => frame === page.mainFrame(),
+  });
+  await writeFile(
+    customShaderFile,
+    customSource.replace("u.f32(12)", "u.f32(24)"),
+  );
+  customWasEdited = true;
+  const customEdit = await waitForCustomTransform(baseUrl);
+  if (!/"default":\s*24/.test(customEdit))
+    throw new Error("Edited custom default was not emitted.");
+  assertIncludes(customEdit, "shdr_custom_0");
+  await customReload;
+  await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
+
   await page.evaluate(() => {
     window.__shdrBeforeEdit = true;
   });
@@ -119,13 +271,15 @@ try {
   );
 } finally {
   if (sourceWasEdited) await writeFile(shaderFile, originalSource);
+  if (customWasEdited) await writeFile(customShaderFile, customSource);
+  if (namedWasEdited) await writeFile(namedShaderFile, namedSource);
   if (browser) await browser.close();
   await server.close();
 }
 
-async function requestShaderModule(baseUrl, cacheKey) {
+async function requestShaderModule(baseUrl, cacheKey, shaderName = "gradient") {
   const response = await fetch(
-    `${baseUrl}/src/gradient.shdr.ts?t=${encodeURIComponent(cacheKey)}`,
+    `${baseUrl}/src/${shaderName}.shdr.ts?t=${encodeURIComponent(cacheKey)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -145,6 +299,40 @@ async function waitForEditedTransform(baseUrl) {
   }
   throw new Error(
     `Vite did not invalidate the edited shader transform. Last response:\n${latest}`,
+  );
+}
+
+async function waitForNamedTransform(baseUrl) {
+  const timeoutAt = Date.now() + 5_000;
+  let latest = "";
+  while (Date.now() < timeoutAt) {
+    latest = await requestShaderModule(
+      baseUrl,
+      String(Date.now()),
+      "custom-demo-named",
+    );
+    if (/"default":\s*(?:0)?\.5/.test(latest)) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Vite did not invalidate the named custom shader transform: ${latest}`,
+  );
+}
+
+async function waitForCustomTransform(baseUrl) {
+  const timeoutAt = Date.now() + 5_000;
+  let latest = "";
+  while (Date.now() < timeoutAt) {
+    latest = await requestShaderModule(
+      baseUrl,
+      String(Date.now()),
+      "custom-uniforms",
+    );
+    if (/"default":\s*24/.test(latest)) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Vite did not invalidate the custom-uniform transform: ${latest}`,
   );
 }
 

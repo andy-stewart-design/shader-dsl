@@ -1,5 +1,18 @@
 /// <reference types="@webgpu/types" />
-import type { CompiledFragmentArtifact, ShaderDefaultUniform } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  DynamicCompiledFragmentArtifact,
+  HostUniforms,
+  ShaderDefaultUniform,
+  TypedCompiledFragmentArtifact,
+  UniformSchema,
+} from "shdr";
+import {
+  readCustomMetadata,
+  type CustomMetadata,
+  type DynamicUniformValue,
+  type UniformValues,
+} from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
 import {
   aborted,
@@ -13,6 +26,11 @@ import type {
   RendererOptions,
   ShaderInstallOptions,
   ShaderInstallResult,
+  StaticRenderer,
+  StaticRendererOptions,
+  DynamicRendererOptions,
+  LegacyRendererOptions,
+  InternalRendererOptions,
 } from "./types.js";
 
 const VERTEX = `@vertex
@@ -29,11 +47,17 @@ interface Resources {
   readonly pipeline: GPURenderPipeline;
   readonly buffers: ReadonlyMap<ShaderDefaultUniform, GPUBuffer>;
   readonly bindGroup?: GPUBindGroup;
+  readonly custom?: CustomMetadata;
+  readonly customBuffer?: GPUBuffer;
+  readonly customBindGroup?: GPUBindGroup;
+  readonly customOffsets: readonly number[];
+  readonly customSize: number;
   readonly boundUniforms: readonly ShaderDefaultUniform[];
   readonly warnings: readonly string[];
 }
 function destroy(resource: Resources): void {
   for (const buffer of resource.buffers.values()) buffer.destroy();
+  resource.customBuffer?.destroy();
 }
 
 export class WebGpuRenderer extends CanvasRenderer {
@@ -67,10 +91,28 @@ export class WebGpuRenderer extends CanvasRenderer {
       context.unconfigure();
     });
   }
+  static create<
+    const S extends UniformSchema,
+    const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+  >(
+    canvas: HTMLCanvasElement,
+    artifact: TypedCompiledFragmentArtifact<S>,
+    options?: StaticRendererOptions<S, V>,
+  ): Promise<StaticRenderer<S>>;
+  static create(
+    canvas: HTMLCanvasElement,
+    artifact: DynamicCompiledFragmentArtifact,
+    options?: DynamicRendererOptions,
+  ): Promise<WebGpuRenderer>;
+  static create(
+    canvas: HTMLCanvasElement,
+    artifact: CompiledFragmentArtifact,
+    options?: LegacyRendererOptions,
+  ): Promise<WebGpuRenderer>;
   static async create(
     canvas: HTMLCanvasElement,
     artifact: CompiledFragmentArtifact,
-    options: RendererOptions = {},
+    options: InternalRendererOptions = {},
   ): Promise<WebGpuRenderer> {
     aborted("webgpu", options.signal);
     claim(canvas, "webgpu");
@@ -79,6 +121,7 @@ export class WebGpuRenderer extends CanvasRenderer {
     let renderer: WebGpuRenderer | undefined;
     try {
       checkArtifact(artifact, "webgpu");
+      const custom = readCustomMetadata(artifact, "webgpu");
       if (!navigator.gpu)
         throw new ShdrRuntimeError(
           "webgpu",
@@ -126,6 +169,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         vertex,
         options,
       );
+      renderer.uniformState.creation(custom, options.uniforms);
       const abort = () => renderer?.dispose();
       options.signal?.addEventListener("abort", abort, { once: true });
       try {
@@ -185,20 +229,24 @@ export class WebGpuRenderer extends CanvasRenderer {
       this.assertUsable();
       const generation = ++this.generation;
       checkArtifact(artifact, "webgpu");
-      return this.enqueue(() => this.install(artifact, generation, options));
+      const custom = readCustomMetadata(artifact, "webgpu");
+      return this.enqueue(() =>
+        this.install(artifact, custom, generation, options),
+      );
     } catch (error) {
       return Promise.reject(error);
     }
   }
   private async install(
     artifact: CompiledFragmentArtifact,
+    custom: CustomMetadata | undefined,
     generation: number,
     options: ShaderInstallOptions,
   ): Promise<ShaderInstallResult> {
     if (!this.current(generation)) return { status: "superseded" };
     let candidate: Resources | undefined;
     try {
-      candidate = await this.prepare(artifact);
+      candidate = await this.prepare(artifact, custom);
       if (!this.current(generation)) return { status: "superseded" };
       this.size();
       const requestedEpoch =
@@ -220,6 +268,7 @@ export class WebGpuRenderer extends CanvasRenderer {
             requestedEpoch === undefined
               ? 0
               : Math.max(0, (performance.now() - requestedEpoch) / 1000),
+            this.uniformState.resolve(custom),
           ),
         );
       } finally {
@@ -227,16 +276,27 @@ export class WebGpuRenderer extends CanvasRenderer {
       }
       if (!this.current(generation)) return { status: "superseded" };
       const startedAt = requestedEpoch ?? performance.now();
-      await this.scoped("draw", () =>
-        this.submit(
-          candidate!,
-          this.context.getCurrentTexture().createView(),
-          Math.max(0, (performance.now() - startedAt) / 1000),
-        ),
-      );
-      if (!this.current(generation)) return { status: "superseded" };
+      // A host patch can arrive while popErrorScope is pending. If so, submit
+      // the candidate again with the latest values before committing it.
+      const view = this.context.getCurrentTexture().createView();
+      let values: Map<string, DynamicUniformValue>;
+      while (true) {
+        const version = this.uniformState.version();
+        values = this.uniformState.resolve(custom);
+        await this.scoped("draw", () =>
+          this.submit(
+            candidate!,
+            view,
+            Math.max(0, (performance.now() - startedAt) / 1000),
+            values,
+          ),
+        );
+        if (!this.current(generation)) return { status: "superseded" };
+        if (this.uniformState.version() === version) break;
+      }
       const previous = this.resources;
       this.resources = candidate;
+      this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) destroy(previous);
       this.installed(startedAt);
@@ -274,6 +334,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   }
   private async prepare(
     artifact: CompiledFragmentArtifact,
+    custom: CustomMetadata | undefined,
   ): Promise<Resources> {
     const active = defaults.filter(({ name }) =>
       artifact.defaults.wgsl.includes(name),
@@ -315,6 +376,24 @@ export class WebGpuRenderer extends CanvasRenderer {
     }
     const buffers = new Map<ShaderDefaultUniform, GPUBuffer>();
     let bindGroup: GPUBindGroup | undefined;
+    let customBuffer: GPUBuffer | undefined;
+    let customBindGroup: GPUBindGroup | undefined;
+    const customOffsets: number[] = [];
+    let offset = 0;
+    for (const item of custom?.declarations ?? []) {
+      const alignment = item.type === "f32" ? 4 : item.type === "vec2" ? 8 : 16;
+      offset = Math.ceil(offset / alignment) * alignment;
+      customOffsets.push(offset);
+      offset +=
+        item.type === "f32"
+          ? 4
+          : item.type === "vec2"
+            ? 8
+            : item.type === "vec3"
+              ? 12
+              : 16;
+    }
+    const customSize = Math.max(16, Math.ceil(offset / 16) * 16);
     try {
       await this.scoped("shader", () => {
         for (const uniform of active)
@@ -333,15 +412,31 @@ export class WebGpuRenderer extends CanvasRenderer {
               resource: { buffer: buffers.get(name)! },
             })),
           });
+        if (custom?.referenced.wgsl.length) {
+          customBuffer = this.device.createBuffer({
+            size: customSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+          });
+          customBindGroup = this.device.createBindGroup({
+            layout: pipeline!.getBindGroupLayout(1),
+            entries: [{ binding: 0, resource: { buffer: customBuffer } }],
+          });
+        }
       });
     } catch (error) {
       for (const buffer of buffers.values()) buffer.destroy();
+      customBuffer?.destroy();
       throw error;
     }
     return {
       pipeline: pipeline!,
       buffers,
       bindGroup,
+      custom,
+      customBuffer,
+      customBindGroup,
+      customOffsets,
+      customSize,
       boundUniforms: active.map(({ name }) => name),
       warnings: info!.messages
         .filter((message) => message.type === "warning")
@@ -366,6 +461,7 @@ export class WebGpuRenderer extends CanvasRenderer {
           this.resources!,
           this.context.getCurrentTexture().createView(),
           this.elapsed(timestamp),
+          this.uniformState.current(),
         ),
       );
     });
@@ -374,6 +470,7 @@ export class WebGpuRenderer extends CanvasRenderer {
     resources: Resources,
     view: GPUTextureView,
     seconds: number,
+    values: UniformValues,
   ): void {
     const { buffers } = resources;
     const resolution = buffers.get("resolution");
@@ -396,6 +493,16 @@ export class WebGpuRenderer extends CanvasRenderer {
     const time = buffers.get("time");
     if (time)
       this.device.queue.writeBuffer(time, 0, new Float32Array([seconds]));
+    if (resources.customBuffer && resources.custom) {
+      const packed = new Float32Array(resources.customSize / 4);
+      resources.custom.declarations.forEach((item, index) => {
+        const value = values.get(item.name)!;
+        if (typeof value === "number")
+          packed[resources.customOffsets[index]! / 4] = value;
+        else packed.set(value, resources.customOffsets[index]! / 4);
+      });
+      this.device.queue.writeBuffer(resources.customBuffer, 0, packed);
+    }
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [
@@ -409,6 +516,8 @@ export class WebGpuRenderer extends CanvasRenderer {
     });
     pass.setPipeline(resources.pipeline);
     if (resources.bindGroup) pass.setBindGroup(0, resources.bindGroup);
+    if (resources.customBindGroup)
+      pass.setBindGroup(1, resources.customBindGroup);
     pass.draw(3);
     pass.end();
     this.device.queue.submit([encoder.finish()]);
@@ -421,10 +530,32 @@ export class WebGpuRenderer extends CanvasRenderer {
     this.device.destroy();
   }
 }
-export async function createWebGpuRenderer(
+export function createWebGpuRenderer<
+  const S extends UniformSchema,
+  const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+>(
+  canvas: HTMLCanvasElement,
+  artifact: TypedCompiledFragmentArtifact<S>,
+  options?: StaticRendererOptions<S, V>,
+): Promise<StaticRenderer<S>>;
+export function createWebGpuRenderer(
+  canvas: HTMLCanvasElement,
+  artifact: DynamicCompiledFragmentArtifact,
+  options?: DynamicRendererOptions,
+): Promise<WebGpuRenderer>;
+export function createWebGpuRenderer(
   canvas: HTMLCanvasElement,
   artifact: CompiledFragmentArtifact,
-  options?: RendererOptions,
+  options?: LegacyRendererOptions,
+): Promise<WebGpuRenderer>;
+export function createWebGpuRenderer(
+  canvas: HTMLCanvasElement,
+  artifact: CompiledFragmentArtifact,
+  options?: InternalRendererOptions,
 ): Promise<WebGpuRenderer> {
-  return WebGpuRenderer.create(canvas, artifact, options);
+  return WebGpuRenderer.create(
+    canvas,
+    artifact,
+    options as LegacyRendererOptions,
+  );
 }

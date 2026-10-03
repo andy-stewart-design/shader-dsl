@@ -1,4 +1,10 @@
-export { createFragmentShader, vec2, vec3, vec4 } from "./dsl.js";
+export {
+  createFragmentShader,
+  defineUniforms,
+  vec2,
+  vec3,
+  vec4,
+} from "./dsl.js";
 export {
   abs,
   ceil,
@@ -18,10 +24,21 @@ export {
 export type {
   CompiledFragmentArtifact,
   DefaultUniforms,
+  DynamicCompiledFragmentArtifact,
   Expr,
   F32,
   FragmentContext,
+  HostUniforms,
   ShaderDefaultUniform,
+  ShaderCustomUniformDeclaration,
+  ShaderCustomUniformType,
+  UniformBuilder,
+  UniformDeclaration,
+  UniformDefinition,
+  UniformExpressions,
+  UniformSchema,
+  UniformValue,
+  TypedCompiledFragmentArtifact,
   ShaderType,
   Vec2,
   Vec3,

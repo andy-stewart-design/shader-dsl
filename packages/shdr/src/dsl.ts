@@ -7,10 +7,28 @@ import type {
   Vec2,
   Vec3,
   Vec4,
+  UniformBuilder,
+  UniformDefinition,
+  UniformSchema,
+  TypedCompiledFragmentArtifact,
 } from "./types.js";
 
+export function defineUniforms<const S extends UniformSchema>(
+  _callback: (u: UniformBuilder) => S,
+): UniformDefinition<S> {
+  return shaderSourceWasNotTransformed("defineUniforms");
+}
+
+export function createFragmentShader<const S extends UniformSchema>(
+  callback: (context: FragmentContext<S>) => Expr<Vec4<F32>>,
+  options: { readonly uniforms: UniformDefinition<S> },
+): TypedCompiledFragmentArtifact<S>;
+export function createFragmentShader(
+  callback: (context: FragmentContext) => Expr<Vec4<F32>>,
+): TypedCompiledFragmentArtifact<Record<never, never>>;
 export function createFragmentShader(
   _callback: (context: FragmentContext) => Expr<Vec4<F32>>,
+  _options?: { readonly uniforms: UniformDefinition<UniformSchema> },
 ): CompiledFragmentArtifact {
   return shaderSourceWasNotTransformed("createFragmentShader");
 }

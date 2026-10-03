@@ -59,8 +59,19 @@ function App() {
     renderOutputs,
     block,
     updateMouse,
+    updateUniforms,
+    resetUniforms,
   } = useShaderPreviews(INITIAL_COMPILATION.artifact);
   const isDirty = source !== compiledSource;
+  const demoDeclarations = compilation.ok
+    ? compilation.artifact.custom?.declarations
+    : undefined;
+  const hasExampleUniforms =
+    demoDeclarations?.length === 2 &&
+    demoDeclarations[0]?.name === "color" &&
+    demoDeclarations[0]?.type === "vec3" &&
+    demoDeclarations[1]?.name === "gain" &&
+    demoDeclarations[1]?.type === "f32";
 
   const compile = () => {
     const next = compileBothTargets(source);
@@ -221,6 +232,22 @@ function App() {
               pointer position, and a shared time origin for each successfully
               lowered source. WebGL 2 stays usable when WebGPU is unavailable.
             </p>
+            {hasExampleUniforms &&
+            validations["glsl-es-300"].state === "success" ? (
+              <div className="example-uniform-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateUniforms({ color: [0.75, 0.25, 0.5], gain: 0.5 })
+                  }
+                >
+                  Set example uniforms
+                </button>
+                <button type="button" onClick={resetUniforms}>
+                  Reset custom defaults
+                </button>
+              </div>
+            ) : null}
           </div>
         </section>
 

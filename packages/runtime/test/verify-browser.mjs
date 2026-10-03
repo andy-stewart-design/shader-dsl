@@ -399,6 +399,18 @@ try {
         () => "unexpected",
         (e) => e.kind,
       ),
+      Promise.resolve()
+        .then(() => window.glRenderer.setUniforms({}))
+        .then(
+          () => "unexpected",
+          (e) => e.kind,
+        ),
+      Promise.resolve()
+        .then(() => window.gpuRenderer.resetUniforms())
+        .then(
+          () => "unexpected",
+          (e) => e.kind,
+        ),
     ]);
     window.glRenderer.dispose();
     window.glRenderer.dispose();
@@ -406,7 +418,7 @@ try {
     window.gpuRenderer.dispose();
     return { errors, failures: window.failures };
   });
-  assert.deepEqual(terminal.errors, ["lost", "lost"]);
+  assert.deepEqual(terminal.errors, ["lost", "lost", "lost", "lost"]);
   assert.deepEqual(terminal.failures, [
     { backend: "webgl", kind: "lost" },
     { backend: "webgpu", kind: "lost" },

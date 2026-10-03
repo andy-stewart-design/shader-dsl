@@ -93,7 +93,7 @@ export default defineConfig({
 });
 ```
 
-The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a dual-target artifact (GLSL ES 3.00, WGSL and referenced default-binding metadata). A static import does not ship the Shdr parser/compiler. For edited source in the browser, explicitly import `compileFragmentArtifact` from `@shdr/core/browser`; this opt-in path returns the same artifact or original-source diagnostics.
+The plugin recognizes `.shdr.ts` modules during Vite's pre-transform and emits a JavaScript module whose default export is a dual-target artifact (GLSL ES 3.00, WGSL, automatic bindings and complete custom-uniform defaults/usage metadata). A static import preserves the declared custom-uniform schema for typed host calls without shipping the Shdr parser/compiler. For edited source in the browser, explicitly import `compileFragmentArtifact` from `@shdr/core/browser`; this opt-in path returns the same artifact or original-source diagnostics.
 
 ```ts
 import shader from "./gradient.shdr.ts";
@@ -113,7 +113,7 @@ pnpm --filter vite-basic build
 pnpm --filter vite-basic test
 ```
 
-The production check confirms that generated GLSL and WGSL—but not the parser/compiler or original operator expression—are bundled. Browser tests check both GPU paths with real pixels plus a WebGL-only fallback. The [runtime package guide](packages/runtime/README.md) covers explicit backend selection, automatic inputs, `{ animate: false }`, errors, loss and canvas ownership. This is a **workspace-local API, not a published package**.
+The production check confirms that generated GLSL and WGSL—but not the parser/compiler or original operator expression—are bundled. Browser tests check both GPU paths with real pixels, including the inline/named custom-uniform flows and a WebGL-only fallback. The [runtime package guide](packages/runtime/README.md) covers explicit backend selection, automatic inputs, `{ animate: false }`, errors, loss and canvas ownership. This is a **workspace-local API, not a published package**.
 
 ## Multi-target browser REPL
 
@@ -125,22 +125,22 @@ pnpm --filter repl build
 pnpm --filter repl test
 ```
 
-Select either generated target in the UI. WGSL only reports rendered after successful module compilation, pipeline creation and a draw. If WebGPU or an adapter is unavailable, the WebGL 2 preview remains usable and the WebGPU preview reports unavailable. Chromium/SwiftShader browser tests compare rendered pixels within channel tolerances, exercise the default uniforms and fallback paths, and keep backend messages distinct from shared source diagnostics. Both previews use the shared workspace runtime; it has **not** been published.
+Select either generated target in the UI. WGSL only reports rendered after successful module compilation, pipeline creation and a draw. If WebGPU or an adapter is unavailable, the WebGL 2 preview remains usable and the WebGPU preview reports unavailable. Chromium/SwiftShader browser tests compare rendered pixels within channel tolerances, exercise the default uniforms and fallback paths, and keep backend messages distinct from shared source diagnostics. Both previews use the shared workspace runtime; it has **not** been published. Paste either [custom-uniform example](apps/vite-basic/src/custom-demo-inline.shdr.ts) or [named equivalent](apps/vite-basic/src/custom-demo-named.shdr.ts) into the REPL to edit defaults live. For these examples only, the preview shows buttons for a fixed example host update and reset; it is not a generic uniform editor.
 
 ## Accepted shader language
 
 A shader module must have:
 
 - Direct named imports from exactly `"shdr"`; no aliases or namespace imports.
-- Exactly one default-exported `createFragmentShader(...)` call.
-- A synchronous arrow callback with exactly `({ coord, uniforms })` destructuring.
+- Exactly one default-exported `createFragmentShader(...)` call, or a direct `defineUniforms(...).createFragmentShader(...)` chain. A same-file `const uniforms = defineUniforms(...)` may instead be linked with `createFragmentShader(callback, { uniforms })`.
+- A synchronous arrow callback with `({ coord, uniforms })` or `({ uniforms })` destructuring.
 - No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_` or `shdr_internal_` (reserved for generated helpers).
 
 The callback supports only:
 
-- Simple `const name = expression` declarations followed by one final `return`.
+- Simple `const name = expression` declarations followed by one final `return`, or a single expression-bodied callback.
 - Numeric literals, local references, and parenthesized expressions.
-- `coord` (`Vec4<F32>`), `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`). Numeric literals are `F32`; vectors have two, three, or four `F32` components.
+- `coord` (`Vec4<F32>`) when destructured, `uniforms.resolution` and `.mouse` (`Vec2<F32>`), and `uniforms.time` (`F32`); custom `uniforms.name` has its statically declared f32/vector type. Numeric literals are `F32`; vectors have two, three, or four `F32` components.
 - Native `+`, binary `-`, `*`, `/`, and unary `-`, with ordinary TypeScript precedence, left association, and parentheses. The operands and results remain shader expressions—not JavaScript arithmetic.
 - Direct read swizzles of one to four `xyzw` components available on the receiver. Repetition, reordering, and chaining work: `coord.xyz`, `coord.xy.yx`, `coord.xy.xxyy`. A one-component swizzle produces `F32`; two to four produce the corresponding vector type.
 - `vec2`, `vec3`, and `vec4` constructors in the forms below; the fourteen direct-import math builtins below; and a final `Expr<Vec4<F32>>` result.
@@ -180,22 +180,23 @@ These are 51 signatures across fourteen names. No implicit broadcasts, mixed dim
 
 `smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. `distance` is equivalent to `length(x - y)` for ordinary finite values, but avoid exact equality or overflow guarantees. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
 
-Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, custom uniforms, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
+Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
 
 ### Diagnostic examples
 
 `pnpm shdr check apps/vite-basic/src/math-builtins.shdr.ts` checks a complete valid builtin shader. To see an equal-edge builtin failure, run `pnpm shdr check apps/editor-fixture/test/fixtures/invalid-math.shdr.ts`; an arithmetic failure is available at `packages/cli/test/fixtures/invalid-arithmetic.shdr.ts`. Shader diagnostics refer to **original source**, never virtual helpers or generated code:
 
-| Expression in a shader callback | Diagnostic                                 | Range                   |
-| ------------------------------- | ------------------------------------------ | ----------------------- |
-| `coord.xy + uniforms.time`      | `SHDR1205` (incompatible binary operands)  | Whole binary expression |
-| `vec3(coord.xy, 1)`             | `SHDR1206` (unsupported constructor form)  | Whole call              |
-| `coord.xy.z`                    | `SHDR1204` (unavailable swizzle component) | `z`                     |
-| `+coord.x`                      | `SHDR1105` (unsupported unary operator)    | Unary expression        |
-| `dot(coord.xy, coord.xyz)`      | `SHDR1208` (unsupported builtin signature) | Whole call              |
-| `smoothstep(0.5, 0.5, coord.x)` | `SHDR1209` (known equal edges)             | Whole call              |
+| Authored shader source           | Diagnostic                                 | Range                   |
+| -------------------------------- | ------------------------------------------ | ----------------------- |
+| `coord.xy + uniforms.time`       | `SHDR1205` (incompatible binary operands)  | Whole binary expression |
+| `vec3(coord.xy, 1)`              | `SHDR1206` (unsupported constructor form)  | Whole call              |
+| `coord.xy.z`                     | `SHDR1204` (unavailable swizzle component) | `z`                     |
+| `+coord.x`                       | `SHDR1105` (unsupported unary operator)    | Unary expression        |
+| `dot(coord.xy, coord.xyz)`       | `SHDR1208` (unsupported builtin signature) | Whole call              |
+| `smoothstep(0.5, 0.5, coord.x)`  | `SHDR1209` (known equal edges)             | Whole call              |
+| `u.f32(window.devicePixelRatio)` | `SHDR1210` (dynamic custom default)        | Nonliteral argument     |
 
-These are **Shdr syntax and semantic** checks, not checks of ordinary TypeScript outside the callback. The TypeScript 7 editor provider also supplies mapped shader hovers and diagnostics; standalone `tsc` does not understand shader operators in `.shdr.ts` files.
+These are **Shdr syntax and semantic** checks of the callback and its explicit custom-uniform declaration, not checks of unrelated ordinary TypeScript. The TypeScript 7 editor provider also supplies mapped shader hovers and diagnostics; standalone `tsc` does not understand shader operators in `.shdr.ts` files.
 
 ## Targets, uniforms, and coordinates
 
@@ -206,14 +207,16 @@ These are **Shdr syntax and semantic** checks, not checks of ordinary TypeScript
 | `uniforms.mouse`      | `u_mouse`                                   | Group 0, binding 1                | Pointer position in pixels, top-left origin, no browser-input Y flip           |
 | `uniforms.time`       | `u_time`                                    | Group 0, binding 2                | Seconds since the most recent successful shader compilation                    |
 
-GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore creates an implicit GLSL resolution dependency. WGSL uses fragment position directly and does not add that dependency. Fragment depth follows the canonical `0.0` near to `1.0` far convention in both targets. Unreferenced uniforms are omitted.
+Declare custom `u.f32`/`u.vec2`/`u.vec3`/`u.vec4` fields with **static numeric defaults** via `defineUniforms`; use the direct chain or a named same-file declaration with `{ uniforms }`. See the [two checked Vite examples](apps/vite-basic/README.md#custom-uniform-demo) and the [full contract](plans/custom-uniforms/spec.md). WebGL binds referenced fields as generated individual uniforms; WebGPU binds one group 1/binding 0 struct when custom fields are referenced. The automatic group 0 slots stay fixed. Both renderers bind defaults before their first draw, accept optional creation-time `uniforms` overrides, and provide persistent `setUniforms({ gain: 0.8 })` and `resetUniforms("gain")` / `resetUniforms()` updates. `{ animate: false }` needs `draw()` after updates; replacements draw once automatically, carrying only compatible explicit `setUniforms` values, not creation-only overrides. Static shader imports check names/types at compile time; dynamic REPL artifacts check them at runtime (`ShdrRuntimeError` kind `"uniform"`). Literal defaults cannot read `window` or JavaScript variables: `u.f32(window.devicePixelRatio)` reports `SHDR1210` at the authored argument.
+
+GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore creates an implicit GLSL resolution dependency. WGSL uses fragment position directly and does not add that dependency. Fragment depth follows the canonical `0.0` near to `1.0` far convention in both targets. Unreferenced GPU bindings are omitted; declared custom defaults remain in the artifact.
 
 ## Known limitations
 
 - **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
 - The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private stdio LSP now selects a config per shader and has protocol tests across projects, but still checks synchronously. Its **Zed dev launcher** works only within this checkout's repository root and `apps/editor-fixture` worktrees; distribution and other projects remain unverified.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
-- The Vite adapter emits both targets in one artifact. The Vite fixture and REPL use the same workspace-only browser runtime. It owns dedicated opaque canvases; transparent compositing, custom resources, and npm publishing require separate review.
+- The Vite adapter emits both targets in one artifact. The Vite fixture and REPL use the same workspace-only browser runtime. It owns dedicated opaque canvases; transparent compositing, textures/samplers, other custom resources, and npm publishing require separate review.
 - Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout; that historical measurement is not a current bundle-size claim.
 
 These are current implementation limits, not silent compatibility claims.

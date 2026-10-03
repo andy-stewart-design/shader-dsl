@@ -20,12 +20,15 @@ assertIncludes(bundle, "shdr_fragment_color");
 assertIncludes(bundle, ".xxyy");
 assertIncludes(bundle, "vec3(");
 assertIncludes(bundle, "smoothstep(");
+assertIncludes(bundle, "shdr_custom_0");
+assertIncludes(bundle, "@group(1) @binding(0)");
 assertIncludes(bundle, "normalize(");
 assertIncludes(bundle, "fract(");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
 assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "const waves = sin(uv * 2) + cos(uv * 3)");
 assertExcludes(bundle, "createFragmentShader");
+assertExcludes(bundle, "defineUniforms");
 assertExcludes(bundle, 'from "shdr"');
 assertExcludes(bundle, "@babel/parser");
 
@@ -40,6 +43,14 @@ const sources = (
 ).flat();
 if (!sources.some((source) => source.endsWith("/src/main.ts"))) {
   throw new Error("Production source maps omitted the app's module graph.");
+}
+for (const form of ["inline", "named"]) {
+  if (
+    !sources.some((source) =>
+      source.endsWith(`/src/custom-demo-${form}.shdr.ts`),
+    )
+  )
+    throw new Error(`Static build omitted the ${form} custom-uniform shader.`);
 }
 if (
   !sources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||

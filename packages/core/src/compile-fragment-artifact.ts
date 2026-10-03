@@ -1,4 +1,8 @@
-import type { CompiledFragmentArtifact, ShaderDefaultUniform } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  DynamicCompiledFragmentArtifact,
+  ShaderDefaultUniform,
+} from "shdr";
 import type { ShaderDiagnostic } from "./diagnostics.js";
 import { generateFragment } from "./generate-fragment.js";
 import { lowerFragment } from "./lower-fragment.js";
@@ -6,7 +10,7 @@ import type { ShaderExpression, ShaderModule } from "./shader-ir.js";
 
 export interface CompileArtifactSuccess {
   readonly ok: true;
-  readonly artifact: CompiledFragmentArtifact;
+  readonly artifact: DynamicCompiledFragmentArtifact;
   readonly diagnostics: readonly [];
 }
 
@@ -36,7 +40,10 @@ export function compileFragmentArtifact(source: string): CompileArtifactResult {
       glsl: generateFragment(lowered.ir, "glsl-es-300"),
       wgsl: generateFragment(lowered.ir, "wgsl"),
       defaults: collectDefaultBindings(lowered.ir),
-    },
+      ...(lowered.ir.customUniforms?.length
+        ? { custom: collectCustomBindings(lowered.ir) }
+        : {}),
+    } as DynamicCompiledFragmentArtifact,
     diagnostics: [],
   };
 }
@@ -60,6 +67,8 @@ function collectDefaultBindings(
         return;
       case "default-uniform":
         referenced.add(expression.uniform);
+        return;
+      case "custom-uniform":
         return;
       case "swizzle":
         visit(expression.expression);
@@ -99,6 +108,52 @@ function collectDefaultBindings(
       (uniform === "resolution" && usesFragmentPosition),
   );
   return { glsl, wgsl };
+}
+
+function collectCustomBindings(
+  module: ShaderModule,
+): NonNullable<CompiledFragmentArtifact["custom"]> {
+  const referenced = new Set<string>();
+  function visit(expression: ShaderExpression): void {
+    switch (expression.kind) {
+      case "custom-uniform":
+        referenced.add(expression.name);
+        return;
+      case "swizzle":
+        visit(expression.expression);
+        return;
+      case "unary":
+        visit(expression.argument);
+        return;
+      case "binary":
+        visit(expression.left);
+        visit(expression.right);
+        return;
+      case "call":
+        for (const arg of expression.arguments) visit(arg);
+        return;
+      case "builtin-input":
+      case "numeric-literal":
+      case "local-reference":
+      case "default-uniform":
+        return;
+      default:
+        assertNever(expression);
+    }
+  }
+  for (const statement of module.statements)
+    visit(
+      statement.kind === "const-declaration"
+        ? statement.initializer
+        : statement.expression,
+    );
+  const names = module
+    .customUniforms!.filter((entry) => referenced.has(entry.name))
+    .map((entry) => entry.name);
+  return {
+    declarations: module.customUniforms!,
+    referenced: { glsl: names, wgsl: names },
+  };
 }
 
 function assertNever(value: never): never {

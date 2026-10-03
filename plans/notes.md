@@ -55,12 +55,12 @@ Keep the first pass to explicit f32 signatures. In particular, decide `clamp` bo
 
 ## Proposed work prioritization
 
-1. **WebGPU pixel rendering in the REPL** and parity tests. WGSL currently validates but doesn’t render. Close that evidence gap before promising a two-target runtime.
-2. **Browser runtime API design**, then a minimal implementation. Define ownership, uniforms, errors, and disposal using what the REPL taught us. Keep the first API small.
-3. **Custom uniforms**. They depend on a host-facing binding/update contract and unlock substantially more useful shaders.
-4. **Textures and samplers**. Build on the runtime and resource-binding model rather than inventing those contracts inside the language change.
-5. **Small language PRs** alongside that work: vector composition first, then the most useful of mix/clamp/step/pow after a signature review. These needn’t block runtime work.
-6. **Comparisons/selection**, then composable functions. Both need more semantic design than another builtin; tackle them when real shaders show which form is needed. Leave general control flow and vertex-stage authoring later.
+1. [x] **WebGPU pixel rendering in the REPL** and parity tests. WGSL currently validates but doesn’t render. Close that evidence gap before promising a two-target runtime.
+2. [x] **Browser runtime API design**, then a minimal implementation. Define ownership, uniforms, errors, and disposal using what the REPL taught us. Keep the first API small.
+3. [x] **Custom uniforms**. They depend on a host-facing binding/update contract and unlock substantially more useful shaders.
+4. [ ] **Textures and samplers**. Build on the runtime and resource-binding model rather than inventing those contracts inside the language change.
+5. [ ] **Small language PRs** alongside that work: vector composition first, then the most useful of mix/clamp/step/pow after a signature review. These needn’t block runtime work.
+6. [ ] **Comparisons/selection**, then composable functions. Both need more semantic design than another builtin; tackle them when real shaders show which form is needed. Leave general control flow and vertex-stage authoring later.
 
 ---
 

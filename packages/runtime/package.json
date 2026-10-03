@@ -29,7 +29,7 @@
     "build": "tsdown",
     "check": "tsc --noEmit",
     "pretest": "playwright install chromium",
-    "test": "node test/verify-browser.mjs"
+    "test": "node test/verify-browser.mjs && node test/verify-uniforms.mjs"
   },
   "dependencies": {
     "shdr": "workspace:*"

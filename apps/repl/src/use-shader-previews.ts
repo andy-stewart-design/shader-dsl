@@ -238,6 +238,34 @@ export function useShaderPreviews(initialArtifact: CompiledFragmentArtifact) {
     };
   }, [initialArtifact, renderOutputs, canvasFor, installed, replace, report]);
 
+  // REPL-only example controls operate on installed, schema-erased editor artifacts.
+  // Each backend still owns its own validation, values, and drawing lifecycle.
+  const updateUniforms = useCallback(
+    (values: Parameters<Renderer["setUniforms"]>[0]) => {
+      for (const target of TARGETS) {
+        const renderer = renderers.current[target];
+        if (!renderer) continue;
+        try {
+          renderer.setUniforms(values);
+        } catch (error) {
+          report(target, { state: "error", message: errorMessage(error) });
+        }
+      }
+    },
+    [report],
+  );
+  const resetUniforms = useCallback(() => {
+    for (const target of TARGETS) {
+      const renderer = renderers.current[target];
+      if (!renderer) continue;
+      try {
+        renderer.resetUniforms();
+      } catch (error) {
+        report(target, { state: "error", message: errorMessage(error) });
+      }
+    }
+  }, [report]);
+
   const block = useCallback(() => {
     run.current++;
     latest.current = null;
@@ -269,5 +297,7 @@ export function useShaderPreviews(initialArtifact: CompiledFragmentArtifact) {
     renderOutputs,
     block,
     updateMouse,
+    updateUniforms,
+    resetUniforms,
   };
 }

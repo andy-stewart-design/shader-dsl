@@ -23,14 +23,19 @@ export function validateShaderSyntax(
     return [typeAnnotationDiagnostic(parameter.typeAnnotation)];
   }
 
+  const localNames = new Set(
+    parameter?.type === "ObjectPattern"
+      ? parameter.properties.flatMap((property) =>
+          property.type === "ObjectProperty" &&
+          property.key.type === "Identifier"
+            ? [property.key.name]
+            : [],
+        )
+      : [],
+  );
   if (callback.body.type !== "BlockStatement") {
-    return [
-      diagnostic(
-        ShaderDiagnosticCode.UnsupportedExpression,
-        "Expression-bodied callbacks are not supported.",
-        callback.body,
-      ),
-    ];
+    const issue = validateExpression(callback.body, localNames, calleeNames);
+    return issue ? [issue] : [];
   }
 
   const statements = callback.body.body;
@@ -79,8 +84,6 @@ export function validateShaderSyntax(
       ),
     ];
   }
-
-  const localNames = new Set(["coord", "uniforms"]);
 
   for (const statement of statements) {
     if (statement.type !== "VariableDeclaration") continue;

@@ -89,6 +89,7 @@ export function evaluateShaderConstant(
     }
     case "builtin-input":
     case "default-uniform":
+    case "custom-uniform":
       return undefined;
     default:
       return assertNever(expression);
@@ -129,6 +130,7 @@ export function identicalConstantExpressions(
       }
       case "builtin-input":
       case "default-uniform":
+      case "custom-uniform":
         return undefined;
       default:
         return assertNever(expression);

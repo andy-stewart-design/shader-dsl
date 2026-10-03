@@ -13,6 +13,10 @@ import {
 } from "@babel/types";
 
 import { isShaderBuiltinName } from "./shader-builtin.js";
+import {
+  parseCustomUniforms,
+  type ParsedCustomUniforms,
+} from "./parse-custom-uniforms.js";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
 import type { ShaderCallbackSyntax } from "./shader-syntax.js";
@@ -40,7 +44,8 @@ export interface ShaderCallbackInfo {
 
 export interface ShaderFileInfo {
   readonly fileName: string;
-  readonly createFragmentShaderImport: ShaderImportInfo;
+  readonly createFragmentShaderImport?: ShaderImportInfo;
+  readonly customUniforms?: ParsedCustomUniforms;
   readonly shaderCallableImports: readonly ShaderImportInfo[];
   readonly defaultExportRange: TextRange;
   readonly defaultExportCallRange: TextRange;
@@ -57,6 +62,7 @@ export interface ParseShaderFileResult {
 
 interface ParsedImports {
   readonly createFragmentShaderImport?: ShaderImportInfo;
+  readonly defineUniformsImport?: ShaderImportInfo;
   readonly shaderCallableImports: readonly ShaderImportInfo[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
@@ -91,7 +97,7 @@ export function parseShaderFile(
     return { diagnostics: imports.diagnostics };
   }
 
-  if (!imports.createFragmentShaderImport) {
+  if (!imports.createFragmentShaderImport && !imports.defineUniformsImport) {
     return {
       diagnostics: [
         diagnostic(
@@ -146,7 +152,7 @@ export function parseShaderFile(
   }
 
   const defaultExport = defaultExports[0]!;
-  if (!isDirectShaderCall(defaultExport.declaration)) {
+  if (!isShaderCall(defaultExport.declaration)) {
     return {
       diagnostics: [
         diagnostic(
@@ -159,6 +165,21 @@ export function parseShaderFile(
   }
 
   const call = defaultExport.declaration;
+  const chained = isChainedShaderCall(call);
+  if (
+    (chained && !imports.defineUniformsImport) ||
+    (!chained && !imports.createFragmentShaderImport)
+  ) {
+    return {
+      diagnostics: [
+        diagnostic(
+          ShaderDiagnosticCode.MissingCreateFragmentShaderImport,
+          `Import ${chained ? "defineUniforms" : CREATE_FRAGMENT_SHADER} directly from "shdr".`,
+          rangeOf(call),
+        ),
+      ],
+    };
+  }
   if (shaderCalls.length !== 1 || shaderCalls[0] !== call) {
     return {
       diagnostics: [
@@ -173,7 +194,10 @@ export function parseShaderFile(
 
   const callbackArgument = call.arguments[0];
   if (
-    call.arguments.length !== 1 ||
+    call.typeArguments ||
+    (chained
+      ? call.arguments.length !== 1
+      : call.arguments.length < 1 || call.arguments.length > 2) ||
     !callbackArgument ||
     callbackArgument.type !== "ArrowFunctionExpression"
   ) {
@@ -186,6 +210,81 @@ export function parseShaderFile(
         ),
       ],
     };
+  }
+
+  let customUniforms: ParsedCustomUniforms | undefined;
+  if (chained || call.arguments.length === 2) {
+    if (!imports.defineUniformsImport) {
+      return {
+        diagnostics: [
+          diagnostic(
+            ShaderDiagnosticCode.InvalidCustomUniform,
+            "Custom uniforms require a direct named defineUniforms import from shdr.",
+            rangeOf(call),
+          ),
+        ],
+      };
+    }
+    let definition: CallExpression | undefined;
+    if (chained) {
+      definition = call.callee.object as CallExpression;
+    } else {
+      const options = call.arguments[1];
+      if (
+        options?.type !== "ObjectExpression" ||
+        options.properties.length !== 1 ||
+        options.properties[0]?.type !== "ObjectProperty" ||
+        !options.properties[0].shorthand ||
+        options.properties[0].computed ||
+        options.properties[0].key.type !== "Identifier" ||
+        options.properties[0].key.name !== "uniforms" ||
+        options.properties[0].value.type !== "Identifier"
+      ) {
+        return {
+          diagnostics: [
+            diagnostic(
+              ShaderDiagnosticCode.InvalidCustomUniform,
+              "Expected exactly { uniforms } as the second argument.",
+              rangeOf(options ?? call),
+            ),
+          ],
+        };
+      }
+      const identifier = options.properties[0].value.name;
+      const declarations = file.program.body.filter(
+        (statement) =>
+          statement.type === "VariableDeclaration" &&
+          statement.kind === "const" &&
+          statement.declarations.length === 1 &&
+          statement.declarations[0]?.id.type === "Identifier" &&
+          statement.declarations[0].id.name === identifier,
+      );
+      const init =
+        declarations[0]?.type === "VariableDeclaration"
+          ? declarations[0].declarations[0]?.init
+          : undefined;
+      if (
+        declarations.length !== 1 ||
+        init?.type !== "CallExpression" ||
+        init.callee.type !== "Identifier" ||
+        init.callee.name !== "defineUniforms" ||
+        (init.end ?? 0) > (call.start ?? 0)
+      ) {
+        return {
+          diagnostics: [
+            diagnostic(
+              ShaderDiagnosticCode.InvalidCustomUniform,
+              "Expected a same-file const uniforms = defineUniforms(...) before the shader call.",
+              rangeOf(options),
+            ),
+          ],
+        };
+      }
+      definition = init;
+    }
+    const parsedCustom = parseCustomUniforms(definition);
+    if (!parsedCustom.ok) return { diagnostics: parsedCustom.diagnostics };
+    customUniforms = parsedCustom.value;
   }
 
   const callback = callbackArgument;
@@ -210,21 +309,8 @@ export function parseShaderFile(
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.InvalidCallbackParameter,
-          "The callback parameter must be exactly ({ coord, uniforms }).",
+          "The callback parameter must be ({ coord, uniforms }) or ({ uniforms }).",
           parameter ? rangeOf(parameter) : rangeOf(callback),
-        ),
-      ],
-    };
-  }
-
-  if (callback.body.type !== "BlockStatement") {
-    return {
-      shaderRegion: callbackRange,
-      diagnostics: [
-        diagnostic(
-          ShaderDiagnosticCode.InvalidCallbackBody,
-          "The fragment shader callback must have a block body.",
-          rangeOf(callback.body),
         ),
       ],
     };
@@ -250,6 +336,7 @@ export function parseShaderFile(
     info: {
       fileName,
       createFragmentShaderImport: imports.createFragmentShaderImport,
+      customUniforms,
       shaderCallableImports: imports.shaderCallableImports,
       defaultExportRange: rangeOf(defaultExport),
       defaultExportCallRange: rangeOf(call),
@@ -325,6 +412,7 @@ function findReservedIdentifier(node: Node): Identifier | undefined {
 
 function parseImports(file: File): ParsedImports {
   let createFragmentShaderImport: ShaderImportInfo | undefined;
+  let defineUniformsImport: ShaderImportInfo | undefined;
   const shaderCallableImports: ShaderImportInfo[] = [];
   const diagnostics: ShaderDiagnostic[] = [];
 
@@ -332,17 +420,17 @@ function parseImports(file: File): ParsedImports {
     if (statement.type !== "ImportDeclaration") continue;
 
     if (statement.source.value !== SHDR_MODULE_NAME) {
-      if (
-        statement.specifiers.some(
-          (specifier) =>
-            specifier.type === "ImportSpecifier" &&
-            importedNameOf(specifier) === CREATE_FRAGMENT_SHADER,
-        )
-      ) {
+      const wrongImport = statement.specifiers.find(
+        (specifier) =>
+          specifier.type === "ImportSpecifier" &&
+          (importedNameOf(specifier) === CREATE_FRAGMENT_SHADER ||
+            importedNameOf(specifier) === "defineUniforms"),
+      );
+      if (wrongImport?.type === "ImportSpecifier") {
         diagnostics.push(
           diagnostic(
             ShaderDiagnosticCode.WrongModule,
-            `${CREATE_FRAGMENT_SHADER} must be imported from ${JSON.stringify(SHDR_MODULE_NAME)}.`,
+            `${importedNameOf(wrongImport)} must be imported from ${JSON.stringify(SHDR_MODULE_NAME)}.`,
             rangeOf(statement.source),
           ),
         );
@@ -367,11 +455,23 @@ function parseImports(file: File): ParsedImports {
           createFragmentShaderImport = importInfo;
         }
       },
+      (importInfo) => {
+        if (defineUniformsImport)
+          diagnostics.push(
+            diagnostic(
+              ShaderDiagnosticCode.InvalidCustomUniform,
+              "defineUniforms may only be imported once.",
+              importInfo.range,
+            ),
+          );
+        else defineUniformsImport = importInfo;
+      },
     );
   }
 
   return {
     createFragmentShaderImport,
+    defineUniformsImport,
     shaderCallableImports,
     diagnostics,
   };
@@ -382,6 +482,7 @@ function parseShdrImport(
   diagnostics: ShaderDiagnostic[],
   shaderCallableImports: ShaderImportInfo[],
   setCreateFragmentShaderImport: (importInfo: ShaderImportInfo) => void,
+  setDefineUniformsImport: (importInfo: ShaderImportInfo) => void,
 ): void {
   if (declaration.importKind === "type") {
     diagnostics.push(
@@ -440,6 +541,8 @@ function parseShdrImport(
 
     if (importedName === CREATE_FRAGMENT_SHADER) {
       setCreateFragmentShaderImport(importInfo);
+    } else if (importedName === "defineUniforms") {
+      setDefineUniformsImport(importInfo);
     } else if (
       SUPPORTED_SHADER_CALLABLES.has(importedName) ||
       isShaderBuiltinName(importedName)
@@ -467,10 +570,29 @@ function findShaderCalls(node: Node): readonly CallExpression[] {
   const calls: CallExpression[] = [];
 
   traverse(node, (current) => {
-    if (isDirectShaderCall(current)) calls.push(current);
+    if (isShaderCall(current)) calls.push(current);
   });
 
   return calls;
+}
+
+function isShaderCall(node: Node): node is CallExpression {
+  return isDirectShaderCall(node) || isChainedShaderCall(node);
+}
+
+function isChainedShaderCall(node: Node): node is CallExpression & {
+  callee: { type: "MemberExpression"; object: CallExpression };
+} {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "MemberExpression" &&
+    !node.callee.computed &&
+    node.callee.property.type === "Identifier" &&
+    node.callee.property.name === CREATE_FRAGMENT_SHADER &&
+    node.callee.object.type === "CallExpression" &&
+    node.callee.object.callee.type === "Identifier" &&
+    node.callee.object.callee.name === "defineUniforms"
+  );
 }
 
 function isDirectShaderCall(node: Node): node is CallExpression {
@@ -485,10 +607,16 @@ function isContextParameter(
   parameter: ArrowFunctionExpression["params"][number] | undefined,
 ): parameter is ObjectPattern {
   if (!parameter || parameter.type !== "ObjectPattern") return false;
-  if (parameter.properties.length !== 2) return false;
+  if (parameter.properties.length !== 2 && parameter.properties.length !== 1)
+    return false;
 
   return parameter.properties.every((property, index) => {
-    const expectedName = index === 0 ? "coord" : "uniforms";
+    const expectedName =
+      parameter.properties.length === 1
+        ? "uniforms"
+        : index === 0
+          ? "coord"
+          : "uniforms";
 
     return (
       property.type === "ObjectProperty" &&

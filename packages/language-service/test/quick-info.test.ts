@@ -106,13 +106,14 @@ describe("original-source QuickInfo", () => {
         const outside = checked.getQuickInfoAtOriginalPosition(outsidePosition);
         expect(outside).toMatchObject({
           name: "createFragmentShader",
-          display:
-            "(_callback: (context: FragmentContext) => Expr<Vec4<F32>>) => CompiledFragmentArtifact",
           range: {
             start: outsidePosition,
             length: "createFragmentShader".length,
           },
         });
+
+        expect(outside?.display).toContain("UniformDefinition<S>");
+        expect(outside?.display).toContain("CompiledFragmentArtifact");
 
         expect(
           checked.getQuickInfoAtOriginalPosition(source.indexOf("/")),

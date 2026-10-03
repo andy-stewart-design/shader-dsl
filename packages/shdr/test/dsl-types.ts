@@ -20,6 +20,7 @@ import type {
   Expr,
   F32,
   CompiledFragmentArtifact,
+  TypedCompiledFragmentArtifact,
   Vec2,
   Vec3,
   Vec4,
@@ -175,5 +176,9 @@ type DslTypeAssertions = [
   Expect<Equal<typeof colorFromVector2, Expr<Vec4<F32>>>>,
   Expect<Equal<typeof colorFromScalarSplat, Expr<Vec4<F32>>>>,
   Expect<Equal<typeof colorFromVector4, Expr<Vec4<F32>>>>,
-  Expect<Equal<typeof shader, CompiledFragmentArtifact>>,
+  Expect<
+    Equal<typeof shader, TypedCompiledFragmentArtifact<Record<never, never>>>
+  >,
 ];
+const schemaErasedShader: CompiledFragmentArtifact = shader;
+void schemaErasedShader;

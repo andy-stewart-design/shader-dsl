@@ -27,8 +27,13 @@ export function generateGlslFragment(module: ShaderModule): string {
     return assertNever(module.stage);
   }
 
-  const statements = module.statements.map(generateStatement);
+  const custom = module.customUniforms ?? [];
+  const customNames = custom.map((item) => item.name);
+  const statements = module.statements.map((statement) =>
+    generateStatement(statement, customNames),
+  );
   const referencedUniforms = new Set<ShaderDefaultUniform>();
+  const referencedCustom = new Set<string>();
   let usesFragmentPosition = false;
 
   for (const statement of statements) {
@@ -36,6 +41,8 @@ export function generateGlslFragment(module: ShaderModule): string {
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
     }
+    for (const name of statement.expression.referencedCustomUniforms ?? [])
+      referencedCustom.add(name);
   }
 
   const sections = ["#version 300 es\nprecision highp float;"];
@@ -45,6 +52,14 @@ export function generateGlslFragment(module: ShaderModule): string {
   if (uniformDeclarations.length > 0) {
     sections.push(uniformDeclarations.join("\n"));
   }
+  const customDeclarations = custom.flatMap((item, index) =>
+    referencedCustom.has(item.name)
+      ? [
+          `uniform ${item.type === "f32" ? "float" : item.type} shdr_custom_${index};`,
+        ]
+      : [],
+  );
+  if (customDeclarations.length) sections.push(customDeclarations.join("\n"));
 
   sections.push("out vec4 shdr_fragment_color;");
 
@@ -65,11 +80,15 @@ export function generateGlslFragment(module: ShaderModule): string {
   return `${sections.join("\n\n")}\n`;
 }
 
-function generateStatement(statement: ShaderStatement): GeneratedStatement {
+function generateStatement(
+  statement: ShaderStatement,
+  customUniforms: readonly string[],
+): GeneratedStatement {
   switch (statement.kind) {
     case "const-declaration": {
       const expression = generateGlslExpression(statement.initializer, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
+        customUniforms,
       });
       return {
         code: `  ${glslTypeName(statement.initializer.type)} ${statement.name} = ${expression.code};`,
@@ -80,6 +99,7 @@ function generateStatement(statement: ShaderStatement): GeneratedStatement {
     case "return-statement": {
       const expression = generateGlslExpression(statement.expression, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
+        customUniforms,
       });
       return {
         code: `  shdr_fragment_color = ${expression.code};`,
@@ -127,5 +147,7 @@ function glslTypeName(type: ShaderValueType): string {
 }
 
 function assertNever(value: never): never {
-  throw new Error(`Unsupported GLSL module IR value: ${JSON.stringify(value)}.`);
+  throw new Error(
+    `Unsupported GLSL module IR value: ${JSON.stringify(value)}.`,
+  );
 }

@@ -27,6 +27,7 @@ export function lowerFragment(source: string): LowerFragmentResult {
   const lowered = lowerShaderSyntax(
     parsed.info.callback.syntax,
     new Set(parsed.info.shaderCallableImports.map((entry) => entry.localName)),
+    parsed.info.customUniforms?.declarations,
   );
   if (!lowered.ok) {
     return { ok: false, diagnostics: lowered.diagnostics };

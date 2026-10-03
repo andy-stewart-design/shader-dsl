@@ -7,11 +7,21 @@ import type { CompiledFragmentArtifact } from "shdr";
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import customUniformsShader from "./custom-uniforms.shdr.ts";
+import customInline from "./custom-demo-inline.shdr.ts";
+import customNamed from "./custom-demo-named.shdr.ts";
 import "./style.css";
 
 const shader: CompiledFragmentArtifact = fragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+if (
+  customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
+  !customUniformsShader.wgsl.includes("@group(1) @binding(0)")
+)
+  throw new Error(
+    "The custom-uniform artifact was not generated at build time.",
+  );
 if (
   !expanded.glsl.includes("vec3(") ||
   !shader.wgsl.includes("shdr_fragment_main")
@@ -30,6 +40,18 @@ app.innerHTML = `
     <h2>Math builtins</h2>
     <canvas id="math-canvas" width="128" height="128"></canvas>
     <p id="math-status" role="status">Compiling generated math shader…</p>
+    <h2>Custom uniforms (inline and named declarations)</h2>
+    <canvas id="custom-gl-canvas" aria-label="Custom uniforms WebGL" width="32" height="32"></canvas>
+    <p id="custom-gl-status" role="status">Starting custom WebGL…</p>
+    <canvas id="custom-gpu-canvas" aria-label="Custom uniforms WebGPU" width="32" height="32"></canvas>
+    <p id="custom-gpu-status" role="status">Starting custom WebGPU…</p>
+    <div class="uniform-actions">
+      <button id="custom-set" type="button">Set custom uniforms</button>
+      <button id="custom-reset-gain" type="button">Reset gain</button>
+      <button id="custom-reset-all" type="button">Reset all custom uniforms</button>
+      <button id="custom-named" type="button">Use named shader</button>
+      <button id="custom-inline" type="button">Use inline shader</button>
+    </div>
   </main>
 `;
 const canvas = document.querySelector<HTMLCanvasElement>("#shader-canvas");
@@ -107,10 +129,98 @@ async function renderWebGpu(): Promise<void> {
   }
 }
 
+async function renderCustomUniformDemos(): Promise<void> {
+  const glCanvas =
+    document.querySelector<HTMLCanvasElement>("#custom-gl-canvas");
+  const gpuCanvas =
+    document.querySelector<HTMLCanvasElement>("#custom-gpu-canvas");
+  const glStatus =
+    document.querySelector<HTMLParagraphElement>("#custom-gl-status");
+  const gpuStatus =
+    document.querySelector<HTMLParagraphElement>("#custom-gpu-status");
+  if (!glCanvas || !gpuCanvas || !glStatus || !gpuStatus)
+    throw new Error("Missing custom-uniform fixture elements.");
+  const gl = await createWebGlRenderer(glCanvas, customInline, {
+    signal: lifetime.signal,
+    animate: false,
+    uniforms: { color: [0.1, 0.3, 0.5], gain: 0.2 },
+    onError(error) {
+      glStatus.textContent = error.message;
+    },
+  }).catch((error: unknown): never => {
+    glCanvas.dataset.renderStatus = "error";
+    glStatus.textContent =
+      error instanceof Error ? error.message : String(error);
+    throw error;
+  });
+  renderers.push(gl);
+  glCanvas.dataset.renderStatus = "success";
+  glStatus.textContent =
+    "Custom GLSL first frame rendered with instance overrides.";
+  const gpu = await createWebGpuRenderer(gpuCanvas, customInline, {
+    signal: lifetime.signal,
+    animate: false,
+    uniforms: { color: [0.1, 0.3, 0.5], gain: 0.2 },
+    onError(error) {
+      gpuStatus.textContent = error.message;
+    },
+  }).then(
+    (renderer) => {
+      renderers.push(renderer);
+      gpuCanvas.dataset.renderStatus = "success";
+      gpuStatus.textContent =
+        "Custom WGSL first frame rendered with instance overrides.";
+      return renderer;
+    },
+    (error: unknown) => {
+      gpuCanvas.dataset.renderStatus =
+        error instanceof ShdrRuntimeError && error.kind === "unavailable"
+          ? "unavailable"
+          : "error";
+      gpuStatus.textContent =
+        error instanceof Error ? error.message : String(error);
+      return null;
+    },
+  );
+  const both = gpu ? [gl, gpu] : [gl];
+  function action(
+    id: string,
+    operation: (renderer: typeof gl) => Promise<void>,
+  ): void {
+    document
+      .querySelector<HTMLButtonElement>(`#${id}`)
+      ?.addEventListener("click", () => {
+        void Promise.all(both.map(operation)).catch((error: unknown) => {
+          glStatus.textContent =
+            error instanceof Error ? error.message : String(error);
+        });
+      });
+  }
+  action("custom-set", async (renderer) => {
+    renderer.setUniforms({ color: [0.7, 0.2, 0.3], gain: 0.8 });
+    await renderer.draw();
+  });
+  action("custom-reset-gain", async (renderer) => {
+    renderer.resetUniforms("gain");
+    await renderer.draw();
+  });
+  action("custom-reset-all", async (renderer) => {
+    renderer.resetUniforms();
+    await renderer.draw();
+  });
+  action("custom-named", async (renderer) => {
+    await renderer.setShader(customNamed);
+  });
+  action("custom-inline", async (renderer) => {
+    await renderer.setShader(customInline);
+  });
+}
+
 // The host chooses both explicit backends. Each preview reports its own error;
 // missing WebGPU never interrupts WebGL, and no rejected setup goes unhandled.
 void Promise.allSettled([
   renderWebGl(canvas, status, shader),
   renderWebGl(mathCanvas, mathStatus, math),
   renderWebGpu(),
+  renderCustomUniformDemos(),
 ]);
