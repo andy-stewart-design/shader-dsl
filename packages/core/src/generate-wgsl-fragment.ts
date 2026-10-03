@@ -9,6 +9,7 @@ import type {
   ShaderStatement,
 } from "./shader-ir.js";
 import type { ShaderValueType } from "./shader-type.js";
+import { shaderLocalName } from "./shader-local-name.js";
 
 const UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -101,7 +102,7 @@ function generateStatement(
         customUniforms,
       });
       return {
-        code: `  let ${statement.name}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
+        code: `  let ${shaderLocalName(statement.symbolId)}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
         expression,
       };
     }

@@ -53,7 +53,7 @@ it("preserves nested builtin identities, argument order, f32 type and original r
     "max(abs(sin(0.0)), smoothstep(0.0, 1.0, fract(0.375)))",
   );
   expect(generateWgslExpression(outer)).toMatchObject({
-    code: "max(abs(sin(0.0)), shdr_internal_smoothstep_f32(0.0, 1.0, fract(0.375)))",
+    code: "max(abs(sin(0.0f)), shdr_internal_smoothstep_f32(0.0f, 1.0f, fract(0.375f)))",
     smoothstepShapes: ["f32"],
   });
   const module: ShaderModule = {

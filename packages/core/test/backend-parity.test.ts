@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { generateGlslFragment } from "../src/generate-glsl-fragment.js";
 import { generateWgslFragment } from "../src/generate-wgsl-fragment.js";
+import { compileFragmentArtifact } from "../src/compile-fragment-artifact.js";
 import {
   lowerFragment,
   type ShaderExpression,
@@ -10,6 +11,72 @@ import {
 import { readShaderFixture } from "./read-shader-fixture.js";
 
 describe("backend parity at the typed IR boundary", () => {
+  it("emits identical symbol-based locals for generated-name collisions, keywords, and Unicode", () => {
+    const names = [
+      "shdr_coord",
+      "shdr_fragment_color",
+      "shdr_local_0",
+      "shdr_custom_0",
+      "shdr_time",
+      "$color",
+      "café",
+      "attribute",
+    ];
+    const artifacts = names.map((name) => {
+      const source = `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const ${name} = 0.25;
+  return vec4(${name});
+});`;
+      const lowered = lowerFragment(source);
+      expect(lowered.ok, name).toBe(true);
+      if (!lowered.ok) throw new Error(`Unable to lower ${name}`);
+      expect(lowered.ir.statements[0]).toMatchObject({
+        kind: "const-declaration",
+        name,
+        symbolId: 0,
+      });
+      const compiled = compileFragmentArtifact(source);
+      expect(compiled.ok, name).toBe(true);
+      if (!compiled.ok) throw new Error(`Unable to compile ${name}`);
+      return compiled.artifact;
+    });
+    for (const artifact of artifacts) expect(artifact).toEqual(artifacts[0]);
+    expect(artifacts[0]?.glsl).toContain("float shdr_local_0 = 0.25;");
+    expect(artifacts[0]?.glsl).toContain("vec4(shdr_local_0)");
+    expect(artifacts[0]?.wgsl).toContain("let shdr_local_0: f32 = 0.25f;");
+    expect(artifacts[0]?.wgsl).toContain("vec4<f32>(shdr_local_0)");
+  });
+
+  it("keeps a coord-reading local distinct from the generated fragment-position binding", () => {
+    const source = `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const shdr_coord = coord;
+  return vec4(shdr_coord.x / uniforms.resolution.x, 0, 0, 1);
+});`;
+    const compiled = compileFragmentArtifact(source);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.artifact.glsl).toContain("vec4 shdr_local_0 = shdr_coord;");
+    expect(compiled.artifact.wgsl).toContain(
+      "let shdr_local_0: vec4<f32> = shdr_coord;",
+    );
+    expect(compiled.artifact.glsl).toContain("(shdr_local_0).x");
+    expect(compiled.artifact.wgsl).toContain("(shdr_local_0).x");
+  });
+
+  it("makes literal-only arithmetic f32 before WGSL evaluates it", () => {
+    const source = `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  return vec4(16777217 - 16777216, 0, 0, 1);
+});`;
+    const compiled = compileFragmentArtifact(source);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.artifact.wgsl).toContain("(16777217.0f - 16777216.0f)");
+    expect(compiled.artifact.glsl).toContain("(16777217.0 - 16777216.0)");
+  });
+
   it("generates both targets repeatedly from the exact same frozen IR", async () => {
     const source = await readShaderFixture("gradient");
     const lowered = lowerFragment(source);

@@ -49,11 +49,11 @@ const divide = (
 
 describe("WGSL expression generation", () => {
   it.each([
-    [0, "0.0"],
-    [1, "1.0"],
-    [2.5, "2.5"],
-    [1e-7, "1e-7"],
-    [-0, "-0.0"],
+    [0, "0.0f"],
+    [1, "1.0f"],
+    [2.5, "2.5f"],
+    [1e-7, "1e-7f"],
+    [-0, "-0.0f"],
   ])("normalizes the numeric literal %s", (value, expected) => {
     expect(generateWgslExpression(numeric(value))).toEqual({
       code: expected,
@@ -80,13 +80,13 @@ describe("WGSL expression generation", () => {
     const right = divide(numeric(1), divide(numeric(2), time, f32), f32);
 
     expect(generateWgslExpression(left)).toEqual({
-      code: "((1.0 / 2.0) / shdr_time)",
+      code: "((1.0f / 2.0f) / shdr_time)",
       referencedUniforms: ["time"],
       usesFragmentPosition: false,
       smoothstepShapes: [],
     });
     expect(generateWgslExpression(right).code).toBe(
-      "(1.0 / (2.0 / shdr_time))",
+      "(1.0f / (2.0f / shdr_time))",
     );
   });
 
@@ -115,7 +115,7 @@ describe("WGSL expression generation", () => {
       range,
     };
     expect(generateWgslExpression(smooth)).toEqual({
-      code: "shdr_internal_smoothstep_f32(0.2, 0.8, 0.5)",
+      code: "shdr_internal_smoothstep_f32(0.2f, 0.8f, 0.5f)",
       referencedUniforms: [],
       usesFragmentPosition: false,
       smoothstepShapes: ["f32"],
@@ -148,14 +148,16 @@ describe("WGSL expression generation", () => {
 
     expect(
       generateWgslExpression(call([uvX, uvX, numeric(0), numeric(1)])).code,
-    ).toBe("vec4<f32>((uv).x, (uv).x, 0.0, 1.0)");
+    ).toBe("vec4<f32>((shdr_local_0).x, (shdr_local_0).x, 0.0f, 1.0f)");
     expect(
       generateWgslExpression(call([uv, numeric(0), numeric(1)])).code,
-    ).toBe("vec4<f32>(uv, 0.0, 1.0)");
+    ).toBe("vec4<f32>(shdr_local_0, 0.0f, 1.0f)");
     expect(generateWgslExpression(call([numeric(1)])).code).toBe(
-      "vec4<f32>(1.0)",
+      "vec4<f32>(1.0f)",
     );
-    expect(generateWgslExpression(call([color])).code).toBe("vec4<f32>(color)");
+    expect(generateWgslExpression(call([color])).code).toBe(
+      "vec4<f32>(shdr_local_1)",
+    );
   });
 });
 
@@ -173,9 +175,9 @@ describe("WGSL fragment module generation", () => {
 fn shdr_fragment_main(
   @builtin(position) shdr_coord: vec4<f32>,
 ) -> @location(0) vec4<f32> {
-  let uv: vec2<f32> = ((shdr_coord).xy / shdr_resolution);
-  let color: vec4<f32> = vec4<f32>((uv).x, (uv).y, 0.0, 1.0);
-  return color;
+  let shdr_local_0: vec2<f32> = ((shdr_coord).xy / shdr_resolution);
+  let shdr_local_1: vec4<f32> = vec4<f32>((shdr_local_0).x, (shdr_local_0).y, 0.0f, 1.0f);
+  return shdr_local_1;
 }
 `);
   });
@@ -228,7 +230,7 @@ fn shdr_fragment_main(
     const wgsl = generateWgslFragment(lowered.ir);
     expect(wgsl).toBe(`@fragment
 fn shdr_fragment_main() -> @location(0) vec4<f32> {
-  return vec4<f32>(1.0);
+  return vec4<f32>(1.0f);
 }
 `);
     expect(wgsl).not.toMatch(/#version|uniform\s|gl_FragCoord|out vec4/);

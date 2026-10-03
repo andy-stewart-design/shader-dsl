@@ -86,21 +86,21 @@ try {
       [...(await page.locator(selector).screenshot())],
     );
   }
-  async function pixels(expected, label) {
-    for (const id of ["gl", "gpu"]) {
+  async function pixels(expected, label, selectors = ["#gl", "#gpu"]) {
+    for (const [index, selector] of selectors.entries()) {
       const pixel =
-        id === "gl"
-          ? await page.evaluate(() => {
-              const gl = document.querySelector("#gl").getContext("webgl2");
+        index === 0
+          ? await page.evaluate((selector) => {
+              const gl = document.querySelector(selector).getContext("webgl2");
               const value = new Uint8Array(4);
               gl.finish();
               gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
               return [...value];
-            })
-          : await presentedPixel("#gpu");
+            }, selector)
+          : await presentedPixel(selector);
       assert.ok(
         pixel.every((v, i) => Math.abs(v - Math.round(expected[i] * 255)) <= 2),
-        `${label} ${id}: ${pixel} vs ${expected}`,
+        `${label} ${selector}: ${pixel} vs ${expected}`,
       );
     }
   }
@@ -552,8 +552,81 @@ try {
     window.animatedGpuUniform.dispose();
   });
   assert.deepEqual(errors, []);
+
+  const regressionSource = (
+    body,
+  ) => `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  ${body}
+});`;
+  const regressions = [
+    {
+      name: "local identifiers, GLSL output, and WGSL fragment-position isolation",
+      shader: shader(
+        "vec4(café, shdr_fragment_color.y, attribute, 1)",
+        regressionSource(`const shdr_coord = coord;
+  const shdr_fragment_color = vec4(0.5, 1, 0, 1);
+  const shdr_local_0 = shdr_fragment_color.x;
+  const $color = shdr_local_0;
+  const café = $color;
+  const attribute = shdr_coord.x / uniforms.resolution.x;
+  return BODY;`),
+      ),
+      expected: [0.5, 1, 0.125, 1],
+    },
+    {
+      name: "literal-only f32 arithmetic",
+      shader: shader(
+        "vec4(16777217 - 16777216, 0, 0, 1)",
+        regressionSource("return BODY;"),
+      ),
+      expected: [0, 0, 0, 1],
+    },
+    {
+      name: "equivalent f32 arithmetic through a local",
+      shader: shader(
+        "vec4(a - 16777216, 0, 0, 1)",
+        regressionSource("const a = 16777217;\n  return BODY;"),
+      ),
+      expected: [0, 0, 0, 1],
+    },
+  ];
+  const regressionSelectors = ["#regression-gl", "#regression-gpu"];
+  await page.evaluate(async (artifact) => {
+    const { createWebGlRenderer } = await import("/src/webgl.ts");
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const canvases = ["regression-gl", "regression-gpu"].map((id) => {
+      const canvas = document.createElement("canvas");
+      canvas.id = id;
+      canvas.width = canvas.height = 4;
+      canvas.style.cssText = "width:4px;height:4px";
+      document.body.append(canvas);
+      return canvas;
+    });
+    window.regressionRenderers = await Promise.all([
+      createWebGlRenderer(canvases[0], artifact, { animate: false }),
+      createWebGpuRenderer(canvases[1], artifact, { animate: false }),
+    ]);
+  }, regressions[0].shader);
+  for (const [index, regression] of regressions.entries()) {
+    if (index)
+      await page.evaluate(
+        (artifact) =>
+          Promise.all(
+            window.regressionRenderers.map((renderer) =>
+              renderer.setShader(artifact),
+            ),
+          ),
+        regression.shader,
+      );
+    await pixels(regression.expected, regression.name, regressionSelectors);
+  }
+  await page.evaluate(() =>
+    window.regressionRenderers.forEach((renderer) => renderer.dispose()),
+  );
+  assert.deepEqual(errors, []);
   console.log(
-    "Verified WebGL and presented WebGPU custom-uniform pixels, first frames, packing, updates, resets, replacement, validation and isolation.",
+    "Verified WebGL and presented WebGPU custom-uniform pixels, generated-name isolation, f32 arithmetic, updates, resets, replacement, validation and isolation.",
   );
 } finally {
   await browser?.close();

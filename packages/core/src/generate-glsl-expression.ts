@@ -4,6 +4,7 @@ import type {
   ShaderExpression,
   ShaderSwizzleComponents,
 } from "./shader-ir.js";
+import { shaderLocalName } from "./shader-local-name.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -97,7 +98,7 @@ function emitExpression(
     }
 
     case "local-reference":
-      return expression.name;
+      return shaderLocalName(expression.symbolId);
 
     case "swizzle":
       return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
