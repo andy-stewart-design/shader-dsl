@@ -104,6 +104,49 @@ describe("dual-target fragment artifact", () => {
     expect(compileFragmentArtifact(text)).toEqual(artifact);
   });
 
+  it.each([
+    "1e300",
+    "1e999",
+    "-1e300",
+    "-1e999",
+    "3.4028235e38",
+    "-3.4028235e38",
+  ])(
+    "rejects %s as a source numeric literal before either generator runs",
+    (literal) => {
+      const text = source(`return vec4(${literal}, 0, 0, 1);`);
+      const numberStart = text.indexOf(literal.replace("-", ""));
+      const diagnostics = [
+        expect.objectContaining({
+          code: ShaderDiagnosticCode.InvalidNumericLiteral,
+          range: {
+            start: numberStart,
+            length: literal.replace("-", "").length,
+          },
+        }),
+      ];
+      expect(lowerFragment(text)).toMatchObject({ ok: false, diagnostics });
+      for (const target of ["glsl-es-300", "wgsl"] as const)
+        expect(compileFragment(text, { target })).toMatchObject({
+          ok: false,
+          diagnostics,
+        });
+      expect(compileFragmentArtifact(text)).toMatchObject({
+        ok: false,
+        diagnostics,
+      });
+    },
+  );
+
+  it("accepts finite literals that round to f32, including subnormal underflow", () => {
+    for (const literal of ["3.4028234663852886e38", "1e-50"]) {
+      const compiled = compileFragmentArtifact(
+        source(`return vec4(${literal}, 0, 0, 1);`),
+      );
+      expect(compiled.ok, literal).toBe(true);
+    }
+  });
+
   it("preserves original-source diagnostics and produces no partial artifact", () => {
     const expression = "uniforms.time / uniforms.resolution";
     const text = source(`const bad = ${expression}; return coord;`);

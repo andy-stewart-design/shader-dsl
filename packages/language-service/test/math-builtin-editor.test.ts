@@ -23,6 +23,38 @@ export default createFragmentShader(({ coord, uniforms }) => {
 }
 
 describe("builtin calls in the shared TypeScript 7 editor adapter", () => {
+  it.each(["1e300", "1e999"])(
+    "reports %s at the original numeric literal, matching the compiler",
+    (literal) => {
+      const adapter = new TypeScript7EditorAdapter({
+        cwd: projectDirectory,
+        projectFileName: "tsconfig.json",
+      });
+      const text = source(literal);
+      try {
+        const document = adapter.updateDocument({
+          fileName,
+          source: text,
+          version: 1,
+          projectVersion: 1,
+        });
+        const expected = {
+          code: ShaderDiagnosticCode.InvalidNumericLiteral,
+          range: { start: text.indexOf(literal), length: literal.length },
+        };
+        expect(lowerFragment(text)).toMatchObject({
+          ok: false,
+          diagnostics: [expected],
+        });
+        expect(document.diagnostics).toEqual([
+          expect.objectContaining(expected),
+        ]);
+      } finally {
+        adapter.dispose();
+      }
+    },
+  );
+
   it("provides scalar/vector hovers and no diagnostics for valid calls", () => {
     const adapter = new TypeScript7EditorAdapter({
       cwd: projectDirectory,

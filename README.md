@@ -195,6 +195,7 @@ Assignment, `let`, `var`, type annotations inside the callback, comparisons, con
 | `dot(coord.xy, coord.xyz)`       | `SHDR1208` (unsupported builtin signature) | Whole call              |
 | `smoothstep(0.5, 0.5, coord.x)`  | `SHDR1209` (known equal edges)             | Whole call              |
 | `u.f32(window.devicePixelRatio)` | `SHDR1210` (dynamic custom default)        | Nonliteral argument     |
+| `vec4(1e300)`                    | `SHDR1211` (f32 literal overflow)          | Numeric literal         |
 
 These are **Shdr syntax and semantic** checks of the callback and its explicit custom-uniform declaration, not checks of unrelated ordinary TypeScript. The TypeScript 7 editor provider also supplies mapped shader hovers and diagnostics; standalone `tsc` does not understand shader operators in `.shdr.ts` files.
 

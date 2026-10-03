@@ -6,6 +6,7 @@ import type {
   Program,
 } from "@babel/types";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import { isFiniteF32 } from "./finite-f32.js";
 import type { TextRange } from "./source-range.js";
 import type {
   ShaderCustomUniformDeclaration,
@@ -116,11 +117,7 @@ export function parseCustomUniforms(
       if (arg.type === "SpreadElement" || arg.type === "ArgumentPlaceholder")
         return invalid("Uniform defaults must be numeric literals.", arg);
       const value = literal(arg);
-      if (
-        value === undefined ||
-        !Number.isFinite(value) ||
-        !Number.isFinite(Math.fround(value))
-      )
+      if (value === undefined || !isFiniteF32(value))
         return invalid(
           "Uniform defaults must be finite numeric literals without f32 overflow.",
           arg,

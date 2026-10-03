@@ -3,6 +3,7 @@ import {
   evaluateShaderConstant,
   identicalConstantExpressions,
 } from "./evaluate-shader-constant.js";
+import { isFiniteF32 } from "./finite-f32.js";
 import { builtinResultType, isShaderBuiltinName } from "./shader-builtin.js";
 import type {
   ShaderConstDeclaration,
@@ -200,6 +201,12 @@ function lowerExpression(
 ): LowerExpressionResult {
   switch (syntax.kind) {
     case "numeric-literal":
+      if (!isFiniteF32(syntax.value))
+        return expressionFailure(
+          ShaderDiagnosticCode.InvalidNumericLiteral,
+          "Shader numeric literals must be finite without f32 overflow.",
+          syntax.range,
+        );
       return {
         ok: true,
         expression: {
@@ -349,12 +356,27 @@ function lowerCallExpression(
                 Number.isFinite(component) && component === edge1[index],
             )
           : -1;
-      const identical = identicalConstantExpressions(
-        args[0]!,
-        args[1]!,
-        context.localInitializers,
-      );
-      if (equalIndex >= 0 || identical) {
+      // If every component is known, finite and distinct, a structural
+      // comparison cannot establish equal edges. Avoid walking the DAG.
+      const definitelyDistinct =
+        edge0 !== undefined &&
+        edge1 !== undefined &&
+        edge0.length === edge1.length &&
+        edge0.every(
+          (value, index) =>
+            Number.isFinite(value) &&
+            Number.isFinite(edge1[index]) &&
+            value !== edge1[index],
+        );
+      if (
+        equalIndex >= 0 ||
+        (!definitelyDistinct &&
+          identicalConstantExpressions(
+            args[0]!,
+            args[1]!,
+            context.localInitializers,
+          ))
+      ) {
         return expressionFailure(
           ShaderDiagnosticCode.InvalidBuiltinDomain,
           `smoothstep requires distinct edges in every component; ${type.kind === "vector" ? `component ${Math.max(0, equalIndex)} has` : "edges have"} known edge0 == edge1.`,

@@ -188,6 +188,8 @@ export class TypeScript7EditorAdapter {
               (diagnostic) =>
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                diagnostic.code ===
+                  ShaderDiagnosticCode.InvalidNumericLiteral ||
                 (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
                   parsedInfo !== undefined &&
                   parsedInfo.callback.syntax.declarations.some(

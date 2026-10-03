@@ -125,6 +125,24 @@ describe("installed executable", () => {
     });
   });
 
+  it("rejects non-finite and f32-overflowed literals before target generation", async () => {
+    await withProject(async (cwd) => {
+      const file = join(cwd, "overflow.shdr.ts");
+      for (const literal of ["1e300", "1e999"]) {
+        await writeFile(
+          file,
+          `import { createFragmentShader, vec4 } from "shdr";\nexport default createFragmentShader(({ coord, uniforms }) => {\n  return vec4(${literal}, 0, 0, 1);\n});\n`,
+        );
+        const result = invoke(cwd, "check", "overflow.shdr.ts");
+        expect(result.status).toBe(1);
+        expect(result.stdout).toMatch(
+          /^overflow\.shdr\.ts:3:15: SHDR1211: Shader numeric literals must be finite without f32 overflow\./,
+        );
+        expect(result.stderr).toBe("");
+      }
+    });
+  });
+
   it("checks math builtin calls and preserves SHDR1208/SHDR1209 in CLI output", async () => {
     await withProject(async (cwd) => {
       const file = join(cwd, "math.shdr.ts");

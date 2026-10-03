@@ -136,6 +136,47 @@ describe("f32 builtin matrix", () => {
     });
   }
 
+  it("compares shared constant-expression DAGs without expanding local initializers", () => {
+    const depth = 40; // Expanding either expression would require 2^40 leaves.
+    const chain = (name: string, first: string) =>
+      [
+        `const ${name}0 = ${first};`,
+        ...Array.from(
+          { length: depth },
+          (_, index) =>
+            `const ${name}${index + 1} = ${name}${index} + ${name}${index};`,
+        ),
+      ].join("\n  ");
+    const shader = (a: string, b: string, call: string) =>
+      source(call, "s").replace("  return", `  ${a}\n  ${b}\n  return`);
+
+    const distinctConstants = shader(
+      chain("a", "1"),
+      "",
+      `smoothstep(a${depth}, 0, s)`,
+    );
+    expect(lowerFragment(distinctConstants).ok).toBe(true);
+
+    // sin(1) and cos(1) aren't folded by the constant evaluator. Comparing
+    // separate but identical DAGs must still detect equal edges.
+    const sameDags = shader(
+      chain("a", "sin(1)"),
+      chain("b", "sin(1)"),
+      `smoothstep(a${depth}, b${depth}, s)`,
+    );
+    expect(lowerFragment(sameDags)).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: ShaderDiagnosticCode.InvalidBuiltinDomain }],
+    });
+
+    const differentDags = shader(
+      chain("a", "sin(1)"),
+      chain("b", "cos(1)"),
+      `smoothstep(a${depth}, b${depth}, s)`,
+    );
+    expect(lowerFragment(differentDags).ok).toBe(true);
+  }, 10_000);
+
   it("accepts reversed scalar and vector edges without promising GLSL pixels", () => {
     for (const [call, shape] of [
       ["smoothstep(0.8, 0.2, s)", "s"],

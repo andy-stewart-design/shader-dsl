@@ -141,6 +141,24 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
     });
   });
 
+  it("reports f32-overflowing literals at the authored Vite source range", async () => {
+    const source = shaderSource("return vec4(1e300, 0, 0, 1);");
+    let thrown: unknown;
+    try {
+      await transform(shdr(), source, "/src/overflow.shdr.ts");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
+      name: "ShdrCompileError",
+      pluginCode: "SHDR1211",
+      loc: {
+        file: "/src/overflow.shdr.ts",
+        ...locationAt(source, source.indexOf("1e300")),
+      },
+    });
+  });
+
   it("throws a source-located Vite error for an invalid shader", async () => {
     const expression = "coord.xy + uniforms.time";
     const source = shaderSource(`return vec4(${expression});`);
