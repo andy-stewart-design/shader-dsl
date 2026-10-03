@@ -1,0 +1,12 @@
+{
+  "extends": "../../packages/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": []
+  },
+  "include": [
+    "contract-draft.ts",
+    "contract.typecheck.ts",
+    "fixtures/*.shdr.ts"
+  ]
+}
