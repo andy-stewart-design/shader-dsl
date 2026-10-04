@@ -10,7 +10,7 @@ import { build, createServer } from "vite";
 const root = new URL("../", import.meta.url).pathname;
 function shader(body) {
   const result =
-    compileFragmentArtifact(`import { createFragmentShader, vec4 } from "shdr";
+    compileFragmentArtifact(`import { createFragmentShader, vec2, vec3, vec4 } from "shdr";
 export default createFragmentShader(({ coord, uniforms }) => { ${body} });`);
   assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
   return result.artifact;
@@ -22,6 +22,9 @@ const defaults = shader(
   "return vec4(uniforms.mouse.x / uniforms.resolution.x, uniforms.mouse.y / uniforms.resolution.y, uniforms.time, 1);",
 );
 const time = shader("return vec4(uniforms.time, 0, 0, 1);");
+const vectorArithmetic = shader(
+  "const rgb = vec3(vec2(0.2, 0.4), 0.6); return vec4((1 - rgb + 0.1).bgr, 1);",
+);
 const server = await createServer({
   root,
   configFile: false,
@@ -125,6 +128,22 @@ try {
   });
   assert.deepEqual(await pixel(page, "gl"), [255, 0, 0, 255]);
   assert.deepEqual(await pixel(page, "gpu"), [255, 0, 0, 255]);
+
+  await page.evaluate(async (artifact) => {
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+  }, vectorArithmetic);
+  for (const backend of ["gl", "gpu"]) {
+    const actual = await pixel(page, backend);
+    for (const [index, expected] of [128, 179, 230, 255].entries()) {
+      assert.ok(
+        Math.abs(actual[index] - expected) <= 2,
+        `${backend} color swizzle/constructor/vector arithmetic channel ${index}: ${actual}`,
+      );
+    }
+  }
 
   const bindings = await page.evaluate(
     async ({ coord, defaults, time }) => {
@@ -475,7 +494,7 @@ try {
   assert.equal(noAdapter, "unavailable");
   await auditBundles();
   console.log(
-    "Verified owned WebGL/WebGPU first frames, opaque alpha, bindings, manual inputs, failed/stale installs, loss, disposal and isolated bundles.",
+    "Verified owned WebGL/WebGPU first frames, vector arithmetic/color swizzles, opaque alpha, bindings, manual inputs, failed/stale installs, loss, disposal and isolated bundles.",
   );
 } finally {
   await browser?.close();
