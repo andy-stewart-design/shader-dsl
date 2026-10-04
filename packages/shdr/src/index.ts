@@ -17,9 +17,11 @@ export {
   length,
   max,
   min,
+  mix,
   normalize,
   sin,
   smoothstep,
+  step,
 } from "./math.js";
 export type {
   CompiledFragmentArtifact,

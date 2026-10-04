@@ -57,7 +57,7 @@ export function evaluateShaderConstant(
           expression.type.kind === "vector" ? expression.type.size : 1;
         return values.length === 1 ? Array(size).fill(values[0]!) : values;
       }
-      const [first, second] = args as readonly (readonly number[])[];
+      const [first] = args as readonly (readonly number[])[];
       if (!first || !first.every(Number.isFinite)) return undefined;
       // Use only precisely determined results. Approximate transcendentals,
       // reductions and normalization are deliberately not constant-folded.
@@ -81,6 +81,8 @@ export function evaluateShaderConstant(
         case "fract":
         case "min":
         case "max":
+        case "mix":
+        case "step":
           // Target-specific rounding/denormal behavior can change the
           // ordering; unknown values are handled by the WGSL helper.
           return undefined;

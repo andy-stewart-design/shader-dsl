@@ -49,6 +49,61 @@ export function smoothstep(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("smoothstep");
 }
 
+export function mix(a: Expr<F32>, b: Expr<F32>, factor: Expr<F32>): Expr<F32>;
+export function mix(
+  a: Expr<Vec2<F32>>,
+  b: Expr<Vec2<F32>>,
+  factor: Expr<F32>,
+): Expr<Vec2<F32>>;
+export function mix(
+  a: Expr<Vec2<F32>>,
+  b: Expr<Vec2<F32>>,
+  factor: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function mix(
+  a: Expr<Vec3<F32>>,
+  b: Expr<Vec3<F32>>,
+  factor: Expr<F32>,
+): Expr<Vec3<F32>>;
+export function mix(
+  a: Expr<Vec3<F32>>,
+  b: Expr<Vec3<F32>>,
+  factor: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function mix(
+  a: Expr<Vec4<F32>>,
+  b: Expr<Vec4<F32>>,
+  factor: Expr<F32>,
+): Expr<Vec4<F32>>;
+export function mix(
+  a: Expr<Vec4<F32>>,
+  b: Expr<Vec4<F32>>,
+  factor: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function mix(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("mix");
+}
+
+export function step(edge: Expr<F32>, x: Expr<F32>): Expr<F32>;
+export function step(edge: Expr<F32>, x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function step(
+  edge: Expr<Vec2<F32>>,
+  x: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function step(edge: Expr<F32>, x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function step(
+  edge: Expr<Vec3<F32>>,
+  x: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function step(edge: Expr<F32>, x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function step(
+  edge: Expr<Vec4<F32>>,
+  x: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function step(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("step");
+}
+
 export function abs(x: Expr<F32>): Expr<F32>;
 export function abs(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function abs(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
