@@ -1,19 +1,34 @@
-import { generateGlslFragment } from "./generate-glsl-fragment.js";
-import { generateWgslFragment } from "./generate-wgsl-fragment.js";
-import type { ShaderModule } from "./shader-ir.js";
+import { generateGlslFragmentOutput } from "./generate-glsl-fragment.js";
+import { generateWgslFragmentOutput } from "./generate-wgsl-fragment.js";
+import type { ShaderDefaultUniform, ShaderModule } from "./shader-ir.js";
 
 export type ShaderTarget = "glsl-es-300" | "wgsl";
+
+/** The emitted source and the uniform fields this backend actually uses. */
+export interface GeneratedFragment {
+  readonly code: string;
+  readonly referencedUniforms: readonly ShaderDefaultUniform[];
+  readonly referencedCustomUniforms: readonly string[];
+}
 
 /** Generates one target from an existing target-neutral typed IR module. */
 export function generateFragment(
   ir: ShaderModule,
   target: ShaderTarget,
 ): string {
+  return generateFragmentOutput(ir, target).code;
+}
+
+/** Keep artifact binding metadata tied to actual backend emission. */
+export function generateFragmentOutput(
+  ir: ShaderModule,
+  target: ShaderTarget,
+): GeneratedFragment {
   switch (target) {
     case "glsl-es-300":
-      return generateGlslFragment(ir);
+      return generateGlslFragmentOutput(ir);
     case "wgsl":
-      return generateWgslFragment(ir);
+      return generateWgslFragmentOutput(ir);
     default:
       return unknownTarget(target);
   }

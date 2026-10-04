@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileFragmentArtifact } from "../src/browser.js";
+import { generateFragmentOutput } from "../src/generate-fragment.js";
 import {
   compileFragment,
   generateFragment,
@@ -86,6 +87,47 @@ describe("dual-target fragment artifact", () => {
       }
     },
   );
+
+  it("derives bindings from each generator's emitted dependencies", () => {
+    const text = `import { defineUniforms, vec4 } from "shdr";
+export default defineUniforms((u) => ({ unused: u.vec2(0, 0), gain: u.f32(0.5), color: u.vec3(1, 0, 0) }))
+.createFragmentShader(({ coord, uniforms }) => {
+  const shade = vec4(uniforms.gain, uniforms.color.x, uniforms.time, coord.x);
+  return shade;
+});`;
+    const lowered = lowerFragment(text);
+    const compiled = compileFragmentArtifact(text);
+    if (!lowered.ok || !compiled.ok)
+      throw new Error("Expected compilation to succeed.");
+    const glsl = generateFragmentOutput(lowered.ir, "glsl-es-300");
+    const wgsl = generateFragmentOutput(lowered.ir, "wgsl");
+    expect(compiled.artifact).toMatchObject({
+      glsl: glsl.code,
+      wgsl: wgsl.code,
+      defaults: {
+        glsl: glsl.referencedUniforms,
+        wgsl: wgsl.referencedUniforms,
+      },
+      custom: {
+        declarations: lowered.ir.customUniforms,
+        referenced: {
+          glsl: glsl.referencedCustomUniforms,
+          wgsl: wgsl.referencedCustomUniforms,
+        },
+      },
+    });
+    expect(compiled.artifact.defaults).toEqual({
+      glsl: ["resolution", "time"],
+      wgsl: ["time"],
+    });
+    expect(compiled.artifact.custom?.referenced).toEqual({
+      glsl: ["gain", "color"],
+      wgsl: ["gain", "color"],
+    });
+    expect(glsl.code).not.toContain("uniform vec2 shdr_custom_0;");
+    expect(wgsl.code).toContain("shdr_custom_0: vec2<f32>");
+    expect(wgsl.code).not.toContain("shdr_resolution");
+  });
 
   it("generates both targets from unchanged semantic IR", () => {
     const text = source(

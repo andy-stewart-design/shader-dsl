@@ -1,3 +1,4 @@
+export { analyzeFragment, type FragmentAnalysis } from "./analyze-fragment.js";
 export {
   compileFragment,
   type CompileFragmentFailure,
