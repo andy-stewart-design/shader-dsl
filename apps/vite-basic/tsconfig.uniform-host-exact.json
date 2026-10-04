@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.uniform-host.json",
+  "compilerOptions": { "exactOptionalPropertyTypes": true },
+  "include": [
+    "test/custom-uniform-host.typecheck.ts",
+    "test/exact-uniform-host.typecheck.ts",
+    "src/custom-demo-inline.shdr.ts",
+    "src/custom-demo-named.shdr.ts"
+  ]
+}

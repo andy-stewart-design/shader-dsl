@@ -12,6 +12,10 @@ import type {
 } from "./types.js";
 import { UniformState, type UniformPatch } from "./uniforms.js";
 
+export interface InternalRendererOptions extends RendererOptions {
+  readonly uniforms?: UniformPatch;
+}
+
 const owners = new WeakSet<HTMLCanvasElement>();
 const order: readonly ShaderDefaultUniform[] = ["resolution", "mouse", "time"];
 

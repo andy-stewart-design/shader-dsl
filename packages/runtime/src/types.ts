@@ -15,14 +15,26 @@ export interface RendererOptions {
   /** Optional shared initial time origin, in performance.now() milliseconds. */
   readonly startedAt?: number;
 }
-export interface InternalRendererOptions extends RendererOptions {
-  readonly uniforms?: UniformPatch;
-}
-export type StaticRendererOptions<
+// Validate each supplied key against the required value type. Partial alone
+// allows { gain: undefined } in consumer projects without exact optional types.
+type CheckedStaticUniforms<
   S extends UniformSchema,
   V extends Partial<HostUniforms<S>>,
+> = V & {
+  readonly [K in keyof V]-?: K extends keyof S ? HostUniforms<S>[K] : never;
+};
+
+export type StaticRendererOptions<
+  S extends UniformSchema,
+  V extends Partial<HostUniforms<S>> = never,
 > = RendererOptions & {
-  readonly uniforms?: V & Record<Exclude<keyof V, keyof S>, never>;
+  // With an explicit S alone, TypeScript defaults V instead of inferring it.
+  // Preserve partial options in that case. Under non-exact optional property
+  // settings, Partial permits present undefined; runtime validation rejects it.
+  // Inferred or explicit V still checks each supplied value statically.
+  readonly uniforms?: [V] extends [never]
+    ? Partial<HostUniforms<S>>
+    : CheckedStaticUniforms<S, V>;
 };
 export type DynamicRendererOptions = RendererOptions & {
   readonly uniforms?: UniformPatch;
@@ -62,7 +74,7 @@ export interface StaticRenderer<S extends UniformSchema> extends Pick<
     options?: ShaderInstallOptions,
   ): Promise<ShaderInstallResult>;
   setUniforms<const V extends Partial<HostUniforms<S>>>(
-    values: V & Record<Exclude<keyof V, keyof S>, never>,
+    values: CheckedStaticUniforms<S, V>,
   ): void;
   resetUniforms(...names: readonly (keyof S & string)[]): void;
 }

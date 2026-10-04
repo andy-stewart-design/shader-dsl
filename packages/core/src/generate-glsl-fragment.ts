@@ -8,6 +8,8 @@ import type {
   ShaderStatement,
 } from "./shader-ir.js";
 import type { ShaderValueType } from "./shader-type.js";
+import type { GeneratedFragment } from "./generate-fragment.js";
+import { shaderLocalName } from "./shader-local-name.js";
 
 const UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -23,6 +25,12 @@ interface GeneratedStatement {
 
 /** Generates one standalone GLSL ES 3.00 fragment module from typed IR. */
 export function generateGlslFragment(module: ShaderModule): string {
+  return generateGlslFragmentOutput(module).code;
+}
+
+export function generateGlslFragmentOutput(
+  module: ShaderModule,
+): GeneratedFragment {
   if (module.stage !== "fragment") {
     return assertNever(module.stage);
   }
@@ -46,12 +54,16 @@ export function generateGlslFragment(module: ShaderModule): string {
   }
 
   const sections = ["#version 300 es\nprecision highp float;"];
-  const uniformDeclarations = UNIFORM_ORDER.filter((uniform) =>
+  const usedUniforms = UNIFORM_ORDER.filter((uniform) =>
     referencedUniforms.has(uniform),
-  ).map(uniformDeclaration);
+  );
+  const uniformDeclarations = usedUniforms.map(uniformDeclaration);
   if (uniformDeclarations.length > 0) {
     sections.push(uniformDeclarations.join("\n"));
   }
+  const usedCustom = custom
+    .filter((item) => referencedCustom.has(item.name))
+    .map((item) => item.name);
   const customDeclarations = custom.flatMap((item, index) =>
     referencedCustom.has(item.name)
       ? [
@@ -77,7 +89,11 @@ export function generateGlslFragment(module: ShaderModule): string {
   body.push(...statements.map((statement) => statement.code));
   sections.push(`void main() {\n${body.join("\n")}\n}`);
 
-  return `${sections.join("\n\n")}\n`;
+  return {
+    code: `${sections.join("\n\n")}\n`,
+    referencedUniforms: usedUniforms,
+    referencedCustomUniforms: usedCustom,
+  };
 }
 
 function generateStatement(
@@ -91,7 +107,7 @@ function generateStatement(
         customUniforms,
       });
       return {
-        code: `  ${glslTypeName(statement.initializer.type)} ${statement.name} = ${expression.code};`,
+        code: `  ${glslTypeName(statement.initializer.type)} ${shaderLocalName(statement.symbolId)} = ${expression.code};`,
         expression,
       };
     }

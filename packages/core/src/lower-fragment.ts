@@ -1,6 +1,9 @@
 import type { ShaderDiagnostic } from "./diagnostics.js";
 import { lowerShaderSyntax } from "./lower-shader-syntax.js";
-import { parseShaderFile } from "./parse-shader-file.js";
+import {
+  parseShaderFile,
+  type ParseShaderFileResult,
+} from "./parse-shader-file.js";
 import type { ShaderModule } from "./shader-ir.js";
 
 export interface LowerFragmentSuccess {
@@ -19,7 +22,13 @@ export type LowerFragmentResult = LowerFragmentSuccess | LowerFragmentFailure;
 
 /** Parses, validates, types, and lowers one fragment shader without selecting a backend. */
 export function lowerFragment(source: string): LowerFragmentResult {
-  const parsed = parseShaderFile(source);
+  return lowerParsedFragment(parseShaderFile(source));
+}
+
+/** Lowers an already parsed source without repeating Babel parsing/validation. */
+export function lowerParsedFragment(
+  parsed: ParseShaderFileResult,
+): LowerFragmentResult {
   if (!parsed.info) {
     return { ok: false, diagnostics: parsed.diagnostics };
   }

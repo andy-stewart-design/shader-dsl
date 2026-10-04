@@ -38,6 +38,7 @@ export const ShaderDiagnosticCode = {
   InvalidBuiltin: "SHDR1208",
   InvalidBuiltinDomain: "SHDR1209",
   InvalidCustomUniform: "SHDR1210",
+  InvalidNumericLiteral: "SHDR1211",
 } as const;
 
 export type ShaderDiagnosticCode =

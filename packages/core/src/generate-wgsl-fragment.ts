@@ -9,6 +9,8 @@ import type {
   ShaderStatement,
 } from "./shader-ir.js";
 import type { ShaderValueType } from "./shader-type.js";
+import type { GeneratedFragment } from "./generate-fragment.js";
+import { shaderLocalName } from "./shader-local-name.js";
 
 const UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -28,6 +30,12 @@ interface GeneratedStatement {
  * and time 2. Unreferenced bindings are omitted without renumbering.
  */
 export function generateWgslFragment(module: ShaderModule): string {
+  return generateWgslFragmentOutput(module).code;
+}
+
+export function generateWgslFragmentOutput(
+  module: ShaderModule,
+): GeneratedFragment {
   if (module.stage !== "fragment") {
     return assertNever(module.stage);
   }
@@ -55,13 +63,17 @@ export function generateWgslFragment(module: ShaderModule): string {
   }
 
   const sections: string[] = [];
-  const uniformDeclarations = UNIFORM_ORDER.filter((uniform) =>
+  const usedUniforms = UNIFORM_ORDER.filter((uniform) =>
     referencedUniforms.has(uniform),
-  ).map(uniformDeclaration);
+  );
+  const uniformDeclarations = usedUniforms.map(uniformDeclaration);
   if (uniformDeclarations.length > 0) {
     sections.push(uniformDeclarations.join("\n"));
   }
-  if (referencedCustom.size) {
+  const usedCustom = custom
+    .filter((item) => referencedCustom.has(item.name))
+    .map((item) => item.name);
+  if (usedCustom.length) {
     const members = custom
       .map(
         (item, index) =>
@@ -87,7 +99,11 @@ export function generateWgslFragment(module: ShaderModule): string {
     `@fragment\nfn shdr_fragment_main(${parameters}) -> @location(0) vec4<f32> {\n${body}\n}`,
   );
 
-  return `${sections.join("\n\n")}\n`;
+  return {
+    code: `${sections.join("\n\n")}\n`,
+    referencedUniforms: usedUniforms,
+    referencedCustomUniforms: usedCustom,
+  };
 }
 
 function generateStatement(
@@ -101,7 +117,7 @@ function generateStatement(
         customUniforms,
       });
       return {
-        code: `  let ${statement.name}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
+        code: `  let ${shaderLocalName(statement.symbolId)}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
         expression,
       };
     }

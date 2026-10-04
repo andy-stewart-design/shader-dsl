@@ -1,8 +1,6 @@
 import {
-  createVirtualSource,
-  lowerFragment,
+  analyzeFragment,
   isShaderBuiltinName,
-  parseShaderFile,
   ShaderDiagnosticCode,
   type ShaderExpressionSyntax,
   type TextRange,
@@ -137,7 +135,8 @@ export class TypeScript7EditorAdapter {
     fileName: string,
     original: CheckedTypeScriptSource,
   ): TypeScript7EditorDocumentImpl {
-    const transformed = createVirtualSource(input.source, fileName);
+    const analysis = analyzeFragment(input.source, fileName);
+    const transformed = analysis.virtual;
     if (!transformed.ok) {
       return new TypeScript7EditorDocumentImpl({
         fileName,
@@ -157,10 +156,8 @@ export class TypeScript7EditorAdapter {
       });
     }
 
-    const lowered = lowerFragment(input.source);
-    const parsedInfo = !lowered.ok
-      ? parseShaderFile(input.source, fileName).info
-      : undefined;
+    const lowered = analysis.lowered;
+    const parsedInfo = !lowered.ok ? analysis.parsed.info : undefined;
     // When no expression needed rewriting, reuse the original TS snapshot.
     // Updating the same file with identical virtual text can otherwise leave
     // TypeScript 7 QuickInfo stale after a transformed previous version.
@@ -188,6 +185,8 @@ export class TypeScript7EditorAdapter {
               (diagnostic) =>
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                diagnostic.code ===
+                  ShaderDiagnosticCode.InvalidNumericLiteral ||
                 (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
                   parsedInfo !== undefined &&
                   parsedInfo.callback.syntax.declarations.some(

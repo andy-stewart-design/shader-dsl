@@ -6,6 +6,7 @@ import type {
   Program,
 } from "@babel/types";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import { isFiniteF32 } from "./finite-f32.js";
 import type { TextRange } from "./source-range.js";
 import type {
   ShaderCustomUniformDeclaration,
@@ -116,11 +117,7 @@ export function parseCustomUniforms(
       if (arg.type === "SpreadElement" || arg.type === "ArgumentPlaceholder")
         return invalid("Uniform defaults must be numeric literals.", arg);
       const value = literal(arg);
-      if (
-        value === undefined ||
-        !Number.isFinite(value) ||
-        !Number.isFinite(Math.fround(value))
-      )
+      if (value === undefined || !isFiniteF32(value))
         return invalid(
           "Uniform defaults must be finite numeric literals without f32 overflow.",
           arg,
@@ -128,11 +125,32 @@ export function parseCustomUniforms(
       // JSON.stringify(-0) is 0; canonicalize for Vite/browser artifact parity.
       values.push(Object.is(value, -0) ? 0 : value);
     }
-    entries.push({
-      name,
-      type,
-      default: type === "f32" ? values[0]! : (values as [number, number]),
-    });
+    switch (type) {
+      case "f32":
+        entries.push({ name, type, default: values[0]! });
+        break;
+      case "vec2":
+        entries.push({ name, type, default: [values[0]!, values[1]!] });
+        break;
+      case "vec3":
+        entries.push({
+          name,
+          type,
+          default: [values[0]!, values[1]!, values[2]!],
+        });
+        break;
+      case "vec4":
+        entries.push({
+          name,
+          type,
+          default: [values[0]!, values[1]!, values[2]!, values[3]!],
+        });
+        break;
+      default:
+        throw new Error(
+          `Unsupported custom uniform type: ${type satisfies never}`,
+        );
+    }
   }
   return {
     ok: true,

@@ -1,6 +1,9 @@
 import type { ShaderDiagnostic } from "./diagnostics.js";
 import type { VirtualSource } from "./mapped-text-writer.js";
-import { parseShaderFile } from "./parse-shader-file.js";
+import {
+  parseShaderFile,
+  type ParseShaderFileResult,
+} from "./parse-shader-file.js";
 import type { TextRange } from "./source-range.js";
 import { transformShaderExpressions } from "./transform-shader-expressions.js";
 
@@ -29,7 +32,17 @@ export function createVirtualSource(
   source: string,
   fileName = "shader.shdr.ts",
 ): CreateVirtualSourceResult {
-  const parsed = parseShaderFile(source, fileName);
+  return createVirtualSourceFromParsed(
+    source,
+    parseShaderFile(source, fileName),
+  );
+}
+
+/** Transforms already parsed source, including source-coordinate mappings. */
+export function createVirtualSourceFromParsed(
+  source: string,
+  parsed: ParseShaderFileResult,
+): CreateVirtualSourceResult {
   if (!parsed.info) {
     return parsed.shaderRegion
       ? {

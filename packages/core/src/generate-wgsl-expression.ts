@@ -4,6 +4,7 @@ import type {
   ShaderExpression,
   ShaderSwizzleComponents,
 } from "./shader-ir.js";
+import { shaderLocalName } from "./shader-local-name.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -97,7 +98,7 @@ function emitExpression(
     }
 
     case "local-reference":
-      return expression.name;
+      return shaderLocalName(expression.symbolId);
 
     case "swizzle":
       return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
@@ -152,10 +153,10 @@ function formatWgslFloat(value: number): string {
   if (!Number.isFinite(value)) {
     throw new RangeError(`Cannot emit non-finite WGSL float ${String(value)}.`);
   }
-  if (Object.is(value, -0)) return "-0.0";
+  if (Object.is(value, -0)) return "-0.0f";
 
   const text = String(value);
-  return text.includes(".") || /e/i.test(text) ? text : `${text}.0`;
+  return `${text.includes(".") || /e/i.test(text) ? text : `${text}.0`}f`;
 }
 
 function defaultUniformName(uniform: ShaderDefaultUniform): string {

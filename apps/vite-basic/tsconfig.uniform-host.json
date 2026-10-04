@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": true },
   "include": [
     "test/custom-uniform-host.typecheck.ts",
     "src/custom-demo-inline.shdr.ts",

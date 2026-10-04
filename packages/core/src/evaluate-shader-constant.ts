@@ -101,43 +101,62 @@ export function identicalConstantExpressions(
   right: ShaderExpression,
   locals: ReadonlyMap<ShaderLocalSymbolId, ShaderExpression>,
 ): boolean {
-  const key = (expression: ShaderExpression): string | undefined => {
-    switch (expression.kind) {
-      case "numeric-literal":
-        return `f32:${String(Math.fround(expression.value))}`;
-      case "local-reference": {
-        const initializer = locals.get(expression.symbolId);
-        return initializer && key(initializer);
-      }
-      case "unary": {
-        const child = key(expression.argument);
-        return child && `unary:${expression.operator}(${child})`;
-      }
-      case "binary": {
-        const a = key(expression.left);
-        const b = key(expression.right);
-        return a && b && `binary:${expression.operator}(${a},${b})`;
-      }
-      case "swizzle": {
-        const object = key(expression.expression);
-        return object && `swizzle:${expression.components.join("")}(${object})`;
-      }
-      case "call": {
-        const args = expression.arguments.map(key);
-        return args.every((arg) => arg !== undefined)
-          ? `call:${expression.target.kind}:${expression.target.name}(${args.join(",")})`
-          : undefined;
-      }
-      case "builtin-input":
-      case "default-uniform":
-      case "custom-uniform":
-        return undefined;
-      default:
-        return assertNever(expression);
+  // Compare the expression DAG rather than expanding every local into a
+  // string. Repeated references to a shared initializer are visited once per
+  // pair, and the explicit stack also handles long chains of local aliases.
+  const pending: [ShaderExpression, ShaderExpression][] = [[left, right]];
+  const compared = new WeakMap<ShaderExpression, WeakSet<ShaderExpression>>();
+  while (pending.length) {
+    let [a, b] = pending.pop()!;
+    if (a.kind === "local-reference") {
+      const initializer = locals.get(a.symbolId);
+      if (!initializer) return false;
+      pending.push([initializer, b]);
+      continue;
     }
-  };
-  const a = key(left);
-  return a !== undefined && a === key(right);
+    if (b.kind === "local-reference") {
+      const initializer = locals.get(b.symbolId);
+      if (!initializer) return false;
+      pending.push([a, initializer]);
+      continue;
+    }
+    if (a.kind !== b.kind) return false;
+    let matches = compared.get(a);
+    if (matches?.has(b)) continue;
+    if (!matches) {
+      matches = new WeakSet();
+      compared.set(a, matches);
+    }
+    matches.add(b);
+
+    if (a.kind === "numeric-literal" && b.kind === "numeric-literal") {
+      if (String(Math.fround(a.value)) !== String(Math.fround(b.value)))
+        return false;
+    } else if (a.kind === "unary" && b.kind === "unary") {
+      if (a.operator !== b.operator) return false;
+      pending.push([a.argument, b.argument]);
+    } else if (a.kind === "binary" && b.kind === "binary") {
+      if (a.operator !== b.operator) return false;
+      pending.push([a.left, b.left], [a.right, b.right]);
+    } else if (a.kind === "swizzle" && b.kind === "swizzle") {
+      if (a.components.join("") !== b.components.join("")) return false;
+      pending.push([a.expression, b.expression]);
+    } else if (a.kind === "call" && b.kind === "call") {
+      if (
+        a.target.kind !== b.target.kind ||
+        a.target.name !== b.target.name ||
+        a.arguments.length !== b.arguments.length
+      )
+        return false;
+      for (let index = 0; index < a.arguments.length; index++)
+        pending.push([a.arguments[index]!, b.arguments[index]!]);
+    } else {
+      // Automatic inputs and uniforms are not compile-time constants, even
+      // when the same expression appears on both sides.
+      return false;
+    }
+  }
+  return true;
 }
 
 function assertNever(value: never): never {

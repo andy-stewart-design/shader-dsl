@@ -9,7 +9,7 @@ import type {
 } from "shdr";
 import {
   readCustomMetadata,
-  type CustomMetadata,
+  type CustomSchema,
   type DynamicUniformValue,
   type UniformValues,
 } from "./uniforms.js";
@@ -21,6 +21,7 @@ import {
   claim,
   epoch,
   release,
+  type InternalRendererOptions,
 } from "./shared.js";
 import type {
   RendererOptions,
@@ -30,7 +31,6 @@ import type {
   StaticRendererOptions,
   DynamicRendererOptions,
   LegacyRendererOptions,
-  InternalRendererOptions,
 } from "./types.js";
 
 const VERTEX = `@vertex
@@ -47,7 +47,7 @@ interface Resources {
   readonly pipeline: GPURenderPipeline;
   readonly buffers: ReadonlyMap<ShaderDefaultUniform, GPUBuffer>;
   readonly bindGroup?: GPUBindGroup;
-  readonly custom?: CustomMetadata;
+  readonly custom?: CustomSchema;
   readonly customBuffer?: GPUBuffer;
   readonly customBindGroup?: GPUBindGroup;
   readonly customOffsets: readonly number[];
@@ -93,7 +93,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   }
   static create<
     const S extends UniformSchema,
-    const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+    const V extends Partial<HostUniforms<S>> = never,
   >(
     canvas: HTMLCanvasElement,
     artifact: TypedCompiledFragmentArtifact<S>,
@@ -239,7 +239,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   }
   private async install(
     artifact: CompiledFragmentArtifact,
-    custom: CustomMetadata | undefined,
+    custom: CustomSchema | undefined,
     generation: number,
     options: ShaderInstallOptions,
   ): Promise<ShaderInstallResult> {
@@ -334,7 +334,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   }
   private async prepare(
     artifact: CompiledFragmentArtifact,
-    custom: CustomMetadata | undefined,
+    custom: CustomSchema | undefined,
   ): Promise<Resources> {
     const active = defaults.filter(({ name }) =>
       artifact.defaults.wgsl.includes(name),
@@ -530,32 +530,6 @@ export class WebGpuRenderer extends CanvasRenderer {
     this.device.destroy();
   }
 }
-export function createWebGpuRenderer<
-  const S extends UniformSchema,
-  const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
->(
-  canvas: HTMLCanvasElement,
-  artifact: TypedCompiledFragmentArtifact<S>,
-  options?: StaticRendererOptions<S, V>,
-): Promise<StaticRenderer<S>>;
-export function createWebGpuRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: DynamicCompiledFragmentArtifact,
-  options?: DynamicRendererOptions,
-): Promise<WebGpuRenderer>;
-export function createWebGpuRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: LegacyRendererOptions,
-): Promise<WebGpuRenderer>;
-export function createWebGpuRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: InternalRendererOptions,
-): Promise<WebGpuRenderer> {
-  return WebGpuRenderer.create(
-    canvas,
-    artifact,
-    options as LegacyRendererOptions,
-  );
-}
+/** Public factory shares the class's overloads and implementation verbatim. */
+export const createWebGpuRenderer: typeof WebGpuRenderer.create =
+  WebGpuRenderer.create;

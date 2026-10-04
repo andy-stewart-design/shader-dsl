@@ -54,8 +54,10 @@ try {
   );
   await page.goto(url);
   const initial = await page.evaluate(async (artifact) => {
-    const { createWebGlRenderer } = await import("/src/webgl.ts");
-    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const { WebGlRenderer, createWebGlRenderer } =
+      await import("/src/webgl.ts");
+    const { WebGpuRenderer, createWebGpuRenderer } =
+      await import("/src/webgpu.ts");
     const { ShdrRuntimeError } = await import("/src/errors.ts");
     const glCanvas = document.querySelector("#gl");
     const gpuCanvas = document.querySelector("#gpu");
@@ -88,8 +90,8 @@ try {
       onError: (error) =>
         failures.push({ backend: error.backend, kind: error.kind }),
     };
-    window.glRenderer = await createWebGlRenderer(glCanvas, artifact, options);
-    window.gpuRenderer = await createWebGpuRenderer(
+    window.glRenderer = await WebGlRenderer.create(glCanvas, artifact, options);
+    window.gpuRenderer = await WebGpuRenderer.create(
       gpuCanvas,
       artifact,
       options,
@@ -98,6 +100,10 @@ try {
     window.ShdrRuntimeError = ShdrRuntimeError;
     window.requestAnimationFrame = original;
     return {
+      sharedFactories: [
+        createWebGlRenderer === WebGlRenderer.create,
+        createWebGpuRenderer === WebGpuRenderer.create,
+      ],
       frames,
       size: [
         glCanvas.width,
@@ -112,6 +118,7 @@ try {
     };
   }, red);
   assert.deepEqual(initial, {
+    sharedFactories: [true, true],
     frames: 0,
     size: [16, 16, 16, 16],
     occupied: "surface",

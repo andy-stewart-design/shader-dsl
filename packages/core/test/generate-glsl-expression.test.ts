@@ -58,18 +58,14 @@ describe("GLSL expression generation", () => {
   });
 
   it("rejects non-finite values rather than emitting invalid GLSL", () => {
-    expect(() => generateGlslExpression(numeric(Number.POSITIVE_INFINITY))).toThrow(
-      "Cannot emit non-finite GLSL float Infinity.",
-    );
+    expect(() =>
+      generateGlslExpression(numeric(Number.POSITIVE_INFINITY)),
+    ).toThrow("Cannot emit non-finite GLSL float Infinity.");
   });
 
   it("emits every default uniform with stable dependency metadata", () => {
     const expression = divide(
-      divide(
-        uniform("mouse", vec2),
-        uniform("resolution", vec2),
-        vec2,
-      ),
+      divide(uniform("mouse", vec2), uniform("resolution", vec2), vec2),
       uniform("time", f32),
       vec2,
     );
@@ -125,7 +121,7 @@ describe("GLSL expression generation", () => {
     };
 
     expect(generateGlslExpression(call)).toEqual({
-      code: "vec4((uv).xyzw)",
+      code: "vec4((shdr_local_0).xyzw)",
       referencedUniforms: [],
       usesFragmentPosition: false,
     });
@@ -153,8 +149,7 @@ describe("GLSL expression generation", () => {
 
   it("preserves half-integer pixel centers and reverses only the GLSL Y axis", () => {
     const resolutionY = 8;
-    const canonicalY = (glFragmentY: number) =>
-      resolutionY - glFragmentY;
+    const canonicalY = (glFragmentY: number) => resolutionY - glFragmentY;
 
     expect(canonicalY(resolutionY - 0.5)).toBe(0.5);
     expect(canonicalY(0.5)).toBe(resolutionY - 0.5);

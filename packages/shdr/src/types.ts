@@ -74,14 +74,13 @@ export type UniformValue<T extends ShaderCustomUniformType> = T extends "f32"
     : T extends "vec3"
       ? readonly [number, number, number]
       : readonly [number, number, number, number];
-export interface UniformDeclaration<
+export type UniformDeclaration<
   T extends ShaderCustomUniformType = ShaderCustomUniformType,
-> {
-  readonly type: T;
-  readonly default: UniformValue<T>;
-}
+> = {
+  [K in T]: { readonly type: K; readonly default: UniformValue<K> };
+}[T];
 export type UniformSchema = Readonly<Record<string, UniformDeclaration>>;
-type UniformTypeOf<D> = D extends UniformDeclaration<infer T> ? T : never;
+type UniformTypeOf<D extends UniformDeclaration> = D["type"];
 type ShaderValue<T extends ShaderCustomUniformType> = T extends "f32"
   ? F32
   : T extends "vec2"
@@ -126,11 +125,9 @@ export interface UniformDefinition<S extends UniformSchema> {
     callback: (context: FragmentContext<S>) => Expr<Vec4<F32>>,
   ): TypedCompiledFragmentArtifact<S>;
 }
-export interface ShaderCustomUniformDeclaration {
+export type ShaderCustomUniformDeclaration = UniformDeclaration & {
   readonly name: string;
-  readonly type: ShaderCustomUniformType;
-  readonly default: UniformValue<ShaderCustomUniformType>;
-}
+};
 
 /** JSON-serializable, immutable-by-contract output of one Shdr compilation. */
 export interface CompiledFragmentArtifact {

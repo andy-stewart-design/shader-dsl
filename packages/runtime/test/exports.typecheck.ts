@@ -5,13 +5,17 @@ import type {
   RendererOptions,
   ShaderInstallResult,
 } from "@shdr/runtime/types";
-import { createWebGlRenderer } from "@shdr/runtime/webgl";
-import { createWebGpuRenderer } from "@shdr/runtime/webgpu";
+import { WebGlRenderer, createWebGlRenderer } from "@shdr/runtime/webgl";
+import { WebGpuRenderer, createWebGpuRenderer } from "@shdr/runtime/webgpu";
+// @ts-expect-error Validated internal options are not exported from the public type entry.
+import type { InternalRendererOptions } from "@shdr/runtime/types";
 
 declare const artifact: CompiledFragmentArtifact;
 declare const canvas: HTMLCanvasElement;
 declare const options: RendererOptions;
 
+const glFactory: typeof WebGlRenderer.create = createWebGlRenderer;
+const gpuFactory: typeof WebGpuRenderer.create = createWebGpuRenderer;
 const webgl: Promise<Renderer> = createWebGlRenderer(canvas, artifact, options);
 const webgpu: Promise<Renderer> = createWebGpuRenderer(
   canvas,
@@ -45,6 +49,9 @@ async function consume(renderer: Renderer): Promise<ShaderInstallResult> {
 void createWebGlRenderer(canvas, artifact.glsl);
 // @ts-expect-error Custom resource binding is outside v1.
 void artifact.customUniforms;
+void glFactory;
+void gpuFactory;
 void webgl;
 void webgpu;
+void (undefined as unknown as InternalRendererOptions);
 void consume;

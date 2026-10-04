@@ -86,21 +86,21 @@ try {
       [...(await page.locator(selector).screenshot())],
     );
   }
-  async function pixels(expected, label) {
-    for (const id of ["gl", "gpu"]) {
+  async function pixels(expected, label, selectors = ["#gl", "#gpu"]) {
+    for (const [index, selector] of selectors.entries()) {
       const pixel =
-        id === "gl"
-          ? await page.evaluate(() => {
-              const gl = document.querySelector("#gl").getContext("webgl2");
+        index === 0
+          ? await page.evaluate((selector) => {
+              const gl = document.querySelector(selector).getContext("webgl2");
               const value = new Uint8Array(4);
               gl.finish();
               gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
               return [...value];
-            })
-          : await presentedPixel("#gpu");
+            }, selector)
+          : await presentedPixel(selector);
       assert.ok(
         pixel.every((v, i) => Math.abs(v - Math.round(expected[i] * 255)) <= 2),
-        `${label} ${id}: ${pixel} vs ${expected}`,
+        `${label} ${selector}: ${pixel} vs ${expected}`,
       );
     }
   }
@@ -134,6 +134,8 @@ try {
         const kinds = [];
         for (const bad of [
           { a: [1, 2] },
+          { a: undefined },
+          { b: undefined },
           { b: Infinity },
           { b: 1e300 },
           { mouse: [0, 0] },
@@ -193,8 +195,8 @@ try {
     { initial, changed, subset, incompatible },
   );
   assert.deepEqual(results, [
-    Array(9).fill("uniform"),
-    Array(9).fill("uniform"),
+    Array(11).fill("uniform"),
+    Array(11).fill("uniform"),
   ]);
   await pixels([0.4, 0.7, 0.6, 1], "atomic validation");
   await page.evaluate(() => window.mutate("set"));
@@ -299,6 +301,13 @@ try {
         ...initial,
         custom: {
           ...initial.custom,
+          referenced: { ...initial.custom.referenced, glsl: ["toString"] },
+        },
+      },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
           declarations: [
             { ...initial.custom.declarations[0], default: [Infinity, 0, 1] },
             ...initial.custom.declarations.slice(1),
@@ -312,6 +321,27 @@ try {
           declarations: [
             { ...initial.custom.declarations[0], default: Array(3) },
             ...initial.custom.declarations.slice(1),
+          ],
+        },
+      },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
+          declarations: [
+            { ...initial.custom.declarations[0], type: "f32" },
+            ...initial.custom.declarations.slice(1),
+          ],
+        },
+      },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
+          declarations: [
+            initial.custom.declarations[0],
+            { ...initial.custom.declarations[1], default: [1, 2] },
+            ...initial.custom.declarations.slice(2),
           ],
         },
       },
@@ -342,8 +372,8 @@ try {
     return { invalid, failed, concurrent };
   });
   assert.deepEqual(lifecycle.invalid, [
-    Array(4).fill("artifact"),
-    Array(4).fill("artifact"),
+    Array(7).fill("artifact"),
+    Array(7).fill("artifact"),
   ]);
   assert.deepEqual(lifecycle.failed, ["shader", "shader"]);
   assert.deepEqual(
@@ -508,14 +538,16 @@ try {
       const canvas = document.createElement("canvas");
       canvas.style.cssText = "width:8px;height:8px";
       document.body.append(canvas);
-      const failure = await create(canvas, artifact, {
-        uniforms: { b: "invalid" },
-        animate: false,
-      }).then(
-        () => "accepted",
-        (error) => error.kind,
-      );
-      errors.push(failure);
+      for (const value of ["invalid", undefined]) {
+        const failure = await create(canvas, artifact, {
+          uniforms: { b: value },
+          animate: false,
+        }).then(
+          () => "accepted",
+          (error) => error.kind,
+        );
+        errors.push(failure);
+      }
       const retry = await create(canvas, artifact, { animate: false });
       retry.dispose();
     }
@@ -533,7 +565,7 @@ try {
     window.animatedGpuUniform.setUniforms({ b: 0.8 });
     return errors;
   }, initial);
-  assert.deepEqual(creation, ["uniform", "uniform"]);
+  assert.deepEqual(creation, ["uniform", "uniform", "uniform", "uniform"]);
   await page.waitForFunction(() => {
     const gl = document.querySelector("#animated-uniform").getContext("webgl2");
     const value = new Uint8Array(4);
@@ -552,8 +584,119 @@ try {
     window.animatedGpuUniform.dispose();
   });
   assert.deepEqual(errors, []);
+
+  const regressionSource = (
+    body,
+  ) => `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  ${body}
+});`;
+  const regressions = [
+    {
+      name: "local identifiers, GLSL output, and WGSL fragment-position isolation",
+      shader: shader(
+        "vec4(café, shdr_fragment_color.y, attribute, 1)",
+        regressionSource(`const shdr_coord = coord;
+  const shdr_fragment_color = vec4(0.5, 1, 0, 1);
+  const shdr_local_0 = shdr_fragment_color.x;
+  const $color = shdr_local_0;
+  const café = $color;
+  const attribute = shdr_coord.x / uniforms.resolution.x;
+  return BODY;`),
+      ),
+      expected: [0.5, 1, 0.125, 1],
+    },
+    {
+      name: "literal-only f32 arithmetic",
+      shader: shader(
+        "vec4(16777217 - 16777216, 0, 0, 1)",
+        regressionSource("return BODY;"),
+      ),
+      expected: [0, 0, 0, 1],
+    },
+    {
+      name: "equivalent f32 arithmetic through a local",
+      shader: shader(
+        "vec4(a - 16777216, 0, 0, 1)",
+        regressionSource("const a = 16777217;\n  return BODY;"),
+      ),
+      expected: [0, 0, 0, 1],
+    },
+  ];
+  const regressionSelectors = ["#regression-gl", "#regression-gpu"];
+  await page.evaluate(async (artifact) => {
+    const { createWebGlRenderer } = await import("/src/webgl.ts");
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const canvases = ["regression-gl", "regression-gpu"].map((id) => {
+      const canvas = document.createElement("canvas");
+      canvas.id = id;
+      canvas.width = canvas.height = 4;
+      canvas.style.cssText = "width:4px;height:4px";
+      document.body.append(canvas);
+      return canvas;
+    });
+    window.regressionRenderers = await Promise.all([
+      createWebGlRenderer(canvases[0], artifact, { animate: false }),
+      createWebGpuRenderer(canvases[1], artifact, { animate: false }),
+    ]);
+  }, regressions[0].shader);
+  for (const [index, regression] of regressions.entries()) {
+    if (index)
+      await page.evaluate(
+        (artifact) =>
+          Promise.all(
+            window.regressionRenderers.map((renderer) =>
+              renderer.setShader(artifact),
+            ),
+          ),
+        regression.shader,
+      );
+    await pixels(regression.expected, regression.name, regressionSelectors);
+  }
+  const special = shader(
+    "vec4(uniforms.toString, uniforms.café.x, 0, 1)",
+    `import { defineUniforms, vec4 } from "shdr";
+export default defineUniforms((u) => ({ toString: u.f32(0.2), café: u.vec3(0.3, 0.4, 0.5) }))
+.createFragmentShader(({ uniforms }) => BODY);`,
+  );
+  await page.evaluate(
+    (artifact) =>
+      Promise.all(
+        window.regressionRenderers.map((renderer) =>
+          renderer.setShader(artifact),
+        ),
+      ),
+    special,
+  );
+  await pixels([0.2, 0.3, 0, 1], "validated schema names", regressionSelectors);
+  await page.evaluate(async () => {
+    await Promise.all(
+      window.regressionRenderers.map(async (renderer) => {
+        const values = Object.assign(Object.create(null), {
+          toString: 0.8,
+          café: [0.6, 0.4, 0.5],
+        });
+        renderer.setUniforms(values);
+        await renderer.draw();
+      }),
+    );
+  });
+  await pixels([0.8, 0.6, 0, 1], "indexed schema updates", regressionSelectors);
+  await page.evaluate(async () => {
+    await Promise.all(
+      window.regressionRenderers.map(async (renderer) => {
+        renderer.resetUniforms("toString", "café");
+        await renderer.draw();
+      }),
+    );
+  });
+  await pixels([0.2, 0.3, 0, 1], "indexed schema resets", regressionSelectors);
+  await page.evaluate(() =>
+    window.regressionRenderers.forEach((renderer) => renderer.dispose()),
+  );
+  assert.deepEqual(errors, []);
   console.log(
-    "Verified WebGL and presented WebGPU custom-uniform pixels, first frames, packing, updates, resets, replacement, validation and isolation.",
+    "Verified WebGL and presented WebGPU custom-uniform pixels, generated-name isolation, f32 arithmetic, updates, resets, replacement, validation and isolation.",
   );
 } finally {
   await browser?.close();

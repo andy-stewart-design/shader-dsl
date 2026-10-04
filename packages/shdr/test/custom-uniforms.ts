@@ -4,6 +4,8 @@ import type {
   F32,
   Vec3,
   TypedCompiledFragmentArtifact,
+  UniformDeclaration,
+  ShaderCustomUniformDeclaration,
 } from "../src/index.js";
 
 type Equal<A, B> =
@@ -11,6 +13,53 @@ type Equal<A, B> =
     ? true
     : false;
 type Expect<T extends true> = T;
+
+const scalarDeclaration: UniformDeclaration = { type: "f32", default: 1 };
+const vectorDeclaration: UniformDeclaration = {
+  type: "vec3",
+  default: [1, 2, 3],
+};
+const namedDeclaration: ShaderCustomUniformDeclaration = {
+  name: "color",
+  type: "vec2",
+  default: [1, 2],
+};
+// @ts-expect-error A broad declaration cannot combine a scalar tag with a vector default.
+const wrongScalar: UniformDeclaration = { type: "f32", default: [1, 2] };
+// @ts-expect-error A named artifact declaration cannot combine a vector tag with a scalar default.
+const wrongNamed: ShaderCustomUniformDeclaration = {
+  name: "color",
+  type: "vec2",
+  default: 1,
+};
+// @ts-expect-error Artifact vector defaults require the declared tuple length.
+const wrongLength: ShaderCustomUniformDeclaration = {
+  name: "color",
+  type: "vec4",
+  default: [1, 2, 3],
+};
+void [
+  scalarDeclaration,
+  vectorDeclaration,
+  namedDeclaration,
+  wrongScalar,
+  wrongNamed,
+  wrongLength,
+];
+function inspectDeclaration(declaration: ShaderCustomUniformDeclaration) {
+  if (declaration.type === "f32") {
+    const scalar: number = declaration.default;
+    // @ts-expect-error The narrowed scalar default is not a tuple.
+    const vector: readonly [number, number] = declaration.default;
+    void [scalar, vector];
+  } else if (declaration.type === "vec3") {
+    const vector: readonly [number, number, number] = declaration.default;
+    // @ts-expect-error The narrowed vec3 default has three components.
+    const scalar: number = declaration.default;
+    void [vector, scalar];
+  }
+}
+void inspectDeclaration;
 
 const inline = defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),
