@@ -76,6 +76,12 @@ export class TypeScript7EditorAdapter {
     }
 
     cached?.dispose();
+    // TypeScript 7 can retain the old type graph of an open file after a
+    // changed-only snapshot, especially for an unused shader local. Reopen
+    // between authored document versions, but keep the original/virtual pair
+    // of a single version in the same open-file session for mapped QuickInfo.
+    if (cached && cached.source !== input.source)
+      this.#checker.closeFile(fileName);
     if (!fileName.endsWith(".shdr.ts")) {
       const delegated = new TypeScript7EditorDocumentImpl({
         fileName,

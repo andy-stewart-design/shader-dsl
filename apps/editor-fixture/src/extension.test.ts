@@ -263,6 +263,28 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const cellsUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "cells-representative.shdr.ts",
+  );
+  const cells = await vscode.workspace.openTextDocument(cellsUri);
+  assert.equal(cells.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(cells);
+  await waitForDiagnostics(cellsUri, (diagnostics) => diagnostics.length === 0);
+  await waitForHoverText(cells, "inside = step", /Expr<F32>/);
+  await waitForHoverText(cells, "cellColor = mix", /Expr<Vec3<F32>>/);
+  const validFactor = "mix(cellColor, vec3(1, 0.52, 0.25), influence)";
+  const invalidFactor = "mix(cellColor, vec3(1, 0.52, 0.25), frag)";
+  await replaceText(cells, validFactor, invalidFactor);
+  const mixErrors = await waitForDiagnostics(
+    cellsUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(cells.getText(mixErrors[0]?.range), invalidFactor);
+  await replaceText(cells, invalidFactor, validFactor);
+  await waitForDiagnostics(cellsUri, (diagnostics) => diagnostics.length === 0);
+
   const invalidUri = vscode.Uri.joinPath(
     workspace.uri,
     "test/fixtures/invalid.shdr.ts",
@@ -305,6 +327,6 @@ export async function run(): Promise<void> {
   assert.equal(ordinary.languageId, "typescript");
 
   console.log(
-    "Complete real VS Code Shdr extension and math builtin checklist verified.",
+    "Complete real VS Code Shdr extension, math and mix/step checklist verified.",
   );
 }

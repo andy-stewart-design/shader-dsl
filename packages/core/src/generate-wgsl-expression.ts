@@ -146,9 +146,18 @@ function emitExpression(
         state.smoothstepShapes.add(shape);
         name = `shdr_internal_smoothstep_${shape}`;
       }
-      return `${name}(${expression.arguments
-        .map((argument) => emitExpression(argument, options, state))
-        .join(", ")})`;
+      const args = expression.arguments.map((argument) =>
+        emitExpression(argument, options, state),
+      );
+      if (
+        expression.target.kind === "builtin-function" &&
+        expression.target.name === "step" &&
+        expression.type.kind === "vector" &&
+        expression.arguments[0]?.type.kind === "scalar"
+      ) {
+        args[0] = `vec${expression.type.size}<f32>(${args[0]})`;
+      }
+      return `${name}(${args.join(", ")})`;
     }
 
     default:
@@ -222,6 +231,8 @@ function callTargetName(target: ShaderCallTarget): string {
         case "fract":
         case "min":
         case "max":
+        case "mix":
+        case "step":
         case "dot":
         case "length":
         case "normalize":

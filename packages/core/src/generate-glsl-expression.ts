@@ -195,6 +195,8 @@ function callTargetName(target: ShaderCallTarget): string {
         case "fract":
         case "min":
         case "max":
+        case "mix":
+        case "step":
         case "dot":
         case "length":
         case "normalize":

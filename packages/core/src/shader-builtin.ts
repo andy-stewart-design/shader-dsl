@@ -6,6 +6,8 @@ export const SHADER_BUILTINS = {
   cos: "unary-same",
   ceil: "unary-same",
   smoothstep: "ternary-same",
+  mix: "ternary-interpolate",
+  step: "binary-step",
   abs: "unary-same",
   floor: "unary-same",
   fract: "unary-same",
@@ -46,6 +48,12 @@ export function builtinResultType(
       return args.length === 1 ? { kind: "scalar", scalar: "f32" } : undefined;
     case "binary-same":
       return args.length === 2 && sameShape(args[1]) ? first : undefined;
+    case "binary-step": {
+      const x = args[1];
+      return args.length === 2 && x && (sameShape(x) || first.kind === "scalar")
+        ? x
+        : undefined;
+    }
     case "binary-vector-reduce":
       return args.length === 2 && first.kind === "vector" && sameShape(args[1])
         ? { kind: "scalar", scalar: "f32" }
@@ -63,6 +71,12 @@ export function builtinResultType(
         : undefined;
     case "ternary-same":
       return args.length === 3 && sameShape(args[1]) && sameShape(args[2])
+        ? first
+        : undefined;
+    case "ternary-interpolate":
+      return args.length === 3 &&
+        sameShape(args[1]) &&
+        (sameShape(args[2]) || args[2]?.kind === "scalar")
         ? first
         : undefined;
     default:

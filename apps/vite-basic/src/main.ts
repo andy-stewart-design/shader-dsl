@@ -7,6 +7,7 @@ import type { CompiledFragmentArtifact } from "shdr";
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import cellsShader from "./cells-representative.shdr.ts";
 import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
@@ -16,6 +17,7 @@ import "./style.css";
 const shader: CompiledFragmentArtifact = fragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+const cells: CompiledFragmentArtifact = cellsShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
@@ -28,7 +30,11 @@ if (
   !expanded.glsl.includes("vec3(") ||
   !shader.wgsl.includes("shdr_fragment_main") ||
   !vectorArithmetic.wgsl.includes("vec3<f32>(1.0f)") ||
-  !vectorArithmetic.glsl.includes("vec3(")
+  !vectorArithmetic.glsl.includes("vec3(") ||
+  !cells.wgsl.includes("mix(") ||
+  !cells.wgsl.includes("step(") ||
+  cells.custom?.declarations.map((item) => item.name).join(",") !==
+    "dpi,spread,blur"
 )
   throw new Error("The shader artifacts were not compiled by the Vite plugin.");
 

@@ -97,6 +97,14 @@ export function routeShaderDiagnostics(
         continue;
       }
 
+      // Core stops at the first invalid builtin signature. TypeScript may
+      // infer a fallback overload result and report secondary errors anywhere
+      // in the callback; those are not independent shader failures.
+      if (
+        core.some((error) => error.code === ShaderDiagnosticCode.InvalidBuiltin)
+      ) {
+        continue;
+      }
       // A shadowed shader callable is rejected at its declaration name;
       // do not add a secondary native "not callable" error at its use.
       if (
