@@ -128,6 +128,57 @@ describe("WGSL expression generation", () => {
     ).toThrow("Unsupported WGSL IR value");
   });
 
+  it("splats only mixed-shape addition/subtraction operands, preserving order", () => {
+    const color = local("color", 0, vec4);
+    const scalar = numeric(0.25);
+    for (const operator of ["+", "-"] as const) {
+      expect(
+        generateWgslExpression({
+          kind: "binary",
+          operator,
+          left: scalar,
+          right: color,
+          type: vec4,
+          range,
+        }).code,
+      ).toBe(`(vec4<f32>(0.25f) ${operator} shdr_local_0)`);
+      expect(
+        generateWgslExpression({
+          kind: "binary",
+          operator,
+          left: color,
+          right: scalar,
+          type: vec4,
+          range,
+        }).code,
+      ).toBe(`(shdr_local_0 ${operator} vec4<f32>(0.25f))`);
+      expect(
+        generateWgslExpression({
+          kind: "binary",
+          operator,
+          left: color,
+          right: color,
+          type: vec4,
+          range,
+        }).code,
+      ).toBe(`(shdr_local_0 ${operator} shdr_local_0)`);
+    }
+  });
+
+  it("emits normalized swizzles and adjacent constructor packings", () => {
+    const lowered =
+      lowerFragment(`import { createFragmentShader, vec3, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const c = vec3(coord.rg, uniforms.time);
+  return vec4(c.bgr, 1);
+});`);
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) return;
+    const wgsl = generateWgslFragment(lowered.ir);
+    expect(wgsl).toContain("vec3<f32>((shdr_coord).xy, shdr_time)");
+    expect(wgsl).toContain("vec4<f32>((shdr_local_0).zyx, 1.0f)");
+  });
+
   it("emits local swizzles and every accepted vec4 constructor shape", () => {
     const uv = local("uv", 0, vec2);
     const color = local("color", 1, vec4);

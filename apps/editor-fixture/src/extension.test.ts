@@ -221,6 +221,48 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const vectorUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "vector-arithmetic.shdr.ts",
+  );
+  const vector = await vscode.workspace.openTextDocument(vectorUri);
+  assert.equal(vector.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(vector);
+  await waitForDiagnostics(
+    vectorUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(vector, "rgb + 0.1", /Expr<Vec3<F32>>/);
+  await waitForHoverText(vector, "bgr", /Expr<Vec3<F32>>/);
+  const validPacking = "vec3(uv, 0.6)";
+  const invalidPacking = "vec3(uv, coord)";
+  await replaceText(vector, validPacking, invalidPacking);
+  const packingErrors = await waitForDiagnostics(
+    vectorUri,
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2345,
+  );
+  assert.equal(vector.getText(packingErrors[0]?.range), "coord");
+  assert.doesNotMatch(packingErrors[0]!.message, /__shdr_internal/);
+  await replaceText(vector, invalidPacking, validPacking);
+  await waitForDiagnostics(
+    vectorUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  const validArithmetic = "1 - rgb + 0.1";
+  const invalidArithmetic = "1 - rgb + coord";
+  await replaceText(vector, validArithmetic, invalidArithmetic);
+  const arithmeticErrors = await waitForDiagnostics(
+    vectorUri,
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2769,
+  );
+  assert.equal(vector.getText(arithmeticErrors[0]?.range), invalidArithmetic);
+  assert.doesNotMatch(arithmeticErrors[0]!.message, /__shdr_internal/);
+  await replaceText(vector, invalidArithmetic, validArithmetic);
+  await waitForDiagnostics(
+    vectorUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   const invalidUri = vscode.Uri.joinPath(
     workspace.uri,
     "test/fixtures/invalid.shdr.ts",

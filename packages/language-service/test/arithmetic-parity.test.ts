@@ -26,6 +26,10 @@ function resultType(
   right: Value,
 ): Value | undefined {
   if (left === right) return left;
+  if (operator === "+" || operator === "-") {
+    if (left === "F32") return right;
+    if (right === "F32") return left;
+  }
   if ((operator === "*" || operator === "/") && right === "F32") return left;
   return undefined;
 }
@@ -34,7 +38,82 @@ function display(type: ShaderValueType): string {
   return type.kind === "scalar" ? "Expr<F32>" : `Expr<Vec${type.size}<F32>>`;
 }
 
-it("keeps the closed 4x4 matrix for all four binary operators in TS and IR", () => {
+it("maps an invalid outer broadcast to the full operation, not its valid inner subtraction", () => {
+  const adapter = new TypeScript7CheckerAdapter({
+    cwd,
+    projectFileName: "tsconfig.json",
+  });
+  try {
+    const expression = "1 - vec3(uniforms.time) + coord";
+    const source = `import { createFragmentShader, vec3 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const result = ${expression};
+  return coord;
+});`;
+    const fileName = join(cwd, "nested-vector-arithmetic.shdr.ts");
+    const lowered = lowerFragment(source);
+    const virtual = createVirtualSource(source, fileName);
+    expect(lowered.ok).toBe(false);
+    expect(virtual.ok).toBe(true);
+    if (lowered.ok || !virtual.ok) return;
+    const checked = adapter.checkVirtualSource(fileName, virtual.virtualSource);
+    try {
+      expect(lowered.diagnostics[0]).toMatchObject({
+        code: "SHDR1205",
+        range: { start: source.indexOf(expression), length: expression.length },
+      });
+      expect(checked.shaderOperationDiagnostics).toEqual([
+        expect.objectContaining({
+          message: lowered.diagnostics[0]!.message,
+          range: lowered.diagnostics[0]!.range,
+        }),
+      ]);
+    } finally {
+      checked.dispose();
+    }
+  } finally {
+    adapter.dispose();
+  }
+});
+
+it("still attributes an invalid inner operation to that inner source range", () => {
+  const adapter = new TypeScript7CheckerAdapter({
+    cwd,
+    projectFileName: "tsconfig.json",
+  });
+  try {
+    const expression = "coord.xy - coord";
+    const source = `import { createFragmentShader } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const result = ${expression} + 1;
+  return coord;
+});`;
+    const fileName = join(cwd, "nested-inner-vector-error.shdr.ts");
+    const lowered = lowerFragment(source);
+    const virtual = createVirtualSource(source, fileName);
+    expect(lowered.ok).toBe(false);
+    expect(virtual.ok).toBe(true);
+    if (lowered.ok || !virtual.ok) return;
+    const checked = adapter.checkVirtualSource(fileName, virtual.virtualSource);
+    try {
+      expect(checked.shaderOperationDiagnostics).toEqual([
+        expect.objectContaining({
+          message: lowered.diagnostics[0]!.message,
+          range: {
+            start: source.indexOf(expression),
+            length: expression.length,
+          },
+        }),
+      ]);
+    } finally {
+      checked.dispose();
+    }
+  } finally {
+    adapter.dispose();
+  }
+});
+
+it("keeps the accepted 4x4 operator matrices in TS, diagnostics and IR", () => {
   const adapter = new TypeScript7CheckerAdapter({
     cwd,
     projectFileName: "tsconfig.json",

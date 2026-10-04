@@ -51,11 +51,13 @@ type VectorSwizzles<Scalar extends F32, Components extends string> = {
 
 type Swizzles<T extends ShaderType> =
   T extends Vec2<infer Scalar extends F32>
-    ? VectorSwizzles<Scalar, "x" | "y">
+    ? VectorSwizzles<Scalar, "x" | "y"> & VectorSwizzles<Scalar, "r" | "g">
     : T extends Vec3<infer Scalar extends F32>
-      ? VectorSwizzles<Scalar, "x" | "y" | "z">
+      ? VectorSwizzles<Scalar, "x" | "y" | "z"> &
+          VectorSwizzles<Scalar, "r" | "g" | "b">
       : T extends Vec4<infer Scalar extends F32>
-        ? VectorSwizzles<Scalar, "x" | "y" | "z" | "w">
+        ? VectorSwizzles<Scalar, "x" | "y" | "z" | "w"> &
+            VectorSwizzles<Scalar, "r" | "g" | "b" | "a">
         : object;
 
 export type Expr<T extends ShaderType> = ExpressionBrand<T> & Swizzles<T>;

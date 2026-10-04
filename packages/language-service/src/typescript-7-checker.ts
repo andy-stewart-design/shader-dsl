@@ -406,13 +406,23 @@ function mapShaderOperationDiagnostic(
 ): ShaderOperationDiagnostic | undefined {
   if (diagnostic.code !== NO_OVERLOAD_MATCHES_CODE) return undefined;
 
-  const operation = virtualSource.operations
+  const candidates = virtualSource.operations
     .filter(
       (candidate) =>
         diagnostic.pos >= candidate.generated.start &&
         diagnostic.end <= rangeEnd(candidate.generated),
     )
-    .sort((left, right) => left.generated.length - right.generated.length)[0];
+    .sort((left, right) => left.generated.length - right.generated.length);
+  // TypeScript may underline an entire *valid inner call* when its value is
+  // rejected as an argument of an enclosing operator. Attribute that error
+  // to the parent, not to the nested expression that produced the value.
+  const operation =
+    candidates.find(
+      (candidate) =>
+        candidate.generated.start !== diagnostic.pos ||
+        rangeEnd(candidate.generated) !== diagnostic.end ||
+        candidates.length === 1,
+    ) ?? candidates[0];
   if (!operation) return undefined;
 
   const sourceFile = project.program.getSourceFile(fileName);

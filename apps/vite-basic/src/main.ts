@@ -7,6 +7,7 @@ import type { CompiledFragmentArtifact } from "shdr";
 import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
 import customNamed from "./custom-demo-named.shdr.ts";
@@ -15,6 +16,7 @@ import "./style.css";
 const shader: CompiledFragmentArtifact = fragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
   !customUniformsShader.wgsl.includes("@group(1) @binding(0)")
@@ -24,7 +26,9 @@ if (
   );
 if (
   !expanded.glsl.includes("vec3(") ||
-  !shader.wgsl.includes("shdr_fragment_main")
+  !shader.wgsl.includes("shdr_fragment_main") ||
+  !vectorArithmetic.wgsl.includes("vec3<f32>(1.0f)") ||
+  !vectorArithmetic.glsl.includes("vec3(")
 )
   throw new Error("The shader artifacts were not compiled by the Vite plugin.");
 
