@@ -196,6 +196,48 @@ try {
     (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
     validMathGpuPixel,
   );
+  const cellsSource = await readFile(
+    new URL("../vite-basic/src/cells-representative.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, cellsSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  // REPL canvas screenshots include a CSS border, so near sharp cell/step
+  // edges their sample can be an adjacent pixel to WebGL readPixels. The
+  // borderless runtime pixel suite checks exact corresponding port samples.
+  const [cellsGlPixel] = await readWebGlPixels(page, [[0.5, 0.5]]);
+  const [cellsGpuPixel] = await readWebGpuPixels(page, [[0.5, 0.5]]);
+  for (const [backend, sample] of [
+    ["WebGL", cellsGlPixel],
+    ["WebGPU", cellsGpuPixel],
+  ]) {
+    assert.equal(sample[3], 255, `${backend} cells output is opaque`);
+    assert.ok(
+      sample.slice(0, 3).some((channel) => channel > 0),
+      `${backend} cells rendered`,
+    );
+  }
+  const invalidCellsSource = cellsSource.replace(
+    "mix(cellColor, vec3(1, 0.52, 0.25), influence)",
+    "mix(cellColor, vec3(1, 0.52, 0.25), frag)",
+  );
+  await compileSource(page, editor, invalidCellsSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1208/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.deepEqual(
+    (await readWebGlPixels(page, [[0.5, 0.5]]))[0],
+    cellsGlPixel,
+  );
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    cellsGpuPixel,
+  );
   const geometrySource = await readFile(
     new URL("../editor-fixture/geometry-math.shdr.ts", import.meta.url),
     "utf8",
@@ -424,7 +466,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   }
 
   console.log(
-    `Verified REPL custom uniforms, math builtins, all automatic uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
+    `Verified REPL custom uniforms, math builtins, representative mix/step cells, all automatic uniforms, canonical coordinates, and WGSL status (${wgslState}).`,
   );
 } finally {
   if (browser) await browser.close();
