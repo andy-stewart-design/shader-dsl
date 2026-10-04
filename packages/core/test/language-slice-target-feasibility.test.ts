@@ -21,7 +21,10 @@ void main() {
   vec4 r4 = -(v4 + v4 - v4) * v4 / v4 * s / s;
   vec4 repeated2 = r2.xxyy;
   vec4 repeated3 = r3.zyxz;
-  color = vec4(scalar, r3.z, r4.w, repeated2.y) + repeated3;
+  vec2 mixed2 = s - v2 + s;
+  vec3 mixed3 = v3 - s + vec3(v2.rg, s);
+  vec4 mixed4 = s + vec4(v3.bgr, s) - v4;
+  color = vec4(mixed2.r, mixed3.g, mixed4.b, repeated2.y) + repeated3;
 }
 `;
 
@@ -40,7 +43,10 @@ const WGSL = `@fragment fn main() -> @location(0) vec4<f32> {
   let r4: vec4<f32> = -(v4 + v4 - v4) * v4 / v4 * s / s;
   let repeated2: vec4<f32> = r2.xxyy;
   let repeated3: vec4<f32> = r3.zyxz;
-  return vec4<f32>(scalar, r3.z, r4.w, repeated2.y) + repeated3;
+  let mixed2: vec2<f32> = vec2<f32>(s) - v2 + vec2<f32>(s);
+  let mixed3: vec3<f32> = v3 - vec3<f32>(s) + vec3<f32>(v2.rg, s);
+  let mixed4: vec4<f32> = vec4<f32>(s) + vec4<f32>(v3.bgr, s) - v4;
+  return vec4<f32>(mixed2.r, mixed3.g, mixed4.b, repeated2.y) + repeated3;
 }
 `;
 

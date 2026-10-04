@@ -10,7 +10,7 @@ import {
 } from "../src/index.js";
 
 function lowerSource(body: string) {
-  const source = `import { createFragmentShader, vec4 } from "shdr";
+  const source = `import { createFragmentShader, vec3, vec4 } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
 ${body}
@@ -105,24 +105,36 @@ describe("vec4 and final-return lowering", () => {
 
   it.each([
     {
+      name: "Vec3 plus scalar",
+      call: "vec4(coord.rgb, 1)",
+      arguments: [
+        { kind: "swizzle", components: [0, 1, 2] },
+        { kind: "numeric-literal", value: 1 },
+      ],
+    },
+    {
       name: "scalar splat",
       call: "vec4(uniforms.time)",
-      argument: {
-        kind: "default-uniform",
-        uniform: "time",
-        type: { kind: "scalar", scalar: "f32" },
-      },
+      arguments: [
+        {
+          kind: "default-uniform",
+          uniform: "time",
+          type: { kind: "scalar", scalar: "f32" },
+        },
+      ],
     },
     {
       name: "Vec4 copy",
       call: "vec4(coord)",
-      argument: {
-        kind: "builtin-input",
-        input: "fragment-position",
-        type: { kind: "vector", scalar: "f32", size: 4 },
-      },
+      arguments: [
+        {
+          kind: "builtin-input",
+          input: "fragment-position",
+          type: { kind: "vector", scalar: "f32", size: 4 },
+        },
+      ],
     },
-  ])("lowers the $name constructor", ({ call, argument }) => {
+  ])("lowers the $name constructor", ({ call, arguments: args }) => {
     const { source, result } = lowerSource(`
   return ${call};`);
 
@@ -134,9 +146,31 @@ describe("vec4 and final-return lowering", () => {
       expression: {
         kind: "call",
         target: { kind: "constructor", name: "vec4" },
-        arguments: [argument],
+        arguments: args,
         type: { kind: "vector", scalar: "f32", size: 4 },
         range: { start: source.indexOf(call), length: call.length },
+      },
+    });
+  });
+
+  it("lowers vec3(Vec2, F32) without widening other constructor shapes", () => {
+    const call = "vec3(uniforms.resolution, coord.r)";
+    const { source, result } = lowerSource(
+      `const rgb = ${call};\n  return vec4(rgb, 1);`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.module.statements[0]).toMatchObject({
+      kind: "const-declaration",
+      initializer: {
+        kind: "call",
+        target: { kind: "constructor", name: "vec3" },
+        type: { kind: "vector", size: 3 },
+        range: { start: source.indexOf(call), length: call.length },
+        arguments: [
+          { kind: "default-uniform", uniform: "resolution" },
+          { kind: "swizzle", components: [0] },
+        ],
       },
     });
   });

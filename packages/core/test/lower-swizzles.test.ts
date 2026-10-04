@@ -79,6 +79,11 @@ const swizzles = [
     components: [0, 1],
     type: { kind: "vector", scalar: "f32", size: 2 },
   },
+  {
+    property: "rggr",
+    components: [0, 1, 1, 0],
+    type: { kind: "vector", scalar: "f32", size: 4 },
+  },
 ] as const;
 
 describe("swizzle lowering", () => {
@@ -181,8 +186,20 @@ export default createFragmentShader(({ coord, uniforms }) => {
     });
   });
 
-  it("rejects a non-xyzw spelling", () => {
-    const expressionSource = "coord.rgba";
+  it("normalizes color aliases and chains through a Vec3", () => {
+    const { result } = lowerTestExpression("coord.bgr.gr");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.expression).toMatchObject({
+      kind: "swizzle",
+      components: [1, 0],
+      expression: { kind: "swizzle", components: [2, 1, 0] },
+      type: { kind: "vector", size: 2 },
+    });
+  });
+
+  it("rejects a mixed-alphabet spelling", () => {
+    const expressionSource = "coord.xr";
     const { source, result } = lowerTestExpression(expressionSource);
 
     expect(result).toEqual({
@@ -191,8 +208,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
         {
           code: ShaderDiagnosticCode.InvalidSwizzle,
           message:
-            'Swizzle ".rgba" is not supported; use one to four xyzw components.',
-          range: { start: source.indexOf(".rgba") + 1, length: 4 },
+            'Swizzle ".xr" is not supported; use one to four xyzw or rgba components without mixing alphabets.',
+          range: { start: source.indexOf(".xr") + 1, length: 2 },
           severity: "error",
         },
       ],
@@ -209,7 +226,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
         expect.objectContaining({
           code: ShaderDiagnosticCode.InvalidSwizzle,
           message:
-            'Swizzle ".xyzwx" is not supported; use one to four xyzw components.',
+            'Swizzle ".xyzwx" is not supported; use one to four xyzw or rgba components without mixing alphabets.',
           range: { start: source.indexOf(".xyzwx") + 1, length: 5 },
         }),
       ],

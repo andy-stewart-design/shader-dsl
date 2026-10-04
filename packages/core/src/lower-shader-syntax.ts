@@ -438,6 +438,15 @@ function isConstructorArguments(
     );
   }
   if (args.length === size && args.every((arg) => isF32(arg.type))) return true;
+  if (args.length === 2 && (name === "vec3" || name === "vec4")) {
+    const [head, tail] = args;
+    return (
+      head?.type.kind === "vector" &&
+      head.type.size === size - 1 &&
+      tail !== undefined &&
+      isF32(tail.type)
+    );
+  }
   if (name !== "vec4" || args.length !== 3) return false;
   const [xy, z, w] = args;
   return (
@@ -472,7 +481,7 @@ function lowerBinaryExpression(
   switch (syntax.operator) {
     case "+":
     case "-":
-      type = sameTypeResult(left.expression.type, right.expression.type);
+      type = additionResult(left.expression.type, right.expression.type);
       break;
     case "*":
     case "/":
@@ -515,6 +524,15 @@ function sameTypeResult(
     : undefined;
 }
 
+function additionResult(
+  left: ShaderValueType,
+  right: ShaderValueType,
+): ShaderValueType | undefined {
+  if (isF32(left) && right.kind === "vector") return right;
+  if (isF32(right) && left.kind === "vector") return left;
+  return sameTypeResult(left, right);
+}
+
 function vectorScalarResult(
   left: ShaderValueType,
   right: ShaderValueType,
@@ -550,7 +568,7 @@ function lowerSwizzle(
   if (!components) {
     return expressionFailure(
       ShaderDiagnosticCode.InvalidSwizzle,
-      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not supported; use one to four xyzw components.`,
+      `Swizzle ${JSON.stringify(`.${syntax.propertyName}`)} is not supported; use one to four xyzw or rgba components without mixing alphabets.`,
       syntax.propertyRange,
     );
   }
@@ -580,37 +598,36 @@ function parseVectorComponents(
 ): ShaderSwizzleComponents | undefined {
   if (propertyName.length < 1 || propertyName.length > 4) return undefined;
 
-  const first = vectorComponent(propertyName[0]);
+  const alphabet = /^[xyzw]+$/.test(propertyName)
+    ? "xyzw"
+    : /^[rgba]+$/.test(propertyName)
+      ? "rgba"
+      : undefined;
+  if (!alphabet) return undefined;
+
+  const first = vectorComponent(propertyName[0], alphabet);
   if (first === undefined) return undefined;
   if (propertyName.length === 1) return [first];
 
-  const second = vectorComponent(propertyName[1]);
+  const second = vectorComponent(propertyName[1], alphabet);
   if (second === undefined) return undefined;
   if (propertyName.length === 2) return [first, second];
 
-  const third = vectorComponent(propertyName[2]);
+  const third = vectorComponent(propertyName[2], alphabet);
   if (third === undefined) return undefined;
   if (propertyName.length === 3) return [first, second, third];
 
-  const fourth = vectorComponent(propertyName[3]);
+  const fourth = vectorComponent(propertyName[3], alphabet);
   return fourth === undefined ? undefined : [first, second, third, fourth];
 }
 
 function vectorComponent(
   component: string | undefined,
+  alphabet: "xyzw" | "rgba",
 ): ShaderVectorComponent | undefined {
-  switch (component) {
-    case "x":
-      return 0;
-    case "y":
-      return 1;
-    case "z":
-      return 2;
-    case "w":
-      return 3;
-    default:
-      return undefined;
-  }
+  if (component === undefined) return undefined;
+  const index = alphabet.indexOf(component);
+  return index < 0 ? undefined : (index as ShaderVectorComponent);
 }
 
 function swizzleType(components: ShaderSwizzleComponents): ShaderValueType {

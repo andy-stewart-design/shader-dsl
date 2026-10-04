@@ -160,7 +160,7 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
   });
 
   it("throws a source-located Vite error for an invalid shader", async () => {
-    const expression = "coord.xy + uniforms.time";
+    const expression = "coord.xy + coord.xyz";
     const source = shaderSource(`return vec4(${expression});`);
     const expected = locationAt(source, source.indexOf(expression));
 
@@ -176,7 +176,7 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
       id: "/src/invalid.shdr.ts",
       pluginCode: "SHDR1205",
       message:
-        'SHDR1205: Operator "+" cannot be applied to types "Expr<Vec2<F32>>" and "Expr<F32>".',
+        'SHDR1205: Operator "+" cannot be applied to types "Expr<Vec2<F32>>" and "Expr<Vec3<F32>>".',
       loc: {
         file: "/src/invalid.shdr.ts",
         line: expected.line,

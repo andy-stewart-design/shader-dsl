@@ -92,7 +92,7 @@ try {
     const compiled = compileFragmentArtifact(source);
     const invalid = source.replace(
       "vec4(uv.x, uv.y, 0, 1)",
-      "vec4(coord.xy + uniforms.time)",
+      "vec4(coord.xy + coord.xyz)",
     );
     const failure = compileFragmentArtifact(invalid);
     return {
@@ -101,7 +101,7 @@ try {
         compiled.ok &&
         JSON.stringify(compiled.artifact) === JSON.stringify(staticArtifact),
       failure,
-      invalidExpressionStart: invalid.indexOf("coord.xy + uniforms.time"),
+      invalidExpressionStart: invalid.indexOf("coord.xy + coord.xyz"),
     };
   }, originalSource);
   if (!browserCompile.equal || !browserCompile.compiled.ok) {

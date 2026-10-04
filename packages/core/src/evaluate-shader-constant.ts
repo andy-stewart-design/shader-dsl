@@ -18,8 +18,15 @@ export function evaluateShaderConstant(
       const left = evaluateShaderConstant(expression.left, locals);
       const right = evaluateShaderConstant(expression.right, locals);
       if (!left || !right) return undefined;
-      if (left.length !== right.length && right.length !== 1) return undefined;
-      return left.map((value, index) => {
+      if (
+        left.length !== right.length &&
+        left.length !== 1 &&
+        right.length !== 1
+      )
+        return undefined;
+      const length = Math.max(left.length, right.length);
+      return Array.from({ length }, (_, index) => {
+        const value = left[left.length === 1 ? 0 : index]!;
         const other = right[right.length === 1 ? 0 : index]!;
         switch (expression.operator) {
           case "+":

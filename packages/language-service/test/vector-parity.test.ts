@@ -14,8 +14,13 @@ const constructorCases = [
   ["vec3(uniforms.time)", "Expr<Vec3<F32>>"],
   ["vec3(uniforms.time, 0, 1)", "Expr<Vec3<F32>>"],
   ["vec3(coord.xyz)", "Expr<Vec3<F32>>"],
+  ["vec3(uniforms.resolution, 1)", "Expr<Vec3<F32>>"],
+  ["vec3(coord.rg, uniforms.time)", "Expr<Vec3<F32>>"],
+  ["vec4(coord.rgb, 1)", "Expr<Vec4<F32>>"],
+  ["vec4(vec3(uniforms.resolution, 1), 1)", "Expr<Vec4<F32>>"],
   ["vec2(coord.xyz)", undefined],
-  ["vec3(uniforms.resolution, 1)", undefined],
+  ["vec3(uniforms.time, coord.xy)", undefined],
+  ["vec4(uniforms.time, coord.xyz)", undefined],
   ["vec3(uniforms.time, 1)", undefined],
   ["vec2(coord.xy, 1)", undefined],
 ] as const;
@@ -26,7 +31,7 @@ function checkExpression(
   index: number,
 ) {
   const fileName = join(cwd, `vector-parity-${index}.shdr.ts`);
-  const source = `import { createFragmentShader, vec2, vec3 } from "shdr";
+  const source = `import { createFragmentShader, vec2, vec3, vec4 } from "shdr";
 export default createFragmentShader(({ coord, uniforms }) => {
   const result = ${expression};
   return coord;
@@ -70,7 +75,11 @@ it("agrees on vec2/vec3 splat, component, copy and rejected packings", () => {
                 kind: "call",
                 type: {
                   kind: "vector",
-                  size: expression.startsWith("vec2") ? 2 : 3,
+                  size: expression.startsWith("vec2")
+                    ? 2
+                    : expression.startsWith("vec3")
+                      ? 3
+                      : 4,
                 },
                 range: {
                   start: source.indexOf(expression),
@@ -109,6 +118,10 @@ const swizzleCases = [
   ["uniforms.resolution.yxx", "Expr<Vec3<F32>>"],
   ["coord.z", "Expr<F32>"],
   ["coord.xyzw", "Expr<Vec4<F32>>"],
+  ["uniforms.resolution.rggr", "Expr<Vec4<F32>>"],
+  ["coord.bgra", "Expr<Vec4<F32>>"],
+  ["coord.a", "Expr<F32>"],
+  ["coord.bgr.gr", "Expr<Vec2<F32>>"],
   ["coord.xyz", "Expr<Vec3<F32>>"],
   ["coord.yx", "Expr<Vec2<F32>>"],
   ["coord.w", "Expr<F32>"],
@@ -119,7 +132,11 @@ const swizzleCases = [
   ["vec3(uniforms.time).zzyy", "Expr<Vec4<F32>>"],
   ["uniforms.resolution.z", undefined],
   ["coord.xyz.w", undefined],
-  ["coord.rgba", undefined],
+  ["coord.rgba", "Expr<Vec4<F32>>"],
+  ["coord.xr", undefined],
+  ["coord.rgbx", undefined],
+  ["uniforms.resolution.b", undefined],
+  ["coord.rgb.a", undefined],
   ["coord.xyzwx", undefined],
   ["coord.x.x", undefined],
 ] as const;

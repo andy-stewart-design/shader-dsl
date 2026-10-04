@@ -41,6 +41,7 @@ export function vec2(..._arguments: readonly unknown[]): Expr<Vec2<F32>> {
 }
 
 export function vec3(x: Expr<F32>, y: Expr<F32>, z: Expr<F32>): Expr<Vec3<F32>>;
+export function vec3(xy: Expr<Vec2<F32>>, z: Expr<F32>): Expr<Vec3<F32>>;
 export function vec3(value: Expr<F32>): Expr<Vec3<F32>>;
 export function vec3(value: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
 export function vec3(..._arguments: readonly unknown[]): Expr<Vec3<F32>> {
@@ -58,6 +59,7 @@ export function vec4(
   z: Expr<F32>,
   w: Expr<F32>,
 ): Expr<Vec4<F32>>;
+export function vec4(xyz: Expr<Vec3<F32>>, w: Expr<F32>): Expr<Vec4<F32>>;
 export function vec4(value: Expr<F32>): Expr<Vec4<F32>>;
 export function vec4(value: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
 export function vec4(..._arguments: readonly unknown[]): Expr<Vec4<F32>> {

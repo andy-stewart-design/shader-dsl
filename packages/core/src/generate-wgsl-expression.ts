@@ -107,7 +107,14 @@ function emitExpression(
       const operator = expression.operator;
       switch (operator) {
         case "+":
-        case "-":
+        case "-": {
+          const left = emitExpression(expression.left, options, state);
+          const right = emitExpression(expression.right, options, state);
+          if (expression.type.kind !== "vector")
+            return `(${left} ${operator} ${right})`;
+          const vector = `vec${expression.type.size}<f32>`;
+          return `(${expression.left.type.kind === "scalar" ? `${vector}(${left})` : left} ${operator} ${expression.right.type.kind === "scalar" ? `${vector}(${right})` : right})`;
+        }
         case "*":
         case "/":
           return `(${emitExpression(expression.left, options, state)} ${operator} ${emitExpression(expression.right, options, state)})`;
