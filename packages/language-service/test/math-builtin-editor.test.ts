@@ -273,9 +273,9 @@ export default createFragmentShader(({ coord, uniforms }) => {
         token: "sin(uniforms.time)",
       },
       {
-        text: `import { mix } from "shdr";\n${source("sin(uniforms.time)")}`,
+        text: `import { clamp } from "shdr";\n${source("sin(uniforms.time)")}`,
         code: ShaderDiagnosticCode.UnsupportedShdrImport,
-        token: "mix",
+        token: "clamp",
       },
       {
         text: `const captured = 1;\n${source("sin(captured)")}`,
@@ -305,7 +305,10 @@ export default createFragmentShader(({ coord, uniforms }) => {
           version: index + 1,
           projectVersion: 1,
         });
-        if (text.includes("./ordinary.js") || text.includes("import { mix }")) {
+        if (
+          text.includes("./ordinary.js") ||
+          text.includes("import { clamp }")
+        ) {
           expect(document.diagnostics, token).toEqual(
             expect.arrayContaining([
               expect.objectContaining({ source: "typescript", code: 2305 }),

@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lowerFragment } from "@shdr/core";
+import { lowerFragment, ShaderDiagnosticCode } from "@shdr/core";
 import { describe, expect, it } from "vitest";
 
 import { checkShaderPaths } from "../src/check.js";
@@ -171,6 +171,43 @@ describe("installed executable", () => {
       expect(invoke(cwd, "check").stdout).toMatch(
         /^math\.shdr\.ts:3:17: SHDR1209: smoothstep requires distinct edges/,
       );
+    });
+  });
+
+  it("checks mix/step signatures and source-mapped boundary failures through the executable", async () => {
+    await withProject(async (cwd) => {
+      await fixture(cwd, "mix-step-valid.shdr.ts");
+      const accepted = invoke(cwd, "check", "mix-step-valid.shdr.ts");
+      expect(accepted.status).toBe(0);
+      expect(accepted.stdout).toBe(
+        "Checked 1 shader file: no Shdr diagnostics.\n",
+      );
+      expect(accepted.stderr).toBe("");
+
+      for (const [name, code] of [
+        ["mix-step-bad-shape.shdr.ts", ShaderDiagnosticCode.InvalidBuiltin],
+        ["mix-step-nested.shdr.ts", ShaderDiagnosticCode.InvalidBuiltin],
+        ["mix-step-unimported.shdr.ts", ShaderDiagnosticCode.UnsupportedCall],
+        ["mix-step-aliased.shdr.ts", ShaderDiagnosticCode.ImportAlias],
+      ] as const) {
+        await fixture(cwd, name);
+        const source = await readFile(join(cwd, name), "utf8");
+        const lowered = lowerFragment(source);
+        expect(lowered.ok, name).toBe(false);
+        if (lowered.ok) continue;
+        expect(lowered.diagnostics, name).toHaveLength(1);
+        const diagnostic = lowered.diagnostics[0]!;
+        expect(diagnostic.code, name).toBe(code);
+        const before = source.slice(0, diagnostic.range.start).split("\n");
+        const line = before.length;
+        const column = before.at(-1)!.length + 1;
+        const result = invoke(cwd, "check", name);
+        expect(result.status, name).toBe(1);
+        expect(result.stdout, name).toBe(
+          `${name}:${line}:${column}: ${code}: ${diagnostic.message}\n`,
+        );
+        expect(result.stderr, name).toBe("");
+      }
     });
   });
 
