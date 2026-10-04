@@ -125,11 +125,32 @@ export function parseCustomUniforms(
       // JSON.stringify(-0) is 0; canonicalize for Vite/browser artifact parity.
       values.push(Object.is(value, -0) ? 0 : value);
     }
-    entries.push({
-      name,
-      type,
-      default: type === "f32" ? values[0]! : (values as [number, number]),
-    });
+    switch (type) {
+      case "f32":
+        entries.push({ name, type, default: values[0]! });
+        break;
+      case "vec2":
+        entries.push({ name, type, default: [values[0]!, values[1]!] });
+        break;
+      case "vec3":
+        entries.push({
+          name,
+          type,
+          default: [values[0]!, values[1]!, values[2]!],
+        });
+        break;
+      case "vec4":
+        entries.push({
+          name,
+          type,
+          default: [values[0]!, values[1]!, values[2]!, values[3]!],
+        });
+        break;
+      default:
+        throw new Error(
+          `Unsupported custom uniform type: ${type satisfies never}`,
+        );
+    }
   }
   return {
     ok: true,

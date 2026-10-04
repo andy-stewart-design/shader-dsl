@@ -46,6 +46,36 @@ function numeric(
 
 function copyValue(
   value: unknown,
+  type: "f32",
+  backend: RendererBackend,
+  kind: "artifact" | "uniform",
+): number;
+function copyValue(
+  value: unknown,
+  type: "vec2",
+  backend: RendererBackend,
+  kind: "artifact" | "uniform",
+): UniformValue<"vec2">;
+function copyValue(
+  value: unknown,
+  type: "vec3",
+  backend: RendererBackend,
+  kind: "artifact" | "uniform",
+): UniformValue<"vec3">;
+function copyValue(
+  value: unknown,
+  type: "vec4",
+  backend: RendererBackend,
+  kind: "artifact" | "uniform",
+): UniformValue<"vec4">;
+function copyValue(
+  value: unknown,
+  type: ShaderCustomUniformType,
+  backend: RendererBackend,
+  kind: "artifact" | "uniform",
+): DynamicUniformValue;
+function copyValue(
+  value: unknown,
   type: ShaderCustomUniformType,
   backend: RendererBackend,
   kind: "artifact" | "uniform",
@@ -58,9 +88,58 @@ function copyValue(
       `Uniform ${type} requires exactly ${lengthOf[type]} components.`,
     );
   // Array.from visits holes as undefined; Array#map would silently skip them.
-  return Array.from(value, (component: unknown) =>
+  const components = Array.from(value, (component: unknown) =>
     numeric(component, backend, kind),
-  ) as unknown as DynamicUniformValue;
+  );
+  switch (type) {
+    case "vec2":
+      return [components[0]!, components[1]!];
+    case "vec3":
+      return [components[0]!, components[1]!, components[2]!];
+    case "vec4":
+      return [components[0]!, components[1]!, components[2]!, components[3]!];
+    default:
+      throw new Error(
+        `Unsupported validated uniform type: ${type satisfies never}`,
+      );
+  }
+}
+
+function copyDeclaration(
+  declaration: ShaderCustomUniformDeclaration,
+  backend: RendererBackend,
+): ShaderCustomUniformDeclaration {
+  const { name, type } = declaration;
+  switch (type) {
+    case "f32":
+      return {
+        name,
+        type,
+        default: copyValue(declaration.default, type, backend, "artifact"),
+      };
+    case "vec2":
+      return {
+        name,
+        type,
+        default: copyValue(declaration.default, type, backend, "artifact"),
+      };
+    case "vec3":
+      return {
+        name,
+        type,
+        default: copyValue(declaration.default, type, backend, "artifact"),
+      };
+    case "vec4":
+      return {
+        name,
+        type,
+        default: copyValue(declaration.default, type, backend, "artifact"),
+      };
+    default:
+      throw new Error(
+        `Unsupported validated uniform type: ${type satisfies never}`,
+      );
+  }
 }
 
 /** Validate and copy *all* metadata before candidate GPU allocation. */
@@ -93,16 +172,7 @@ export function readCustomMetadata(
     )
       fail(backend, "artifact", "Invalid custom uniform declaration.");
     names.add(declaration.name);
-    copied.push({
-      name: declaration.name,
-      type: declaration.type,
-      default: copyValue(
-        declaration.default,
-        declaration.type,
-        backend,
-        "artifact",
-      ),
-    });
+    copied.push(copyDeclaration(declaration, backend));
   }
   const ordered = (entries: readonly string[], target: string): string[] => {
     if (!Array.isArray(entries))

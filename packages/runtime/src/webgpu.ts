@@ -93,7 +93,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   }
   static create<
     const S extends UniformSchema,
-    const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+    const V extends Partial<HostUniforms<S>> = never,
   >(
     canvas: HTMLCanvasElement,
     artifact: TypedCompiledFragmentArtifact<S>,
@@ -532,7 +532,7 @@ export class WebGpuRenderer extends CanvasRenderer {
 }
 export function createWebGpuRenderer<
   const S extends UniformSchema,
-  const V extends Partial<HostUniforms<S>> = Partial<HostUniforms<S>>,
+  const V extends Partial<HostUniforms<S>> = never,
 >(
   canvas: HTMLCanvasElement,
   artifact: TypedCompiledFragmentArtifact<S>,

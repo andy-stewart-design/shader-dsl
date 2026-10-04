@@ -134,6 +134,8 @@ try {
         const kinds = [];
         for (const bad of [
           { a: [1, 2] },
+          { a: undefined },
+          { b: undefined },
           { b: Infinity },
           { b: 1e300 },
           { mouse: [0, 0] },
@@ -193,8 +195,8 @@ try {
     { initial, changed, subset, incompatible },
   );
   assert.deepEqual(results, [
-    Array(9).fill("uniform"),
-    Array(9).fill("uniform"),
+    Array(11).fill("uniform"),
+    Array(11).fill("uniform"),
   ]);
   await pixels([0.4, 0.7, 0.6, 1], "atomic validation");
   await page.evaluate(() => window.mutate("set"));
@@ -315,6 +317,27 @@ try {
           ],
         },
       },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
+          declarations: [
+            { ...initial.custom.declarations[0], type: "f32" },
+            ...initial.custom.declarations.slice(1),
+          ],
+        },
+      },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
+          declarations: [
+            initial.custom.declarations[0],
+            { ...initial.custom.declarations[1], default: [1, 2] },
+            ...initial.custom.declarations.slice(2),
+          ],
+        },
+      },
     ];
     const invalid = await both(async (r) =>
       Promise.all(
@@ -342,8 +365,8 @@ try {
     return { invalid, failed, concurrent };
   });
   assert.deepEqual(lifecycle.invalid, [
-    Array(4).fill("artifact"),
-    Array(4).fill("artifact"),
+    Array(6).fill("artifact"),
+    Array(6).fill("artifact"),
   ]);
   assert.deepEqual(lifecycle.failed, ["shader", "shader"]);
   assert.deepEqual(
@@ -508,14 +531,16 @@ try {
       const canvas = document.createElement("canvas");
       canvas.style.cssText = "width:8px;height:8px";
       document.body.append(canvas);
-      const failure = await create(canvas, artifact, {
-        uniforms: { b: "invalid" },
-        animate: false,
-      }).then(
-        () => "accepted",
-        (error) => error.kind,
-      );
-      errors.push(failure);
+      for (const value of ["invalid", undefined]) {
+        const failure = await create(canvas, artifact, {
+          uniforms: { b: value },
+          animate: false,
+        }).then(
+          () => "accepted",
+          (error) => error.kind,
+        );
+        errors.push(failure);
+      }
       const retry = await create(canvas, artifact, { animate: false });
       retry.dispose();
     }
@@ -533,7 +558,7 @@ try {
     window.animatedGpuUniform.setUniforms({ b: 0.8 });
     return errors;
   }, initial);
-  assert.deepEqual(creation, ["uniform", "uniform"]);
+  assert.deepEqual(creation, ["uniform", "uniform", "uniform", "uniform"]);
   await page.waitForFunction(() => {
     const gl = document.querySelector("#animated-uniform").getContext("webgl2");
     const value = new Uint8Array(4);
