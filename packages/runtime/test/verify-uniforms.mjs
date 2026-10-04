@@ -301,6 +301,13 @@ try {
         ...initial,
         custom: {
           ...initial.custom,
+          referenced: { ...initial.custom.referenced, glsl: ["toString"] },
+        },
+      },
+      {
+        ...initial,
+        custom: {
+          ...initial.custom,
           declarations: [
             { ...initial.custom.declarations[0], default: [Infinity, 0, 1] },
             ...initial.custom.declarations.slice(1),
@@ -365,8 +372,8 @@ try {
     return { invalid, failed, concurrent };
   });
   assert.deepEqual(lifecycle.invalid, [
-    Array(6).fill("artifact"),
-    Array(6).fill("artifact"),
+    Array(7).fill("artifact"),
+    Array(7).fill("artifact"),
   ]);
   assert.deepEqual(lifecycle.failed, ["shader", "shader"]);
   assert.deepEqual(
@@ -646,6 +653,44 @@ export default createFragmentShader(({ coord, uniforms }) => {
       );
     await pixels(regression.expected, regression.name, regressionSelectors);
   }
+  const special = shader(
+    "vec4(uniforms.toString, uniforms.café.x, 0, 1)",
+    `import { defineUniforms, vec4 } from "shdr";
+export default defineUniforms((u) => ({ toString: u.f32(0.2), café: u.vec3(0.3, 0.4, 0.5) }))
+.createFragmentShader(({ uniforms }) => BODY);`,
+  );
+  await page.evaluate(
+    (artifact) =>
+      Promise.all(
+        window.regressionRenderers.map((renderer) =>
+          renderer.setShader(artifact),
+        ),
+      ),
+    special,
+  );
+  await pixels([0.2, 0.3, 0, 1], "validated schema names", regressionSelectors);
+  await page.evaluate(async () => {
+    await Promise.all(
+      window.regressionRenderers.map(async (renderer) => {
+        const values = Object.assign(Object.create(null), {
+          toString: 0.8,
+          café: [0.6, 0.4, 0.5],
+        });
+        renderer.setUniforms(values);
+        await renderer.draw();
+      }),
+    );
+  });
+  await pixels([0.8, 0.6, 0, 1], "indexed schema updates", regressionSelectors);
+  await page.evaluate(async () => {
+    await Promise.all(
+      window.regressionRenderers.map(async (renderer) => {
+        renderer.resetUniforms("toString", "café");
+        await renderer.draw();
+      }),
+    );
+  });
+  await pixels([0.2, 0.3, 0, 1], "indexed schema resets", regressionSelectors);
   await page.evaluate(() =>
     window.regressionRenderers.forEach((renderer) => renderer.dispose()),
   );

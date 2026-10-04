@@ -8,7 +8,7 @@ import type {
 } from "shdr";
 import {
   readCustomMetadata,
-  type CustomMetadata,
+  type CustomSchema,
   type UniformValues,
 } from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
@@ -19,6 +19,7 @@ import {
   claim,
   epoch,
   release,
+  type InternalRendererOptions,
 } from "./shared.js";
 import type {
   RendererOptions,
@@ -28,7 +29,6 @@ import type {
   StaticRendererOptions,
   DynamicRendererOptions,
   LegacyRendererOptions,
-  InternalRendererOptions,
 } from "./types.js";
 
 const VERTEX = `#version 300 es
@@ -45,7 +45,7 @@ interface Program {
     Record<ShaderDefaultUniform, WebGLUniformLocation | null>
   >;
   readonly boundUniforms: readonly ShaderDefaultUniform[];
-  readonly custom?: CustomMetadata;
+  readonly custom?: CustomSchema;
   readonly customLocations: readonly (WebGLUniformLocation | null)[];
 }
 
@@ -293,7 +293,7 @@ export class WebGlRenderer extends CanvasRenderer {
   private makeProgram(
     source: string,
     declared: readonly ShaderDefaultUniform[],
-    custom: CustomMetadata | undefined,
+    custom: CustomSchema | undefined,
   ): Program {
     const gl = this.gl;
     const compile = (kind: number, text: string): WebGLShader => {
@@ -382,32 +382,6 @@ export class WebGlRenderer extends CanvasRenderer {
   }
 }
 
-export function createWebGlRenderer<
-  const S extends UniformSchema,
-  const V extends Partial<HostUniforms<S>> = never,
->(
-  canvas: HTMLCanvasElement,
-  artifact: TypedCompiledFragmentArtifact<S>,
-  options?: StaticRendererOptions<S, V>,
-): Promise<StaticRenderer<S>>;
-export function createWebGlRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: DynamicCompiledFragmentArtifact,
-  options?: DynamicRendererOptions,
-): Promise<WebGlRenderer>;
-export function createWebGlRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: LegacyRendererOptions,
-): Promise<WebGlRenderer>;
-export function createWebGlRenderer(
-  canvas: HTMLCanvasElement,
-  artifact: CompiledFragmentArtifact,
-  options?: InternalRendererOptions,
-): Promise<WebGlRenderer> {
-  return WebGlRenderer.create(
-    canvas,
-    artifact,
-    options as LegacyRendererOptions,
-  );
-}
+/** Public factory shares the class's overloads and implementation verbatim. */
+export const createWebGlRenderer: typeof WebGlRenderer.create =
+  WebGlRenderer.create;

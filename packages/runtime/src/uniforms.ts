@@ -8,7 +8,17 @@ import { ShdrRuntimeError, type RendererBackend } from "./errors.js";
 
 export type DynamicUniformValue = UniformValue<ShaderCustomUniformType>;
 export type UniformPatch = Readonly<Record<string, DynamicUniformValue>>;
-export type CustomMetadata = NonNullable<CompiledFragmentArtifact["custom"]>;
+type CustomMetadata = NonNullable<CompiledFragmentArtifact["custom"]>;
+export interface CustomSchema extends CustomMetadata {
+  /** Validated, copied declarations with their stable artifact indices. */
+  readonly fields: ReadonlyMap<
+    string,
+    {
+      readonly declaration: ShaderCustomUniformDeclaration;
+      readonly index: number;
+    }
+  >;
+}
 export type UniformValues = ReadonlyMap<string, DynamicUniformValue>;
 
 const reserved = new Set([
@@ -146,7 +156,7 @@ function copyDeclaration(
 export function readCustomMetadata(
   value: CompiledFragmentArtifact,
   backend: RendererBackend,
-): CustomMetadata | undefined {
+): CustomSchema | undefined {
   if (value.custom === undefined) return undefined;
   const custom: unknown = value.custom;
   if (!custom || typeof custom !== "object")
@@ -158,7 +168,10 @@ export function readCustomMetadata(
     typeof referenced !== "object"
   )
     fail(backend, "artifact", "Invalid custom uniform metadata.");
-  const names = new Set<string>();
+  const fields = new Map<
+    string,
+    { declaration: ShaderCustomUniformDeclaration; index: number }
+  >();
   const copied: ShaderCustomUniformDeclaration[] = [];
   for (const declaration of declarations) {
     if (
@@ -167,20 +180,24 @@ export function readCustomMetadata(
       typeof declaration.name !== "string" ||
       !identifier.test(declaration.name) ||
       reserved.has(declaration.name) ||
-      names.has(declaration.name) ||
+      fields.has(declaration.name) ||
       !Object.hasOwn(lengthOf, declaration.type)
     )
       fail(backend, "artifact", "Invalid custom uniform declaration.");
-    names.add(declaration.name);
-    copied.push(copyDeclaration(declaration, backend));
+    const validated = copyDeclaration(declaration, backend);
+    fields.set(validated.name, {
+      declaration: validated,
+      index: copied.length,
+    });
+    copied.push(validated);
   }
   const ordered = (entries: readonly string[], target: string): string[] => {
     if (!Array.isArray(entries))
       fail(backend, "artifact", `Invalid ${target} custom binding metadata.`);
     let previous = -1;
     return entries.map((name) => {
-      const index = copied.findIndex((item) => item.name === name);
-      if (index <= previous)
+      const index = fields.get(name)?.index;
+      if (index === undefined || index <= previous)
         fail(backend, "artifact", `Invalid ${target} custom binding metadata.`);
       previous = index;
       return name;
@@ -192,11 +209,12 @@ export function readCustomMetadata(
       glsl: ordered(referenced.glsl, "glsl"),
       wgsl: ordered(referenced.wgsl, "wgsl"),
     },
+    fields,
   };
 }
 
 function patch(
-  schema: CustomMetadata | undefined,
+  schema: CustomSchema | undefined,
   values: unknown,
   backend: RendererBackend,
 ): Map<string, DynamicUniformValue> {
@@ -215,7 +233,7 @@ function patch(
     );
   const entries = new Map<string, DynamicUniformValue>();
   for (const name of Object.keys(values)) {
-    const declaration = schema?.declarations.find((item) => item.name === name);
+    const declaration = schema?.fields.get(name)?.declaration;
     if (!declaration)
       fail(
         backend,
@@ -236,7 +254,7 @@ function patch(
 }
 
 export class UniformState {
-  private schema?: CustomMetadata;
+  private schema?: CustomSchema;
   private values: Map<string, DynamicUniformValue> = new Map();
   private overrides = new Map<
     string,
@@ -246,13 +264,11 @@ export class UniformState {
   private revision = 0;
   constructor(private readonly backend: RendererBackend) {}
 
-  creation(schema: CustomMetadata | undefined, values: unknown): void {
+  creation(schema: CustomSchema | undefined, values: unknown): void {
     this.initial =
       values === undefined ? undefined : patch(schema, values, this.backend);
   }
-  resolve(
-    schema: CustomMetadata | undefined,
-  ): Map<string, DynamicUniformValue> {
+  resolve(schema: CustomSchema | undefined): Map<string, DynamicUniformValue> {
     const values = new Map(
       schema?.declarations.map((item) => [item.name, item.default] as const) ??
         [],
@@ -266,18 +282,14 @@ export class UniformState {
     return values;
   }
   commit(
-    schema: CustomMetadata | undefined,
+    schema: CustomSchema | undefined,
     values: Map<string, DynamicUniformValue>,
   ): void {
     this.schema = schema;
     this.values = values;
     this.initial = undefined;
     for (const [name, override] of this.overrides) {
-      if (
-        !schema?.declarations.some(
-          (item) => item.name === name && item.type === override.type,
-        )
-      )
+      if (schema?.fields.get(name)?.declaration.type !== override.type)
         this.overrides.delete(name);
     }
   }
@@ -290,9 +302,7 @@ export class UniformState {
   set(values: UniformPatch): void {
     const changes = patch(this.schema, values, this.backend);
     for (const [name, value] of changes) {
-      const type = this.schema!.declarations.find(
-        (item) => item.name === name,
-      )!.type;
+      const type = this.schema!.fields.get(name)!.declaration.type;
       this.values.set(name, value);
       this.overrides.set(name, { type, value });
     }
@@ -303,7 +313,7 @@ export class UniformState {
       ? names
       : (this.schema?.declarations.map((item) => item.name) ?? []);
     for (const name of targets) {
-      if (!this.schema?.declarations.some((item) => item.name === name))
+      if (!this.schema?.fields.has(name))
         fail(
           this.backend,
           "uniform",
@@ -311,9 +321,7 @@ export class UniformState {
         );
     }
     for (const name of targets) {
-      const declaration = this.schema!.declarations.find(
-        (item) => item.name === name,
-      )!;
+      const declaration = this.schema!.fields.get(name)!.declaration;
       this.overrides.delete(name);
       this.values.set(name, declaration.default);
     }

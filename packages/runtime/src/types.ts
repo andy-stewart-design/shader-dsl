@@ -15,9 +15,6 @@ export interface RendererOptions {
   /** Optional shared initial time origin, in performance.now() milliseconds. */
   readonly startedAt?: number;
 }
-export interface InternalRendererOptions extends RendererOptions {
-  readonly uniforms?: UniformPatch;
-}
 // Validate each supplied key against the required value type. Partial alone
 // allows { gain: undefined } in consumer projects without exact optional types.
 type CheckedStaticUniforms<
