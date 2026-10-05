@@ -1,9 +1,11 @@
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import {
+  evaluateShaderComponents,
   evaluateShaderConstant,
   identicalConstantExpressions,
+  type ShaderKnownComponents,
 } from "./evaluate-shader-constant.js";
-import { isFiniteF32 } from "./finite-f32.js";
+import { isFiniteF32, MAX_F32 } from "./finite-f32.js";
 import { builtinResultType, isShaderBuiltinName } from "./shader-builtin.js";
 import type {
   ShaderConstDeclaration,
@@ -74,7 +76,7 @@ interface LocalBinding {
 interface LoweringContext {
   readonly locals: Map<string, LocalBinding>;
   readonly futureNames: ReadonlySet<string>;
-  readonly constantLocals: Map<ShaderLocalSymbolId, readonly number[]>;
+  readonly constantLocals: Map<ShaderLocalSymbolId, ShaderKnownComponents>;
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
   readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
   readonly contextBindings: ReadonlySet<string>;
@@ -91,7 +93,7 @@ export function lowerShaderSyntax(
   customUniforms: readonly ShaderCustomUniformDeclaration[] = [],
 ): LowerShaderSyntaxResult {
   const locals = new Map<string, LocalBinding>();
-  const constantLocals = new Map<ShaderLocalSymbolId, readonly number[]>();
+  const constantLocals = new Map<ShaderLocalSymbolId, ShaderKnownComponents>();
   const localInitializers = new Map<ShaderLocalSymbolId, ShaderExpression>();
   const futureNames = new Set(
     syntax.declarations.map((declaration) => declaration.name),
@@ -134,11 +136,10 @@ export function lowerShaderSyntax(
 
     const symbolId = nextSymbolId;
     nextSymbolId += 1;
-    const constant = evaluateShaderConstant(
-      initializer.expression,
-      constantLocals,
+    constantLocals.set(
+      symbolId,
+      evaluateShaderComponents(initializer.expression, constantLocals),
     );
-    if (constant) constantLocals.set(symbolId, constant);
     localInitializers.set(symbolId, initializer.expression);
     futureNames.delete(declaration.name);
     locals.set(declaration.name, {
@@ -384,6 +385,14 @@ function lowerCallExpression(
         );
       }
     }
+    const domainError = invalidBuiltinDomain(name, args, context);
+    if (domainError) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidBuiltinDomain,
+        domainError,
+        syntax.range,
+      );
+    }
     return {
       ok: true,
       expression: {
@@ -422,6 +431,137 @@ function lowerCallExpression(
       range: syntax.range,
     },
   };
+}
+
+function invalidBuiltinDomain(
+  name: string,
+  args: readonly ShaderExpression[],
+  context: LoweringContext,
+): string | undefined {
+  if (
+    name !== "sqrt" &&
+    name !== "exp" &&
+    name !== "tanh" &&
+    name !== "clamp" &&
+    name !== "pow"
+  )
+    return undefined;
+  const values = args.map((arg) =>
+    evaluateShaderComponents(arg, context.constantLocals),
+  );
+  if (hasKnownNonFiniteSubexpression(args, context))
+    return `${name} has a known non-finite f32 argument.`;
+  const [first, second, third] = values;
+  if (
+    name === "sqrt" &&
+    first?.some((value) => value !== undefined && value < 0)
+  )
+    return "sqrt requires nonnegative inputs in every component.";
+  if (
+    name === "exp" &&
+    first?.some((value) => value !== undefined && value >= 89)
+  )
+    // ln(MAX_F32) is ~88.72; 89 is safely beyond the boundary.
+    return "exp has a known result outside the finite f32 range.";
+  if (
+    name === "clamp" &&
+    second &&
+    third &&
+    second.some(
+      (low, index) =>
+        low !== undefined && third[index] !== undefined && low > third[index]!,
+    )
+  )
+    return "clamp requires low <= high in every component.";
+  if (name === "pow" && first) {
+    if (first.some((base) => base !== undefined && base < 0))
+      return "pow requires nonnegative bases in every component.";
+    if (
+      second &&
+      first.some((base, index) => base === 0 && second[index]! <= 0)
+    )
+      return "pow requires a positive exponent when a base is zero.";
+    if (
+      second &&
+      first.some((base, index) => {
+        const exponent = second[index];
+        return (
+          base !== undefined &&
+          base > 0 &&
+          exponent !== undefined &&
+          knownPowOverflow(base, exponent)
+        );
+      })
+    )
+      return "pow has a known result outside the finite f32 range.";
+  }
+  return undefined;
+}
+
+function hasKnownNonFiniteSubexpression(
+  arguments_: readonly ShaderExpression[],
+  context: LoweringContext,
+): boolean {
+  const pending = [...arguments_];
+  const seen = new WeakSet<ShaderExpression>();
+  const cache = new WeakMap<ShaderExpression, ShaderKnownComponents>();
+  const seenLocals = new Set<ShaderLocalSymbolId>();
+  while (pending.length) {
+    const expression = pending.pop()!;
+    if (seen.has(expression)) continue;
+    seen.add(expression);
+    if (
+      evaluateShaderComponents(expression, context.constantLocals, cache).some(
+        (value) => value !== undefined && !Number.isFinite(value),
+      )
+    )
+      return true;
+    switch (expression.kind) {
+      case "local-reference": {
+        if (seenLocals.has(expression.symbolId)) break;
+        seenLocals.add(expression.symbolId);
+        const initializer = context.localInitializers.get(expression.symbolId);
+        if (initializer) pending.push(initializer);
+        break;
+      }
+      case "binary":
+        pending.push(expression.left, expression.right);
+        break;
+      case "unary":
+        pending.push(expression.argument);
+        break;
+      case "swizzle":
+        pending.push(expression.expression);
+        break;
+      case "call":
+        pending.push(...expression.arguments);
+        break;
+      case "numeric-literal":
+      case "builtin-input":
+      case "default-uniform":
+      case "custom-uniform":
+        break;
+      default:
+        assertNever(expression);
+    }
+  }
+  return false;
+}
+
+function knownPowOverflow(base: number, exponent: number): boolean {
+  // Integer bases and exponents admit an exact comparison with finite f32's
+  // integer maximum. Avoid huge BigInt work for unbounded authored exponents.
+  if (
+    Number.isInteger(base) &&
+    Number.isInteger(exponent) &&
+    base >= 2 &&
+    exponent >= 0 &&
+    exponent <= 256
+  )
+    return BigInt(base) ** BigInt(exponent) > BigInt(MAX_F32);
+  // ln(MAX_F32) ~88.72. A small margin keeps approximate log proofs away
+  // from the boundary, without admitting clear overflow like 2^130.
+  return Math.log(base) * exponent > Math.log(MAX_F32) + 0.1;
 }
 
 function isConstructorArguments(

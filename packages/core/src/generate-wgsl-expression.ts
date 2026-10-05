@@ -18,6 +18,9 @@ export interface GenerateWgslExpressionOptions {
 }
 
 export type WgslSmoothstepShape = "f32" | "vec2" | "vec3" | "vec4";
+export type WgslGuardedBuiltin = "sqrt" | "exp" | "clamp" | "pow";
+export type WgslGuardedSignature =
+  `${WgslGuardedBuiltin}_${WgslSmoothstepShape}`;
 
 export interface GeneratedWgslExpression {
   readonly code: string;
@@ -26,12 +29,15 @@ export interface GeneratedWgslExpression {
   readonly usesFragmentPosition: boolean;
   /** Module-level helpers needed to prevent WGSL const-edge shader-creation errors. */
   readonly smoothstepShapes: readonly WgslSmoothstepShape[];
+  /** Parameterized WGSL calls prevent eager constant-domain/overflow failures. */
+  readonly guardedBuiltinSignatures?: readonly WgslGuardedSignature[];
 }
 
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
   readonly referencedCustomUniforms: Set<string>;
   readonly smoothstepShapes: Set<WgslSmoothstepShape>;
+  readonly guardedBuiltinSignatures: Set<WgslGuardedSignature>;
   usesFragmentPosition: boolean;
 }
 
@@ -44,6 +50,7 @@ export function generateWgslExpression(
     referencedUniforms: new Set(),
     referencedCustomUniforms: new Set(),
     smoothstepShapes: new Set(),
+    guardedBuiltinSignatures: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -64,6 +71,9 @@ export function generateWgslExpression(
     smoothstepShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
       (shape) => state.smoothstepShapes.has(shape),
     ),
+    ...(state.guardedBuiltinSignatures.size
+      ? { guardedBuiltinSignatures: [...state.guardedBuiltinSignatures].sort() }
+      : {}),
   };
 }
 
@@ -146,6 +156,21 @@ function emitExpression(
         state.smoothstepShapes.add(shape);
         name = `shdr_internal_smoothstep_${shape}`;
       }
+      if (
+        expression.target.kind === "builtin-function" &&
+        (expression.target.name === "sqrt" ||
+          expression.target.name === "exp" ||
+          expression.target.name === "clamp" ||
+          expression.target.name === "pow")
+      ) {
+        const shape: WgslSmoothstepShape =
+          expression.type.kind === "scalar"
+            ? "f32"
+            : `vec${expression.type.size}`;
+        const signature: WgslGuardedSignature = `${expression.target.name}_${shape}`;
+        state.guardedBuiltinSignatures.add(signature);
+        name = `shdr_internal_safe_${signature}`;
+      }
       const args = expression.arguments.map((argument) =>
         emitExpression(argument, options, state),
       );
@@ -223,6 +248,11 @@ function callTargetName(target: ShaderCallTarget): string {
         case "sin":
         case "cos":
         case "ceil":
+        case "sqrt":
+        case "exp":
+        case "tanh":
+        case "clamp":
+        case "pow":
         case "distance":
         case "cross":
         case "smoothstep":

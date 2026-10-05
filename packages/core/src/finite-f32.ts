@@ -1,5 +1,5 @@
 // Maximum finite f32, exactly representable as a JavaScript number.
-const MAX_F32 = (2 - 2 ** -23) * 2 ** 127;
+export const MAX_F32 = (2 - 2 ** -23) * 2 ** 127;
 
 /** A source number may round to f32, but cannot exceed the finite f32 range. */
 export function isFiniteF32(value: number): boolean {

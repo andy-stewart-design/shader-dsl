@@ -273,9 +273,9 @@ export default createFragmentShader(({ coord, uniforms }) => {
         token: "sin(uniforms.time)",
       },
       {
-        text: `import { clamp } from "shdr";\n${source("sin(uniforms.time)")}`,
+        text: `import { atan } from "shdr";\n${source("sin(uniforms.time)")}`,
         code: ShaderDiagnosticCode.UnsupportedShdrImport,
-        token: "clamp",
+        token: "atan",
       },
       {
         text: `const captured = 1;\n${source("sin(captured)")}`,
@@ -307,7 +307,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
         });
         if (
           text.includes("./ordinary.js") ||
-          text.includes("import { clamp }")
+          text.includes("import { atan }")
         ) {
           expect(document.diagnostics, token).toEqual(
             expect.arrayContaining([
