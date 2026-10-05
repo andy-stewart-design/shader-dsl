@@ -21,6 +21,7 @@ Ordinary TypeScript inside a shader module is checked through the same TypeScrip
 - [`math-builtins.shdr.ts`](math-builtins.shdr.ts): the original eleven f32 math builtins, scalar and vector `smoothstep`, and scalar/vector hovers, matching the Vite/REPL source.
 - [`geometry-math.shdr.ts`](geometry-math.shdr.ts): `ceil`, `distance`, and Vec3-only `cross` with hovers and an invalid-call edit in the real VS Code check.
 - [`vector-arithmetic.shdr.ts`](vector-arithmetic.shdr.ts): mixed scalar/vector arithmetic, adjacent vector packing and color swizzles; the real VS Code check verifies hovers and source-located rejected edits.
+- [`pr3-math.shdr.ts`](pr3-math.shdr.ts): same-shape `sqrt`/`exp`/`tanh`/`clamp`/`pow` color field, with real VS Code hovers and original-source domain/signature edit diagnostics.
 - [`cells-representative.shdr.ts`](cells-representative.shdr.ts): `mix`, `step`, first-frame custom defaults and explicit bottom-left coordinate conversion; the real VS Code check verifies hovers and an invalid-factor edit. This is a representative effect, not an exact GLSL reference frame.
 - [`test/fixtures/invalid-math.shdr.ts`](test/fixtures/invalid-math.shdr.ts): statically equal `smoothstep` edges, one original-call `SHDR1209` diagnostic.
 - `test/fixtures/invalid.shdr.ts`: an invalid `coord.xy / coord` shader operation with one mapped diagnostic.

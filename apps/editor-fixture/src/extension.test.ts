@@ -285,6 +285,39 @@ export async function run(): Promise<void> {
   await replaceText(cells, invalidFactor, validFactor);
   await waitForDiagnostics(cellsUri, (diagnostics) => diagnostics.length === 0);
 
+  const pr3Uri = vscode.Uri.joinPath(workspace.uri, "pr3-math.shdr.ts");
+  const pr3 = await vscode.workspace.openTextDocument(pr3Uri);
+  assert.equal(pr3.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(pr3);
+  await waitForDiagnostics(pr3Uri, (diagnostics) => diagnostics.length === 0);
+  await waitForHoverText(pr3, "squared = pow", /Expr<Vec3<F32>>/);
+  await waitForHoverText(pr3, "bright = sqrt", /Expr<Vec3<F32>>/);
+  const validDomain = "sqrt(clamp(squared, vec3(0.01), vec3(0.9)))";
+  const invalidDomain = "sqrt(clamp(squared, vec3(2), vec3(1)))";
+  await replaceText(pr3, validDomain, invalidDomain);
+  const pr3Domain = await waitForDiagnostics(
+    pr3Uri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1209",
+  );
+  assert.equal(
+    pr3.getText(pr3Domain[0]?.range),
+    "clamp(squared, vec3(2), vec3(1))",
+  );
+  await replaceText(pr3, invalidDomain, validDomain);
+  await waitForDiagnostics(pr3Uri, (diagnostics) => diagnostics.length === 0);
+  const validPow = "pow(positive, vec3(2))";
+  const invalidPow = "pow(positive, 2)";
+  await replaceText(pr3, validPow, invalidPow);
+  const pr3Shape = await waitForDiagnostics(
+    pr3Uri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(pr3.getText(pr3Shape[0]?.range), invalidPow);
+  await replaceText(pr3, invalidPow, validPow);
+  await waitForDiagnostics(pr3Uri, (diagnostics) => diagnostics.length === 0);
+
   const invalidUri = vscode.Uri.joinPath(
     workspace.uri,
     "test/fixtures/invalid.shdr.ts",
@@ -327,6 +360,6 @@ export async function run(): Promise<void> {
   assert.equal(ordinary.languageId, "typescript");
 
   console.log(
-    "Complete real VS Code Shdr extension, math and mix/step checklist verified.",
+    "Complete real VS Code Shdr extension, math, mix/step and PR 3 checklist verified.",
   );
 }
