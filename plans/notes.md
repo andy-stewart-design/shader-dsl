@@ -66,6 +66,12 @@ Keep the first pass to explicit f32 signatures. In particular, decide `clamp` bo
 
 ## Deferred work
 
+### Mixed scalar/vector `clamp` and `pow` signatures after PR 3
+
+PR 3 deliberately accepts only same-shape f32 scalar or vector arguments for `clamp(T, T, T)` and `pow(T, T)`. This is a **scope decision, not a mathematical prohibition**: authors can explicitly write `clamp(v, vec3(low), vec3(high))` or `pow(v, vec3(exponent))` for a `Vec3`. GLSL ES 3.00 natively accepts vector `clamp` with scalar bounds; WGSL's `clamp` requires matching shapes, so Shdr would need a tested target-specific splat. Neither target natively accepts a vector base with scalar exponent in `pow`, but explicit broadcast could implement that form on both. Do not infer a general scalar-broadcast rule from either builtin.
+
+Review mixed-bound `clamp` and mixed-exponent/base `pow` as a later coherent signature family: decide allowed operand orders, component-wise domain rules and constant diagnostics, then test public types, editor/core/CLI parity, generated GLSL/WGSL, and two-backend pixels before adding overloads. See the [PR 3 scope](./language-extension-first-three-plan.md).
+
 ### Additional `min`/`max`/`smoothstep` signatures
 
 - **`min` / `max`:** GLSL accepts `min(vector, scalar)` and `max(vector, scalar)`. WGSL requires matching shapes, so Shdr would have to splat the scalar into a vector. Decide argument order rather than implying all mixed forms work. [GLSL `min`](https://docs.gl/el3/min) · [WGSL `min`](https://www.w3.org/TR/WGSL/#min-float-builtin)

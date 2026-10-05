@@ -8,6 +8,9 @@ import fragmentShader from "./gradient.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
+import pr3MathShader from "./pr3-math.shdr.ts";
+import horizonBurnShader from "./references/horizon-burn.shdr.ts";
+import plasmaShader from "./references/plasma.shdr.ts";
 import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
@@ -18,6 +21,9 @@ const shader: CompiledFragmentArtifact = fragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
 const cells: CompiledFragmentArtifact = cellsShader;
+const pr3Math: CompiledFragmentArtifact = pr3MathShader;
+const horizonBurn: CompiledFragmentArtifact = horizonBurnShader;
+const plasma: CompiledFragmentArtifact = plasmaShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
@@ -33,6 +39,13 @@ if (
   !vectorArithmetic.glsl.includes("vec3(") ||
   !cells.wgsl.includes("mix(") ||
   !cells.wgsl.includes("step(") ||
+  !pr3Math.glsl.includes("pow(") ||
+  !pr3Math.wgsl.includes("shdr_internal_safe_pow_vec3") ||
+  !horizonBurn.glsl.includes("fract(") ||
+  !horizonBurn.wgsl.includes("shdr_fragment_main") ||
+  !plasma.wgsl.includes("shdr_internal_safe_sqrt_f32") ||
+  plasma.custom?.declarations.map((item) => item.name).join(",") !==
+    "scale,speed,complexity,grain,colorA,colorB" ||
   cells.custom?.declarations.map((item) => item.name).join(",") !==
     "dpi,spread,blur"
 )

@@ -187,6 +187,11 @@ function callTargetName(target: ShaderCallTarget): string {
         case "sin":
         case "cos":
         case "ceil":
+        case "sqrt":
+        case "exp":
+        case "tanh":
+        case "clamp":
+        case "pow":
         case "distance":
         case "cross":
         case "smoothstep":

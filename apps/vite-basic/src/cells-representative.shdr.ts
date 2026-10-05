@@ -1,5 +1,4 @@
 import {
-  createFragmentShader,
   defineUniforms,
   fract,
   length,

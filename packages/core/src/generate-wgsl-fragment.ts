@@ -2,6 +2,7 @@ import {
   generateWgslExpression,
   type GeneratedWgslExpression,
   type WgslSmoothstepShape,
+  type WgslGuardedSignature,
 } from "./generate-wgsl-expression.js";
 import type {
   ShaderDefaultUniform,
@@ -48,12 +49,17 @@ export function generateWgslFragmentOutput(
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
+  const guardedBuiltinSignatures = new Set<WgslGuardedSignature>();
   let usesFragmentPosition = false;
 
   for (const statement of statements) {
     usesFragmentPosition ||= statement.expression.usesFragmentPosition;
     for (const shape of statement.expression.smoothstepShapes) {
       smoothstepShapes.add(shape);
+    }
+    for (const signature of statement.expression.guardedBuiltinSignatures ??
+      []) {
+      guardedBuiltinSignatures.add(signature);
     }
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
@@ -89,6 +95,10 @@ export function generateWgslFragmentOutput(
     if (smoothstepShapes.has(shape)) {
       sections.push(smoothstepHelper(shape));
     }
+  }
+
+  for (const signature of [...guardedBuiltinSignatures].sort()) {
+    sections.push(guardedBuiltinHelper(signature));
   }
 
   const parameters = usesFragmentPosition
@@ -142,6 +152,16 @@ function smoothstepHelper(shape: WgslSmoothstepShape): string {
   const type = shape === "f32" ? "f32" : `${shape}<f32>`;
   return `fn shdr_internal_smoothstep_${shape}(edge0: ${type}, edge1: ${type}, x: ${type}) -> ${type} {
   return smoothstep(edge0, edge1, x);
+}`;
+}
+
+function guardedBuiltinHelper(signature: WgslGuardedSignature): string {
+  const [name, shape] = signature.split("_") as [string, WgslSmoothstepShape];
+  const type = shape === "f32" ? "f32" : `${shape}<f32>`;
+  const args =
+    name === "clamp" ? ["a", "b", "c"] : name === "pow" ? ["a", "b"] : ["a"];
+  return `fn shdr_internal_safe_${signature}(${args.map((arg) => `${arg}: ${type}`).join(", ")}) -> ${type} {
+  return ${name}(${args.join(", ")});
 }`;
 }
 

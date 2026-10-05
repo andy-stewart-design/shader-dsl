@@ -17,6 +17,67 @@ export function cos(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("cos");
 }
 
+export function sqrt(x: Expr<F32>): Expr<F32>;
+export function sqrt(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function sqrt(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function sqrt(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function sqrt(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("sqrt");
+}
+
+export function exp(x: Expr<F32>): Expr<F32>;
+export function exp(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function exp(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function exp(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function exp(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("exp");
+}
+
+export function tanh(x: Expr<F32>): Expr<F32>;
+export function tanh(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function tanh(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function tanh(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function tanh(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("tanh");
+}
+
+export function clamp(x: Expr<F32>, low: Expr<F32>, high: Expr<F32>): Expr<F32>;
+export function clamp(
+  x: Expr<Vec2<F32>>,
+  low: Expr<Vec2<F32>>,
+  high: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function clamp(
+  x: Expr<Vec3<F32>>,
+  low: Expr<Vec3<F32>>,
+  high: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function clamp(
+  x: Expr<Vec4<F32>>,
+  low: Expr<Vec4<F32>>,
+  high: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function clamp(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("clamp");
+}
+
+export function pow(base: Expr<F32>, exponent: Expr<F32>): Expr<F32>;
+export function pow(
+  base: Expr<Vec2<F32>>,
+  exponent: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function pow(
+  base: Expr<Vec3<F32>>,
+  exponent: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function pow(
+  base: Expr<Vec4<F32>>,
+  exponent: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function pow(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("pow");
+}
+
 export function ceil(x: Expr<F32>): Expr<F32>;
 export function ceil(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function ceil(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;

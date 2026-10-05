@@ -8,10 +8,12 @@ export {
 export {
   abs,
   ceil,
+  clamp,
   cos,
   cross,
   distance,
   dot,
+  exp,
   floor,
   fract,
   length,
@@ -19,9 +21,12 @@ export {
   min,
   mix,
   normalize,
+  pow,
   sin,
+  sqrt,
   smoothstep,
   step,
+  tanh,
 } from "./math.js";
 export type {
   CompiledFragmentArtifact,

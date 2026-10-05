@@ -211,6 +211,100 @@ describe("installed executable", () => {
     });
   });
 
+  it("checks PR 3 math signatures, domains and import boundaries through the executable", async () => {
+    await withProject(async (cwd) => {
+      const fileName = "pr3.shdr.ts";
+      const file = join(cwd, fileName);
+      const shader = (
+        expression: string,
+        imports = "sqrt, exp, tanh, clamp, pow, vec2, vec3, vec4",
+      ) =>
+        `import { createFragmentShader, ${imports} } from "shdr";\nexport default createFragmentShader(({ uniforms }) => {\n  const value = ${expression};\n  return vec4(value, 0, 0, 1);\n});\n`;
+      for (const text of [
+        shader("sqrt(9) + exp(0) + tanh(1000) + clamp(2, 0, 1) + pow(2, 3)"),
+        shader("pow(vec3(2), vec3(3))", "pow, vec3, vec4").replace(
+          "return vec4(value, 0, 0, 1)",
+          "return vec4(value, 1)",
+        ),
+      ]) {
+        await writeFile(file, text);
+        const result = invoke(cwd, "check", fileName);
+        expect(result.status).toBe(0);
+        expect(result.stdout).toBe(
+          "Checked 1 shader file: no Shdr diagnostics.\n",
+        );
+      }
+      for (const [text, code] of [
+        [shader("pow(vec3(2), 3)"), ShaderDiagnosticCode.InvalidBuiltin],
+        [shader("sqrt(-1)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [shader("clamp(0.5, 1, 0)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [shader("pow(0, 0)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [shader("exp(1000)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [
+          shader("tanh(3e38 + 3e38)"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("tanh(vec2(uniforms.time, 3e38 + 3e38))"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("sqrt(vec2(uniforms.time, -1))"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("exp(vec2(uniforms.time, 1000))"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("clamp(vec2(0), vec2(uniforms.time, 2), vec2(1))"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("sqrt(alias.yx)").replace(
+            "  const value =",
+            "  const alias = vec2(-1, uniforms.time);\n  const value =",
+          ),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [shader("pow(2, 130)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [shader("pow(10, 39)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
+        [
+          shader("sqrt(3e38 + 3e38)"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("sqrt(sin(3e38 + 3e38))", "sqrt, sin, vec4"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [
+          shader("sqrt(vec2(uniforms.time, 3e38 + 3e38).x)"),
+          ShaderDiagnosticCode.InvalidBuiltinDomain,
+        ],
+        [shader("sqrt(1)", "vec3, vec4"), ShaderDiagnosticCode.UnsupportedCall],
+        [
+          shader("sqrt(1)", "sqrt as root, vec3, vec4"),
+          ShaderDiagnosticCode.ImportAlias,
+        ],
+      ] as const) {
+        await writeFile(file, text);
+        const lowered = lowerFragment(text);
+        expect(lowered.ok, text).toBe(false);
+        if (lowered.ok) continue;
+        expect(lowered.diagnostics).toHaveLength(1);
+        const diagnostic = lowered.diagnostics[0]!;
+        expect(diagnostic.code).toBe(code);
+        const before = text.slice(0, diagnostic.range.start).split("\n");
+        const result = invoke(cwd, "check", fileName);
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe(
+          `${fileName}:${before.length}:${before.at(-1)!.length + 1}: ${code}: ${diagnostic.message}\n`,
+        );
+        expect(result.stderr).toBe("");
+      }
+    });
+  });
+
   it("preserves original UTF-16 offsets, including CRLF and characters outside the BMP", async () => {
     await withProject(async (cwd) => {
       const source = await readFile(

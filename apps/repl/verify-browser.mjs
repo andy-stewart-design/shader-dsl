@@ -196,6 +196,66 @@ try {
     (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
     validMathGpuPixel,
   );
+  const pr3Source = await readFile(
+    new URL("../vite-basic/src/pr3-math.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, pr3Source);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  await assertPixelParity(
+    page,
+    "PR 3 math",
+    [
+      [0.5, 0.5],
+      [0.25, 0.75],
+    ],
+    9,
+  );
+  const pr3Pixel = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  await compileSource(page, editor, pr3Source.replace("vec3(0.01)", "vec3(1)"));
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1209/);
+  assert.deepEqual((await readWebGpuPixels(page, [[0.5, 0.5]]))[0], pr3Pixel);
+  const plasmaSource = await readFile(
+    new URL("../vite-basic/src/references/plasma.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, plasmaSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  for (const sample of [
+    (await readWebGlPixels(page, [[0.5, 0.5]]))[0],
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+  ]) {
+    assert.equal(sample[3], 255);
+    assert.ok(sample.slice(0, 3).some((channel) => channel > 0));
+  }
+  // Grain's large sin/fract arguments are precision-sensitive; the isolated
+  // runtime test pins host values and checks reference WebGL + presented GPU.
+  const horizonSource = await readFile(
+    new URL(
+      "../vite-basic/src/references/horizon-burn.shdr.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await compileSource(page, editor, horizonSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  for (const sample of [
+    (await readWebGlPixels(page, [[0.5, 0.5]]))[0],
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+  ]) {
+    assert.equal(sample[3], 255);
+    assert.ok(sample.slice(0, 3).some((channel) => channel > 0));
+  }
+  // Grain uses large sin/fract products, and the REPL's CSS border can shift
+  // screenshot samples: compare corresponding pixels on borderless canvases
+  // against the original GLSL in verify-horizon-burn.mjs instead.
   const cellsSource = await readFile(
     new URL("../vite-basic/src/cells-representative.shdr.ts", import.meta.url),
     "utf8",
