@@ -198,10 +198,10 @@ try {
   assertIncludes(namedEdit, "@group(1) @binding(0)");
   assertIncludes(namedEdit, "shdr_custom_1");
   assertIncludes(namedEdit, "uniform float shdr_custom_1");
-  assertIncludes(namedEdit, "shdr_custom_1, (shdr_custom_0).y");
+  assertIncludes(namedEdit, "shdr_custom_1, shdr_custom_0.y");
   assertIncludes(
     namedEdit,
-    "shdr_custom.shdr_custom_1, (shdr_custom.shdr_custom_0).y",
+    "shdr_custom.shdr_custom_1, shdr_custom.shdr_custom_0.y",
   );
   await namedReload;
   await page

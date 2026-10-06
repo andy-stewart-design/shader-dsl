@@ -15,6 +15,20 @@ const vector = compile(
     "utf8",
   ),
 );
+const readable = compile(
+  await readFile(
+    new URL(
+      "../../../apps/vite-basic/src/readable-output.shdr.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+assert.match(
+  readable.glsl,
+  /vec2 inputMouse = vec2\(u_mouse\.x, u_resolution\.y - u_mouse\.y\)/,
+);
+assert.match(readable.wgsl, /let shdr_local_3: f32 = shdr_local_2;/);
 const scalar =
   compile(`import { createFragmentShader, sqrt, exp, tanh, clamp, pow, vec4 } from "shdr";
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -105,13 +119,31 @@ try {
       255,
     ];
   });
+  await page.evaluate(async (artifact) => {
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+  }, readable);
+  await expectPixels("readable locals and grouped f32", samples, (x, y) => {
+    const u = (x + 0.5) / 32;
+    const v = (y + 0.5) / 32;
+    const a = u * 0.3;
+    const grouped = v * 0.2 + 0.1; // automatic mouse starts at (0, 0)
+    return [
+      Math.round(255 * (a + grouped)),
+      Math.round(255 * (a * grouped)),
+      Math.round(255 * v * 0.5),
+      255,
+    ];
+  });
   assert.deepEqual(errors, []);
   await page.evaluate(() => {
     window.glRenderer.dispose();
     window.gpuRenderer.dispose();
   });
   console.log(
-    "Verified PR 3 scalar/vector math in WebGL and presented WebGPU pixels.",
+    "Verified PR 3 math and readable/grouped/fallback output in WebGL and presented WebGPU pixels.",
   );
 
   async function expectPixels(label, points, reference) {

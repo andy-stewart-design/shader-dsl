@@ -71,13 +71,13 @@ describe("GLSL expression generation", () => {
     );
 
     expect(generateGlslExpression(expression)).toEqual({
-      code: "((u_mouse / u_resolution) / u_time)",
+      code: "u_mouse / u_resolution / u_time",
       referencedUniforms: ["resolution", "mouse", "time"],
       usesFragmentPosition: false,
     });
   });
 
-  it("groups nested division and preserves explicit floating-point semantics", () => {
+  it("keeps right-nested division grouped while eliding left-associative parentheses", () => {
     const leftAssociative = divide(
       divide(numeric(1), numeric(2), f32),
       uniform("time", f32),
@@ -90,10 +90,10 @@ describe("GLSL expression generation", () => {
     );
 
     expect(generateGlslExpression(leftAssociative).code).toBe(
-      "((1.0 / 2.0) / u_time)",
+      "1.0 / 2.0 / u_time",
     );
     expect(generateGlslExpression(rightAssociative).code).toBe(
-      "(1.0 / (2.0 / u_time))",
+      "1.0 / (2.0 / u_time)",
     );
   });
 
@@ -121,7 +121,7 @@ describe("GLSL expression generation", () => {
     };
 
     expect(generateGlslExpression(call)).toEqual({
-      code: "vec4((shdr_local_0).xyzw)",
+      code: "vec4(shdr_local_0.xyzw)",
       referencedUniforms: [],
       usesFragmentPosition: false,
     });

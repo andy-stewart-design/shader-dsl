@@ -4,7 +4,11 @@ import type {
   ShaderExpression,
   ShaderSwizzleComponents,
 } from "./shader-ir.js";
-import { shaderLocalName } from "./shader-local-name.js";
+import {
+  emittedShaderLocalName,
+  type ShaderLocalNames,
+} from "./shader-local-name.js";
+import { groupShaderChild } from "./shader-expression-grouping.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -14,6 +18,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 
 export interface GenerateGlslExpressionOptions {
   readonly customUniforms?: readonly string[];
+  readonly localNames?: ShaderLocalNames;
   /**
    * Name of a module-level value containing canonical fragment position.
    * When omitted, the canonical value is constructed inline.
@@ -98,10 +103,15 @@ function emitExpression(
     }
 
     case "local-reference":
-      return shaderLocalName(expression.symbolId);
+      return emittedShaderLocalName(expression.symbolId, options.localNames);
 
     case "swizzle":
-      return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
+      return `${groupShaderChild(
+        expression.expression,
+        expression,
+        "receiver",
+        emitExpression(expression.expression, options, state),
+      )}.${swizzleName(expression.components)}`;
 
     case "binary": {
       const operator = expression.operator;
@@ -110,7 +120,7 @@ function emitExpression(
         case "-":
         case "*":
         case "/":
-          return `(${emitExpression(expression.left, options, state)} ${operator} ${emitExpression(expression.right, options, state)})`;
+          return `${groupShaderChild(expression.left, expression, "left", emitExpression(expression.left, options, state))} ${operator} ${groupShaderChild(expression.right, expression, "right", emitExpression(expression.right, options, state))}`;
         default:
           return assertNever(operator);
       }
@@ -120,7 +130,7 @@ function emitExpression(
       const operator = expression.operator;
       switch (operator) {
         case "-":
-          return `(-${emitExpression(expression.argument, options, state)})`;
+          return `-${groupShaderChild(expression.argument, expression, "argument", emitExpression(expression.argument, options, state))}`;
         default:
           return assertNever(operator);
       }

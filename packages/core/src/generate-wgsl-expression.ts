@@ -4,7 +4,11 @@ import type {
   ShaderExpression,
   ShaderSwizzleComponents,
 } from "./shader-ir.js";
-import { shaderLocalName } from "./shader-local-name.js";
+import {
+  emittedShaderLocalName,
+  type ShaderLocalNames,
+} from "./shader-local-name.js";
+import { groupShaderChild } from "./shader-expression-grouping.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -14,6 +18,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 
 export interface GenerateWgslExpressionOptions {
   readonly customUniforms?: readonly string[];
+  readonly localNames?: ShaderLocalNames;
   readonly fragmentPositionName?: string;
 }
 
@@ -108,10 +113,15 @@ function emitExpression(
     }
 
     case "local-reference":
-      return shaderLocalName(expression.symbolId);
+      return emittedShaderLocalName(expression.symbolId, options.localNames);
 
     case "swizzle":
-      return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
+      return `${groupShaderChild(
+        expression.expression,
+        expression,
+        "receiver",
+        emitExpression(expression.expression, options, state),
+      )}.${swizzleName(expression.components)}`;
 
     case "binary": {
       const operator = expression.operator;
@@ -121,13 +131,22 @@ function emitExpression(
           const left = emitExpression(expression.left, options, state);
           const right = emitExpression(expression.right, options, state);
           if (expression.type.kind !== "vector")
-            return `(${left} ${operator} ${right})`;
+            return `${groupShaderChild(expression.left, expression, "left", left)} ${operator} ${groupShaderChild(expression.right, expression, "right", right)}`;
           const vector = `vec${expression.type.size}<f32>`;
-          return `(${expression.left.type.kind === "scalar" ? `${vector}(${left})` : left} ${operator} ${expression.right.type.kind === "scalar" ? `${vector}(${right})` : right})`;
+          // Scalar operands are already delimited by the splat constructor.
+          const emittedLeft =
+            expression.left.type.kind === "scalar"
+              ? `${vector}(${left})`
+              : groupShaderChild(expression.left, expression, "left", left);
+          const emittedRight =
+            expression.right.type.kind === "scalar"
+              ? `${vector}(${right})`
+              : groupShaderChild(expression.right, expression, "right", right);
+          return `${emittedLeft} ${operator} ${emittedRight}`;
         }
         case "*":
         case "/":
-          return `(${emitExpression(expression.left, options, state)} ${operator} ${emitExpression(expression.right, options, state)})`;
+          return `${groupShaderChild(expression.left, expression, "left", emitExpression(expression.left, options, state))} ${operator} ${groupShaderChild(expression.right, expression, "right", emitExpression(expression.right, options, state))}`;
         default:
           return assertNever(operator);
       }
@@ -137,7 +156,7 @@ function emitExpression(
       const operator = expression.operator;
       switch (operator) {
         case "-":
-          return `(-${emitExpression(expression.argument, options, state)})`;
+          return `-${groupShaderChild(expression.argument, expression, "argument", emitExpression(expression.argument, options, state))}`;
         default:
           return assertNever(operator);
       }
