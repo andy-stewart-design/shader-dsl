@@ -218,6 +218,37 @@ try {
   await waitForValidation(page, "glsl-es-300", "blocked");
   assert.match(await diagnostics.textContent(), /SHDR1209/);
   assert.deepEqual((await readWebGpuPixels(page, [[0.5, 0.5]]))[0], pr3Pixel);
+  const readableSource = await readFile(
+    new URL("../vite-basic/src/readable-output.shdr.ts", import.meta.url),
+    "utf8",
+  );
+  await compileSource(page, editor, readableSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  assert.match(
+    await page.getByRole("tabpanel").textContent(),
+    /vec2 inputMouse = vec2\(u_mouse\.x, u_resolution\.y - u_mouse\.y\)/,
+  );
+  await wgslTab.click();
+  assert.match(
+    await page.getByRole("tabpanel").textContent(),
+    /let inputMouse: vec2<f32>/,
+  );
+  assert.match(
+    await page.getByRole("tabpanel").textContent(),
+    /a \+ \(b \+ shdr_local_3 \* 0\.1f\)/,
+  );
+  await glslTab.click();
+  await assertPixelParity(
+    page,
+    "readable output",
+    [
+      [0.25, 0.75],
+      [0.5, 0.5],
+    ],
+    7,
+  );
   const plasmaSource = await readFile(
     new URL("../vite-basic/src/references/plasma.shdr.ts", import.meta.url),
     "utf8",

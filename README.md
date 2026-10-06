@@ -115,6 +115,8 @@ pnpm --filter vite-basic test
 
 The production check confirms that generated GLSL and WGSL—but not the parser/compiler or original operator expression—are bundled. Browser tests check both GPU paths with real pixels, including the inline/named custom-uniform flows and a WebGL-only fallback. The [runtime package guide](packages/runtime/README.md) covers explicit backend selection, automatic inputs, `{ animate: false }`, errors, loss and canvas ownership. This is a **workspace-local API, not a published package**.
 
+Generated shaders keep safe authored local names in both targets (for example `inputMouse.x * gain`), but use deterministic `shdr_local_<symbolId>` names for keywords, builtins, and generated-name collisions. Output omits redundant parentheses without reassociating f32 expressions: `a + (b + c)` remains grouped. This changes only the generated shader text, not source diagnostics, uniforms, or artifact metadata. See the [readable-output fixture](apps/vite-basic/src/readable-output.shdr.ts) for a two-target example with a fallback name.
+
 ## Multi-target browser REPL
 
 The REPL deliberately imports the opt-in browser compiler from `@shdr/core/browser`. It lowers once and produces the same dual-target artifact as Vite, displays shared source diagnostics, and installs that artifact through both workspace renderers on separate WebGL 2 and WebGPU canvases where available. Invalid edits preserve the last successful render on each valid canvas.

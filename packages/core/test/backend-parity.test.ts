@@ -68,6 +68,13 @@ export default createFragmentShader(({ uniforms }) => {
     expect(renamed.wgsl).toContain("let intensity: f32 = shdr_time;");
     expect(first.glsl).not.toEqual(renamed.glsl);
     expect(first.wgsl).not.toEqual(renamed.wgsl);
+    const { glsl: _firstGlsl, wgsl: _firstWgsl, ...firstMetadata } = first;
+    const {
+      glsl: _renamedGlsl,
+      wgsl: _renamedWgsl,
+      ...renamedMetadata
+    } = renamed;
+    expect(firstMetadata).toEqual(renamedMetadata);
   });
 
   it("keeps a coord-reading local distinct from the generated fragment-position binding", () => {
