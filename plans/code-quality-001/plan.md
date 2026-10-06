@@ -10,6 +10,8 @@ Implement the [readable generated-code spec](./spec.md) in a separate output-onl
 
 **Gate 0:** reviewed before/after examples, a common-name eligibility rule covering both targets, reserved-name inventory, and a focused test list. If target syntax or naming legality is uncertain, validate a raw GLSL ES 3.00/WGSL probe before treating it as safe.
 
+**Phase 0 result — stop before Phase 1:** [Emitter baselines and raw target probes](./phase-0.md) record the namespace policy, confirmed cross-target identifier disagreements (including GLSL's `__` and `gl_` restrictions), grouping baseline, and focused test migration. Gate 0 is complete for design; Phase 1 still must audit a complete conservative target keyword/builtin denylist and pass real target compilation before names may be enabled by default.
+
 ## Phase 1 — Shared symbol-name plan, no parentheses changes
 
 - Add a pure module-level `symbolId → emittedName` planner using the existing declaration `name` and `symbolId`. It must pre-reserve every `shdr_local_<symbolId>` fallback and every generated symbol/namespace. Use an authored spelling only when valid and unreserved in **both** GLSL ES 3.00 and WGSL; otherwise use the existing ID fallback. Plan once from the complete module; do not perform string replacements on emitted code or mutate IR. Both backends must compute the **same** deterministic plan from that IR.
