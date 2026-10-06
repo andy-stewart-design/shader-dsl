@@ -45,11 +45,9 @@ it("preserves scalar-left operand order, color swizzle indices, and constructor 
   const compiled = compileFragmentArtifact(source);
   expect(compiled.ok).toBe(true);
   if (!compiled.ok) return;
-  expect(compiled.artifact.glsl).toContain(
-    "(1.0 - vec3((shdr_coord).xy, u_time))",
-  );
+  expect(compiled.artifact.glsl).toContain("1.0 - vec3(shdr_coord.xy, u_time)");
   expect(compiled.artifact.wgsl).toContain(
-    "(vec3<f32>(1.0f) - vec3<f32>((shdr_coord).xy, shdr_time))",
+    "vec3<f32>(1.0f) - vec3<f32>(shdr_coord.xy, shdr_time)",
   );
 });
 

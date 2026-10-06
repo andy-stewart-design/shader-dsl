@@ -69,7 +69,7 @@ describe("WGSL expression generation", () => {
     ).toThrow("Cannot emit non-finite WGSL float -Infinity.");
   });
 
-  it("fully groups nested division", () => {
+  it("keeps right-nested division grouped and prints left association directly", () => {
     const time: ShaderExpression = {
       kind: "default-uniform",
       uniform: "time",
@@ -80,13 +80,13 @@ describe("WGSL expression generation", () => {
     const right = divide(numeric(1), divide(numeric(2), time, f32), f32);
 
     expect(generateWgslExpression(left)).toEqual({
-      code: "((1.0f / 2.0f) / shdr_time)",
+      code: "1.0f / 2.0f / shdr_time",
       referencedUniforms: ["time"],
       usesFragmentPosition: false,
       smoothstepShapes: [],
     });
     expect(generateWgslExpression(right).code).toBe(
-      "(1.0f / (2.0f / shdr_time))",
+      "1.0f / (2.0f / shdr_time)",
     );
   });
 
@@ -141,7 +141,7 @@ describe("WGSL expression generation", () => {
           type: vec4,
           range,
         }).code,
-      ).toBe(`(vec4<f32>(0.25f) ${operator} shdr_local_0)`);
+      ).toBe(`vec4<f32>(0.25f) ${operator} shdr_local_0`);
       expect(
         generateWgslExpression({
           kind: "binary",
@@ -151,7 +151,7 @@ describe("WGSL expression generation", () => {
           type: vec4,
           range,
         }).code,
-      ).toBe(`(shdr_local_0 ${operator} vec4<f32>(0.25f))`);
+      ).toBe(`shdr_local_0 ${operator} vec4<f32>(0.25f)`);
       expect(
         generateWgslExpression({
           kind: "binary",
@@ -161,7 +161,7 @@ describe("WGSL expression generation", () => {
           type: vec4,
           range,
         }).code,
-      ).toBe(`(shdr_local_0 ${operator} shdr_local_0)`);
+      ).toBe(`shdr_local_0 ${operator} shdr_local_0`);
     }
   });
 
@@ -175,8 +175,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
     expect(lowered.ok).toBe(true);
     if (!lowered.ok) return;
     const wgsl = generateWgslFragment(lowered.ir);
-    expect(wgsl).toContain("vec3<f32>((shdr_coord).xy, shdr_time)");
-    expect(wgsl).toContain("vec4<f32>((c).zyx, 1.0f)");
+    expect(wgsl).toContain("vec3<f32>(shdr_coord.xy, shdr_time)");
+    expect(wgsl).toContain("vec4<f32>(c.zyx, 1.0f)");
   });
 
   it("emits local swizzles and every accepted vec4 constructor shape", () => {
@@ -199,7 +199,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 
     expect(
       generateWgslExpression(call([uvX, uvX, numeric(0), numeric(1)])).code,
-    ).toBe("vec4<f32>((shdr_local_0).x, (shdr_local_0).x, 0.0f, 1.0f)");
+    ).toBe("vec4<f32>(shdr_local_0.x, shdr_local_0.x, 0.0f, 1.0f)");
     expect(
       generateWgslExpression(call([uv, numeric(0), numeric(1)])).code,
     ).toBe("vec4<f32>(shdr_local_0, 0.0f, 1.0f)");
@@ -226,8 +226,8 @@ describe("WGSL fragment module generation", () => {
 fn shdr_fragment_main(
   @builtin(position) shdr_coord: vec4<f32>,
 ) -> @location(0) vec4<f32> {
-  let uv: vec2<f32> = ((shdr_coord).xy / shdr_resolution);
-  let color: vec4<f32> = vec4<f32>((uv).x, (uv).y, 0.0f, 1.0f);
+  let uv: vec2<f32> = shdr_coord.xy / shdr_resolution;
+  let color: vec4<f32> = vec4<f32>(uv.x, uv.y, 0.0f, 1.0f);
   return color;
 }
 `);

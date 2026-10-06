@@ -8,6 +8,7 @@ import {
   emittedShaderLocalName,
   type ShaderLocalNames,
 } from "./shader-local-name.js";
+import { groupShaderChild } from "./shader-expression-grouping.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -105,7 +106,12 @@ function emitExpression(
       return emittedShaderLocalName(expression.symbolId, options.localNames);
 
     case "swizzle":
-      return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;
+      return `${groupShaderChild(
+        expression.expression,
+        expression,
+        "receiver",
+        emitExpression(expression.expression, options, state),
+      )}.${swizzleName(expression.components)}`;
 
     case "binary": {
       const operator = expression.operator;
@@ -114,7 +120,7 @@ function emitExpression(
         case "-":
         case "*":
         case "/":
-          return `(${emitExpression(expression.left, options, state)} ${operator} ${emitExpression(expression.right, options, state)})`;
+          return `${groupShaderChild(expression.left, expression, "left", emitExpression(expression.left, options, state))} ${operator} ${groupShaderChild(expression.right, expression, "right", emitExpression(expression.right, options, state))}`;
         default:
           return assertNever(operator);
       }
@@ -124,7 +130,7 @@ function emitExpression(
       const operator = expression.operator;
       switch (operator) {
         case "-":
-          return `(-${emitExpression(expression.argument, options, state)})`;
+          return `-${groupShaderChild(expression.argument, expression, "argument", emitExpression(expression.argument, options, state))}`;
         default:
           return assertNever(operator);
       }

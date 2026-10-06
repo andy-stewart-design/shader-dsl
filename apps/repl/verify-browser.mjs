@@ -118,7 +118,7 @@ try {
   assert.equal(await wgslTab.getAttribute("aria-selected"), "true");
   const wgslOutput = await page.getByRole("tabpanel").textContent();
   assert.match(wgslOutput, /@builtin\(position\) shdr_coord/);
-  assert.match(wgslOutput, /\(shdr_coord\)\.xy/);
+  assert.match(wgslOutput, /shdr_coord\.xy/);
   assert.doesNotMatch(wgslOutput, /resolution\.y -/);
   await glslTab.click();
 

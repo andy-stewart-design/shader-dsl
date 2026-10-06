@@ -83,8 +83,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
     expect(compiled.artifact.wgsl).toContain(
       "let shdr_local_0: vec4<f32> = shdr_coord;",
     );
-    expect(compiled.artifact.glsl).toContain("(shdr_local_0).x");
-    expect(compiled.artifact.wgsl).toContain("(shdr_local_0).x");
+    expect(compiled.artifact.glsl).toContain("shdr_local_0.x");
+    expect(compiled.artifact.wgsl).toContain("shdr_local_0.x");
   });
 
   it("makes literal-only arithmetic f32 before WGSL evaluates it", () => {
@@ -95,8 +95,8 @@ export default createFragmentShader(({ coord, uniforms }) => {
     const compiled = compileFragmentArtifact(source);
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
-    expect(compiled.artifact.wgsl).toContain("(16777217.0f - 16777216.0f)");
-    expect(compiled.artifact.glsl).toContain("(16777217.0 - 16777216.0)");
+    expect(compiled.artifact.wgsl).toContain("16777217.0f - 16777216.0f");
+    expect(compiled.artifact.glsl).toContain("16777217.0 - 16777216.0");
   });
 
   it("generates both targets repeatedly from the exact same frozen IR", async () => {

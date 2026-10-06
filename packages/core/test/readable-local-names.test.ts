@@ -10,7 +10,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
   ${body}
 });`;
 
-it("uses authored names by default in both full fragments without changing grouping", () => {
+it("uses authored names and minimal safe grouping in both full fragments", () => {
   const result = compileFragmentArtifact(
     authored(`const inputMouse = vec2(uniforms.mouse.x, uniforms.resolution.y - uniforms.mouse.y);
   const gain = uniforms.time;
@@ -19,18 +19,18 @@ it("uses authored names by default in both full fragments without changing group
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.artifact.glsl).toContain(
-    "vec2 inputMouse = vec2((u_mouse).x, ((u_resolution).y - (u_mouse).y));",
+    "vec2 inputMouse = vec2(u_mouse.x, u_resolution.y - u_mouse.y);",
   );
   expect(result.artifact.glsl).toContain("float gain = u_time;");
   expect(result.artifact.glsl).toContain(
-    "vec4(((inputMouse).x * gain), 0.0, 0.0, 1.0)",
+    "vec4(inputMouse.x * gain, 0.0, 0.0, 1.0)",
   );
   expect(result.artifact.wgsl).toContain(
-    "let inputMouse: vec2<f32> = vec2<f32>((shdr_mouse).x, ((shdr_resolution).y - (shdr_mouse).y));",
+    "let inputMouse: vec2<f32> = vec2<f32>(shdr_mouse.x, shdr_resolution.y - shdr_mouse.y);",
   );
   expect(result.artifact.wgsl).toContain("let gain: f32 = shdr_time;");
   expect(result.artifact.wgsl).toContain(
-    "vec4<f32>(((inputMouse).x * gain), 0.0f, 0.0f, 1.0f)",
+    "vec4<f32>(inputMouse.x * gain, 0.0f, 0.0f, 1.0f)",
   );
 });
 
@@ -84,13 +84,11 @@ it("falls back for hostile authored names, reserving all fallback slots first", 
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.artifact.glsl).toContain("vec4 shdr_local_0 = shdr_coord;");
-  expect(result.artifact.glsl).toContain(
-    "float inputMouse = (shdr_local_0).x;",
-  );
+  expect(result.artifact.glsl).toContain("float inputMouse = shdr_local_0.x;");
   expect(result.artifact.glsl).toContain("float shdr_local_2 = inputMouse;");
   expect(result.artifact.glsl).toContain("float shdr_local_7 = shdr_local_6;");
   expect(result.artifact.wgsl).toContain(
-    "let inputMouse: f32 = (shdr_local_0).x;",
+    "let inputMouse: f32 = shdr_local_0.x;",
   );
   expect(result.artifact.wgsl).toContain(
     "let shdr_local_7: f32 = shdr_local_6;",
