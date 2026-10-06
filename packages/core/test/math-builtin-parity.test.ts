@@ -325,7 +325,7 @@ describe("f32 builtin matrix", () => {
     successful(call, compiled);
     expect(compiled.code).toContain("fn shdr_internal_smoothstep_f32");
     expect(compiled.code).toContain(
-      "shdr_internal_smoothstep_f32(sin(1.0f), sin((1.0f + 0.0f)), shdr_local_0)",
+      "shdr_internal_smoothstep_f32(sin(1.0f), sin((1.0f + 0.0f)), s)",
     );
   });
 });

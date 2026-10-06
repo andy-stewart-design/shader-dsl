@@ -4,7 +4,10 @@ import type {
   ShaderExpression,
   ShaderSwizzleComponents,
 } from "./shader-ir.js";
-import { shaderLocalName } from "./shader-local-name.js";
+import {
+  emittedShaderLocalName,
+  type ShaderLocalNames,
+} from "./shader-local-name.js";
 
 const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -14,6 +17,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 
 export interface GenerateGlslExpressionOptions {
   readonly customUniforms?: readonly string[];
+  readonly localNames?: ShaderLocalNames;
   /**
    * Name of a module-level value containing canonical fragment position.
    * When omitted, the canonical value is constructed inline.
@@ -98,7 +102,7 @@ function emitExpression(
     }
 
     case "local-reference":
-      return shaderLocalName(expression.symbolId);
+      return emittedShaderLocalName(expression.symbolId, options.localNames);
 
     case "swizzle":
       return `(${emitExpression(expression.expression, options, state)}).${swizzleName(expression.components)}`;

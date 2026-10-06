@@ -69,15 +69,13 @@ it("lowers the 14 accepted signatures to ordered, source-ranged, target-neutral 
     expect(serialized).toContain(JSON.stringify(range));
     if (item.call.startsWith("step(s, v")) {
       const size = item.shape[1];
-      expect(glsl.code).toContain("step(shdr_local_0, shdr_local_");
-      expect(wgsl.code).toContain(
-        `step(vec${size}<f32>(shdr_local_0), shdr_local_`,
-      );
+      expect(glsl.code).toContain(`step(s, v${size})`);
+      expect(wgsl.code).toContain(`step(vec${size}<f32>(s), v${size})`);
     }
     if (item.call.startsWith("mix(v")) {
       const factor = item.call.endsWith(", s)")
-        ? "shdr_local_0"
-        : `shdr_local_${item.shape[1] === "2" ? 1 : item.shape[1] === "3" ? 2 : 3}`;
+        ? "s"
+        : item.shape.toLowerCase();
       expect(wgsl.code).toContain(`, ${factor})`);
     }
   }

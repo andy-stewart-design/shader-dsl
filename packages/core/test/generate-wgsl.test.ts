@@ -176,7 +176,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
     if (!lowered.ok) return;
     const wgsl = generateWgslFragment(lowered.ir);
     expect(wgsl).toContain("vec3<f32>((shdr_coord).xy, shdr_time)");
-    expect(wgsl).toContain("vec4<f32>((shdr_local_0).zyx, 1.0f)");
+    expect(wgsl).toContain("vec4<f32>((c).zyx, 1.0f)");
   });
 
   it("emits local swizzles and every accepted vec4 constructor shape", () => {
@@ -226,9 +226,9 @@ describe("WGSL fragment module generation", () => {
 fn shdr_fragment_main(
   @builtin(position) shdr_coord: vec4<f32>,
 ) -> @location(0) vec4<f32> {
-  let shdr_local_0: vec2<f32> = ((shdr_coord).xy / shdr_resolution);
-  let shdr_local_1: vec4<f32> = vec4<f32>((shdr_local_0).x, (shdr_local_0).y, 0.0f, 1.0f);
-  return shdr_local_1;
+  let uv: vec2<f32> = ((shdr_coord).xy / shdr_resolution);
+  let color: vec4<f32> = vec4<f32>((uv).x, (uv).y, 0.0f, 1.0f);
+  return color;
 }
 `);
   });

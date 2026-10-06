@@ -25,9 +25,9 @@ void main() {
     gl_FragCoord.z,
     gl_FragCoord.w
   );
-  vec2 shdr_local_0 = ((shdr_coord).xy / u_resolution);
-  vec4 shdr_local_1 = vec4((shdr_local_0).x, (shdr_local_0).y, 0.0, 1.0);
-  shdr_fragment_color = shdr_local_1;
+  vec2 uv = ((shdr_coord).xy / u_resolution);
+  vec4 color = vec4((uv).x, (uv).y, 0.0, 1.0);
+  shdr_fragment_color = color;
 }
 `);
   });

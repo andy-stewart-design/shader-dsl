@@ -11,7 +11,7 @@ import {
 import { readShaderFixture } from "./read-shader-fixture.js";
 
 describe("backend parity at the typed IR boundary", () => {
-  it("emits identical symbol-based locals for generated-name collisions, keywords, and Unicode", () => {
+  it("retains fallback output for generated-name collisions, keywords, and Unicode", () => {
     const names = [
       "shdr_coord",
       "shdr_fragment_color",
@@ -46,6 +46,28 @@ export default createFragmentShader(({ coord, uniforms }) => {
     expect(artifacts[0]?.glsl).toContain("vec4(shdr_local_0)");
     expect(artifacts[0]?.wgsl).toContain("let shdr_local_0: f32 = 0.25f;");
     expect(artifacts[0]?.wgsl).toContain("vec4<f32>(shdr_local_0)");
+  });
+
+  it("uses authored names for safe locals, changing output on safe alpha-renaming", () => {
+    const compile = (name: string) => {
+      const source = `import { createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(({ uniforms }) => {
+  const ${name} = uniforms.time;
+  return vec4(${name}, 0, 0, 1);
+});`;
+      const compiled = compileFragmentArtifact(source);
+      expect(compiled.ok, name).toBe(true);
+      if (!compiled.ok) throw new Error(`Cannot compile ${name}`);
+      return compiled.artifact;
+    };
+    const first = compile("gain");
+    const renamed = compile("intensity");
+    expect(first.glsl).toContain("float gain = u_time;");
+    expect(first.wgsl).toContain("let gain: f32 = shdr_time;");
+    expect(renamed.glsl).toContain("float intensity = u_time;");
+    expect(renamed.wgsl).toContain("let intensity: f32 = shdr_time;");
+    expect(first.glsl).not.toEqual(renamed.glsl);
+    expect(first.wgsl).not.toEqual(renamed.wgsl);
   });
 
   it("keeps a coord-reading local distinct from the generated fragment-position binding", () => {

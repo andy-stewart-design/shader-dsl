@@ -11,7 +11,11 @@ import type {
 } from "./shader-ir.js";
 import type { ShaderValueType } from "./shader-type.js";
 import type { GeneratedFragment } from "./generate-fragment.js";
-import { shaderLocalName } from "./shader-local-name.js";
+import {
+  emittedShaderLocalName,
+  planShaderLocalNames,
+  type ShaderLocalNames,
+} from "./shader-local-name.js";
 
 const UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
   "resolution",
@@ -43,8 +47,9 @@ export function generateWgslFragmentOutput(
 
   const custom = module.customUniforms ?? [];
   const customNames = custom.map((item) => item.name);
+  const localNames = planShaderLocalNames(module);
   const statements = module.statements.map((statement) =>
-    generateStatement(statement, customNames),
+    generateStatement(statement, customNames, localNames),
   );
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
@@ -119,15 +124,17 @@ export function generateWgslFragmentOutput(
 function generateStatement(
   statement: ShaderStatement,
   customUniforms: readonly string[],
+  localNames: ShaderLocalNames,
 ): GeneratedStatement {
   switch (statement.kind) {
     case "const-declaration": {
       const expression = generateWgslExpression(statement.initializer, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        localNames,
       });
       return {
-        code: `  let ${shaderLocalName(statement.symbolId)}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
+        code: `  let ${emittedShaderLocalName(statement.symbolId, localNames)}: ${wgslTypeName(statement.initializer.type)} = ${expression.code};`,
         expression,
       };
     }
@@ -136,6 +143,7 @@ function generateStatement(
       const expression = generateWgslExpression(statement.expression, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        localNames,
       });
       return {
         code: `  return ${expression.code};`,
