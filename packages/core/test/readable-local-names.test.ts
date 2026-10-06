@@ -44,6 +44,7 @@ it("uses a conservative cross-target identifier predicate, not just a JavaScript
     "fn",
     "alias",
     "override",
+    "demote_to_helper",
     "attribute",
     "sampler2D",
     "vec2",
@@ -106,6 +107,23 @@ it("falls back for hostile authored names, reserving all fallback slots first", 
   }
 });
 
+it("accepts a WGSL-reserved authored name but emits the same fallback in both targets", () => {
+  const result = compileFragmentArtifact(
+    authored(`const demote_to_helper = uniforms.time;
+  return vec4(demote_to_helper, 0, 0, 1);`),
+  );
+  expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+  if (!result.ok) return;
+  expect(result.artifact.glsl).toContain("float shdr_local_0 = u_time;");
+  expect(result.artifact.glsl).toContain("vec4(shdr_local_0, 0.0, 0.0, 1.0)");
+  expect(result.artifact.wgsl).toContain("let shdr_local_0: f32 = shdr_time;");
+  expect(result.artifact.wgsl).toContain(
+    "vec4<f32>(shdr_local_0, 0.0f, 0.0f, 1.0f)",
+  );
+  expect(result.artifact.glsl).not.toContain("demote_to_helper");
+  expect(result.artifact.wgsl).not.toContain("demote_to_helper");
+});
+
 it("compiles readable, unsafe and helper-bearing full shaders in real WebGL 2 and WebGPU", async () => {
   const shaders = [
     authored(`const inputMouse = vec2(uniforms.mouse.x, uniforms.resolution.y - uniforms.mouse.y);
@@ -123,6 +141,8 @@ it("compiles readable, unsafe and helper-bearing full shaders in real WebGL 2 an
     authored(`const fn = uniforms.time;
   const sampler2D = fn;
   return vec4(sampler2D, 0, 0, 1);`),
+    authored(`const demote_to_helper = uniforms.time;
+  return vec4(demote_to_helper, 0, 0, 1);`),
   ];
   const artifacts = shaders.map((source) => {
     const compiled = compileFragmentArtifact(source);
