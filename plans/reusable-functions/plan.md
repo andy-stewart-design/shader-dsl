@@ -2,7 +2,7 @@
 
 ## Status and governing source
 
-- Governing spec: [spec-2.md](spec-2.md) (not the earlier [draft](spec.md)).
+- Governing spec: [spec.md](spec.md).
 - Delivery state: **Planning only**. All steps are Pending; no verification has been run for this plan.
 - Acceptance or release still pending: all AC1–AC9, real GLSL ES 3.00/WebGL 2 and **presented WebGPU** acceptance, and one feature-complete review/PR. Writing this plan does not authorize a PR or merge.
 - Blockers: none known. Phase 0 must establish a common project/alias-resolution contract before cross-file implementation. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
@@ -380,4 +380,4 @@ The feature has no persistent data migration or destructive external operation. 
 ## Deferred checks and accepted deviations
 
 - None accepted. Real VS Code and presented WebGPU gates may be unavailable on a particular machine; record them Blocked with environment details, or obtain explicit acceptance of a deviation and follow-up. A passing mock/WGSL-module test is not a substitute.
-- Defer package imports, barrel/namespace imports, a multi-file REPL UI, type-polymorphic helpers, module-value captures, recursion and interprocedural domain proofs per [spec-2.md](spec-2.md). Do not attach an implied schedule or treat those as silently supported by this plan.
+- Defer package imports, barrel/namespace imports, a multi-file REPL UI, type-polymorphic helpers, module-value captures, recursion and interprocedural domain proofs per [spec.md](spec.md). Do not attach an implied schedule or treat those as silently supported by this plan.
