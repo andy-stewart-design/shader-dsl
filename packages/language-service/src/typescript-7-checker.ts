@@ -134,6 +134,10 @@ export class TypeScript7CheckerAdapter {
     this.#virtualFiles.set(resolvedFileName, virtualSource.code);
 
     const shouldOpenFile = !this.#openFiles.has(resolvedFileName);
+    // TS 7.0.2 can retain a stale client-side AST after close/reopen while the
+    // native type graph has updated. Never combine new types with old ranges,
+    // particularly when an edit removes the generated operator import prefix.
+    this.#api.clearSourceFileCache();
     const snapshot = this.#api.updateSnapshot({
       openProjects: this.#projectOpened ? undefined : [this.#projectFileName],
       openFiles: shouldOpenFile ? [resolvedFileName] : undefined,

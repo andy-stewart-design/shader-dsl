@@ -65,6 +65,8 @@ export interface ParseShaderFileResult {
   readonly info?: ShaderFileInfo;
   /** Available when the callback boundary was recognized but its syntax failed validation. */
   readonly shaderRegion?: TextRange;
+  /** Helper declarations and fragment callback recognized before semantic validation. */
+  readonly shaderRegions?: readonly TextRange[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -87,6 +89,73 @@ export function parseShaderFile(
   if (!("file" in parsed)) return { diagnostics: parsed.diagnostics };
 
   const { file } = parsed;
+  const result = parseShaderModule(file, fileName);
+  const helperRegions = findHelperRegions(file);
+  if (!helperRegions.length) return result;
+
+  // Retain boundaries even when a helper signature/body fails before the
+  // fragment is validated. They must not swallow ordinary code between helpers.
+  const defaultExport = file.program.body.find(
+    (statement) => statement.type === "ExportDefaultDeclaration",
+  );
+  const callback =
+    defaultExport?.type === "ExportDefaultDeclaration" &&
+    isShaderCall(defaultExport.declaration)
+      ? defaultExport.declaration.arguments[0]
+      : undefined;
+  const shaderRegion =
+    result.info?.shaderRegion ??
+    result.shaderRegion ??
+    (callback?.type === "ArrowFunctionExpression"
+      ? rangeOf(callback)
+      : undefined);
+  const shaderRegions = [
+    ...helperRegions,
+    ...(shaderRegion ? [shaderRegion] : []),
+  ].sort((left, right) => left.start - right.start);
+  return {
+    ...result,
+    ...(shaderRegion && !result.info ? { shaderRegion } : {}),
+    shaderRegions,
+  };
+}
+
+function findHelperRegions(file: File): readonly TextRange[] {
+  const imported = file.program.body.some(
+    (statement) =>
+      statement.type === "ImportDeclaration" &&
+      statement.source.value === SHDR_MODULE_NAME &&
+      statement.importKind !== "type" &&
+      statement.specifiers.some(
+        (specifier) =>
+          specifier.type === "ImportSpecifier" &&
+          specifier.importKind !== "type" &&
+          importedNameOf(specifier) === "defineShaderFunction" &&
+          specifier.local.name === "defineShaderFunction",
+      ),
+  );
+  if (!imported) return [];
+  return file.program.body.flatMap((statement) => {
+    const declaration =
+      statement.type === "ExportNamedDeclaration"
+        ? statement.declaration
+        : statement;
+    if (declaration?.type !== "VariableDeclaration") return [];
+    return declaration.declarations
+      .filter(
+        (item) =>
+          item.init?.type === "CallExpression" &&
+          item.init.callee.type === "Identifier" &&
+          item.init.callee.name === "defineShaderFunction",
+      )
+      .map(rangeOf);
+  });
+}
+
+function parseShaderModule(
+  file: File,
+  fileName: string,
+): ParseShaderFileResult {
   const reservedIdentifier = findReservedIdentifier(file.program);
   if (reservedIdentifier) {
     return {

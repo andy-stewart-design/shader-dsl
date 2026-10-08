@@ -16,8 +16,10 @@ export interface CreateVirtualSourceSuccess {
 export interface CreateVirtualSourceFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
-  /** Present when the shader callback boundary was recognized before validation failed. */
+  /** Present when the fragment callback boundary was recognized before validation failed. */
   readonly shaderRegion?: TextRange;
+  /** Recognized helper declarations and fragment callback, even on invalid signatures/bodies. */
+  readonly shaderRegions?: readonly TextRange[];
 }
 
 export type CreateVirtualSourceResult =
@@ -44,13 +46,12 @@ export function createVirtualSourceFromParsed(
   parsed: ParseShaderFileResult,
 ): CreateVirtualSourceResult {
   if (!parsed.info) {
-    return parsed.shaderRegion
-      ? {
-          ok: false,
-          diagnostics: parsed.diagnostics,
-          shaderRegion: parsed.shaderRegion,
-        }
-      : { ok: false, diagnostics: parsed.diagnostics };
+    return {
+      ok: false,
+      diagnostics: parsed.diagnostics,
+      ...(parsed.shaderRegion ? { shaderRegion: parsed.shaderRegion } : {}),
+      ...(parsed.shaderRegions ? { shaderRegions: parsed.shaderRegions } : {}),
+    };
   }
 
   return {

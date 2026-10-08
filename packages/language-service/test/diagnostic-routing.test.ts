@@ -253,6 +253,77 @@ export default createFragmentShader(({ coord, uniforms }) => {
     ]);
   });
 
+  it("uses disjoint helper/fragment regions without hiding diagnostics in the gaps", () => {
+    const source = `import { createFragmentShader, defineShaderFunction, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+const f = defineShaderFunction((x: Expr<F32>) => x / 2);
+const ordinary: string = 1;
+export default createFragmentShader(({ uniforms }) => vec4(f(uniforms.time)));`;
+    const transformed = createVirtualSource(source);
+    expect(transformed.ok).toBe(true);
+    if (!transformed.ok) return;
+    const virtual = transformed.virtualSource;
+    const parameter = rangeOf(source, "x:");
+    const call = rangeOf(source, "f(uniforms.time)");
+    const ordinary = rangeOf(source, "ordinary");
+    const division = rangeOf(source, "x / 2");
+    const operation = typeScriptDiagnostic(
+      division,
+      2769,
+      "mapped helper operation",
+    );
+    const mappedParameter = generatedDiagnostic(
+      virtual,
+      { start: parameter.start, length: 1 },
+      9995,
+      "mapped helper parameter",
+    );
+    const input = {
+      virtualSource: virtual,
+      originalSemanticDiagnostics: [
+        typeScriptDiagnostic(parameter, 9991, "native helper cascade"),
+        typeScriptDiagnostic(call, 9992, "native fragment cascade"),
+        typeScriptDiagnostic(ordinary, 2322, "ordinary TS"),
+      ],
+      virtualSemanticDiagnostics: [
+        mappedParameter,
+        mappedParameter,
+        generatedDiagnostic(
+          virtual,
+          ordinary,
+          2322,
+          "virtual ordinary duplicate",
+        ),
+      ],
+      shaderOperationDiagnostics: [operation, operation],
+    };
+    const expected = [
+      expect.objectContaining({
+        source: "typescript",
+        range: { start: parameter.start, length: 1 },
+        message: "mapped helper parameter",
+      }),
+      expect.objectContaining({
+        source: "shdr",
+        range: division,
+        message: "mapped helper operation",
+      }),
+      expect.objectContaining({
+        source: "typescript",
+        range: ordinary,
+        code: 2322,
+        message: "ordinary TS",
+      }),
+    ];
+    expect(routeShaderDiagnostics(input)).toEqual(expected);
+    expect(
+      routeShaderDiagnostics({
+        ...input,
+        shaderRegions: virtual.shaderRegions,
+      }),
+    ).toEqual(expected);
+  });
+
   it("preserves the original syntactic diagnostic without a core duplicate", () => {
     const range = { start: 10, length: 1 };
     const routed = routeShaderDiagnostics({

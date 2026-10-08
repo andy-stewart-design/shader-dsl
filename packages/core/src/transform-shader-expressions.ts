@@ -12,12 +12,16 @@ export function transformShaderExpressions(
   source: string,
   shaderFile: ShaderFileInfo,
 ): VirtualSource {
+  const helpers = shaderFile.functions ?? [];
   const roots = [
-    ...shaderFile.callback.syntax.declarations.map(
-      (declaration) => declaration.initializer,
-    ),
-    shaderFile.callback.syntax.returnExpression,
-  ].sort((left, right) => left.range.start - right.range.start);
+    shaderFile.callback.syntax,
+    ...helpers.map((helper) => helper.body),
+  ]
+    .flatMap((body) => [
+      ...body.declarations.map((declaration) => declaration.initializer),
+      body.returnExpression,
+    ])
+    .sort((left, right) => left.range.start - right.range.start);
   const helperNames = collectHelperNames(roots);
   const writer = new MappedTextWriter(source);
 
@@ -42,7 +46,12 @@ export function transformShaderExpressions(
     length: source.length - originalCursor,
   });
 
-  return writer.finish(shaderFile.shaderRegion);
+  const regions = helpers.length
+    ? [...helpers.map((helper) => helper.range), shaderFile.shaderRegion].sort(
+        (left, right) => left.start - right.start,
+      )
+    : undefined;
+  return writer.finish(shaderFile.shaderRegion, regions);
 }
 
 function writeExpression(

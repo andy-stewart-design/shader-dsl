@@ -78,8 +78,8 @@ export class TypeScript7EditorAdapter {
     cached?.dispose();
     // TypeScript 7 can retain the old type graph of an open file after a
     // changed-only snapshot, especially for an unused shader local. Reopen
-    // between authored document versions, but keep the original/virtual pair
-    // of a single version in the same open-file session for mapped QuickInfo.
+    // between authored document versions. Fragment-only original/virtual pairs
+    // can share a session; helper inference additionally reopens before virtual checking.
     if (cached && cached.source !== input.source)
       this.#checker.closeFile(fileName);
     if (!fileName.endsWith(".shdr.ts")) {
@@ -153,21 +153,40 @@ export class TypeScript7EditorAdapter {
         delegated: false,
         diagnostics: routeShaderDiagnostics({
           shaderRegion: transformed.shaderRegion,
+          shaderRegions: transformed.shaderRegions,
           originalSyntacticDiagnostics: original.syntacticDiagnostics,
           originalSemanticDiagnostics: original.semanticDiagnostics,
           coreDiagnostics: transformed.diagnostics,
         }),
         shaderRegion: transformed.shaderRegion,
+        shaderRegions: transformed.shaderRegions,
         original,
       });
     }
 
     const lowered = analysis.lowered;
     const parsedInfo = !lowered.ok ? analysis.parsed.info : undefined;
+    const hasLocalHelpers = !!analysis.parsed.info?.functions?.length;
+    const helperFailure = hasLocalHelpers && !lowered.ok;
+    const definitionFailure =
+      helperFailure &&
+      parsedInfo?.functions?.some((helper) =>
+        lowered.diagnostics.some((diagnostic) =>
+          containsPosition(helper.range, diagnostic.range.start),
+        ),
+      );
+    // Core validates all helpers and calls, stopping at the first error. A bad
+    // definition can poison inferred types throughout the call graph; report
+    // that authored fault, not TypeScript's downstream overload/any cascades.
+    // Ordinary TypeScript between shader regions remains checked separately.
     // When no expression needed rewriting, reuse the original TS snapshot.
     // Updating the same file with identical virtual text can otherwise leave
     // TypeScript 7 QuickInfo stale after a transformed previous version.
     const unchanged = transformed.virtualSource.code === input.source;
+    // A helper's invalid native arithmetic return can leave the marker's generic
+    // Result cached as Expr<ShaderType>. Reopen before checking its transformed
+    // body; retained original/virtual snapshots still own their respective ranges.
+    if (hasLocalHelpers && !unchanged) this.#checker.closeFile(fileName);
     const virtual = unchanged
       ? undefined
       : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
@@ -182,40 +201,52 @@ export class TypeScript7EditorAdapter {
         virtualSource: transformed.virtualSource,
         originalSyntacticDiagnostics: original.syntacticDiagnostics,
         originalSemanticDiagnostics: original.semanticDiagnostics,
-        virtualSemanticDiagnostics:
-          virtual?.semanticDiagnostics ?? original.semanticDiagnostics,
-        shaderOperationDiagnostics: virtual?.shaderOperationDiagnostics ?? [],
+        virtualSemanticDiagnostics: helperFailure
+          ? []
+          : (virtual?.semanticDiagnostics ?? original.semanticDiagnostics),
+        shaderOperationDiagnostics: helperFailure
+          ? []
+          : (virtual?.shaderOperationDiagnostics ?? []),
         coreDiagnostics: lowered.ok
           ? []
-          : lowered.diagnostics.filter(
-              (diagnostic) =>
-                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
-                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
-                diagnostic.code ===
-                  ShaderDiagnosticCode.InvalidNumericLiteral ||
-                (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
-                  parsedInfo !== undefined &&
-                  parsedInfo.callback.syntax.declarations.some(
-                    (declaration) =>
-                      declaration.nameRange.start === diagnostic.range.start &&
-                      declaration.nameRange.length ===
-                        diagnostic.range.length &&
-                      parsedInfo.shaderCallableImports.some(
-                        (entry) => entry.localName === declaration.name,
+          : hasLocalHelpers
+            ? lowered.diagnostics
+            : lowered.diagnostics.filter(
+                (diagnostic) =>
+                  diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
+                  diagnostic.code ===
+                    ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                  diagnostic.code ===
+                    ShaderDiagnosticCode.InvalidNumericLiteral ||
+                  (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
+                    parsedInfo !== undefined &&
+                    parsedInfo.callback.syntax.declarations.some(
+                      (declaration) =>
+                        declaration.nameRange.start ===
+                          diagnostic.range.start &&
+                        declaration.nameRange.length ===
+                          diagnostic.range.length &&
+                        parsedInfo.shaderCallableImports.some(
+                          (entry) => entry.localName === declaration.name,
+                        ),
+                    )) ||
+                  (parsedInfo !== undefined &&
+                    [
+                      ...parsedInfo.callback.syntax.declarations.map(
+                        (declaration) => declaration.initializer,
                       ),
-                  )) ||
-                (parsedInfo !== undefined &&
-                  [
-                    ...parsedInfo.callback.syntax.declarations.map(
-                      (declaration) => declaration.initializer,
-                    ),
-                    parsedInfo.callback.syntax.returnExpression,
-                  ].some((expression) =>
-                    hasEnclosingBuiltinCall(expression, diagnostic.range),
-                  )),
-            ),
+                      parsedInfo.callback.syntax.returnExpression,
+                    ].some((expression) =>
+                      hasEnclosingBuiltinCall(expression, diagnostic.range),
+                    )),
+              ),
       }),
       shaderRegion: transformed.virtualSource.shaderRegion,
+      shaderRegions: transformed.virtualSource.shaderRegions,
+      // A failed definition can corrupt inferred helper/dependent types. A
+      // fragment-only call error does not invalidate trusted helper signatures.
+      disableShaderHovers: definitionFailure,
+      suppressCoreErrorHovers: hasLocalHelpers,
       original,
       virtual,
       useOriginalForShader: unchanged,
@@ -238,6 +269,9 @@ interface EditorDocumentState {
   readonly delegated: boolean;
   readonly diagnostics: readonly RoutedDiagnostic[];
   readonly shaderRegion?: TextRange;
+  readonly shaderRegions?: readonly TextRange[];
+  readonly disableShaderHovers?: boolean;
+  readonly suppressCoreErrorHovers?: boolean;
   readonly original?: CheckedTypeScriptSource;
   readonly virtual?: CheckedVirtualSource;
   readonly useOriginalForShader?: boolean;
@@ -246,7 +280,9 @@ interface EditorDocumentState {
 class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
   readonly #original?: CheckedTypeScriptSource;
   readonly #virtual?: CheckedVirtualSource;
-  readonly #shaderRegion?: TextRange;
+  readonly #shaderRegions: readonly TextRange[];
+  readonly #disableShaderHovers: boolean;
+  readonly #suppressCoreErrorHovers: boolean;
   readonly #useOriginalForShader: boolean;
   #disposed = false;
 
@@ -266,7 +302,10 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     this.isShader = state.isShader;
     this.delegated = state.delegated;
     this.diagnostics = state.diagnostics;
-    this.#shaderRegion = state.shaderRegion;
+    this.#shaderRegions =
+      state.shaderRegions ?? (state.shaderRegion ? [state.shaderRegion] : []);
+    this.#disableShaderHovers = state.disableShaderHovers ?? false;
+    this.#suppressCoreErrorHovers = state.suppressCoreErrorHovers ?? false;
     this.#original = state.original;
     this.#virtual = state.virtual;
     this.#useOriginalForShader = state.useOriginalForShader ?? false;
@@ -276,11 +315,16 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     position: number,
   ): TypeScriptQuickInfo | undefined {
     if (this.#disposed) return undefined;
+    const inShader = this.#shaderRegions.some((region) =>
+      containsPosition(region, position),
+    );
+    if (this.#disableShaderHovers && inShader) return undefined;
     if (
       this.diagnostics.some(
         (diagnostic) =>
           diagnostic.source === "shdr" &&
-          (diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
+          (this.#suppressCoreErrorHovers ||
+            diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
             diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain) &&
           containsPosition(diagnostic.range, position),
       )
@@ -290,11 +334,7 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     if (this.#virtual) {
       return this.#virtual.getQuickInfoAtOriginalPosition(position);
     }
-    if (
-      !this.#useOriginalForShader &&
-      this.#shaderRegion &&
-      containsPosition(this.#shaderRegion, position)
-    ) {
+    if (!this.#useOriginalForShader && inShader) {
       return undefined;
     }
     return this.#original?.getQuickInfoAtPosition(position);

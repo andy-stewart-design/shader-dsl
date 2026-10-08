@@ -3,8 +3,8 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md).
-- Delivery state: **Phase 1 in progress**. Step 0.1 is Complete; Step 1.1 is Verified for local-helper compiler/type/target-compilation scope. Step 1.2 and Phases 2–4 are Pending. Local helpers are not yet editor-complete or mergeable; no new-helper presented-pixel/editor acceptance is claimed.
-- Acceptance or release still pending: all AC1–AC9, real GLSL ES 3.00/WebGL 2 and **presented WebGPU** acceptance, and one feature-complete review/PR. Writing this plan does not authorize a PR or merge.
+- Delivery state: **Phase 1 complete**. Step 0.1 is Complete; Steps 1.1–1.2 and the Phase 1 exit gate are Verified for same-file compiler/type/target-compilation and TypeScript 7 adapter scope. Phases 2–4 are Pending. No real VS Code UI or new-helper presented-pixel acceptance is claimed.
+- Acceptance or release still pending: aggregate AC1–AC9/final review (AC1's focused local core/adapter gate is Verified), cross-file real GLSL ES 3.00/WebGL 2 and **presented WebGPU** acceptance, and one feature-complete review/PR. Phase 1 completion does not authorize a partial PR or merge.
 - Blockers: none identified by the Phase 0 inspection. The [Phase 0 analysis](phase-0-analysis.md) locks the common project/alias-resolution contract; its implementation still needs the later automated parity gates. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step gates **and** exit gate pass. Do not record a build or mocked check as real browser/editor acceptance.
@@ -12,10 +12,10 @@ Step statuses below are the authoritative execution record. A phase is complete 
 ## Execution constraints
 
 - Paths are relative to repository root. Preserve existing unrelated work, including any in-progress moves under `plans/`; expected files are scope estimates, not permission to edit unrelated files.
-- Pre-implementation inspection (no pre-change test baseline executed): core accepted a single fragment source. Step 1.1 extends that source with local helpers; multi-file compilation remains pending. Vite still replaces a `.shdr.ts` module with a default artifact, CLI checks sources individually, TypeScript 7 maps only fragment expressions, and the REPL has one textarea. All compiler/tool changes need paired test and compatibility coverage.
+- Pre-implementation inspection (no pre-change test baseline executed): core accepted a single fragment source. Step 1.1 extends that source with local helpers; multi-file compilation remains pending. Vite still replaces a `.shdr.ts` module with a default artifact, CLI checks sources individually, TypeScript 7 now maps same-file helper/fragment expressions, and the REPL still has one textarea. All compiler/tool changes need paired test and compatibility coverage.
 - Core and the opt-in browser compiler must remain environment-neutral: **never evaluate authored imports, invoke helper/`defineUniforms` callbacks, read disk implicitly, or add Node/project dependencies to browser core**. Only hosts load files. Maintain fragment-only inputs, target-neutral f32 grouping, unchanged artifact schema/bindings and source diagnostic positions for existing shaders.
 - No phase can claim a new authored form fully supported while any required target or diagnostic route is missing. Where adjacent steps jointly introduce a public form, treat them as an atomic merge/revert group and keep the current supported shaders usable at intermediate review points.
-- Commands below assume workspace dependencies already installed. Targeted `test/reusable-*.test.ts` files and new browser fixtures are **proposed additions**, not currently runnable. Real GPU checks require a working Playwright Chromium/WebGPU adapter; real editor acceptance requires the VS Code executable used by `apps/editor-fixture/run-editor-test.mjs` (or `VSCODE_EXECUTABLE_PATH`). Record environment failures as Blocked, not Verified.
+- Commands below assume workspace dependencies already installed. Phase 1 targeted `test/reusable-*.test.ts` files now exist; later-phase tests and browser fixtures remain **proposed additions**, not currently runnable. Real GPU checks require a working Playwright Chromium/WebGPU adapter; real editor acceptance requires the VS Code executable used by `apps/editor-fixture/run-editor-test.mjs` (or `VSCODE_EXECUTABLE_PATH`). Record environment failures as Blocked, not Verified.
 
 ## Phase overview and delivery boundary
 
@@ -72,7 +72,7 @@ Review boundary: local helpers only; cross-file resolution and imported uniforms
 
 ### Step 1.1 — Typed local helper through parsing, IR, and both emitters
 
-Status: Verified — compiler/type/real target-compilation gate only; Step 1.2 remains Pending.
+Status: Verified — compiler/type/real target-compilation gate; paired Step 1.2 is now Verified.
 Requirements / acceptance: R1–R2, R8, R11–R12; AC1, AC9 (core portion).
 Depends on: Step 0.1.
 Review boundary: local `defineShaderFunction` syntax and semantics; no module graph or editor claims.
@@ -103,31 +103,35 @@ Completion gate: local helper source yields a valid dual-target artifact and bot
 
 ### Step 1.2 — Local-helper editor transformation and typed hovers
 
-Status: Pending
+Status: Verified — real TypeScript 7 adapter/mapping scope; no VS Code UI claim.
 Requirements / acceptance: R1–R2, R7, R9, R12; AC1 (editor portion).
 Depends on: Step 1.1.
 Review boundary: same-file TypeScript 7 virtual transformations/diagnostic routing; no cross-file edits.
 
 Expected files:
 
-- `packages/core/src/create-virtual-source.ts`, `transform-shader-expressions.ts`, `analyze-fragment.ts` — map every helper body's shader expressions alongside fragment expressions.
-- `packages/language-service/src/typescript-7-editor-adapter.ts`, `diagnostic-routing.ts`, `packages/language-service/test/reusable-local-editor.test.ts` (new) — typed QuickInfo and routed ranges.
+- `packages/core/src/create-virtual-source.ts`, `transform-shader-expressions.ts`, `parse-shader-file.ts`, `mapped-text-writer.ts`, `analyze-fragment.ts`, `packages/core/test/reusable-local-virtual.test.ts` (new) — map every helper body alongside fragment expressions and retain disjoint boundaries on failures.
+- `packages/language-service/src/typescript-7-editor-adapter.ts`, `typescript-7-checker.ts`, `diagnostic-routing.ts`, `packages/language-service/test/reusable-local-editor.test.ts` (new), `diagnostic-routing.test.ts`, `test/fixtures/project/reusable-local.shdr.ts` (new) — typed QuickInfo, native snapshot/cache coherence and routed ranges.
 - `apps/editor-fixture/` (if needed for real UI later) — valid local-helper authoring fixture.
 
 Tasks:
 
-- [ ] Rewrite helper expressions in the TypeScript 7 virtual document without executing them or mapping a generated operation to an unrelated original range; preserve existing callback mapping.
-- [ ] Route missing annotations, capture, wrong-arity/shape, return-type and builtin-domain diagnostics to original helper/call spans; check typed hovers at definition/usage.
-- [ ] Add adapter tests for valid helpers and negative edits, including ordinary `.ts` delegation and existing shader hover/diagnostic regressions.
+- [x] Rewrite helper expressions in the TypeScript 7 virtual document without executing them or mapping a generated operation to an unrelated original range; preserve existing callback mapping.
+- [x] Route missing annotations, capture, wrong-arity/shape, return-type and builtin-domain diagnostics to original helper/call spans; check typed hovers at definition/usage.
+- [x] Add adapter tests for valid helpers and negative edits, including ordinary `.ts` delegation and existing shader hover/diagnostic regressions.
 
 Verification:
 
 - Automated: add `packages/language-service/test/reusable-local-editor.test.ts`, then run `pnpm --filter @shdr/language-service test` and `pnpm --filter @shdr/core test` (root). Assert hovers/diagnostic ownership and unchanged no-helper behavior.
 - Manual: Not needed for this local adapter increment; real VS Code UI is required at Step 3.2/final acceptance.
 
-Completion gate: the TypeScript 7 adapter and core agree on local-helper calls/types/errors with original positions, and existing fragment/ordinary-TS tests stay green. Evidence: Not run.
+Completion gate: the TypeScript 7 adapter and core agree on local-helper calls/types/errors with original positions, and existing fragment/ordinary-TS tests stay green. Evidence: Verified on 2026-10-08 in the working tree over `41f575c`:
 
-Phase exit gate: run `pnpm build` and `pnpm exec turbo run check --force` after both steps; the local helper works in both targets and the TypeScript 7 adapter, while old shaders remain accepted. No cross-file or REPL claims yet. Evidence: Not run.
+- Real TypeScript 7 adapter suite: 33 local-helper tests passed; full language-service suite: 85 passed. Covers inferred/annotated scalar/V2/V3/V4, forward/transitive calls, exact definition/use/local hovers, captures/signatures/domains/recursion, explicit uniform arguments, unsaved edits, identity-only transitions, project-version/reopen/disposal, independent documents and ordinary `.ts` delegation.
+- Five core mapping tests plus a routing regression passed, including CRLF/non-BMP UTF-16 ranges, helpers after the fragment, unused helper transformation, generated-only hover/mapping suppression and ordinary TypeScript diagnostics between disjoint shader regions. Full core suite: 371 passed (including Step 1.1's real target-compilation tests).
+- Fixed TS 7.0.2 stale client AST ranges and stale generic marker inference by clearing the frontend cache and reopening helper virtual checks. Failed definitions suppress untrusted shader hovers/cascades; fragment-only call failures retain valid helper signature hovers. Environment: macOS arm64, Node 24.21.0, pnpm 11.23.0, TypeScript 7.0.2. Formatting/whitespace checks passed. No authored execution, cross-file support or VS Code UI acceptance.
+
+Phase exit gate: run `pnpm build` and `pnpm exec turbo run check --force` after both steps; the local helper works in both targets and the TypeScript 7 adapter, while old shaders remain accepted. No cross-file or REPL claims yet. Evidence: Verified on 2026-10-08; workspace build passed (10 build tasks, including existing static/browser-boundary checks), and forced check passed (15 tasks including dependency builds; no cache hits). An initial combined invocation timed out; tests/build/check were rerun separately and all passed. The feature-complete PR boundary still applies.
 
 ## Phase 2 — Virtual source graph and project-backed checks
 
@@ -366,17 +370,17 @@ Phase exit gate: feature-complete local implementation satisfies the governing s
 
 ## Final acceptance
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result                                                                                                  | Evidence / status                               |
-| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | 1.1 verified; editor pending                    |
-| AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Pending; not run                                |
-| AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Pending; not run                                |
-| AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Pending; not run                                |
-| AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Pending; not run                                |
-| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | 1.1 compile/link verified; 4.1 pending          |
-| AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Pending; not run                                |
-| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Pending; not run                                |
-| AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Core verified; documentation/final gate pending |
+| Spec acceptance ID | Owning step / gate | Verification and expected result                                                                                                  | Evidence / status                                         |
+| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | Focused local core/adapter verified; final review pending |
+| AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Pending; not run                                          |
+| AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Pending; not run                                          |
+| AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Pending; not run                                          |
+| AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Pending; not run                                          |
+| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | 1.1 compile/link verified; 4.1 pending                    |
+| AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Pending; not run                                          |
+| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Pending; not run                                          |
+| AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Core verified; documentation/final gate pending           |
 
 ## Rollback and recovery
 
