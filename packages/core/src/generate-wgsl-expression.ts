@@ -6,6 +6,7 @@ import type {
 } from "./shader-ir.js";
 import {
   emittedShaderLocalName,
+  shaderFunctionName,
   type ShaderLocalNames,
 } from "./shader-local-name.js";
 import { groupShaderChild } from "./shader-expression-grouping.js";
@@ -253,6 +254,8 @@ function componentName(component: 0 | 1 | 2 | 3): string {
 
 function callTargetName(target: ShaderCallTarget): string {
   switch (target.kind) {
+    case "shader-function":
+      return shaderFunctionName(target.functionId);
     case "constructor":
       switch (target.name) {
         case "vec2":

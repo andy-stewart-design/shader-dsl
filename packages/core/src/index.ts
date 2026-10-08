@@ -34,6 +34,7 @@ export {
   type LowerShaderSyntaxFailure,
   type LowerShaderSyntaxResult,
   type LowerShaderSyntaxSuccess,
+  type LowerShaderSyntaxOptions,
 } from "./lower-shader-syntax.js";
 export {
   MappedTextWriter,
@@ -55,6 +56,8 @@ export type {
   ShaderCallTarget,
   ShaderConstDeclaration,
   ShaderConstructorName,
+  ShaderFunction,
+  ShaderFunctionParameter,
   ShaderCustomUniformExpression,
   ShaderDefaultUniform,
   ShaderDefaultUniformExpression,
@@ -95,6 +98,7 @@ export type {
   ShaderCallbackSyntax,
   ShaderCallExpressionSyntax,
   ShaderConstDeclarationSyntax,
+  ShaderFunctionSyntax,
   ShaderExpressionSyntax,
   ShaderIdentifierSyntax,
   ShaderNumericLiteralSyntax,

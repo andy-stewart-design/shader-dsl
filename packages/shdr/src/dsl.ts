@@ -11,7 +11,16 @@ import type {
   UniformDefinition,
   UniformSchema,
   TypedCompiledFragmentArtifact,
+  ShaderFunction,
+  ShaderType,
 } from "./types.js";
+
+export function defineShaderFunction<
+  Args extends readonly Expr<ShaderType>[],
+  Result extends Expr<ShaderType>,
+>(_callback: (...args: Args) => Result): ShaderFunction<Args, Result> {
+  return shaderSourceWasNotTransformed("defineShaderFunction");
+}
 
 export function defineUniforms<const S extends UniformSchema>(
   _callback: (u: UniformBuilder) => S,

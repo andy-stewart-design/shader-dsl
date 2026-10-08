@@ -19,7 +19,14 @@ import {
 } from "./parse-custom-uniforms.js";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
-import type { ShaderCallbackSyntax } from "./shader-syntax.js";
+import type {
+  ShaderCallbackSyntax,
+  ShaderFunctionSyntax,
+} from "./shader-syntax.js";
+import {
+  parseShaderFunctions,
+  SHADER_TYPE_IMPORTS,
+} from "./parse-shader-functions.js";
 import type { TextRange } from "./source-range.js";
 import { validateShaderSyntax } from "./validate-shader-syntax.js";
 
@@ -46,6 +53,7 @@ export interface ShaderFileInfo {
   readonly fileName: string;
   readonly createFragmentShaderImport?: ShaderImportInfo;
   readonly customUniforms?: ParsedCustomUniforms;
+  readonly functions?: readonly ShaderFunctionSyntax[];
   readonly shaderCallableImports: readonly ShaderImportInfo[];
   readonly defaultExportRange: TextRange;
   readonly defaultExportCallRange: TextRange;
@@ -96,6 +104,39 @@ export function parseShaderFile(
   if (imports.diagnostics.length > 0) {
     return { diagnostics: imports.diagnostics };
   }
+
+  const shdrImports = file.program.body.filter(
+    (item): item is ImportDeclaration =>
+      item.type === "ImportDeclaration" &&
+      item.source.value === SHDR_MODULE_NAME,
+  );
+  const typeImports = new Set(
+    shdrImports.flatMap((item) =>
+      item.specifiers.flatMap((specifier) =>
+        specifier.type === "ImportSpecifier" &&
+        (item.importKind === "type" || specifier.importKind === "type")
+          ? [importedNameOf(specifier)]
+          : [],
+      ),
+    ),
+  );
+  const markerImported = shdrImports.some(
+    (item) =>
+      item.importKind !== "type" &&
+      item.specifiers.some(
+        (specifier) =>
+          specifier.type === "ImportSpecifier" &&
+          specifier.importKind !== "type" &&
+          importedNameOf(specifier) === "defineShaderFunction",
+      ),
+  );
+  const helpers = parseShaderFunctions(
+    file,
+    markerImported,
+    typeImports,
+    new Set(imports.shaderCallableImports.map((entry) => entry.localName)),
+  );
+  if (helpers.diagnostics.length) return { diagnostics: helpers.diagnostics };
 
   if (!imports.createFragmentShaderImport && !imports.defineUniformsImport) {
     return {
@@ -318,9 +359,12 @@ export function parseShaderFile(
 
   const syntaxDiagnostics = validateShaderSyntax(
     callback,
-    new Set(
-      imports.shaderCallableImports.map((importInfo) => importInfo.localName),
-    ),
+    new Set([
+      ...imports.shaderCallableImports.map(
+        (importInfo) => importInfo.localName,
+      ),
+      ...helpers.functions.map((helper) => helper.name),
+    ]),
   );
   if (syntaxDiagnostics.length > 0) {
     return {
@@ -337,6 +381,7 @@ export function parseShaderFile(
       fileName,
       createFragmentShaderImport: imports.createFragmentShaderImport,
       customUniforms,
+      ...(helpers.functions.length ? { functions: helpers.functions } : {}),
       shaderCallableImports: imports.shaderCallableImports,
       defaultExportRange: rangeOf(defaultExport),
       defaultExportCallRange: rangeOf(call),
@@ -484,17 +529,6 @@ function parseShdrImport(
   setCreateFragmentShaderImport: (importInfo: ShaderImportInfo) => void,
   setDefineUniformsImport: (importInfo: ShaderImportInfo) => void,
 ): void {
-  if (declaration.importKind === "type") {
-    diagnostics.push(
-      diagnostic(
-        ShaderDiagnosticCode.UnsupportedShdrImport,
-        "The POC requires value imports from shdr.",
-        rangeOf(declaration),
-      ),
-    );
-    return;
-  }
-
   for (const specifier of declaration.specifiers) {
     if (specifier.type === "ImportNamespaceSpecifier") {
       diagnostics.push(
@@ -519,10 +553,22 @@ function parseShdrImport(
     }
 
     const importedName = importedNameOf(specifier);
-    if (
-      specifier.importKind === "type" ||
-      specifier.local.name !== importedName
-    ) {
+    if (declaration.importKind === "type" || specifier.importKind === "type") {
+      if (
+        !SHADER_TYPE_IMPORTS.has(importedName) ||
+        specifier.local.name !== importedName
+      ) {
+        diagnostics.push(
+          diagnostic(
+            ShaderDiagnosticCode.UnsupportedShdrImport,
+            "Only direct supported expression/value type imports from shdr are allowed.",
+            rangeOf(specifier),
+          ),
+        );
+      }
+      continue;
+    }
+    if (specifier.local.name !== importedName) {
       diagnostics.push(
         diagnostic(
           ShaderDiagnosticCode.ImportAlias,
@@ -543,6 +589,8 @@ function parseShdrImport(
       setCreateFragmentShaderImport(importInfo);
     } else if (importedName === "defineUniforms") {
       setDefineUniformsImport(importInfo);
+    } else if (importedName === "defineShaderFunction") {
+      // Its declaration/callback boundary is recognized separately, never invoked.
     } else if (
       SUPPORTED_SHADER_CALLABLES.has(importedName) ||
       isShaderBuiltinName(importedName)

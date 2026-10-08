@@ -12,8 +12,11 @@ import type { TextRange } from "./source-range.js";
 export function validateShaderSyntax(
   callback: ArrowFunctionExpression,
   calleeNames: ReadonlySet<string>,
+  helperParameters?: ReadonlySet<string>,
 ): readonly ShaderDiagnostic[] {
-  const annotation = callback.returnType ?? callback.typeParameters;
+  const annotation =
+    callback.typeParameters ??
+    (helperParameters ? undefined : callback.returnType);
   if (annotation) {
     return [typeAnnotationDiagnostic(annotation)];
   }
@@ -24,14 +27,15 @@ export function validateShaderSyntax(
   }
 
   const localNames = new Set(
-    parameter?.type === "ObjectPattern"
-      ? parameter.properties.flatMap((property) =>
-          property.type === "ObjectProperty" &&
-          property.key.type === "Identifier"
-            ? [property.key.name]
-            : [],
-        )
-      : [],
+    helperParameters ??
+      (parameter?.type === "ObjectPattern"
+        ? parameter.properties.flatMap((property) =>
+            property.type === "ObjectProperty" &&
+            property.key.type === "Identifier"
+              ? [property.key.name]
+              : [],
+          )
+        : []),
   );
   if (callback.body.type !== "BlockStatement") {
     const issue = validateExpression(callback.body, localNames, calleeNames);

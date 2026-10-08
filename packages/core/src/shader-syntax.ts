@@ -3,6 +3,7 @@ import type {
   ShaderUnaryOperator,
 } from "./shader-operator.js";
 import type { TextRange } from "./source-range.js";
+import type { ShaderValueType } from "./shader-type.js";
 
 interface ShaderSyntaxNode {
   readonly range: TextRange;
@@ -13,6 +14,19 @@ export interface ShaderCallbackSyntax extends ShaderSyntaxNode {
   readonly declarations: readonly ShaderConstDeclarationSyntax[];
   readonly returnRange: TextRange;
   readonly returnExpression: ShaderExpressionSyntax;
+}
+
+export interface ShaderFunctionSyntax extends ShaderSyntaxNode {
+  readonly name: string;
+  readonly nameRange: TextRange;
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly nameRange: TextRange;
+    readonly type: ShaderValueType;
+  }[];
+  readonly returnType?: ShaderValueType;
+  readonly returnTypeRange?: TextRange;
+  readonly body: ShaderCallbackSyntax;
 }
 
 export interface ShaderConstDeclarationSyntax extends ShaderSyntaxNode {

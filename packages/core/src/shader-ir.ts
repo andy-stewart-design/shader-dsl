@@ -29,6 +29,11 @@ export type ShaderCallTarget =
   | {
       readonly kind: "builtin-function";
       readonly name: ShaderBuiltinFunctionName;
+    }
+  | {
+      readonly kind: "shader-function";
+      readonly name: string;
+      readonly functionId: number;
     };
 
 export type ShaderVectorComponent = 0 | 1 | 2 | 3;
@@ -132,6 +137,22 @@ export interface ShaderReturnStatement {
 
 export type ShaderStatement = ShaderConstDeclaration | ShaderReturnStatement;
 
+export interface ShaderFunctionParameter {
+  readonly name: string;
+  readonly symbolId: ShaderLocalSymbolId;
+  readonly type: ShaderValueType;
+  readonly nameRange: TextRange;
+}
+
+export interface ShaderFunction {
+  readonly functionId: number;
+  readonly name: string;
+  readonly parameters: readonly ShaderFunctionParameter[];
+  readonly returnType: ShaderValueType;
+  readonly statements: readonly ShaderStatement[];
+  readonly range: TextRange;
+}
+
 export type ShaderStage = "fragment";
 
 export interface ShaderModule {
@@ -139,5 +160,7 @@ export interface ShaderModule {
   readonly stage: ShaderStage;
   readonly statements: readonly ShaderStatement[];
   readonly customUniforms?: readonly ShaderCustomUniformDeclaration[];
+  /** Reachable functions, in dependency-safe order. Absent for legacy shaders. */
+  readonly functions?: readonly ShaderFunction[];
   readonly range: TextRange;
 }

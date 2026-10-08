@@ -64,6 +64,8 @@ function calculateShaderComponents(
       return expression.components.map((index) => object[index]);
     }
     case "call": {
+      // No interprocedural constant/domain propagation in V1.
+      if (expression.target.kind === "shader-function") return unknown();
       const args = expression.arguments.map((arg) =>
         evaluateShaderComponents(arg, locals, cache),
       );
@@ -215,6 +217,8 @@ export function identicalConstantExpressions(
       pending.push([a.expression, b.expression]);
     } else if (a.kind === "call" && b.kind === "call") {
       if (
+        a.target.kind === "shader-function" ||
+        b.target.kind === "shader-function" ||
         a.target.kind !== b.target.kind ||
         a.target.name !== b.target.name ||
         a.arguments.length !== b.arguments.length

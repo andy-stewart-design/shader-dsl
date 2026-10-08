@@ -1,6 +1,7 @@
 export {
   createFragmentShader,
   defineUniforms,
+  defineShaderFunction,
   vec2,
   vec3,
   vec4,
@@ -47,6 +48,7 @@ export type {
   UniformValue,
   TypedCompiledFragmentArtifact,
   ShaderType,
+  ShaderFunction,
   Vec2,
   Vec3,
   Vec4,

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import * as shdr from "../src/index.js";
-import { createFragmentShader, shdrPackageName, vec4 } from "../src/index.js";
+import {
+  createFragmentShader,
+  defineShaderFunction,
+  shdrPackageName,
+  vec4,
+} from "../src/index.js";
 import { __shdr_internal_div, __shdr_internal_f32 } from "../src/internal.js";
 import type { Expr, F32, Vec4 } from "../src/types.js";
 
@@ -16,6 +21,19 @@ describe("shdr package", () => {
   it("does not export internal helpers from the public entry point", () => {
     expect(shdr).not.toHaveProperty("__shdr_internal_f32");
     expect(shdr).not.toHaveProperty("__shdr_internal_div");
+  });
+
+  it("never invokes a defineShaderFunction callback at runtime", () => {
+    let invoked = false;
+    expect(() =>
+      defineShaderFunction((x: Expr<F32>) => {
+        invoked = true;
+        return x;
+      }),
+    ).toThrow(
+      "shdr: defineShaderFunction() cannot run because the shader source was not transformed.",
+    );
+    expect(invoked).toBe(false);
   });
 
   it.each([
