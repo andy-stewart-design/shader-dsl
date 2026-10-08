@@ -3,9 +3,9 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md).
-- Delivery state: **Planning only**. All steps are Pending; no verification has been run for this plan.
+- Delivery state: **Phase 0 complete (read-only contract/feasibility review)**. Step 0.1 is Complete; Phases 1–4 are Pending. No production implementation, baseline test run, or GPU/editor acceptance has been performed.
 - Acceptance or release still pending: all AC1–AC9, real GLSL ES 3.00/WebGL 2 and **presented WebGPU** acceptance, and one feature-complete review/PR. Writing this plan does not authorize a PR or merge.
-- Blockers: none known. Phase 0 must establish a common project/alias-resolution contract before cross-file implementation. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
+- Blockers: none identified by the Phase 0 inspection. The decision record below locks the common project/alias-resolution contract; its implementation still needs the later automated parity gates. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step gates **and** exit gate pass. Do not record a build or mocked check as real browser/editor acceptance.
 
@@ -37,31 +37,134 @@ Review boundary: only existing source/test inspection and an execution note in t
 
 ### Step 0.1 — Lock paths, module shape, and attribution seam
 
-Status: Pending
+Status: Complete — source/test inspection and written contract only; no behavior acceptance claimed.
 Requirements / acceptance: R3, R5–R7, R9; informs AC2, AC4, AC5.
 Depends on: None.
 Review boundary: specification/feasibility only; no production change.
 
 Expected files:
 
-- `plans/reusable-functions/plan.md` — record the confirmed resolution/diagnostic decision and any required spec clarification (without silently weakening `spec-2.md`).
+- `plans/reusable-functions/plan.md` — record the confirmed resolution/diagnostic decision and any required spec clarification (without silently weakening `spec.md`).
 - `packages/core/src/parse-shader-file.ts`, `packages/core/src/diagnostics.ts`, `packages/lsp/src/project-discovery.ts`, `packages/language-service/src/typescript-7-editor-adapter.ts`, `packages/vite/src/index.ts`, `packages/cli/src/check.ts` — inspect only.
 
 Tasks:
 
-- [ ] Trace the currently supported `shdr` import and same-file `defineUniforms` forms, public diagnostic shapes, and single-source core/browser API; record compatibility constraints.
-- [ ] Determine a shared rule for selected `tsconfig.json`, `paths`/relative imports, missing configs, canonical paths, duplicate imports and dependency cycles; identify how CLI, Vite and editor will supply files to core without using Vite-only resolution.
-- [ ] Inspect virtual-source project/hover mapping and Vite transformation/watch behavior for helper-only and mixed-export modules; note what needs atomic change.
-- [ ] Choose a representative three-file helper + imported-uniform fixture and a minimal invalid-cycle/missing-import case; confirm the assumed direct-export and one-schema syntax against the spec examples.
+- [x] Trace the currently supported `shdr` import and same-file `defineUniforms` forms, public diagnostic shapes, and single-source core/browser API; record compatibility constraints.
+- [x] Determine a shared rule for selected `tsconfig.json`, `paths`/relative imports, missing configs, canonical paths, duplicate imports and dependency cycles; identify how CLI, Vite and editor will supply files to core without using Vite-only resolution.
+- [x] Inspect virtual-source project/hover mapping and Vite transformation/watch behavior for helper-only and mixed-export modules; note what needs atomic change.
+- [x] Choose a representative three-file helper + imported-uniform fixture and a minimal invalid-cycle/missing-import case; confirm the assumed direct-export and one-schema syntax against the spec examples.
 
 Verification:
 
 - Automated: Not applicable; this is a read-only feasibility/decision gate, not behavior proof.
 - Manual: Compare the recorded rules with the actual entry/config semantics in the cited files; ensure the same alias maps to the same file for each proposed host and a browser virtual map. Record any counterexample and stop the affected work until resolved.
 
-Completion gate: project/alias resolution, file-identity/diagnostic attribution, and module-cycle rules are documented with no unaddressed conflict with R5. Evidence: Not run.
+Completion gate: project/alias resolution, file-identity/diagnostic attribution, and module-cycle rules are documented with no unaddressed conflict with R5. Evidence: Static inspection on 2026-10-08 at revision `796bb21`, followed by review corrections separating config selection from compilation eligibility and removing the unapproved dependency-root restriction (B.2–B.4 and D below). The initial gate conclusion preceded these corrections. No tests executed.
 
-Phase exit gate: review the decision record before code changes; if the governing contract is infeasible, update it only after resolving that material conflict rather than implementing an alternative quietly. Evidence: Not run.
+Phase exit gate: review the decision record before code changes; if the governing contract is infeasible, update it only after resolving that material conflict rather than implementing an alternative quietly. Evidence: Source/config/test comparison and the two resolution counterexamples reviewed against R5/R12; the corrected contract preserves config-independent compilation and cross-root relative imports. Implementation may begin with Phase 1 under these corrected rules. This is a feasibility gate, not proof of resolver, editor or target behavior.
+
+#### Phase 0 decision record — 2026-10-08
+
+Scope/evidence: repository was clean at inspection start, revision `796bb21`. Only this plan is changed. Existing source, tests, package manifests, fixture configs and installed TypeScript 7.0.2 API declarations were inspected; no baseline/build/test suite, authored callback, browser, or VS Code process was run. The fixtures below are design examples, not newly installed or passing tests. Documentation-only checks passed: `pnpm exec prettier --check plans/reusable-functions/plan.md` and `git diff --check`; live GPU/editor environment availability was not assessed.
+
+##### A. Compatibility baseline and ownership seams
+
+- `parse-shader-file.ts` parses TypeScript with Babel, recognizes one direct default fragment or the inline `defineUniforms(...).createFragmentShader(...)` chain, and requires one supported context pattern: `({ coord, uniforms })` or `({ uniforms })`. It currently rejects all `import type` from `shdr`, Shdr value aliases, namespace/default imports, and helper-only modules. Non-Shdr imports generally pass import scanning but do not create shader callables. Extend module recognition explicitly; do not turn ordinary imported JavaScript into shader values.
+- Existing named schemas are a single same-file `const uniforms = defineUniforms(...)` before a direct fragment, selected by exactly the shorthand `{ uniforms }`. The parser does not currently unwrap exported schema declarations or resolve imported schemas, and even the named form currently requires a local `defineUniforms` import. Phase 2 must remove that last requirement for an imported definition, not require authors to add an unused marker import. `parse-custom-uniforms.ts` already reads literal AST defaults without invoking the builder; retain its field order, reserved names, finite-f32 validation and `-0` normalization.
+- `lowerFragment(source)` and `compileFragmentArtifact(source)` use the default synthetic name `shader.shdr.ts`; the latter is exported only from the opt-in `@shdr/core/browser` entry, not the main core index today. Keep these string calls, existing success/failure discriminants, diagnostic codes/ranges, and artifact fields (`glsl`, `wgsl`, `defaults`, optional `custom`) unchanged. Graph types/APIs may be exported from the relevant core entries without making runtime import the compiler. A helper-only checking mode must be separate from the requirement that artifact compilation have a default fragment; never synthesize a dummy shader.
+- `ShaderDiagnostic` is currently `{ code, message, range, severity }` without a file. Ranges and CLI/editor positions are UTF-16 offsets into original source (including CRLF/non-BMP cases). Graph failures need an additional owner identity; string-only failures must not gain an enumerable synthetic filename or lose their existing exact ranges. Use a file-aware graph diagnostic type extending the legacy shape, rather than altering artifact metadata to carry sources.
+- `transform-shader-expressions.ts` rewrites only callback roots. `VirtualSource`, diagnostic routing and hover suppression each have one `shaderRegion`. Operator mappings already preserve identity-backed identifiers and suppress generated-only hover text; preserve that behavior while adding multiple disjoint helper/fragment regions per defining file. Do not use one bounding region that suppresses unrelated top-level TypeScript diagnostics.
+- The TypeScript 7 checker already has an in-memory `readFile` overlay and project snapshots, but updates/checks one original/virtual file at a time. The editor adapter clears that overlay on a project-version change. Cross-file checks must populate all transformed dependency sources and all open authored overrides before taking a coherent checking snapshot; rebuilding a checker must replay unsaved sources, not fall back to stale disk text. Existing core-error filtering is fragment-specific and needs helper-aware ownership.
+- `ProjectDiscovery` selects the nearest ancestor config whose **root files** include the entry, continues past valid excluding configs, stops on invalid configs, uses real paths, and never walks above the deepest containing workspace root or traverses project references to pick an entry project. Its tests encode these distinctions. LSP currently publishes all returned ranges against the requesting document and refreshes only that document on an unsaved edit; both must change for shared definitions. The VS Code fixture pins a config and watches only that config; it also needs dependency/unsaved-edit refresh, not just extra test fixtures.
+- Vite's pre-transform currently replaces the entire module with `export default <JSON>;`, strips query/hash suffixes from IDs, and registers no dependency watches. Authored import edges disappear from the emitted module graph. `verify-dev.mjs` tests direct entry/default edits only. CLI currently discovers sorted shader files, does not follow discovery symlinks, and checks each source independently without a config; its temp-project tests deliberately support no-config shaders and fail without partial output on file-read errors.
+
+##### B. Shared project and effective-alias contract
+
+1. **Host boundary and package seam.** Extract/reuse the project-discovery semantics in a Node-only shared `@shdr/project` package (`packages/project/`) in Step 2.3. It owns config parsing, disk loading, realpath identity and effective alias preparation; CLI, Vite and editor/LSP consume it rather than copying resolvers or importing the LSP server. Use TypeScript **7** for project/config semantics, with a runtime dependency in this host package; do not load TypeScript 6 or add Node/TypeScript dependencies to core/browser. Core owns the pure specifier-to-file rule and graph traversal. The host loader uses that same rule to assemble explicit files, so it cannot select a different fallback candidate from the browser compiler.
+2. **Config-search boundary, not dependency boundary.** Supply canonical config-search roots: CLI uses cwd and explicit directory roots (an explicit file outside those roots contributes its containing directory for config search only); Vite uses its resolved root; LSP uses its workspace folders. For overlapping roots use the deepest containing root, matching discovery today. These roots limit project selection, not the shader import graph. Resolve each relative `.shdr.ts` import against its importing file, including `../` paths and canonical symlink targets outside cwd, the entry directory, Vite root or editor workspace. Likewise, a selected config's supported `paths` target may be outside its search root. Load only explicitly reachable source dependencies; do not scan unrelated external directories. Config directory, `rootDir`, `include`/`exclude`, discovery ignores and discovery symlink exclusions are not dependency-access restrictions. Browser core remains limited to the caller's supplied files, so an omitted external dependency fails as missing, not as outside a root. Vite/editor hosts must watch and attribute external dependencies without requiring them to become standalone project entries. No implicit filesystem sandbox is added by V1.
+3. **Entry selection for aliases/editor membership.** When effective aliases are needed, walk canonical entry ancestors up to the config-search root, choosing the nearest valid `tsconfig.json` whose parsed root-file list includes the entry. Continue past valid excluding configs; stop on invalid/unreadable configs, preserving that configuration failure for an alias diagnostic rather than searching past it. Do not pick an arbitrary Vite config, a sibling project or a referenced project from a solution config. An adapter explicitly given a project config must validate entry membership for editor availability rather than silently opening an inferred/different project. Project-selection status is separate from core/CLI/Vite compilation eligibility. Keep one selected config for the entire entry graph; do not reselect config independently for imported helpers, including external dependencies. Imported files need not be root files: TypeScript's normal dependency inclusion differs from root-file membership.
+4. **No selected config does not prohibit compilation.** CLI/Vite no-import shaders (including local helpers) and graphs using only relative `.shdr.ts` imports compile/check without requiring project membership. This applies both when no config exists and when valid configs exist but none includes the entry; do not emit an excluded-project compilation failure in either case. Config preparation may be lazy: unrelated invalid configs must not newly block these config-independent paths either. If any reachable import needs an alias, the absence of a selected config produces a source-located alias-resolution diagnostic explaining the no-config/excluded state; never borrow aliases from an excluding config. An invalid/unreadable config encountered during required alias selection produces a configuration-related diagnostic at that alias import, not a silent fallback to another config, Vite aliases or package resolution. Project editor/LSP retains its existing no-config/excluded/invalid-config/not-on-disk UI states; it does not invent an inferred project. Those editor availability states do not mean that the source is invalid or cannot compile through CLI/Vite or an explicit virtual map. Configured entries and equivalent virtual maps remain the R5 alias-parity gate.
+5. **Inheritance.** Honor JSONC, TypeScript config inheritance (including package config inheritance), and TypeScript's effective `paths` replacement/precedence; never concatenate child and parent mappings ad hoc. Rebase relative targets against the config that declares the effective `paths`, not blindly against the selected leaf config or cwd. Preserve target-array order. The host must supply core with effective alias targets already rooted in the canonical virtual namespace, plus canonical-file information (not a workspace dependency fence); browser callers supply equivalent effective mappings, not a raw config requiring filesystem access. Watch all config/inheritance files used to prepare them.
+6. **Supported spelling.** Relative specifiers are `./` or `../` paths explicitly naming a `.shdr.ts` file. A nonrelative specifier must match a selected-project `paths` key (exact or one `*`); substitution must identify a `.shdr.ts` file. Exact keys win; otherwise use TypeScript's longest-prefix wildcard precedence, retaining config declaration order for equal-prefix ties. Try the chosen key's targets in declared order and use the first existing supported source; multiple ordered fallbacks are not themselves ambiguous. An existing non-shader target is unsupported, not a reason to fall through to an arbitrary package/JS target. No extension guessing, directory/index lookup, `.js` substitution, package exports, `baseUrl`-only lookup, Vite aliases, URL/query/fragment specifiers, absolute authored imports, or npm resolution. `shdr` remains the special DSL/type boundary, not a shader-source alias. Invalid patterns and unresolved/unsupported targets fail clearly at the import.
+7. **TypeScript resolution parity.** The inspected TS 7.0.2 `CompilerOptions` exposes `paths` but no `baseUrl` or `pathsBasePath`; `Project.compilerOptions`, `rootFiles`, config diagnostics and `API.parseConfigFile` are available. Do not assume an undocumented base-path property exists or introduce a TS 6 config parser. Host config preparation must preserve declaring-config provenance (or consume correctly rooted TS 7 targets) and test inheritance. Project shader fixtures using explicit `.shdr.ts` specifiers need `allowImportingTsExtensions` with `noEmit` (as the Vite app already has); update editor fixtures accordingly. If TS configuration redirects a supported shader specifier through `moduleSuffixes`/`rootDirs` or another non-V1 mechanism to a different file, diagnose the conflict or make the virtual shader import explicitly use the core-selected file; never accept different core/editor targets silently. Unrelated ordinary TypeScript resolution stays delegated.
+
+##### C. Canonical files, definitions, checking and diagnostics
+
+- The virtual graph uses absolute slash-separated file IDs, normalizing separators, `.`/`..` and redundant separators without lowercasing or fetching anything. Host native absolute paths (including drive paths) are converted consistently to that namespace. Host realpath resolves symlinks/casing and supplies canonical identities; core uses only supplied canonical IDs/aliases, never calls realpath. Two virtual keys normalizing to one identity are invalid rather than last-write-wins. Entry and alias targets use the same normalization. Duplicate import spellings/host symlink aliases of one file share one module identity; disagreeing open-buffer aliases are errors, matching the existing LSP alias protection.
+- A definition identity is `(canonical file ID, declaration identity/range)`, not just its local/exported spelling. Named-import aliases bind to it; separate files can export the same helper name. Parse each source once per graph snapshot, deduplicate imports/definitions, validate signatures, then topologically lower calls and emit only entry-reachable functions once. Do not concatenate authored files or execute marker/builder callbacks. The new DSL marker must follow the existing `shaderSourceWasNotTransformed` fail-fast convention rather than invoke or expose an authored callback at runtime. Stable generated names and ordering must not depend on absolute checkout location or file-map insertion order, so equivalent relative/alias graphs have equivalent artifacts.
+- Reject module cycles on source import edges, even if no recursive function call occurs. Also reject direct/indirect helper recursion within an otherwise acyclic graph. DFS must distinguish a repeated completed dependency (valid diamond/duplicate import) from a back edge (cycle). Attribute a module cycle to the closing import and show the ordered file path; attribute function recursion to its closing helper call and show the helper path. No partial artifact.
+- Module grammar permits direct, single-declarator top-level `const name = defineShaderFunction(...)` and `const name = defineUniforms(...)`, optionally wrapped in `export`. Helper callbacks have simple explicitly typed `Expr<F32>`/`Expr<Vec2/3/4<F32>>` parameters, optional supported return annotation, and the existing restricted expression or straight-line const/final-return bodies. Accept direct `import type { Expr, F32, Vec2, Vec3, Vec4 } from "shdr"` without a source graph edge. Do not broaden existing Shdr value aliases or fragment annotations as a side effect. Named source imports can alias a helper/schema into a local name; exports must be direct declarations, not `export { name }` barrels, namespace/default imports, or ordinary JS callables. No module-value captures.
+- Keep exactly one explicit schema link. An exported schema can have another exported name, but the imported/local binding used by the fragment remains `uniforms` for the existing shorthand `{ uniforms }`; `{ uniforms: other }`, arrays or schema merging stay unsupported. Callback `uniforms` is a separate input binding. An imported schema does not require importing `defineUniforms` in the entry and does not become available inside helpers except as explicitly passed scalar/vector expressions. Same-file ordering and inline chained forms remain compatible.
+- Artifact mode requires an entry default fragment. It validates module/import/export shapes and helper/schema definitions in loaded source modules, but does not lower or include a dependency's unrelated default fragment body merely because a named export is used. File-check mode validates all helpers/schemas and the file's own default fragment if present, even when a helper is not entry-reachable. CLI can therefore check helper-only and mixed modules without changing emission reachability.
+- Missing file/unsupported specifier is owned by the import source span; missing/nonshader named export by its import specifier; invalid signature/body/capture/default by its defining file; invalid arity/shape by the caller; malformed `{ uniforms }` by the selecting fragment. Definition return mismatches must not be copied to every call. Graph diagnostic `fileName` identifies the original source used to interpret its UTF-16 range, never the requesting entry or generated shader.
+- Deduplicate project faults by canonical owner + code + range + message (and routed source where needed), not by message alone. Different call sites remain distinct errors. CLI sorts diagnostics by owner display path/range with existing formatting; file count remains discovered-file count. Missing dependencies yield located shader diagnostics, but permissions/read failures retain the CLI's all-or-nothing input-error behavior. Vite's primary `id`/`loc` and editor publication must use the owning source; publish a shared fault once on its owning URI, including unopened dependencies, and clear it after fix/removal. Never interpret another file's offset using the entry text.
+
+##### D. Atomic consumer changes and inspection counterexamples
+
+- **Vite-only aliases:** using `this.resolve` or `resolve.alias` as the authoritative shader resolver can succeed while CLI/core fails. The shared effective-config loader and pure core resolution rule are mandatory; Vite resolution can remain for ordinary host imports only.
+- **Inherited mappings:** treating `paths` inherited from `/work/tsconfig.base.json` as relative to `/work/app/tsconfig.json` selects the wrong directory. Preserve origin when flattening; test a leaf config and equivalent browser absolute targets before claiming alias parity.
+- **Suppressed import graph:** `addWatchFile` alone establishes watching, but emitted JSON has no authored import edge. Step 3.1 must maintain reverse dependencies and explicitly invalidate/reload every dependent entry on helper/schema/config change (including missing-file creation, deletion and failed compilations); do not assume Vite's ordinary module graph will infer the edge.
+- **Mixed/helper-only exports:** compiling a dependency through Vite's normal runtime transform would require a default fragment and erase its named exports. Load raw source directly in the host graph. Host imports of a fragment's default artifact remain valid; named helper/schema runtime imports must fail with a compile-only explanation. A helper-only module cannot expose a fake default artifact or executable authored exports.
+- **Unsaved graph edits:** the existing LSP changed-document path and fixture extension leave other consumers cached. Build/replay a project source snapshot, transform all helper files, bump dependency/project versions and refresh owned diagnostics/hovers on unsaved edits, disk events and inherited-config changes. Per-file mappings and region lists must accompany that snapshot. Preserve `.ts` delegation and stale/disposed hover behavior.
+- **Config scope differences:** config-search roots or selected configs differing between hosts can legitimately differ in editor availability/aliases, but cannot prohibit relative dependency resolution. Alias-parity tests must use identical config-search roots and the entry-selection rule above. Tests must cover nearest-excluded/ancestor-included, invalid config, solution references, no-config relative/alias, cross-root dependencies and a dependency excluded from root files but imported normally. These are known implementation seams, not permission to waive R5.
+- **Review correction — excluded entry:** a valid `/work/tsconfig.json` including only `other.ts` must not make CLI/Vite reject `/work/scene.shdr.ts` with no imports or only relative imports. Both paths still compile; changing a reachable import to a `paths` alias fails at that import because no config was selected. Add paired no-config/excluded-config success and alias-failure cases to Steps 2.3 and 3.1, plus invalid-config/config-independent compatibility coverage.
+- **Review correction — external CLI entry:** running from `/checkout`, explicitly checking `/external/scenes/scene.shdr.ts` importing `../lib/helper.shdr.ts` must load `/external/lib/helper.shdr.ts`, even though the config-search root is `/external/scenes`. Add this CLI success case and equivalent virtual-map compilation in Step 2.3. Cover Vite/editor entries with an external relative dependency and a canonical symlink target as well, including dependency invalidation and owning-file diagnostics. Missing/unreadable external files retain the ordinary missing-import/read-error behavior; outside-root location alone is not a failure. The initial dependency-root restriction was not approved and is withdrawn, not justified as a new language limit.
+
+No material spec change is required by the corrected record: it resolves the spec's stated direct-export, one-schema, acyclic-module and project-selection assumptions without restricting the agreed relative imports. Source-import extension spelling and config-search boundaries are explicit V1 resolver details, not dependency-access boundaries. Historical `spec-2.md` wording in this plan was corrected to the governing `spec.md`; the spec's draft/self-reference status prose is historical and does not introduce a second governing document.
+
+##### E. Representative fixtures locked for subsequent phases
+
+Use a temp project rooted at `/work` with `tsconfig.json` including `src/**/*.shdr.ts`, `noEmit: true`, `allowImportingTsExtensions: true`, and `paths: { "@shader/*": ["./src/lib/*.shdr.ts"] }`. These are three proposed sources, not Phase 0 production additions:
+
+```ts
+// /work/src/lib/math.shdr.ts — helper-only, expression body
+import { defineShaderFunction, fract } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+
+export const ramp = defineShaderFunction(
+  (p: Expr<Vec2<F32>>, seed: Expr<F32>) =>
+    fract(p.x * 0.1031 + p.y * 0.11369 + seed),
+);
+```
+
+```ts
+// /work/src/lib/shared.shdr.ts — mixed exports, transitive/block helper
+import {
+  createFragmentShader,
+  defineShaderFunction,
+  defineUniforms,
+  vec4,
+} from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+import { ramp as baseGrain } from "./math.shdr.ts";
+
+export const uniforms = defineUniforms((u) => ({ grain: u.f32(0.1) }));
+export const filmGrain = defineShaderFunction(
+  (p: Expr<Vec2<F32>>, seed: Expr<F32>): Expr<F32> => {
+    const value = baseGrain(p, seed);
+    return value;
+  },
+);
+export default createFragmentShader(({ uniforms }) => vec4(0, 0, 0, 1));
+```
+
+```ts
+// /work/src/scene.shdr.ts — alias import and explicit schema
+import { createFragmentShader, vec4 } from "shdr";
+import { filmGrain as grain, uniforms } from "@shader/shared";
+
+export default createFragmentShader(
+  ({ coord, uniforms }) =>
+    vec4(grain(coord.xy, uniforms.time) * uniforms.grain, 0, 0, 1),
+  { uniforms },
+);
+```
+
+Compare the alias entry to `./lib/shared.shdr.ts` and a virtual file map containing exactly those canonical IDs plus effective `paths: { "@shader/*": ["/work/src/lib/*.shdr.ts"] }`. Expect the same artifact, two reachable helper definitions, complete grain default metadata, and no shared module's black default fragment. Remove that default export to exercise a helper/schema-only module; add a second entry selecting the same schema for the later isolation gate. Distinct same-named exports and a diamond import are separate positive variants.
+
+Minimal failures: remove `math.shdr.ts` (diagnostic on `"./math.shdr.ts"` in shared); import an absent named export (diagnostic on the entry import specifier); add `import { filmGrain } from "./shared.shdr.ts"` to math and call it (module-cycle closing import with path `shared → math → shared`, deterministic for this entry); define a same-file self-calling helper or a two-helper mutual call (function recursion, not a module-cycle error). Use two entries plus `sqrt(-1)` in the shared helper to prove one defining-file fault, then `root(x) = sqrt(x)` called with `-1` to retain the caller-precondition policy. Malformed/multiple schema links stay negative source-located cases.
+
+Review conclusion: the compiler and host boundaries can accommodate the agreed contract without authored execution or runtime/schema changes. All runtime/config-resolution behavior and the examples above remain **unverified until their owning implementation gates**; Phase 0 completes only the written feasibility decision.
 
 ## Phase 1 — Same-file typed helpers
 
@@ -193,13 +296,13 @@ Expected files:
 
 - `packages/cli/src/check.ts`, `discover.ts`, `package.json` (only if config parsing requires a runtime dependency), `packages/cli/test/cli.test.ts` (or new `reusable-graph.test.ts`) — project/relative resolution and one diagnostic per authored fault.
 - `packages/core/src/` (graph-input/path normalization contract, if needed) — only environment-neutral changes.
-- `packages/lsp/src/project-discovery.ts` and project fixtures — inspect/reuse project-selection rules; change only if shared behavior requires it.
+- `packages/project/` (new Node-only shared host package), consumer package manifests/lockfile, `packages/lsp/src/project-discovery.ts` and project fixtures — extract/reuse the Phase 0 project-selection/config/loading contract without adding host dependencies to core. Preserve the LSP discovery facade/tests where practical.
 
 Tasks:
 
 - [ ] Load a selected project's `tsconfig.json` `paths` (including relevant config inheritance), resolve relative/aliased `.shdr.ts` sources with deterministic file identities, and give explicit errors for unsupported/no-config alias use.
 - [ ] Check helper-only entries, discovered fragments and their allowed dependencies; report a shared-file error once per check rather than multiplying it by dependents.
-- [ ] Use isolated temporary TS projects to test aliases, missing/out-of-project files, cyclic graphs and diagnostics at the actual owner file/line, without modifying workspace fixtures during the run.
+- [ ] Use isolated temporary TS projects to test aliases, missing/non-shader files, cyclic graphs and diagnostics at the actual owner file/line, without modifying workspace fixtures during the run. Include no-config/excluded-config no-import and relative-graph successes, alias failures without selected config, and an explicit entry outside cwd importing `../lib/helper.shdr.ts` outside its config-search root.
 - [ ] Keep existing CLI discovery, single-file checks and ordinary TypeScript responsibility unchanged.
 
 Verification:
@@ -226,7 +329,7 @@ Review boundary: host file loading, dependency watching, artifact output and neg
 
 Expected files:
 
-- `packages/vite/src/index.ts`, `packages/vite/test/index.test.ts` — graph-aware transform and error locations.
+- `packages/vite/src/index.ts`, `packages/vite/test/index.test.ts`, `packages/vite/package.json` — graph-aware transform/error locations and shared `@shdr/project` dependency.
 - `apps/vite-basic/src/` (new shared `.shdr.ts` and importing entry fixtures), `apps/vite-basic/verify-build.mjs`, `verify-dev.mjs` — static bundle and invalidation checks with isolated/edit-restoring source handling.
 
 Tasks:
@@ -253,7 +356,7 @@ Review boundary: virtual project snapshots, cross-file QuickInfo/ranges and inva
 Expected files:
 
 - `packages/language-service/src/typescript-7-editor-adapter.ts`, `typescript-7-checker.ts`, `diagnostic-routing.ts`, `packages/language-service/test/reusable-project-editor.test.ts` (new) — cross-file mapping/refresh.
-- `packages/lsp/src/project-discovery.ts`, `server.ts`, `packages/lsp/test/` — project-aware source lookup and protocol tests if needed.
+- `packages/lsp/src/project-discovery.ts`, `server.ts`, `packages/lsp/test/`, language-service/LSP package manifests — shared host-loader integration, project-aware source lookup and file-owned protocol publication/tests.
 - `apps/editor-fixture/` (new project helper/fragment fixtures), `apps/editor-fixture/src/extension.test.ts`, `apps/editor-fixture/test.mjs` — real editor coverage.
 
 Tasks:
