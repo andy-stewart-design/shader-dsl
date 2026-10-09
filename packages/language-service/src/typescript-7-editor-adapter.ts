@@ -1,10 +1,14 @@
 import {
   analyzeFragment,
+  checkShaderGraph,
   isShaderBuiltinName,
   ShaderDiagnosticCode,
+  type ShaderDiagnostic,
   type ShaderExpressionSyntax,
   type TextRange,
 } from "@shdr/core";
+import { loadShaderGraphSync, ProjectInputError } from "@shdr/project";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -30,6 +34,7 @@ export interface TypeScript7EditorDocumentInput {
 
 export interface TypeScript7EditorDocument {
   readonly fileName: string;
+  readonly source: string;
   readonly version: EditorDocumentVersion;
   readonly projectVersion: EditorDocumentVersion;
   readonly isShader: boolean;
@@ -98,7 +103,12 @@ export class TypeScript7EditorAdapter {
 
     const original = this.#checker.checkSource(fileName, input.source);
     try {
-      const document = this.#createShaderDocument(input, fileName, original);
+      const document = this.#createShaderDocument(
+        input,
+        fileName,
+        original,
+        this.#graphDiagnostics(fileName, input.source),
+      );
       this.#documents.set(fileName, document);
       return document;
     } catch (error) {
@@ -136,14 +146,60 @@ export class TypeScript7EditorAdapter {
     this.#projectVersion = projectVersion;
   }
 
+  #graphDiagnostics(
+    fileName: string,
+    source: string,
+  ): readonly ShaderDiagnostic[] {
+    try {
+      const entry = resolve(this.#cwd, fileName);
+      const loaded = loadShaderGraphSync({
+        entry,
+        searchRoots: [this.#cwd],
+        readSource: (candidate) => {
+          const resolvedCandidate = resolve(this.#cwd, candidate);
+          if (resolvedCandidate === entry) return source;
+          return (
+            this.#documents.get(resolvedCandidate)?.source ??
+            readFileSync(resolvedCandidate, "utf8")
+          );
+        },
+      });
+      const fileCount =
+        loaded.input.files instanceof Map
+          ? loaded.input.files.size
+          : Object.keys(loaded.input.files).length;
+      if (fileCount < 2 && !isHelperOnlySource(source)) {
+        return [];
+      }
+      const checked = checkShaderGraph(loaded.input);
+      if (checked.ok) return [];
+      return checked.diagnostics
+        .filter((diagnostic) => diagnostic.fileName === entry)
+        .map(({ fileName: _fileName, ...diagnostic }) => diagnostic);
+    } catch (error) {
+      if (!(error instanceof ProjectInputError)) throw error;
+      return [];
+    }
+  }
+
   #createShaderDocument(
     input: TypeScript7EditorDocumentInput,
     fileName: string,
     original: CheckedTypeScriptSource,
+    graphDiagnostics: readonly ShaderDiagnostic[],
   ): TypeScript7EditorDocumentImpl {
     const analysis = analyzeFragment(input.source, fileName);
+    const helperOnly = isHelperOnlySource(input.source);
     const transformed = analysis.virtual;
     if (!transformed.ok) {
+      const diagnostics = helperOnly
+        ? transformed.diagnostics.filter(
+            (diagnostic) =>
+              diagnostic.code !==
+                ShaderDiagnosticCode.MissingCreateFragmentShaderImport &&
+              diagnostic.code !== ShaderDiagnosticCode.MissingDefaultExport,
+          )
+        : transformed.diagnostics;
       return new TypeScript7EditorDocumentImpl({
         fileName,
         source: input.source,
@@ -151,23 +207,32 @@ export class TypeScript7EditorAdapter {
         projectVersion: input.projectVersion,
         isShader: true,
         delegated: false,
-        diagnostics: routeShaderDiagnostics({
-          shaderRegion: transformed.shaderRegion,
-          shaderRegions: transformed.shaderRegions,
-          originalSyntacticDiagnostics: original.syntacticDiagnostics,
-          originalSemanticDiagnostics: original.semanticDiagnostics,
-          coreDiagnostics: transformed.diagnostics,
-        }),
-        shaderRegion: transformed.shaderRegion,
-        shaderRegions: transformed.shaderRegions,
+        diagnostics: mergeRoutedDiagnostics(
+          routeShaderDiagnostics({
+            shaderRegion: helperOnly ? undefined : transformed.shaderRegion,
+            shaderRegions: helperOnly
+              ? (transformed.shaderRegions ?? [])
+              : transformed.shaderRegions,
+            originalSyntacticDiagnostics: original.syntacticDiagnostics,
+            originalSemanticDiagnostics: original.semanticDiagnostics,
+            coreDiagnostics: diagnostics,
+          }),
+          graphDiagnostics,
+        ),
+        shaderRegion: helperOnly ? undefined : transformed.shaderRegion,
+        shaderRegions: helperOnly ? [] : transformed.shaderRegions,
         original,
+        useOriginalForShader: helperOnly,
       });
     }
 
     const lowered = analysis.lowered;
     const parsedInfo = !lowered.ok ? analysis.parsed.info : undefined;
-    const hasLocalHelpers = !!analysis.parsed.info?.functions?.length;
-    const helperFailure = hasLocalHelpers && !lowered.ok;
+    const hasLocalHelpers = !!(
+      analysis.parsed.info?.functions?.length ||
+      analysis.parsed.helperFunctions?.length
+    );
+    const helperFailure = hasLocalHelpers && !lowered.ok && !helperOnly;
     const definitionFailure =
       helperFailure &&
       parsedInfo?.functions?.some((helper) =>
@@ -190,6 +255,56 @@ export class TypeScript7EditorAdapter {
     const virtual = unchanged
       ? undefined
       : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
+    const coreDiagnostics = lowered.ok
+      ? []
+      : helperOnly
+        ? lowered.diagnostics.filter(
+            (diagnostic) =>
+              diagnostic.code !==
+                ShaderDiagnosticCode.MissingCreateFragmentShaderImport &&
+              diagnostic.code !== ShaderDiagnosticCode.MissingDefaultExport,
+          )
+        : hasLocalHelpers
+          ? lowered.diagnostics
+          : lowered.diagnostics.filter(
+              (diagnostic) =>
+                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
+                diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                diagnostic.code ===
+                  ShaderDiagnosticCode.InvalidNumericLiteral ||
+                (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
+                  parsedInfo !== undefined &&
+                  parsedInfo.callback.syntax.declarations.some(
+                    (declaration) =>
+                      declaration.nameRange.start === diagnostic.range.start &&
+                      declaration.nameRange.length ===
+                        diagnostic.range.length &&
+                      parsedInfo.shaderCallableImports.some(
+                        (entry) => entry.localName === declaration.name,
+                      ),
+                  )) ||
+                (parsedInfo !== undefined &&
+                  [
+                    ...parsedInfo.callback.syntax.declarations.map(
+                      (declaration) => declaration.initializer,
+                    ),
+                    parsedInfo.callback.syntax.returnExpression,
+                  ].some((expression) =>
+                    hasEnclosingBuiltinCall(expression, diagnostic.range),
+                  )),
+            );
+    const routed = routeShaderDiagnostics({
+      virtualSource: transformed.virtualSource,
+      originalSyntacticDiagnostics: original.syntacticDiagnostics,
+      originalSemanticDiagnostics: original.semanticDiagnostics,
+      virtualSemanticDiagnostics: helperFailure
+        ? []
+        : (virtual?.semanticDiagnostics ?? original.semanticDiagnostics),
+      shaderOperationDiagnostics: helperFailure
+        ? []
+        : (virtual?.shaderOperationDiagnostics ?? []),
+      coreDiagnostics,
+    });
     return new TypeScript7EditorDocumentImpl({
       fileName,
       source: input.source,
@@ -197,50 +312,7 @@ export class TypeScript7EditorAdapter {
       projectVersion: input.projectVersion,
       isShader: true,
       delegated: false,
-      diagnostics: routeShaderDiagnostics({
-        virtualSource: transformed.virtualSource,
-        originalSyntacticDiagnostics: original.syntacticDiagnostics,
-        originalSemanticDiagnostics: original.semanticDiagnostics,
-        virtualSemanticDiagnostics: helperFailure
-          ? []
-          : (virtual?.semanticDiagnostics ?? original.semanticDiagnostics),
-        shaderOperationDiagnostics: helperFailure
-          ? []
-          : (virtual?.shaderOperationDiagnostics ?? []),
-        coreDiagnostics: lowered.ok
-          ? []
-          : hasLocalHelpers
-            ? lowered.diagnostics
-            : lowered.diagnostics.filter(
-                (diagnostic) =>
-                  diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
-                  diagnostic.code ===
-                    ShaderDiagnosticCode.InvalidBuiltinDomain ||
-                  diagnostic.code ===
-                    ShaderDiagnosticCode.InvalidNumericLiteral ||
-                  (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
-                    parsedInfo !== undefined &&
-                    parsedInfo.callback.syntax.declarations.some(
-                      (declaration) =>
-                        declaration.nameRange.start ===
-                          diagnostic.range.start &&
-                        declaration.nameRange.length ===
-                          diagnostic.range.length &&
-                        parsedInfo.shaderCallableImports.some(
-                          (entry) => entry.localName === declaration.name,
-                        ),
-                    )) ||
-                  (parsedInfo !== undefined &&
-                    [
-                      ...parsedInfo.callback.syntax.declarations.map(
-                        (declaration) => declaration.initializer,
-                      ),
-                      parsedInfo.callback.syntax.returnExpression,
-                    ].some((expression) =>
-                      hasEnclosingBuiltinCall(expression, diagnostic.range),
-                    )),
-              ),
-      }),
+      diagnostics: mergeRoutedDiagnostics(routed, graphDiagnostics),
       shaderRegion: transformed.virtualSource.shaderRegion,
       shaderRegions: transformed.virtualSource.shaderRegions,
       // A failed definition can corrupt inferred helper/dependent types. A
@@ -346,6 +418,45 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     this.#virtual?.dispose();
     this.#original?.dispose();
   }
+}
+
+function mergeRoutedDiagnostics(
+  local: readonly RoutedDiagnostic[],
+  graph: readonly ShaderDiagnostic[],
+): readonly RoutedDiagnostic[] {
+  return [
+    ...local,
+    ...graph
+      .filter(
+        (diagnostic) =>
+          !local.some(
+            (existing) =>
+              existing.source === "shdr" &&
+              rangesOverlap(existing.range, diagnostic.range),
+          ),
+      )
+      .map((diagnostic) => ({
+        ...diagnostic,
+        category: "error" as const,
+        source: "shdr" as const,
+      })),
+  ];
+}
+
+function rangesOverlap(left: TextRange, right: TextRange): boolean {
+  if (left.length === 0) return containsPosition(right, left.start);
+  if (right.length === 0) return containsPosition(left, right.start);
+  return (
+    left.start < right.start + right.length &&
+    right.start < left.start + left.length
+  );
+}
+
+function isHelperOnlySource(source: string): boolean {
+  return (
+    !/\bexport\s+default\b/.test(source) &&
+    /\b(?:defineShaderFunction|defineUniforms)\b/.test(source)
+  );
 }
 
 function hasEnclosingBuiltinCall(

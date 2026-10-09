@@ -208,6 +208,9 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../core
+      '@shdr/project':
+        specifier: workspace:*
+        version: link:../project
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -227,9 +230,15 @@ importers:
 
   packages/lsp:
     dependencies:
+      '@shdr/core':
+        specifier: workspace:*
+        version: link:../core
       '@shdr/language-service':
         specifier: workspace:*
         version: link:../language-service
+      '@shdr/project':
+        specifier: workspace:*
+        version: link:../project
       typescript:
         specifier: 7.0.2
         version: 7.0.2

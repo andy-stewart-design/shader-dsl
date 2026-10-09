@@ -1,5 +1,5 @@
 import { parse } from "@babel/parser";
-import { existsSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { API, type Project } from "typescript/unstable/sync";
@@ -39,6 +39,12 @@ export interface LoadShaderGraphOptions {
   readonly entry: string;
   readonly searchRoots: readonly string[];
   readonly readSource?: (fileName: string) => Promise<string>;
+}
+
+export interface LoadShaderGraphSyncOptions {
+  readonly entry: string;
+  readonly searchRoots: readonly string[];
+  readonly readSource?: (fileName: string) => string;
 }
 
 export interface LoadedShaderGraph {
@@ -114,6 +120,51 @@ export async function loadShaderGraph(
     files.set(fileName, source);
     for (const specifier of sourceSpecifiers(source, fileName)) {
       const dependency = await resolveShaderSpecifier(
+        fileName,
+        specifier,
+        project.paths,
+      );
+      if (dependency) pending.push(canonicalMaybe(dependency));
+    }
+  }
+
+  return {
+    input: {
+      entry,
+      files,
+      ...(Object.keys(project.paths).length ? { paths: project.paths } : {}),
+    },
+    project,
+  };
+}
+
+/** Synchronous counterpart for editor/LSP notification handlers. */
+export function loadShaderGraphSync(
+  options: LoadShaderGraphSyncOptions,
+): LoadedShaderGraph {
+  const entry = canonicalMaybe(options.entry);
+  const project = selectProject(entry, options.searchRoots);
+  const files = new Map<string, string>();
+  const readSource =
+    options.readSource ??
+    ((fileName: string) => readFileSync(fileName, "utf8"));
+  const pending = [entry];
+
+  while (pending.length) {
+    const fileName = pending.pop()!;
+    if (files.has(fileName)) continue;
+    let source: string;
+    try {
+      source = readSource(fileName);
+    } catch (error) {
+      throw new ProjectInputError(
+        `Cannot read shader file ${JSON.stringify(fileName)}.`,
+        { cause: error },
+      );
+    }
+    files.set(fileName, source);
+    for (const specifier of sourceSpecifiers(source, fileName)) {
+      const dependency = resolveShaderSpecifierSync(
         fileName,
         specifier,
         project.paths,
@@ -260,6 +311,39 @@ function sourceSpecifiers(source: string, fileName: string): readonly string[] {
   });
 }
 
+function resolveShaderSpecifierSync(
+  importer: string,
+  specifier: string,
+  paths: Readonly<Record<string, readonly string[]>>,
+): string | undefined {
+  if (specifier.startsWith("./") || specifier.startsWith("../")) {
+    const candidate = specifier.endsWith(".shdr.ts")
+      ? resolve(dirname(importer), specifier)
+      : undefined;
+    return candidate && isFileSync(candidate) ? candidate : undefined;
+  }
+  const mappings = Object.entries(paths).filter(([pattern]) =>
+    matches(pattern, specifier),
+  );
+  const exact = mappings.find(([pattern]) => !pattern.includes("*"));
+  const selected =
+    exact ??
+    [...mappings].sort(
+      ([left], [right]) => wildcardPrefix(right) - wildcardPrefix(left),
+    )[0];
+  if (!selected) return undefined;
+  const [pattern, targets] = selected;
+  const star = wildcardValue(pattern, specifier);
+  for (const target of targets) {
+    const substituted = target.includes("*")
+      ? target.replace("*", star ?? "")
+      : target;
+    if (substituted.endsWith(".shdr.ts") && isFileSync(substituted))
+      return substituted;
+  }
+  return undefined;
+}
+
 async function resolveShaderSpecifier(
   importer: string,
   specifier: string,
@@ -334,6 +418,14 @@ function canonicalMaybe(fileName: string): string {
     return realpathSync(fileName);
   } catch {
     return resolve(fileName);
+  }
+}
+
+function isFileSync(fileName: string): boolean {
+  try {
+    return statSync(fileName).isFile();
+  } catch {
+    return false;
   }
 }
 

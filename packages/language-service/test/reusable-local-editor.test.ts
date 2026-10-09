@@ -57,6 +57,81 @@ function hover(
 }
 
 describe("same-file shader helper TypeScript 7 editor parity", () => {
+  it("transforms helper-only bodies while retaining ordinary TypeScript diagnostics", () => {
+    const editor = adapter();
+    const text = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+const ordinary: string = 1;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * 0.5);`;
+    try {
+      const document = update(editor, text);
+      expect(document.diagnostics).toEqual([
+        expect.objectContaining({ source: "typescript", code: 2322 }),
+      ]);
+      expect(
+        document.getQuickInfoAtPosition(text.indexOf("scale ="))?.display,
+      ).toContain("Expr<F32>");
+      const widened = text.replace("Expr<F32>", "Expr<Vec2<F32>>");
+      const refreshed = update(editor, widened, 2, 2);
+      expect(refreshed.diagnostics).toEqual([
+        expect.objectContaining({ source: "typescript", code: 2322 }),
+      ]);
+      expect(
+        refreshed.getQuickInfoAtPosition(widened.indexOf("scale ="))?.display,
+      ).toContain("Expr<Vec2<F32>>");
+    } finally {
+      editor.dispose();
+    }
+  });
+
+  it("refreshes imported helper hovers and reports a newly invalid call", () => {
+    const editor = adapter();
+    const helperFile = join(cwd, "imported-helper.shdr.ts");
+    const entryFile = join(cwd, "imported-entry.shdr.ts");
+    const helper = readFileSync(helperFile, "utf8");
+    const entry = readFileSync(entryFile, "utf8");
+    try {
+      editor.updateDocument({
+        fileName: helperFile,
+        source: helper,
+        version: 1,
+        projectVersion: 1,
+      });
+      const initial = editor.updateDocument({
+        fileName: entryFile,
+        source: entry,
+        version: 1,
+        projectVersion: 1,
+      });
+      expect(initial.diagnostics).toEqual([]);
+      expect(
+        initial.getQuickInfoAtPosition(entry.indexOf("scale("))?.display,
+      ).toContain("Expr<F32>");
+
+      const widened = helper.replace("Expr<F32>", "Expr<Vec2<F32>>");
+      editor.updateDocument({
+        fileName: helperFile,
+        source: widened,
+        version: 2,
+        projectVersion: 2,
+      });
+      const refreshed = editor.updateDocument({
+        fileName: entryFile,
+        source: entry,
+        version: 1,
+        projectVersion: 2,
+      });
+      expect(refreshed.diagnostics).toEqual([
+        expect.objectContaining({ source: "shdr", code: "SHDR1213" }),
+      ]);
+      expect(
+        refreshed.getQuickInfoAtPosition(entry.indexOf("scale("))?.display,
+      ).toContain("Expr<Vec2<F32>>");
+    } finally {
+      editor.dispose();
+    }
+  });
+
   it("infers forward/transitive calls and hovers definitions, parameters, locals and fragment uses", () => {
     const editor = adapter();
     try {
