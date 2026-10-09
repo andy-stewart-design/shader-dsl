@@ -228,7 +228,7 @@ Review boundary: no new language shapes or runtime API; fix consumer integration
 
 ### Step 3.1 — Vite source-graph transform and static boundary
 
-Status: Pending
+Status: Verified — graph-aware Vite transform, dependency watching/HMR and static-boundary gate; editor/LSP integration remains pending.
 Requirements / acceptance: R5, R8–R9, R12; AC4, AC5 (Vite portions), AC7.
 Depends on: Phase 2 exit.
 Review boundary: host file loading, dependency watching, artifact output and negative named-runtime imports.
@@ -240,17 +240,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Resolve fragments through the same effective project/alias rule as CLI, load reachable `.shdr.ts` sources before transformation and register them as Vite dependencies; keep the default runtime export as JSON artifact data.
-- [ ] Handle helper-only modules as compile-time sources and reject ordinary host named imports of helpers/uniform declarations rather than shipping source or a fake callable export.
-- [ ] Check a valid imported helper/schema, invalid import attribution, shared-helper edits propagating to two dependent fragments, and schema-default edits changing both artifacts; test restoring/isolating edited source on failure.
-- [ ] Inspect both production dual-backend and WebGL-only bundles for compiler/DSL/authored-source leakage while retaining existing artifact type usability.
+- [x] Resolve fragments through the same effective project/alias rule as CLI, load reachable `.shdr.ts` sources before transformation and register them as Vite dependencies; keep the default runtime export as JSON artifact data.
+- [x] Handle helper-only modules as compile-time sources and reject ordinary host named imports of helpers/uniform declarations rather than shipping source or a fake callable export.
+- [x] Check a valid imported helper/schema, invalid import attribution, shared-helper edits propagating to two dependent fragments, and schema-default edits changing both artifacts; test restoring/isolating edited source on failure.
+- [x] Inspect both production dual-backend and WebGL-only bundles for compiler/DSL/authored-source leakage while retaining existing artifact type usability.
 
 Verification:
 
 - Automated: extend `packages/vite/test/index.test.ts`, `apps/vite-basic/verify-dev.mjs` and `verify-build.mjs`; run `pnpm --filter @shdr/vite test`, `pnpm --dir apps/vite-basic build`, and `pnpm --dir apps/vite-basic test:dev` after dependency builds. Unit tests prove transform behavior; Vite dev checks prove real dependent invalidation; production checks prove static bundle exclusion. A proposed negative fixture asserts named runtime imports fail clearly.
 - Manual: Not needed if the dev-server tests perform actual dependency edits/reloads and the build checks inspect the emitted graph.
 
-Completion gate: both entries update after a shared edit, malformed imports report the correct authored file, the production bundle contains only artifacts/renderer code, and host named helper imports do not execute. Evidence: Not run.
+Completion gate: both entries update after a shared edit, malformed imports report the correct authored file, the production bundle contains only artifacts/renderer code, and host named helper imports do not execute. Evidence: `@shdr/vite` passed 14 tests and its check, including aliased imported helper/schema transforms, dependency-owned diagnostics, schema edits, dependency watching, direct helper-module rejection and an ordinary-host Vite build rejection fixture; `vite-basic` check passed, production build verification passed, and real Vite dev verification passed same-module-ID shared-helper invalidation for two entries, two-consumer imported-schema invalidation/restoration, plus browser reload on 2026-10-08. The static dual/WebGL-only bundles contain no compiler, DSL source or unused renderer.
 
 ### Step 3.2 — Project-aware editor and LSP diagnostics
 

@@ -5,6 +5,7 @@ import type { Renderer } from "@shdr/runtime/types";
 import type { CompiledFragmentArtifact } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
+import alternateFragmentShader from "./gradient-alt.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
@@ -16,9 +17,12 @@ import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
 import customNamed from "./custom-demo-named.shdr.ts";
+import sharedSchemaA from "./custom-shared-a.shdr.ts";
+import sharedSchemaB from "./custom-shared-b.shdr.ts";
 import "./style.css";
 
 const shader: CompiledFragmentArtifact = fragmentShader;
+const alternateShader: CompiledFragmentArtifact = alternateFragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
 const cells: CompiledFragmentArtifact = cellsShader;
@@ -29,6 +33,8 @@ const plasma: CompiledFragmentArtifact = plasmaShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
+  sharedSchemaA.custom?.declarations[0]?.type !== "f32" ||
+  sharedSchemaB.custom?.declarations[0]?.type !== "f32" ||
   !customUniformsShader.wgsl.includes("@group(1) @binding(0)")
 )
   throw new Error(
@@ -37,6 +43,7 @@ if (
 if (
   !expanded.glsl.includes("vec3(") ||
   !shader.wgsl.includes("shdr_fragment_main") ||
+  !alternateShader.glsl.includes("void main()") ||
   !vectorArithmetic.wgsl.includes("vec3<f32>(1.0f)") ||
   !vectorArithmetic.glsl.includes("vec3(") ||
   !cells.wgsl.includes("mix(") ||

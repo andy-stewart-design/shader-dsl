@@ -8,6 +8,15 @@ const shaderFile = fileURLToPath(
   new URL("./src/gradient.shdr.ts", import.meta.url),
 );
 const originalSource = await readFile(shaderFile, "utf8");
+const helperShaderFile = fileURLToPath(
+  new URL("./src/shared/gradient-helper.shdr.ts", import.meta.url),
+);
+const helperSource = await readFile(helperShaderFile, "utf8");
+const alternateShaderName = "gradient-alt";
+const schemaShaderFile = fileURLToPath(
+  new URL("./src/shared/custom-schema.shdr.ts", import.meta.url),
+);
+const schemaSource = await readFile(schemaShaderFile, "utf8");
 const customShaderFile = fileURLToPath(
   new URL("./src/custom-uniforms.shdr.ts", import.meta.url),
 );
@@ -35,6 +44,8 @@ const server = await createServer({
 });
 let browser;
 let sourceWasEdited = false;
+let helperWasEdited = false;
+let schemaWasEdited = false;
 let customWasEdited = false;
 let namedWasEdited = false;
 
@@ -47,6 +58,12 @@ try {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   const initialModule = await requestShaderModule(baseUrl, "initial");
+  const initialAlternate = await requestShaderModule(
+    baseUrl,
+    "initial-alternate",
+    alternateShaderName,
+  );
+  assertIncludes(initialAlternate, "shdr_fragment_main");
   const initialCustom = await requestShaderModule(
     baseUrl,
     "initial-custom",
@@ -59,6 +76,18 @@ try {
     "initial-named",
     "custom-demo-named",
   );
+  const sharedSchemaA = await requestShaderModule(
+    baseUrl,
+    "initial-shared-schema-a",
+    "custom-shared-a",
+  );
+  const sharedSchemaB = await requestShaderModule(
+    baseUrl,
+    "initial-shared-schema-b",
+    "custom-shared-b",
+  );
+  assertMatches(sharedSchemaA, /"default":\s*(?:0)?\.5/);
+  assertMatches(sharedSchemaB, /"default":\s*(?:0)?\.5/);
   assertIncludes(namedModule, "@group(1) @binding(0)");
   assertIncludes(namedModule, "shdr_custom_1");
   assertExcludes(namedModule, "defineUniforms");
@@ -85,25 +114,38 @@ try {
 
   await page.goto(baseUrl, { waitUntil: "load" });
   await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
-  const browserCompile = await page.evaluate(async (source) => {
-    const { compileFragmentArtifact } =
-      await import("/src/browser-compiler-smoke.ts");
-    const { default: staticArtifact } = await import("/src/gradient.shdr.ts");
-    const compiled = compileFragmentArtifact(source);
-    const invalid = source.replace(
-      "vec4(uv.x, uv.y, 0, 1)",
-      "vec4(coord.xy + coord.xyz)",
-    );
-    const failure = compileFragmentArtifact(invalid);
-    return {
-      compiled,
-      equal:
-        compiled.ok &&
-        JSON.stringify(compiled.artifact) === JSON.stringify(staticArtifact),
-      failure,
-      invalidExpressionStart: invalid.indexOf("coord.xy + coord.xyz"),
-    };
-  }, originalSource);
+  const browserCompile = await page.evaluate(
+    async ({ source, helper }) => {
+      const { compileFragmentArtifact } =
+        await import("/src/browser-compiler-smoke.ts");
+      const { default: staticArtifact } = await import("/src/gradient.shdr.ts");
+      const graph = {
+        entry: "/src/gradient.shdr.ts",
+        files: {
+          "/src/gradient.shdr.ts": source,
+          "/src/shared/gradient-helper.shdr.ts": helper,
+        },
+      };
+      const compiled = compileFragmentArtifact(graph);
+      const invalid = source.replace(
+        "vec4(uv.x, uv.y, 0, 1)",
+        "vec4(coord.xy + coord.xyz)",
+      );
+      const failure = compileFragmentArtifact({
+        ...graph,
+        files: { ...graph.files, "/src/gradient.shdr.ts": invalid },
+      });
+      return {
+        compiled,
+        equal:
+          compiled.ok &&
+          JSON.stringify(compiled.artifact) === JSON.stringify(staticArtifact),
+        failure,
+        invalidExpressionStart: invalid.indexOf("coord.xy + coord.xyz"),
+      };
+    },
+    { source: originalSource, helper: helperSource },
+  );
   if (!browserCompile.equal || !browserCompile.compiled.ok) {
     throw new Error(
       "Opt-in browser compiler did not match the static Vite artifact.",
@@ -119,6 +161,75 @@ try {
       "Opt-in browser compiler did not return original-source diagnostics.",
     );
   }
+  const editedHelper = helperSource.replace(
+    "vec4(color.r, color.g, color.b, color.a)",
+    "vec4(color.r + 0.1, color.g, color.b, color.a)",
+  );
+  if (editedHelper === helperSource)
+    throw new Error(
+      "The shared-helper fixture did not contain its edit target.",
+    );
+  await requestShaderModule(baseUrl, "shared-helper-gradient", "gradient");
+  await requestShaderModule(
+    baseUrl,
+    "shared-helper-alternate",
+    alternateShaderName,
+  );
+  await writeFile(helperShaderFile, editedHelper);
+  helperWasEdited = true;
+  const editedSharedEntry = await waitForShaderTransform(
+    baseUrl,
+    "shared-helper-gradient",
+    "gradient",
+    (module) => module.includes("0.1"),
+  );
+  const editedSharedAlternate = await waitForShaderTransform(
+    baseUrl,
+    "shared-helper-alternate",
+    alternateShaderName,
+    (module) => module.includes("0.1"),
+  );
+  assertIncludes(editedSharedEntry, "0.1");
+  assertIncludes(editedSharedAlternate, "0.1");
+  await writeFile(helperShaderFile, helperSource);
+  helperWasEdited = false;
+
+  await requestShaderModule(baseUrl, "shared-schema-a", "custom-shared-a");
+  await requestShaderModule(baseUrl, "shared-schema-b", "custom-shared-b");
+  const editedSchema = schemaSource.replace("u.f32(0.5)", "u.f32(0.75)");
+  if (editedSchema === schemaSource)
+    throw new Error(
+      "The shared-schema fixture did not contain its edit target.",
+    );
+  await writeFile(schemaShaderFile, editedSchema);
+  schemaWasEdited = true;
+  await waitForShaderTransform(
+    baseUrl,
+    "shared-schema-a",
+    "custom-shared-a",
+    (module) => /"default":\s*(?:0)?\.75/.test(module),
+  );
+  await waitForShaderTransform(
+    baseUrl,
+    "shared-schema-b",
+    "custom-shared-b",
+    (module) => /"default":\s*(?:0)?\.75/.test(module),
+  );
+  await writeFile(schemaShaderFile, schemaSource);
+  schemaWasEdited = false;
+  await waitForShaderTransform(
+    baseUrl,
+    "shared-schema-a",
+    "custom-shared-a",
+    (module) => /"default":\s*(?:0)?\.5/.test(module),
+  );
+  await waitForShaderTransform(
+    baseUrl,
+    "shared-schema-b",
+    "custom-shared-b",
+    (module) => /"default":\s*(?:0)?\.5/.test(module),
+  );
+
   const customParity = await page.evaluate(async (source) => {
     const { compileFragmentArtifact } =
       await import("/src/browser-compiler-smoke.ts");
@@ -246,6 +357,7 @@ try {
     window.__shdrBeforeEdit = true;
   });
 
+  await requestShaderModule(baseUrl, "edited-gradient", "gradient");
   await writeFile(
     shaderFile,
     originalSource.replace(originalConstructor, editedConstructor),
@@ -273,6 +385,8 @@ try {
   if (sourceWasEdited) await writeFile(shaderFile, originalSource);
   if (customWasEdited) await writeFile(customShaderFile, customSource);
   if (namedWasEdited) await writeFile(namedShaderFile, namedSource);
+  if (helperWasEdited) await writeFile(helperShaderFile, helperSource);
+  if (schemaWasEdited) await writeFile(schemaShaderFile, schemaSource);
   if (browser) await browser.close();
   await server.close();
 }
@@ -290,15 +404,29 @@ async function requestShaderModule(baseUrl, cacheKey, shaderName = "gradient") {
 }
 
 async function waitForEditedTransform(baseUrl) {
+  return waitForShaderTransform(
+    baseUrl,
+    "edited-gradient",
+    "gradient",
+    (module) => module.includes("0.25"),
+  );
+}
+
+async function waitForShaderTransform(
+  baseUrl,
+  cacheKey,
+  shaderName,
+  predicate,
+) {
   const timeoutAt = Date.now() + 5_000;
   let latest = "";
   while (Date.now() < timeoutAt) {
-    latest = await requestShaderModule(baseUrl, String(Date.now()));
-    if (latest.includes("0.25")) return latest;
+    latest = await requestShaderModule(baseUrl, cacheKey, shaderName);
+    if (predicate(latest)) return latest;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(
-    `Vite did not invalidate the edited shader transform. Last response:\n${latest}`,
+    `Vite did not invalidate the ${shaderName} transform. Last response:\n${latest}`,
   );
 }
 
@@ -341,6 +469,12 @@ function assertIncludes(source, expected) {
     throw new Error(
       `Expected response to contain ${JSON.stringify(expected)}.`,
     );
+  }
+}
+
+function assertMatches(source, pattern) {
+  if (!pattern.test(source)) {
+    throw new Error(`Expected response to match ${pattern}.`);
   }
 }
 

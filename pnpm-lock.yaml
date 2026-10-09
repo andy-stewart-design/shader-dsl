@@ -322,6 +322,9 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../core
+      '@shdr/project':
+        specifier: workspace:*
+        version: link:../project
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
