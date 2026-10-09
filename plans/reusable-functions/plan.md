@@ -189,11 +189,11 @@ Verification:
 - Automated: add `packages/core/test/reusable-uniforms.test.ts`; run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-uniforms.test.ts test/custom-uniforms.test.ts`, `pnpm --filter shdr test`, and `pnpm --filter @shdr/core check`. Expect identical schema/defaults and no helper capture; runtime independence gets a real check in Step 4.1.
 - Manual: Not needed; this step changes compile-time linkage and metadata only.
 
-Completion gate: virtual imports select the same custom schema/metadata as a local definition; malformed links yield original-file diagnostics and all existing custom-uniform fixtures still pass. Evidence: imported-schema cases in `test/reusable-graph.test.ts` passed with metadata/reference-subset parity across local, exported-same-file, and aliased imported schemas, plus source-owned missing/invalid diagnostics; full core suite passed 385 tests; `shdr` tests/check, `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. No builder callback was evaluated and no artifact fields changed.
+Completion gate: virtual imports select the same custom schema/metadata as a local definition; malformed links yield original-file diagnostics and all existing custom-uniform fixtures still pass. Evidence: imported-schema cases in `test/reusable-graph.test.ts` passed with metadata/reference-subset parity across local, exported-same-file, and aliased imported schemas, plus source-owned missing/invalid diagnostics; full core suite passed 386 tests; `shdr` tests/check, `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. No builder callback was evaluated and no artifact fields changed.
 
 ### Step 2.3 — Shared TypeScript-project paths and CLI graph checking
 
-Status: Pending
+Status: Verified — shared TypeScript 7 project loading and CLI graph-checking gate; Vite/editor host integration remains pending.
 Requirements / acceptance: R5, R7, R9, R12; AC4, AC5 (CLI portion).
 Depends on: Steps 2.1–2.2 and Phase 0 resolution rule.
 Review boundary: project-backed resolution and CLI check presentation; Vite/editor must reuse the resulting effective graph contract, not invent new alias semantics.
@@ -206,19 +206,19 @@ Expected files:
 
 Tasks:
 
-- [ ] Load a selected project's `tsconfig.json` `paths` (including relevant config inheritance), resolve relative/aliased `.shdr.ts` sources with deterministic file identities, and give explicit errors for unsupported/no-config alias use.
-- [ ] Check helper-only entries, discovered fragments and their allowed dependencies; report a shared-file error once per check rather than multiplying it by dependents.
-- [ ] Use isolated temporary TS projects to test aliases, missing/non-shader files, cyclic graphs and diagnostics at the actual owner file/line, without modifying workspace fixtures during the run. Include no-config/excluded-config no-import and relative-graph successes, alias failures without selected config, and an explicit entry outside cwd importing `../lib/helper.shdr.ts` outside its config-search root.
-- [ ] Keep existing CLI discovery, single-file checks and ordinary TypeScript responsibility unchanged.
+- [x] Load a selected project's `tsconfig.json` `paths` (including relevant config inheritance), resolve relative/aliased `.shdr.ts` sources with deterministic file identities, and give explicit errors for unsupported/no-config alias use.
+- [x] Check helper-only entries, discovered fragments and their allowed dependencies; report a shared-file error once per check rather than multiplying it by dependents.
+- [x] Use isolated temporary TS projects to test aliases, missing/non-shader files, cyclic graphs and diagnostics at the actual owner file/line, without modifying workspace fixtures during the run. Include no-config/excluded-config no-import and relative-graph successes, alias failures without selected config, and an explicit entry outside cwd importing `../lib/helper.shdr.ts` outside its config-search root.
+- [x] Keep existing CLI discovery, single-file checks and ordinary TypeScript responsibility unchanged.
 
 Verification:
 
 - Automated: add CLI temp-project cases, then run `pnpm --filter @shdr/cli test` and `pnpm --filter @shdr/cli check` (root). Expect distinct successful relative/alias cases and deterministic negative output with no duplicated shared-file fault.
 - Manual: Not needed; CLI invocation and file/line output are covered by process-level tests. Final workspace `pnpm shdr check` is gated by Phase 4.
 
-Completion gate: CLI and virtual-map compilation agree on an equivalent graph, helper-only files check without dummy fragments, and no Node filesystem code enters browser core. Evidence: Not run.
+Completion gate: CLI and virtual-map compilation agree on an equivalent graph, helper-only files check without dummy fragments, and no Node filesystem code enters browser core. Evidence: `@shdr/project` tests passed 3 tests for inherited aliases, reachable-only loading, excluded projects, external relative dependencies and symlinked alias identity; CLI suite passed 23 tests including project aliases, helper-only entries, shared-fault deduplication, no-config alias failure and external relative dependencies; project/CLI checks and builds passed on 2026-10-08. Core remains environment-neutral and only receives the loaded virtual map. The project fixture also matches an equivalent canonical virtual graph for artifact output and source-owned diagnostics.
 
-Phase exit gate: `pnpm build`, focused core/CLI suites and uncached checks succeed; a project fixture and equivalent virtual map produce the same artifact and file-aware errors. Do not claim Vite/editor alias parity until Phase 3. Evidence: Not run.
+Phase exit gate: `pnpm build`, focused core/CLI suites and uncached checks succeed; a project fixture and equivalent virtual map produce the same artifact and file-aware errors. Do not claim Vite/editor alias parity until Phase 3. Evidence: `pnpm build` passed all 11 build tasks; `pnpm exec turbo run check --force` passed all 17 tasks with zero cache hits; core/CLI/project tests passed (386/23/3); project parity coverage passed for artifact equality and helper diagnostics with canonical file ownership. Vite/editor alias parity remains explicitly deferred to Phase 3.
 
 ## Phase 3 — Consumer integration and project editing
 

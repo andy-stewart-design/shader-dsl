@@ -128,6 +128,9 @@ importers:
       '@shdr/core':
         specifier: workspace:*
         version: link:../core
+      '@shdr/project':
+        specifier: workspace:*
+        version: link:../project
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -246,6 +249,28 @@ importers:
       shdr:
         specifier: workspace:*
         version: link:../shdr
+      tsdown:
+        specifier: ^0.22.5
+        version: 0.22.14(typescript@7.0.2)
+
+  packages/project:
+    dependencies:
+      '@babel/parser':
+        specifier: 8.0.4
+        version: 8.0.4
+      '@shdr/core':
+        specifier: workspace:*
+        version: link:../core
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
       tsdown:
         specifier: ^0.22.5
         version: 0.22.14(typescript@7.0.2)

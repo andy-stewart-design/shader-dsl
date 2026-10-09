@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { describe, expect, it } from "vitest";
 import { compileFragmentArtifact } from "../src/browser.js";
-import { ShaderDiagnosticCode } from "../src/index.js";
+import { checkShaderGraph, ShaderDiagnosticCode } from "../src/index.js";
 import type { ShaderVirtualGraphInput } from "../src/index.js";
 
 const math = `import { defineShaderFunction, fract } from "shdr";
@@ -189,6 +189,16 @@ export const bad = defineShaderFunction((x: Expr<F32>) => uniforms.gain + x);`,
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.artifact.glsl.match(/void main\(\)/g)).toHaveLength(1);
+  });
+
+  it("validates a mixed entry file's default body in check-only mode", () => {
+    const invalidEntry = mixedShared.replace("createFragmentShader, ", "");
+    const result = checkShaderGraph({
+      entry: "/work/scene.shdr.ts",
+      files: { "/work/scene.shdr.ts": invalidEntry },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
   it("ignores an unused dependency default body but validates the entry default body", () => {

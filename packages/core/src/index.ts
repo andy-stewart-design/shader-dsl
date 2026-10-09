@@ -96,7 +96,11 @@ export {
   type ShaderSourceImportInfo,
 } from "./parse-shader-file.js";
 export {
+  checkShaderGraph,
   lowerShaderGraph,
+  type CheckShaderGraphFailure,
+  type CheckShaderGraphResult,
+  type CheckShaderGraphSuccess,
   type LowerShaderGraphFailure,
   type LowerShaderGraphResult,
   type LowerShaderGraphSuccess,

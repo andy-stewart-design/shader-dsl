@@ -1,28 +1,32 @@
 {
-  "name": "@shdr/cli",
+  "name": "@shdr/project",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "shdr": "./dist/bin.mjs"
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsdown",
-    "pretest": "tsdown",
+    "dev": "tsdown --watch",
     "check": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },
   "dependencies": {
+    "@babel/parser": "8.0.4",
     "@shdr/core": "workspace:*",
-    "@shdr/project": "workspace:*"
+    "typescript": "7.0.2"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.13.3",
-    "tsdown": "^0.22.5",
-    "typescript": "7.0.2"
+    "tsdown": "^0.22.5"
   }
 }

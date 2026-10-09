@@ -49,6 +49,19 @@ export interface LowerShaderGraphFailure {
   readonly diagnostics: readonly ShaderGraphDiagnostic[];
 }
 
+export interface CheckShaderGraphSuccess {
+  readonly ok: true;
+  readonly diagnostics: readonly [];
+}
+
+export interface CheckShaderGraphFailure {
+  readonly ok: false;
+  readonly diagnostics: readonly ShaderGraphDiagnostic[];
+}
+
+export type CheckShaderGraphResult =
+  CheckShaderGraphSuccess | CheckShaderGraphFailure;
+
 export type LowerShaderGraphResult =
   LowerShaderGraphSuccess | LowerShaderGraphFailure;
 
@@ -62,6 +75,8 @@ interface GraphModule {
   readonly uniformSchemas: ReadonlyMap<string, ParsedCustomUniforms>;
   readonly exportedUniforms: ReadonlySet<string>;
   readonly sourceImports: readonly ShaderSourceImportInfo[];
+  readonly hasDefaultExport?: boolean;
+  readonly entryDiagnostics?: readonly ShaderGraphDiagnostic[];
 }
 
 interface LoadedGraphModule extends GraphModule {
@@ -87,6 +102,20 @@ interface VirtualFiles {
 export function lowerShaderGraph(
   input: ShaderVirtualGraphInput,
 ): LowerShaderGraphResult {
+  return lowerShaderGraphInternal(input, false) as LowerShaderGraphResult;
+}
+
+/** Validates all loaded helpers/schemas and an optional entry fragment without emitting an artifact. */
+export function checkShaderGraph(
+  input: ShaderVirtualGraphInput,
+): CheckShaderGraphResult {
+  return lowerShaderGraphInternal(input, true) as CheckShaderGraphResult;
+}
+
+function lowerShaderGraphInternal(
+  input: ShaderVirtualGraphInput,
+  checkOnly: boolean,
+): LowerShaderGraphResult | CheckShaderGraphResult {
   const files = normalizeFiles(input.files);
   const entry = normalizeFileId(input.entry);
   if (files.duplicate) {
@@ -379,6 +408,30 @@ export function lowerShaderGraph(
 
   const root = loaded.get(entry)!;
   if (!root.fragment) {
+    if (
+      checkOnly &&
+      !root.hasDefaultExport &&
+      (root.functions.length || root.uniformSchemas.size)
+    ) {
+      return { ok: true, diagnostics: [] };
+    }
+    if (checkOnly && root.entryDiagnostics?.length) {
+      return graphFailure(root.entryDiagnostics);
+    }
+    if (checkOnly && (root.functions.length || root.uniformSchemas.size)) {
+      return { ok: true, diagnostics: [] };
+    }
+    if (checkOnly) {
+      diagnostics.push(
+        diagnostic(
+          ShaderDiagnosticCode.MissingDefaultExport,
+          "The graph entry must contain a helper/schema declaration or a default-exported createFragmentShader(...) call.",
+          entry,
+          { start: 0, length: 0 },
+        ),
+      );
+      return graphFailure(diagnostics);
+    }
     diagnostics.push(
       diagnostic(
         ShaderDiagnosticCode.MissingDefaultExport,
@@ -471,6 +524,7 @@ function parseGraphModule(
         uniformSchemas: new Map(),
         exportedUniforms: new Set(),
         sourceImports: parsed.info.sourceImports,
+        hasDefaultExport: true,
       },
     };
   }
@@ -482,7 +536,17 @@ function parseGraphModule(
   if (fatal.length)
     return graphFailure(fatal.map((item) => withFileName(item, id)));
 
-  return parseGraphDependencyModule(source, id);
+  const dependency = parseGraphDependencyModule(source, id);
+  if (!dependency.ok) return dependency;
+  return {
+    ok: true,
+    module: {
+      ...dependency.module,
+      entryDiagnostics: parsed.diagnostics.map((item) =>
+        withFileName(item, id),
+      ),
+    },
+  };
 }
 
 function parseGraphDependencyModule(
@@ -565,6 +629,9 @@ function parseGraphDependencyModule(
       uniformSchemas: schemas.value,
       exportedUniforms: exportedUniformNames(file.file, schemas.value),
       sourceImports,
+      hasDefaultExport: file.file.program.body.some(
+        (statement) => statement.type === "ExportDefaultDeclaration",
+      ),
     },
   };
 }
