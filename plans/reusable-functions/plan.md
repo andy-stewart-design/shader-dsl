@@ -254,7 +254,7 @@ Completion gate: both entries update after a shared edit, malformed imports repo
 
 ### Step 3.2 — Project-aware editor and LSP diagnostics
 
-Status: Pending
+Status: Verified — project-aware LSP/editor diagnostics, aliases, dependency refresh and real VS Code UI gate.
 Requirements / acceptance: R5, R7, R9, R12; AC4, AC5 (editor portions).
 Depends on: Phase 2 exit and completed Step 3.1 (shared graph/alias contract).
 Review boundary: virtual project snapshots, cross-file QuickInfo/ranges and invalidation; ordinary `.ts` remains delegated.
@@ -267,17 +267,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Transform/recheck helper-body operations in their defining file as well as fragments, and map imported call/type errors to callers without attributing a dependency fault to every consumer.
-- [ ] Use the same selected TS project's resolution as CLI/Vite, including `paths`, while maintaining consistent open-file unsaved edits, project-version invalidation and hovers after dependency updates.
-- [ ] Add valid and negative multi-file project fixtures and LSP/editor tests for definition/call hovers, original ranges, aliases, helper-only files, and unchanged ordinary `.ts` ownership.
-- [ ] Extend the real VS Code UI test itself to open helper and fragment fixtures, edit a dependency and check refreshed owning-file diagnostics/hovers; retain its existing diagnostic/hover cases.
+- [x] Transform/recheck helper-body operations in their defining file as well as fragments, and map imported call/type errors to callers without attributing a dependency fault to every consumer.
+- [x] Use the same selected TS project's resolution as CLI/Vite, including `paths`, while maintaining consistent open-file unsaved edits, project-version invalidation and hovers after dependency updates.
+- [x] Add valid and negative multi-file project fixtures and LSP/editor tests for definition/call hovers, original ranges, aliases, helper-only files, and unchanged ordinary `.ts` ownership.
+- [x] Extend the real VS Code UI test itself to open helper and fragment fixtures, edit a dependency and check refreshed owning-file diagnostics/hovers; retain its existing diagnostic/hover cases.
 
 Verification:
 
-- Automated: add `packages/language-service/test/reusable-project-editor.test.ts` and applicable LSP/fixture tests, then run `pnpm --filter @shdr/language-service test`, `pnpm --filter @shdr/lsp test`, and `pnpm --dir apps/editor-fixture test` (root). Assert original-file/line routing, QuickInfo, stale-result handling and delegation.
-- Manual/live: after `pnpm --dir apps/editor-fixture build`, run `pnpm --dir apps/editor-fixture test:editor` with VS Code installed (or `VSCODE_EXECUTABLE_PATH`); open imported helper and fragment, change a helper, observe updated hover/diagnostic in the owning file and no ordinary `.ts` takeover. Record executable/version and observed result; if VS Code is unavailable, mark this live gate Blocked.
+- Automated: language-service: 87 tests; LSP: 17 tests; project: 3 tests; editor-fixture typecheck/build passed. Coverage includes helper-only virtual transformation, ordinary TS2322 ownership, alias resolution, cross-file hovers, dependency invalidation and stale-result prevention.
+- Manual/live: `pnpm --dir apps/editor-fixture test:editor` passed after build using the installed VS Code executable (`/Applications/Visual Studio Code.app/Contents/MacOS/Code`, VS Code 1.138.0). The real extension opened the aliased helper and fragment, observed the helper-owned TS2322 diagnostic, changed the mixed helper/default module from `Expr<F32>` to `Expr<Vec2<F32>>`, observed the caller's SHDR1213 error, then cleared it by changing the argument; removing and restoring the last helper marker also produced and cleared SHDR1302, without ordinary `.ts` takeover.
 
-Completion gate: adapter/LSP checks and **real VS Code UI** demonstrate cross-file edit/hover/diagnostic ownership; no test-only virtual result is presented as editor acceptance. Evidence: Not run.
+Completion gate: adapter/LSP checks and **real VS Code UI** demonstrate cross-file edit/hover/diagnostic ownership; no test-only virtual result is presented as editor acceptance. **Evidence: Verified on 2026-10-09 in the working tree.**
 
 ### Step 3.3 — Preserve single-textarea REPL behavior
 

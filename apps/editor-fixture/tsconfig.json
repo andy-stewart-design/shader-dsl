@@ -4,7 +4,11 @@
     "moduleResolution": "NodeNext",
     "noEmit": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@fixture/*": ["./shared/*"]
+    }
   },
-  "include": ["*.ts", "test/fixtures/*.shdr.ts"]
+  "include": ["*.ts", "shared/*.shdr.ts", "test/fixtures/*.shdr.ts"]
 }
