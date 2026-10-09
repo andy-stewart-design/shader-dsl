@@ -60,6 +60,8 @@ export interface ShaderFileInfo {
   readonly fileName: string;
   readonly createFragmentShaderImport?: ShaderImportInfo;
   readonly customUniforms?: ParsedCustomUniforms;
+  /** Selected when the explicit { uniforms } link refers to another module. */
+  readonly customUniformsImport?: ShaderImportInfo;
   readonly functions?: readonly ShaderFunctionSyntax[];
   readonly shaderCallableImports: readonly ShaderImportInfo[];
   /** Direct named imports from other source modules. */
@@ -338,8 +340,9 @@ function parseShaderModule(
   }
 
   let customUniforms: ParsedCustomUniforms | undefined;
+  let customUniformsImport: ShaderImportInfo | undefined;
   if (chained || call.arguments.length === 2) {
-    if (!imports.defineUniformsImport) {
+    if (chained && !imports.defineUniformsImport) {
       return {
         diagnostics: [
           diagnostic(
@@ -376,40 +379,61 @@ function parseShaderModule(
         };
       }
       const identifier = options.properties[0].value.name;
-      const declarations = file.program.body.filter(
-        (statement) =>
-          statement.type === "VariableDeclaration" &&
-          statement.kind === "const" &&
-          statement.declarations.length === 1 &&
-          statement.declarations[0]?.id.type === "Identifier" &&
-          statement.declarations[0].id.name === identifier,
-      );
-      const init =
-        declarations[0]?.type === "VariableDeclaration"
-          ? declarations[0].declarations[0]?.init
-          : undefined;
+      const declarations = file.program.body.flatMap((statement) => {
+        const declaration =
+          statement.type === "ExportNamedDeclaration"
+            ? statement.declaration
+            : statement;
+        return declaration?.type === "VariableDeclaration" &&
+          declaration.kind === "const" &&
+          declaration.declarations.length === 1 &&
+          declaration.declarations[0]?.id.type === "Identifier" &&
+          declaration.declarations[0].id.name === identifier
+          ? [declaration]
+          : [];
+      });
+      const init = declarations[0]?.declarations[0]?.init;
       if (
-        declarations.length !== 1 ||
-        init?.type !== "CallExpression" ||
-        init.callee.type !== "Identifier" ||
-        init.callee.name !== "defineUniforms" ||
-        (init.end ?? 0) > (call.start ?? 0)
+        declarations.length === 1 &&
+        init?.type === "CallExpression" &&
+        init.callee.type === "Identifier" &&
+        init.callee.name === "defineUniforms" &&
+        (init.end ?? 0) <= (call.start ?? 0)
       ) {
-        return {
-          diagnostics: [
-            diagnostic(
-              ShaderDiagnosticCode.InvalidCustomUniform,
-              "Expected a same-file const uniforms = defineUniforms(...) before the shader call.",
-              rangeOf(options),
-            ),
-          ],
-        };
+        if (!imports.defineUniformsImport) {
+          return {
+            diagnostics: [
+              diagnostic(
+                ShaderDiagnosticCode.InvalidCustomUniform,
+                "Same-file custom uniforms require a direct named defineUniforms import from shdr.",
+                rangeOf(options),
+              ),
+            ],
+          };
+        }
+        definition = init;
+      } else {
+        customUniformsImport = imports.sourceImports
+          .flatMap((entry) => entry.specifiers)
+          .find((specifier) => specifier.localName === identifier);
+        if (!customUniformsImport) {
+          return {
+            diagnostics: [
+              diagnostic(
+                ShaderDiagnosticCode.InvalidCustomUniform,
+                "Expected a same-file defineUniforms declaration or an imported uniforms schema.",
+                rangeOf(options),
+              ),
+            ],
+          };
+        }
       }
-      definition = init;
     }
-    const parsedCustom = parseCustomUniforms(definition);
-    if (!parsedCustom.ok) return { diagnostics: parsedCustom.diagnostics };
-    customUniforms = parsedCustom.value;
+    if (definition) {
+      const parsedCustom = parseCustomUniforms(definition);
+      if (!parsedCustom.ok) return { diagnostics: parsedCustom.diagnostics };
+      customUniforms = parsedCustom.value;
+    }
   }
 
   const callback = callbackArgument;
@@ -468,6 +492,7 @@ function parseShaderModule(
       fileName,
       createFragmentShaderImport: imports.createFragmentShaderImport,
       customUniforms,
+      ...(customUniformsImport ? { customUniformsImport } : {}),
       ...(helpers.functions.length ? { functions: helpers.functions } : {}),
       shaderCallableImports: imports.shaderCallableImports,
       sourceImports: imports.sourceImports,

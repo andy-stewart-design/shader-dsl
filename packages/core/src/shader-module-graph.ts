@@ -11,6 +11,10 @@ import {
   SHADER_TYPE_IMPORTS,
 } from "./parse-shader-functions.js";
 import {
+  parseCustomUniforms,
+  type ParsedCustomUniforms,
+} from "./parse-custom-uniforms.js";
+import {
   ShaderDiagnosticCode,
   type ShaderDiagnostic,
   type ShaderGraphDiagnostic,
@@ -55,11 +59,14 @@ interface GraphModule {
   readonly functions: readonly ShaderFunctionSyntax[];
   readonly exportedFunctions: ReadonlySet<string>;
   readonly shaderCallableNames: ReadonlySet<string>;
+  readonly uniformSchemas: ReadonlyMap<string, ParsedCustomUniforms>;
+  readonly exportedUniforms: ReadonlySet<string>;
   readonly sourceImports: readonly ShaderSourceImportInfo[];
 }
 
 interface LoadedGraphModule extends GraphModule {
   readonly resolvedImports: ReadonlyMap<string, string>;
+  readonly resolvedUniforms: ReadonlyMap<string, string>;
 }
 
 interface GraphDefinition {
@@ -134,15 +141,21 @@ export function lowerShaderGraph(
 
     active.push(id);
     const resolved = new Map<string, string>();
+    const resolvedUniforms = new Map<string, string>();
     let valid = true;
     for (const sourceImport of module.sourceImports) {
       const used = sourceImport.specifiers.some((specifier) =>
         moduleUsesName(module, specifier.localName),
       );
+      const schemaUsed = sourceImport.specifiers.some((specifier) =>
+        moduleUsesSchemaImport(module, specifier.localName),
+      );
       const shouldResolve = shouldResolveImport(
         sourceImport.source,
         paths,
-        used || sourceImport.unsupportedSpecifierRanges.length > 0,
+        used ||
+          schemaUsed ||
+          sourceImport.unsupportedSpecifierRanges.length > 0,
       );
       if (!shouldResolve) continue;
       if (sourceImport.unsupportedSpecifierRanges.length) {
@@ -198,27 +211,36 @@ export function lowerShaderGraph(
       }
       const target = modules.get(resolution.id)!;
       for (const specifier of sourceImport.specifiers) {
-        if (!target.exportedFunctions.has(specifier.importedName)) {
+        if (target.exportedFunctions.has(specifier.importedName)) {
+          resolved.set(
+            specifier.localName,
+            `${resolution.id}#${specifier.importedName}`,
+          );
+        } else if (target.exportedUniforms.has(specifier.importedName)) {
+          resolvedUniforms.set(
+            specifier.localName,
+            `${resolution.id}#${specifier.importedName}`,
+          );
+        } else {
           diagnostics.push(
             diagnostic(
               ShaderDiagnosticCode.MissingShaderExport,
-              `Module ${JSON.stringify(resolution.id)} does not export shader helper ${JSON.stringify(specifier.importedName)}.`,
+              `Module ${JSON.stringify(resolution.id)} does not export shader helper or uniform schema ${JSON.stringify(specifier.importedName)}.`,
               id,
               specifier.range,
             ),
           );
           valid = false;
-        } else {
-          resolved.set(
-            specifier.localName,
-            `${resolution.id}#${specifier.importedName}`,
-          );
         }
       }
     }
     active.pop();
     if (!valid) return false;
-    loaded.set(id, { ...module, resolvedImports: resolved });
+    loaded.set(id, {
+      ...module,
+      resolvedImports: resolved,
+      resolvedUniforms,
+    });
     return true;
   };
 
@@ -382,10 +404,28 @@ export function lowerShaderGraph(
     const function_ = lowered.get(key);
     if (function_) rootFunctions.set(localName, function_);
   }
+  const importedSchemaKey = root.fragment.customUniformsImport
+    ? root.resolvedUniforms.get(root.fragment.customUniformsImport.localName)
+    : undefined;
+  const importedSchema = importedSchemaKey
+    ? schemaForKey(importedSchemaKey, loaded)
+    : undefined;
+  if (root.fragment.customUniformsImport && !importedSchema) {
+    return graphFailure([
+      diagnostic(
+        ShaderDiagnosticCode.MissingShaderExport,
+        "The selected imported uniforms schema could not be resolved.",
+        entry,
+        root.fragment.customUniformsImport.range,
+      ),
+    ]);
+  }
+  const customUniforms =
+    root.fragment.customUniforms?.declarations ?? importedSchema?.declarations;
   const fragment = lowerShaderSyntax(
     root.fragment.callback.syntax,
     importedCallables,
-    root.fragment.customUniforms?.declarations,
+    customUniforms,
     { functions: rootFunctions },
   );
   if (!fragment.ok) {
@@ -428,6 +468,8 @@ function parseGraphModule(
         shaderCallableNames: new Set(
           parsed.info.shaderCallableImports.map((item) => item.localName),
         ),
+        uniformSchemas: new Map(),
+        exportedUniforms: new Set(),
         sourceImports: parsed.info.sourceImports,
       },
     };
@@ -495,6 +537,8 @@ function parseGraphDependencyModule(
         : [],
     ),
   );
+  const schemas = parseUniformSchemas(file.file, shdrCallables, id);
+  if (!schemas.ok) return schemas;
   const helpers = parseShaderFunctions(
     file.file,
     markerImported,
@@ -518,6 +562,8 @@ function parseGraphDependencyModule(
       functions: helpers.functions,
       exportedFunctions: exportedFunctionNames(file.file, helpers.functions),
       shaderCallableNames: shdrCallables,
+      uniformSchemas: schemas.value,
+      exportedUniforms: exportedUniformNames(file.file, schemas.value),
       sourceImports,
     },
   };
@@ -603,6 +649,51 @@ function collectSourceImports(file: File): readonly ShaderSourceImportInfo[] {
   });
 }
 
+function parseUniformSchemas(
+  file: File,
+  shaderCallables: ReadonlySet<string>,
+  fileName: string,
+):
+  | {
+      readonly ok: true;
+      readonly value: ReadonlyMap<string, ParsedCustomUniforms>;
+    }
+  | LowerShaderGraphFailure {
+  const schemas = new Map<string, ParsedCustomUniforms>();
+  if (!shaderCallables.has("defineUniforms"))
+    return { ok: true, value: schemas };
+  for (const statement of file.program.body) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration"
+        ? statement.declaration
+        : statement;
+    if (
+      declaration?.type !== "VariableDeclaration" ||
+      declaration.kind !== "const" ||
+      declaration.declarations.length !== 1
+    )
+      continue;
+    const item = declaration.declarations[0];
+    if (
+      item?.id.type !== "Identifier" ||
+      item.init?.type !== "CallExpression" ||
+      item.init.callee.type !== "Identifier" ||
+      item.init.callee.name !== "defineUniforms"
+    )
+      continue;
+    const parsed = parseCustomUniforms(item.init);
+    if (!parsed.ok)
+      return {
+        ok: false,
+        diagnostics: parsed.diagnostics.map((item) =>
+          withFileName(item, fileName),
+        ),
+      };
+    schemas.set(item.id.name, parsed.value);
+  }
+  return { ok: true, value: schemas };
+}
+
 function exportedFunctionNames(
   file: File,
   functions: readonly ShaderFunctionSyntax[],
@@ -627,10 +718,52 @@ function exportedFunctionNames(
   return names;
 }
 
+function exportedUniformNames(
+  file: File,
+  schemas: ReadonlyMap<string, ParsedCustomUniforms>,
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const statement of file.program.body) {
+    if (statement.type !== "ExportNamedDeclaration") continue;
+    const declaration = statement.declaration;
+    if (
+      declaration?.type !== "VariableDeclaration" ||
+      declaration.kind !== "const" ||
+      declaration.declarations.length !== 1
+    )
+      continue;
+    const item = declaration.declarations[0];
+    if (
+      item?.id.type === "Identifier" &&
+      item.init?.type === "CallExpression" &&
+      item.init.callee.type === "Identifier" &&
+      item.init.callee.name === "defineUniforms" &&
+      schemas.has(item.id.name)
+    )
+      names.add(item.id.name);
+  }
+  return names;
+}
+
+function schemaForKey(
+  key: string,
+  modules: ReadonlyMap<string, LoadedGraphModule>,
+): ParsedCustomUniforms | undefined {
+  const separator = key.lastIndexOf("#");
+  if (separator < 0) return undefined;
+  return modules
+    .get(key.slice(0, separator))
+    ?.uniformSchemas.get(key.slice(separator + 1));
+}
+
 function importedNameOf(specifier: ImportSpecifier): string {
   return specifier.imported.type === "Identifier"
     ? specifier.imported.name
     : specifier.imported.value;
+}
+
+function moduleUsesSchemaImport(module: GraphModule, name: string): boolean {
+  return module.fragment?.customUniformsImport?.localName === name;
 }
 
 function moduleUsesName(module: GraphModule, name: string): boolean {

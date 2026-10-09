@@ -17,6 +17,26 @@ const mixedShared = `${shared.replace(
   'import { defineShaderFunction } from "shdr";',
   'import { createFragmentShader, defineShaderFunction, vec4 } from "shdr";',
 )}\nexport default createFragmentShader(({ uniforms }) => vec4(0, 0, 0, 1));`;
+const schema = `import { defineUniforms } from "shdr";
+export const uniforms = defineUniforms((u) => ({ gain: u.f32(0.2), tint: u.vec3(1, 0.5, 0.25) }));`;
+const schemaEntry = `import { createFragmentShader, vec4 } from "shdr";
+import { uniforms } from "./schema.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(uniforms.gain), { uniforms });`;
+const localSchemaEntry = `import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const uniforms = defineUniforms((u) => ({ gain: u.f32(0.2), tint: u.vec3(1, 0.5, 0.25) }));
+export default createFragmentShader(({ uniforms }) => vec4(uniforms.gain), { uniforms });`;
+const exportedLocalSchemaEntry = localSchemaEntry.replace(
+  "const uniforms =",
+  "export const uniforms =",
+);
+const aliasedSchema = schema.replace(
+  "export const uniforms",
+  "export const palette",
+);
+const aliasedSchemaEntry = schemaEntry.replace(
+  'import { uniforms } from "./schema.shdr.ts";',
+  'import { palette as uniforms } from "./schema.shdr.ts";',
+);
 const entry = `import { createFragmentShader, vec4 } from "shdr";
 import type { Expr, F32 } from "shdr";
 import { grain } from "./shared.shdr.ts";
@@ -37,6 +57,112 @@ function graph(
 }
 
 describe("virtual shader module graph", () => {
+  it("imports one explicit uniform schema without changing artifact metadata", () => {
+    const imported = compileFragmentArtifact({
+      entry: "/work/scene.shdr.ts",
+      files: {
+        "/work/scene.shdr.ts": schemaEntry,
+        "/work/schema.shdr.ts": schema,
+      },
+    });
+    const local = compileFragmentArtifact(localSchemaEntry);
+    const exportedLocal = compileFragmentArtifact(exportedLocalSchemaEntry);
+    expect(imported).toEqual(local);
+    expect(exportedLocal).toEqual(local);
+
+    const aliased = compileFragmentArtifact({
+      entry: "/work/scene.shdr.ts",
+      files: {
+        "/work/scene.shdr.ts": aliasedSchemaEntry,
+        "/work/schema.shdr.ts": aliasedSchema,
+      },
+    });
+    expect(aliased).toEqual(imported);
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    expect(imported.artifact.custom).toEqual({
+      declarations: [
+        { name: "gain", type: "f32", default: 0.2 },
+        { name: "tint", type: "vec3", default: [1, 0.5, 0.25] },
+      ],
+      referenced: { glsl: ["gain"], wgsl: ["gain"] },
+    });
+
+    const second = compileFragmentArtifact({
+      entry: "/work/other.shdr.ts",
+      files: {
+        "/work/other.shdr.ts": schemaEntry.replace(
+          "vec4(uniforms.gain)",
+          "vec4(uniforms.tint, 1)",
+        ),
+        "/work/schema.shdr.ts": schema,
+      },
+    });
+    expect(second.ok).toBe(true);
+    if (second.ok) {
+      expect(second.artifact.custom?.declarations).toEqual(
+        imported.artifact.custom?.declarations,
+      );
+      expect(second.artifact.custom?.referenced).toEqual({
+        glsl: ["tint"],
+        wgsl: ["tint"],
+      });
+    }
+  });
+
+  it("reports missing or invalid imported schemas at source-owned ranges", () => {
+    const missing = compileFragmentArtifact({
+      entry: "/work/scene.shdr.ts",
+      files: {
+        "/work/scene.shdr.ts": schemaEntry,
+        "/work/schema.shdr.ts": "export const other = 1;",
+      },
+    });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok)
+      expect(missing.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.MissingShaderExport,
+        fileName: "/work/scene.shdr.ts",
+      });
+
+    const captured = compileFragmentArtifact({
+      entry: "/work/scene.shdr.ts",
+      files: {
+        "/work/scene.shdr.ts": schemaEntry
+          .replace(
+            'import { uniforms } from "./schema.shdr.ts";',
+            'import { uniforms } from "./schema.shdr.ts";\nimport { bad } from "./captured.shdr.ts";',
+          )
+          .replace("vec4(uniforms.gain)", "vec4(bad(1))"),
+        "/work/captured.shdr.ts": `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+import { uniforms } from "./schema.shdr.ts";
+export const bad = defineShaderFunction((x: Expr<F32>) => uniforms.gain + x);`,
+        "/work/schema.shdr.ts": schema,
+      },
+    });
+    expect(captured.ok).toBe(false);
+    if (!captured.ok)
+      expect(captured.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.ClosureCapture,
+        fileName: "/work/captured.shdr.ts",
+      });
+
+    const invalid = compileFragmentArtifact({
+      entry: "/work/scene.shdr.ts",
+      files: {
+        "/work/scene.shdr.ts": schemaEntry,
+        "/work/schema.shdr.ts": schema.replace("u.f32(0.2)", "u.f32(NaN)"),
+      },
+    });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok)
+      expect(invalid.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.InvalidCustomUniform,
+        fileName: "/work/schema.shdr.ts",
+      });
+  });
+
   it("lowers transitive named helper imports and emits only reachable helpers", () => {
     const result = compileFragmentArtifact(graph());
     expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);

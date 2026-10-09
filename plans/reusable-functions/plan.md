@@ -167,7 +167,7 @@ Completion gate: a three-file virtual map produces both target shaders and preci
 
 ### Step 2.2 — Imported uniform schema without artifact changes
 
-Status: Pending
+Status: Verified — imported schema selection/metadata parity and negative core cases; runtime isolation remains owned by Step 4.1.
 Requirements / acceptance: R4, R7–R8, R12; AC3 (compile/type portion).
 Depends on: Step 2.1.
 Review boundary: named `defineUniforms` import and one explicitly linked schema; no runtime/backend resource changes.
@@ -179,17 +179,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Resolve the selected `{ uniforms }` declaration by named import or existing same-file declaration, without evaluating builder callbacks; retain complete literal defaults and referenced subset.
-- [ ] Verify two independent fragments can import one schema, and a helper can only use its fields when explicitly passed arguments.
-- [ ] Reject missing, invalid, mismatched or multiply selected definitions at their authored locations while preserving the inline/chained and local named forms.
-- [ ] Compare JSON metadata and output bindings to equivalent same-file input; do not add fields or inferred runtime bindings.
+- [x] Resolve the selected `{ uniforms }` declaration by named import or existing same-file declaration, without evaluating builder callbacks; retain complete literal defaults and referenced subset.
+- [x] Verify two independent fragments can import one schema, and a helper can only use its fields when explicitly passed arguments.
+- [x] Reject missing, invalid, mismatched or multiply selected definitions at their authored locations while preserving the inline/chained and local named forms.
+- [x] Compare JSON metadata and output bindings to equivalent same-file input; do not add fields or inferred runtime bindings.
 
 Verification:
 
 - Automated: add `packages/core/test/reusable-uniforms.test.ts`; run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-uniforms.test.ts test/custom-uniforms.test.ts`, `pnpm --filter shdr test`, and `pnpm --filter @shdr/core check`. Expect identical schema/defaults and no helper capture; runtime independence gets a real check in Step 4.1.
 - Manual: Not needed; this step changes compile-time linkage and metadata only.
 
-Completion gate: virtual imports select the same custom schema/metadata as a local definition; malformed links yield original-file diagnostics and all existing custom-uniform fixtures still pass. Evidence: Not run.
+Completion gate: virtual imports select the same custom schema/metadata as a local definition; malformed links yield original-file diagnostics and all existing custom-uniform fixtures still pass. Evidence: imported-schema cases in `test/reusable-graph.test.ts` passed with metadata/reference-subset parity across local, exported-same-file, and aliased imported schemas, plus source-owned missing/invalid diagnostics; full core suite passed 385 tests; `shdr` tests/check, `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. No builder callback was evaluated and no artifact fields changed.
 
 ### Step 2.3 — Shared TypeScript-project paths and CLI graph checking
 
