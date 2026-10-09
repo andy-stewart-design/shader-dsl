@@ -138,6 +138,31 @@ describe("virtual shader module graph", () => {
     }
   });
 
+  it("does not fall through from a missing long wildcard to a shorter wildcard", () => {
+    const aliasedEntry = entry.replace(
+      '"./shared.shdr.ts"',
+      '"@shader/lib/shared"',
+    );
+    const result = compileFragmentArtifact(
+      graph({
+        files: {
+          "/work/scene.shdr.ts": aliasedEntry,
+          "/work/wild/lib/shared.shdr.ts": shared,
+          "/work/math.shdr.ts": math,
+        },
+        paths: {
+          "@shader/lib/*": ["/work/exact/*.shdr.ts"],
+          "@shader/*": ["/work/wild/*.shdr.ts"],
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.diagnostics[0]?.code).toBe(
+        ShaderDiagnosticCode.MissingShaderModule,
+      );
+  });
+
   it("uses the supplied effective paths mapping", () => {
     const aliasedEntry = entry.replace(
       '"./shared.shdr.ts"',
@@ -332,6 +357,31 @@ export const loop = defineShaderFunction((x: Expr<F32>) => loop(x));`;
       expect(unsupported.diagnostics[0]?.code).toBe(
         ShaderDiagnosticCode.UnsupportedShaderModuleImport,
       );
+  });
+
+  it("reports a non-shader helper marker instead of returning empty diagnostics", () => {
+    const malformed = `import { defineShaderFunction } from "./host.ts";
+import type { Expr, F32 } from "shdr";
+export const grain = defineShaderFunction((x: Expr<F32>) => x);`;
+    const result = compileFragmentArtifact(
+      graph({
+        files: {
+          "/work/scene.shdr.ts": entry.replace(
+            '"./shared.shdr.ts"',
+            '"./malformed.shdr.ts"',
+          ),
+          "/work/malformed.shdr.ts": malformed,
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.diagnostics).not.toHaveLength(0);
+      expect(result.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.MissingShaderExport,
+        fileName: "/work/scene.shdr.ts",
+      });
+    }
   });
 
   it("rejects module cycles before producing an artifact", () => {

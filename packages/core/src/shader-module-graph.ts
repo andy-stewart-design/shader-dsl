@@ -421,7 +421,10 @@ function parseGraphModule(
         source,
         fragment: parsed.info,
         functions: parsed.info.functions ?? [],
-        exportedFunctions: exportedFunctionNames(file.file),
+        exportedFunctions: exportedFunctionNames(
+          file.file,
+          parsed.info.functions ?? [],
+        ),
         shaderCallableNames: new Set(
           parsed.info.shaderCallableImports.map((item) => item.localName),
         ),
@@ -513,7 +516,7 @@ function parseGraphDependencyModule(
       id,
       source,
       functions: helpers.functions,
-      exportedFunctions: exportedFunctionNames(file.file),
+      exportedFunctions: exportedFunctionNames(file.file, helpers.functions),
       shaderCallableNames: shdrCallables,
       sourceImports,
     },
@@ -600,7 +603,11 @@ function collectSourceImports(file: File): readonly ShaderSourceImportInfo[] {
   });
 }
 
-function exportedFunctionNames(file: File): ReadonlySet<string> {
+function exportedFunctionNames(
+  file: File,
+  functions: readonly ShaderFunctionSyntax[],
+): ReadonlySet<string> {
+  const recognized = new Set(functions.map((function_) => function_.name));
   const names = new Set<string>();
   for (const statement of file.program.body) {
     if (statement.type !== "ExportNamedDeclaration") continue;
@@ -611,7 +618,8 @@ function exportedFunctionNames(file: File): ReadonlySet<string> {
         item.id.type === "Identifier" &&
         item.init?.type === "CallExpression" &&
         item.init.callee.type === "Identifier" &&
-        item.init.callee.name === "defineShaderFunction"
+        item.init.callee.name === "defineShaderFunction" &&
+        recognized.has(item.id.name)
       )
         names.add(item.id.name);
     }
@@ -726,24 +734,24 @@ function resolveImport(
   }
 
   const matching = paths.filter((mapping) => mapping.matches(source));
-  const exact = matching.filter((mapping) => !mapping.wildcard);
-  const selected = (exact.length ? exact : matching).sort(
-    (left, right) => right.prefixLength - left.prefixLength,
-  );
-  if (!selected.length)
+  const exact = matching.find((mapping) => !mapping.wildcard);
+  const selected =
+    exact ??
+    [...matching].sort(
+      (left, right) => right.prefixLength - left.prefixLength,
+    )[0];
+  if (!selected)
     return unsupported(
       source,
       "Non-relative shader imports must match an effective paths mapping.",
     );
-  for (const mapping of selected) {
-    for (const target of mapping.substitute(source)) {
-      if (!target.endsWith(".shdr.ts"))
-        return unsupported(
-          source,
-          "Shader path targets must identify a .shdr.ts file.",
-        );
-      if (files.has(target)) return { ok: true, id: target };
-    }
+  for (const target of selected.substitute(source)) {
+    if (!target.endsWith(".shdr.ts"))
+      return unsupported(
+        source,
+        "Shader path targets must identify a .shdr.ts file.",
+      );
+    if (files.has(target)) return { ok: true, id: target };
   }
   return missing(source);
 }
