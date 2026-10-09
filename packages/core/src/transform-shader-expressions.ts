@@ -3,10 +3,53 @@ import type { ShaderFileInfo } from "./parse-shader-file.js";
 import type { ShaderBinaryOperator } from "./shader-operator.js";
 import type { ShaderExpressionSyntax } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
+import type { ShaderFunctionSyntax } from "./shader-syntax.js";
 
 export const DIV_HELPER_NAME = "__shdr_internal_div";
 export const NEG_HELPER_NAME = "__shdr_internal_neg";
 export const F32_HELPER_NAME = "__shdr_internal_f32";
+
+/** Transforms helper bodies when a source has no fragment callback. */
+export function transformShaderExpressionsForHelpers(
+  source: string,
+  helpers: readonly ShaderFunctionSyntax[],
+): VirtualSource {
+  const roots = helpers
+    .flatMap((helper) => [
+      ...helper.body.declarations.map((declaration) => declaration.initializer),
+      helper.body.returnExpression,
+    ])
+    .sort((left, right) => left.range.start - right.range.start);
+  const helperNames = collectHelperNames(roots);
+  const writer = new MappedTextWriter(source);
+
+  if (helperNames.length > 0) {
+    writer.append(
+      `import { ${helperNames.join(", ")} } from "shdr/internal";\n`,
+    );
+  }
+
+  let originalCursor = 0;
+  for (const expression of roots) {
+    copyIfNonEmpty(writer, {
+      start: originalCursor,
+      length: expression.range.start - originalCursor,
+    });
+    writeExpression(writer, expression);
+    originalCursor = rangeEnd(expression.range);
+  }
+  copyIfNonEmpty(writer, {
+    start: originalCursor,
+    length: source.length - originalCursor,
+  });
+
+  return writer.finish(
+    { start: 0, length: 0 },
+    helpers
+      .map((helper) => helper.range)
+      .sort((left, right) => left.start - right.start),
+  );
+}
 
 export function transformShaderExpressions(
   source: string,

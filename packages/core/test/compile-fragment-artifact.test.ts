@@ -189,6 +189,20 @@ export default defineUniforms((u) => ({ unused: u.vec2(0, 0), gain: u.f32(0.5), 
     }
   });
 
+  it("rejects helper-only string compilation with an entry diagnostic", () => {
+    const text = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const scale = defineShaderFunction((x: Expr<F32>) => x * 0.5);`;
+    const compiled = compileFragmentArtifact(text);
+    expect(compiled.ok).toBe(false);
+    if (compiled.ok) return;
+    expect(compiled.diagnostics).toEqual([
+      expect.objectContaining({
+        code: ShaderDiagnosticCode.MissingDefaultExport,
+      }),
+    ]);
+  });
+
   it("preserves original-source diagnostics and produces no partial artifact", () => {
     const expression = "uniforms.time / uniforms.resolution";
     const text = source(`const bad = ${expression}; return coord;`);

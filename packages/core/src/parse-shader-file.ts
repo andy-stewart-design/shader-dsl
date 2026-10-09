@@ -74,6 +74,8 @@ export interface ShaderFileInfo {
 
 export interface ParseShaderFileResult {
   readonly info?: ShaderFileInfo;
+  /** Helper declarations recognized in a helper-only module. */
+  readonly helperFunctions?: readonly ShaderFunctionSyntax[];
   /** Available when the callback boundary was recognized but its syntax failed validation. */
   readonly shaderRegion?: TextRange;
   /** Helper declarations and fragment callback recognized before semantic validation. */
@@ -223,6 +225,26 @@ function parseShaderModule(
     ]),
   );
   if (helpers.diagnostics.length) return { diagnostics: helpers.diagnostics };
+
+  const hasDefaultExport = file.program.body.some(
+    (statement) => statement.type === "ExportDefaultDeclaration",
+  );
+  if (
+    !imports.createFragmentShaderImport &&
+    !hasDefaultExport &&
+    helpers.functions.length > 0
+  ) {
+    return {
+      helperFunctions: helpers.functions,
+      diagnostics: [
+        diagnostic(
+          ShaderDiagnosticCode.MissingDefaultExport,
+          `Expected a default-exported ${CREATE_FRAGMENT_SHADER}(...) call.`,
+          rangeOf(file.program),
+        ),
+      ],
+    };
+  }
 
   if (!imports.createFragmentShaderImport && !imports.defineUniformsImport) {
     return {

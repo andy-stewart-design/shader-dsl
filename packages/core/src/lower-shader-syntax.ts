@@ -83,6 +83,7 @@ interface LoweringContext {
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
   readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
   readonly contextBindings: ReadonlySet<string>;
+  readonly importedCallables: ReadonlySet<string>;
   readonly functions: ReadonlyMap<string, ShaderFunction>;
 }
 
@@ -192,6 +193,7 @@ export function lowerShaderBody(
       localInitializers,
       customUniforms: custom,
       contextBindings,
+      importedCallables,
       functions,
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
@@ -226,6 +228,7 @@ export function lowerShaderBody(
     localInitializers,
     customUniforms: custom,
     contextBindings,
+    importedCallables,
     functions,
   });
   if (!returned.ok) return failure(returned.diagnostic);
@@ -367,13 +370,13 @@ function lowerCallExpression(
     name !== "vec2" &&
     name !== "vec3" &&
     name !== "vec4" &&
-    !isShaderBuiltinName(name) &&
+    (!isShaderBuiltinName(name) || !context.importedCallables.has(name)) &&
     !context.functions.has(name)
   ) {
     return expressionFailure(
       ShaderDiagnosticCode.UnsupportedCall,
       `Unsupported shader call ${JSON.stringify(syntax.calleeName)}.`,
-      syntax.calleeRange,
+      syntax.arguments.length ? syntax.range : syntax.calleeRange,
     );
   }
 

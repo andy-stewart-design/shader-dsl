@@ -5,7 +5,10 @@ import {
   type ParseShaderFileResult,
 } from "./parse-shader-file.js";
 import type { TextRange } from "./source-range.js";
-import { transformShaderExpressions } from "./transform-shader-expressions.js";
+import {
+  transformShaderExpressions,
+  transformShaderExpressionsForHelpers,
+} from "./transform-shader-expressions.js";
 
 export interface CreateVirtualSourceSuccess {
   readonly ok: true;
@@ -46,6 +49,16 @@ export function createVirtualSourceFromParsed(
   parsed: ParseShaderFileResult,
 ): CreateVirtualSourceResult {
   if (!parsed.info) {
+    if (parsed.helperFunctions?.length) {
+      return {
+        ok: true,
+        virtualSource: transformShaderExpressionsForHelpers(
+          source,
+          parsed.helperFunctions,
+        ),
+        diagnostics: [],
+      };
+    }
     return {
       ok: false,
       diagnostics: parsed.diagnostics,
