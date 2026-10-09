@@ -1,4 +1,10 @@
+import {
+  checkShaderGraph,
+  type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
+  type ShaderGraphDiagnostic,
+} from "@shdr/core";
 import { TypeScript7EditorAdapter } from "@shdr/language-service";
+import { loadShaderGraphSync, ProjectInputError } from "@shdr/project";
 import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -227,10 +233,29 @@ export function startShdrLsp(input: Readable, output: Writable): void {
         version: document.version,
         projectVersion: projectEpoch,
       });
+      const graphDiagnostics = projectGraphDiagnostics(selection);
+      const diagnostics = checked.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.source !== "typescript" ||
+          !graphDiagnostics.some((graph) =>
+            rangesOverlap(diagnostic.range, graph.range),
+          ),
+      );
+      for (const diagnostic of graphDiagnostics) {
+        if (
+          !diagnostics.some(
+            (existing) =>
+              existing.source === "shdr" &&
+              rangesOverlap(existing.range, diagnostic.range),
+          )
+        ) {
+          diagnostics.push(diagnostic);
+        }
+      }
       connection.sendDiagnostics({
         uri,
         version: document.version,
-        diagnostics: checked.diagnostics.map((diagnostic) => ({
+        diagnostics: diagnostics.map((diagnostic) => ({
           range: {
             start: document.positionAt(diagnostic.range.start),
             end: document.positionAt(
@@ -282,6 +307,68 @@ export function startShdrLsp(input: Readable, output: Writable): void {
     publish(state);
   });
 
+  function projectGraphDiagnostics(
+    selection: Extract<ProjectSelection, { status: "project" }>,
+  ): readonly {
+    readonly range: { readonly start: number; readonly length: number };
+    readonly code: ShaderDiagnosticCodeValue;
+    readonly category: "error";
+    readonly message: string;
+    readonly source: "shdr";
+  }[] {
+    try {
+      const loaded = loadShaderGraphSync({
+        entry: selection.filePath,
+        searchRoots: [selection.workspaceRoot],
+        readSource: (fileName) => {
+          const open = [...documents.values()].find(
+            (candidate) =>
+              candidate.selection.status === "project" &&
+              candidate.selection.filePath === fileName,
+          );
+          return open?.document.getText() ?? readFileSync(fileName, "utf8");
+        },
+      });
+      const checked = checkShaderGraph(loaded.input);
+      if (checked.ok) return [];
+      return checked.diagnostics
+        .filter((diagnostic) => diagnostic.fileName === selection.filePath)
+        .map(graphDiagnostic);
+    } catch (error) {
+      if (!(error instanceof ProjectInputError)) {
+        connection.console.error(
+          `Cannot check Shdr module graph: ${String(error)}`,
+        );
+      }
+      return [];
+    }
+  }
+
+  function rangesOverlap(
+    left: { readonly start: number; readonly length: number },
+    right: { readonly start: number; readonly length: number },
+  ): boolean {
+    const leftEnd = left.start + left.length;
+    const rightEnd = right.start + right.length;
+    return left.start < rightEnd && right.start < leftEnd;
+  }
+
+  function graphDiagnostic(diagnostic: ShaderGraphDiagnostic): {
+    readonly range: { readonly start: number; readonly length: number };
+    readonly code: ShaderDiagnosticCodeValue;
+    readonly category: "error";
+    readonly message: string;
+    readonly source: "shdr";
+  } {
+    return {
+      range: diagnostic.range,
+      code: diagnostic.code,
+      category: "error",
+      message: diagnostic.message,
+      source: "shdr",
+    };
+  }
+
   connection.onDidChangeTextDocument(({ textDocument, contentChanges }) => {
     const state = documents.get(textDocument.uri);
     if (
@@ -290,6 +377,7 @@ export function startShdrLsp(input: Readable, output: Writable): void {
       contentChanges.length === 0
     )
       return;
+    const previousSource = state.document.getText();
     state.document = TextDocument.update(
       state.document,
       contentChanges,
@@ -300,7 +388,33 @@ export function startShdrLsp(input: Readable, output: Writable): void {
       resetProjects();
       for (const open of documents.values()) publish(open);
     } else {
-      publish(state);
+      const dependencyChanged =
+        isShaderDependencySource(previousSource) ||
+        isShaderDependencySource(state.document.getText());
+      // A dependency edit can change the TypeScript graph without changing
+      // any caller's own text/version. Advance the shared project snapshot and
+      // publish the changed dependency first so its virtual source is loaded
+      // before callers are refreshed.
+      if (dependencyChanged) projectEpoch++;
+      const configPath =
+        state.selection.status === "project"
+          ? state.selection.configPath
+          : undefined;
+      if (!configPath) {
+        publish(state);
+        return;
+      }
+      const openDocuments = dependencyChanged
+        ? [state, ...[...documents.values()].filter((open) => open !== state)]
+        : [state];
+      for (const open of openDocuments) {
+        if (
+          open.selection.status === "project" &&
+          open.selection.configPath === configPath
+        ) {
+          publish(open);
+        }
+      }
     }
   });
 
@@ -360,6 +474,10 @@ export function startShdrLsp(input: Readable, output: Writable): void {
     discovery?.dispose();
   });
   connection.listen();
+}
+
+function isShaderDependencySource(source: string): boolean {
+  return /\b(?:defineShaderFunction|defineUniforms)\b/.test(source);
 }
 
 function isShaderFile(uri: string): boolean {
