@@ -42,6 +42,11 @@ export const ShaderDiagnosticCode = {
   InvalidShaderFunction: "SHDR1212",
   InvalidShaderFunctionCall: "SHDR1213",
   RecursiveShaderFunction: "SHDR1214",
+  MissingShaderModule: "SHDR1300",
+  UnsupportedShaderModuleImport: "SHDR1301",
+  MissingShaderExport: "SHDR1302",
+  ShaderModuleCycle: "SHDR1303",
+  DuplicateShaderFile: "SHDR1304",
 } as const;
 
 export type ShaderDiagnosticCode =
@@ -52,4 +57,9 @@ export interface ShaderDiagnostic {
   readonly message: string;
   readonly range: TextRange;
   readonly severity: "error";
+}
+
+/** A source-owned diagnostic produced while compiling a virtual graph. */
+export interface ShaderGraphDiagnostic extends ShaderDiagnostic {
+  readonly fileName: string;
 }

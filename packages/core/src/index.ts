@@ -20,6 +20,7 @@ export {
 export {
   ShaderDiagnosticCode,
   type ShaderDiagnostic,
+  type ShaderGraphDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
 export { generateFragment, type ShaderTarget } from "./generate-fragment.js";
@@ -92,7 +93,15 @@ export {
   type ShaderCallbackInfo,
   type ShaderFileInfo,
   type ShaderImportInfo,
+  type ShaderSourceImportInfo,
 } from "./parse-shader-file.js";
+export {
+  lowerShaderGraph,
+  type LowerShaderGraphFailure,
+  type LowerShaderGraphResult,
+  type LowerShaderGraphSuccess,
+  type ShaderVirtualGraphInput,
+} from "./shader-module-graph.js";
 export type {
   ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,

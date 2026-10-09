@@ -42,6 +42,13 @@ export interface ShaderImportInfo {
   readonly range: TextRange;
 }
 
+export interface ShaderSourceImportInfo {
+  readonly source: string;
+  readonly sourceRange: TextRange;
+  readonly specifiers: readonly ShaderImportInfo[];
+  readonly unsupportedSpecifierRanges: readonly TextRange[];
+}
+
 export interface ShaderCallbackInfo {
   readonly range: TextRange;
   readonly parameterRange: TextRange;
@@ -55,6 +62,8 @@ export interface ShaderFileInfo {
   readonly customUniforms?: ParsedCustomUniforms;
   readonly functions?: readonly ShaderFunctionSyntax[];
   readonly shaderCallableImports: readonly ShaderImportInfo[];
+  /** Direct named imports from other source modules. */
+  readonly sourceImports: readonly ShaderSourceImportInfo[];
   readonly defaultExportRange: TextRange;
   readonly defaultExportCallRange: TextRange;
   readonly callback: ShaderCallbackInfo;
@@ -74,6 +83,7 @@ interface ParsedImports {
   readonly createFragmentShaderImport?: ShaderImportInfo;
   readonly defineUniformsImport?: ShaderImportInfo;
   readonly shaderCallableImports: readonly ShaderImportInfo[];
+  readonly sourceImports: readonly ShaderSourceImportInfo[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -203,7 +213,12 @@ function parseShaderModule(
     file,
     markerImported,
     typeImports,
-    new Set(imports.shaderCallableImports.map((entry) => entry.localName)),
+    new Set([
+      ...imports.shaderCallableImports.map((entry) => entry.localName),
+      ...imports.sourceImports.flatMap((entry) =>
+        entry.specifiers.map((specifier) => specifier.localName),
+      ),
+    ]),
   );
   if (helpers.diagnostics.length) return { diagnostics: helpers.diagnostics };
 
@@ -432,6 +447,9 @@ function parseShaderModule(
       ...imports.shaderCallableImports.map(
         (importInfo) => importInfo.localName,
       ),
+      ...imports.sourceImports.flatMap((entry) =>
+        entry.specifiers.map((specifier) => specifier.localName),
+      ),
       ...helpers.functions.map((helper) => helper.name),
     ]),
   );
@@ -452,6 +470,7 @@ function parseShaderModule(
       customUniforms,
       ...(helpers.functions.length ? { functions: helpers.functions } : {}),
       shaderCallableImports: imports.shaderCallableImports,
+      sourceImports: imports.sourceImports,
       defaultExportRange: rangeOf(defaultExport),
       defaultExportCallRange: rangeOf(call),
       callback: {
@@ -528,12 +547,42 @@ function parseImports(file: File): ParsedImports {
   let createFragmentShaderImport: ShaderImportInfo | undefined;
   let defineUniformsImport: ShaderImportInfo | undefined;
   const shaderCallableImports: ShaderImportInfo[] = [];
+  const sourceImports: ShaderSourceImportInfo[] = [];
   const diagnostics: ShaderDiagnostic[] = [];
 
   for (const statement of file.program.body) {
     if (statement.type !== "ImportDeclaration") continue;
 
     if (statement.source.value !== SHDR_MODULE_NAME) {
+      if (
+        statement.importKind !== "type" &&
+        statement.specifiers.some(
+          (specifier) =>
+            specifier.type !== "ImportSpecifier" ||
+            specifier.importKind !== "type",
+        )
+      ) {
+        sourceImports.push({
+          source: statement.source.value,
+          sourceRange: rangeOf(statement.source),
+          specifiers: statement.specifiers.flatMap((specifier) =>
+            specifier.type === "ImportSpecifier" &&
+            specifier.importKind !== "type"
+              ? [
+                  {
+                    importedName: importedNameOf(specifier),
+                    localName: specifier.local.name,
+                    range: rangeOf(specifier),
+                  },
+                ]
+              : [],
+          ),
+          unsupportedSpecifierRanges: statement.specifiers.flatMap(
+            (specifier) =>
+              specifier.type === "ImportSpecifier" ? [] : [rangeOf(specifier)],
+          ),
+        });
+      }
       const wrongImport = statement.specifiers.find(
         (specifier) =>
           specifier.type === "ImportSpecifier" &&
@@ -587,6 +636,7 @@ function parseImports(file: File): ParsedImports {
     createFragmentShaderImport,
     defineUniformsImport,
     shaderCallableImports,
+    sourceImports,
     diagnostics,
   };
 }

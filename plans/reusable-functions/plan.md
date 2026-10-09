@@ -141,7 +141,7 @@ Review boundary: core + CLI; no Vite/editor cross-file completion claim until Ph
 
 ### Step 2.1 — Environment-neutral named imports and graph compilation
 
-Status: Pending
+Status: Verified — browser-safe virtual graph/compiler gate; project-backed CLI, imported schemas and consumer integration remain pending.
 Requirements / acceptance: R3, R5–R8, R12; AC2, AC4 (core virtual-graph portion).
 Depends on: Phase 1 exit.
 Review boundary: relative `.shdr.ts` helpers, import aliases and transitive graph in core; custom schemas and project aliases follow.
@@ -153,17 +153,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Accept helper-only and mixed-export `.shdr.ts` sources; bind direct named imports to stable definitions even with aliases/colliding spellings; follow transitive dependencies without evaluating modules.
-- [ ] Define a virtual entry/files API with normalized file identities and relative resolution; report missing exports/files, malformed imports and module/function cycles with a useful path; keep single-string no-import usage unchanged.
-- [ ] Carry original file identity plus ranges through graph failures, while preserving legacy single-source diagnostic shapes where possible. Reject partial artifacts and deduplicate repeated helper emission.
-- [ ] Test an imported helper from a mixed module, a three-file chain, helper-only modules, alias/cycle/missing-import failures, frozen/deterministic results and default-shader reachability. Check GLSL/WGSL output for reachable helpers, not merely parse success.
+- [x] Accept helper-only and mixed-export `.shdr.ts` sources; bind direct named imports to stable definitions even with aliases/colliding spellings; follow transitive dependencies without evaluating modules.
+- [x] Define a virtual entry/files API with normalized file identities and relative resolution; report missing exports/files, malformed imports and module/function cycles with a useful path; keep single-string no-import usage unchanged.
+- [x] Carry original file identity plus ranges through graph failures, while preserving legacy single-source diagnostic shapes where possible. Reject partial artifacts and deduplicate repeated helper emission.
+- [x] Test an imported helper from a mixed module, a three-file chain, helper-only modules, alias/cycle/missing-import failures, frozen/deterministic results and default-shader reachability. Check GLSL/WGSL output for reachable helpers, not merely parse success.
 
 Verification:
 
 - Automated: add `packages/core/test/reusable-graph.test.ts`, then run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-graph.test.ts` and `pnpm --filter @shdr/core check`. Assertions include browser-safe graph compilation with no Node dependency, file/range fault ownership and unchanged single-source artifacts.
 - Manual: Not needed; input map and emitted text are fully observable in focused core tests. Real project resolver and GPU acceptance occur later.
 
-Completion gate: a three-file virtual map produces both target shaders and precise graph diagnostics without filesystem/JS execution; old single-source inputs still compile. **Cross-file public feature not mergeable until Steps 2.2–3.2.** Evidence: Not run.
+Completion gate: a three-file virtual map produces both target shaders and precise graph diagnostics without filesystem/JS execution; old single-source inputs still compile. **Cross-file public feature not mergeable until Steps 2.2–3.2.** Evidence: `test/reusable-graph.test.ts` passed 10 tests, including exact-alias precedence, unused mixed-module default handling, real WebGL 2 GLSL compile/link and WebGPU WGSL module compilation; full core suite passed 381 tests; `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. GPU unavailability is now an explicit failing/Blocked diagnostic rather than a silent skip. No authored module/callback execution or filesystem access was introduced.
 
 ### Step 2.2 — Imported uniform schema without artifact changes
 

@@ -1,7 +1,11 @@
 import type { DynamicCompiledFragmentArtifact } from "shdr";
-import type { ShaderDiagnostic } from "./diagnostics.js";
+import type { ShaderDiagnostic, ShaderGraphDiagnostic } from "./diagnostics.js";
 import { generateFragmentOutput } from "./generate-fragment.js";
 import { lowerFragment } from "./lower-fragment.js";
+import {
+  lowerShaderGraph,
+  type ShaderVirtualGraphInput,
+} from "./shader-module-graph.js";
 
 export interface CompileArtifactSuccess {
   readonly ok: true;
@@ -12,15 +16,20 @@ export interface CompileArtifactSuccess {
 export interface CompileArtifactFailure {
   readonly ok: false;
   readonly artifact?: undefined;
-  readonly diagnostics: readonly ShaderDiagnostic[];
+  readonly diagnostics: readonly (ShaderDiagnostic | ShaderGraphDiagnostic)[];
 }
 
 export type CompileArtifactResult =
   CompileArtifactSuccess | CompileArtifactFailure;
 
 /** Compiles authored source once to one target-neutral IR and two backends. */
-export function compileFragmentArtifact(source: string): CompileArtifactResult {
-  const lowered = lowerFragment(source);
+export function compileFragmentArtifact(
+  source: string | ShaderVirtualGraphInput,
+): CompileArtifactResult {
+  const lowered =
+    typeof source === "string"
+      ? lowerFragment(source)
+      : lowerShaderGraph(source);
   if (!lowered.ok) return { ok: false, diagnostics: lowered.diagnostics };
 
   const glsl = generateFragmentOutput(lowered.ir, "glsl-es-300");
