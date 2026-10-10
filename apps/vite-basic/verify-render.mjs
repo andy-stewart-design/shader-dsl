@@ -119,6 +119,42 @@ try {
   assertPixel("math center", mathSamples.center, [91, 112, 106, 255], 6);
   assertPixel("math corner", mathSamples.corner, [4, 34, 175, 255], 6);
 
+  await page
+    .locator('#composed-canvas[data-render-status="success"]')
+    .waitFor();
+  await page
+    .locator('#composed-gpu-canvas[data-render-status="success"]')
+    .waitFor();
+  const composedExpected = {
+    center: [128, 128, 128, 255],
+    top: [128, 0, 128, 255],
+    bottom: [128, 255, 128, 255],
+  };
+  for (const [name, y, expected] of [
+    ["center", 64, composedExpected.center],
+    ["top", 127, composedExpected.top],
+    ["bottom", 0, composedExpected.bottom],
+  ]) {
+    assertPixel(
+      `composed ${name} WebGL`,
+      await readWebGlCanvasPixel(page, "composed-canvas", 64, y),
+      expected,
+      5,
+    );
+  }
+  for (const [name, y, expected] of [
+    ["center", 64, composedExpected.center],
+    ["top", 2, composedExpected.top],
+    ["bottom", 127, composedExpected.bottom],
+  ]) {
+    assertPixel(
+      `composed ${name} presented WebGPU`,
+      await readGpuCanvasPixel(page, "composed-gpu-canvas", 64, y),
+      expected,
+      5,
+    );
+  }
+
   await page.locator('#webgpu-canvas[data-render-status="success"]').waitFor();
   const gpuPixels = await page.locator("#webgpu-canvas").screenshot();
   const gpuSample = await page.evaluate(
@@ -177,6 +213,95 @@ try {
     [51, 102, 64, 255],
   );
 
+  await page
+    .locator('#shared-a-gl-canvas[data-render-status="success"]')
+    .waitFor();
+  await page
+    .locator('#shared-b-gl-canvas[data-render-status="success"]')
+    .waitFor();
+  await page
+    .locator('#shared-a-gpu-canvas[data-render-status="success"]')
+    .waitFor();
+  await page
+    .locator('#shared-b-gpu-canvas[data-render-status="success"]')
+    .waitFor();
+  assertPixel(
+    "shared schema A initial",
+    await readWebGlCanvasPixel(page, "shared-a-gl-canvas"),
+    [64, 64, 64, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema B initial",
+    await readWebGlCanvasPixel(page, "shared-b-gl-canvas"),
+    [0, 191, 0, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema A WebGPU initial",
+    await readGpuCanvasPixel(page, "shared-a-gpu-canvas"),
+    [64, 64, 64, 255],
+    5,
+  );
+  assertPixel(
+    "shared schema B WebGPU initial",
+    await readGpuCanvasPixel(page, "shared-b-gpu-canvas"),
+    [0, 191, 0, 255],
+    5,
+  );
+  await page
+    .getByRole("button", { name: "Set shared A gain", exact: true })
+    .click();
+  assertPixel(
+    "shared schema A update",
+    await readWebGlCanvasPixel(page, "shared-a-gl-canvas"),
+    [255, 255, 255, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema B isolated during A update",
+    await readWebGlCanvasPixel(page, "shared-b-gl-canvas"),
+    [0, 191, 0, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema A WebGPU update",
+    await readGpuCanvasPixel(page, "shared-a-gpu-canvas"),
+    [255, 255, 255, 255],
+    5,
+  );
+  assertPixel(
+    "shared schema B WebGPU isolated during A update",
+    await readGpuCanvasPixel(page, "shared-b-gpu-canvas"),
+    [0, 191, 0, 255],
+    5,
+  );
+  await page.getByRole("button", { name: "Reset shared A gain" }).click();
+  assertPixel(
+    "shared schema A reset default",
+    await readWebGlCanvasPixel(page, "shared-a-gl-canvas"),
+    [128, 128, 128, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema B isolated during A reset",
+    await readWebGlCanvasPixel(page, "shared-b-gl-canvas"),
+    [0, 191, 0, 255],
+    3,
+  );
+  assertPixel(
+    "shared schema A WebGPU reset default",
+    await readGpuCanvasPixel(page, "shared-a-gpu-canvas"),
+    [128, 128, 128, 255],
+    5,
+  );
+  assertPixel(
+    "shared schema B WebGPU isolated during A reset",
+    await readGpuCanvasPixel(page, "shared-b-gpu-canvas"),
+    [0, 191, 0, 255],
+    5,
+  );
+
   const unavailable = await browser.newPage();
   await unavailable.addInitScript(() =>
     Object.defineProperty(navigator, "gpu", {
@@ -210,11 +335,63 @@ try {
   }
 
   console.log(
-    "Verified static GLSL/WGSL pixels, custom-uniform host flows, math shader, top-left Y and missing-WebGPU fallback.",
+    "Verified imported-helper GLSL/WGSL pixels, shared-schema isolation, custom-uniform host flows, math shader, top-left Y and missing-WebGPU fallback.",
   );
 } finally {
   if (browser) await browser.close();
   await server.close();
+}
+
+async function readWebGlCanvasPixel(page, id, x, y) {
+  return page.evaluate(
+    ([canvasId, sampleX, sampleY]) => {
+      const canvas = document.getElementById(canvasId);
+      const gl = canvas?.getContext("webgl2");
+      if (!(canvas instanceof HTMLCanvasElement) || !gl) {
+        throw new Error(`Missing WebGL canvas: ${canvasId}`);
+      }
+      const pixel = new Uint8Array(4);
+      gl.finish();
+      gl.readPixels(
+        Math.floor(sampleX ?? canvas.width / 2),
+        Math.floor(sampleY ?? canvas.height / 2),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        pixel,
+      );
+      return [...pixel];
+    },
+    [id, x, y],
+  );
+}
+async function readGpuCanvasPixel(page, id, x, y) {
+  const screenshot = await page.locator(`#${id}`).screenshot();
+  return page.evaluate(
+    async ([png, sampleX, sampleY]) => {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(png)], { type: "image/png" }),
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Missing screenshot readback context.");
+      context.drawImage(image, 0, 0);
+      const pixel = [
+        ...context.getImageData(
+          Math.floor(sampleX ?? canvas.width / 2),
+          Math.floor(sampleY ?? canvas.height / 2),
+          1,
+          1,
+        ).data,
+      ];
+      image.close();
+      return pixel;
+    },
+    [[...screenshot], x, y],
+  );
 }
 
 async function customGlPixel(page) {

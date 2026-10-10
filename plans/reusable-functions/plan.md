@@ -314,7 +314,7 @@ Review boundary: composed behavior, user docs and final audit; do not broaden la
 
 ### Step 4.1 — Pinned two-target pixels and independent schema usage
 
-Status: Pending
+Status: Verified — imported-helper two-target rendering, presented-WebGPU parity, and independent shared-schema runtime state.
 Requirements / acceptance: R3–R4, R8, R11–R12; AC3 (renderer portion), AC6.
 Depends on: Phase 3 exit.
 Review boundary: browser integration fixture and reference expectations, not new runtime/binding APIs.
@@ -327,17 +327,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Pin resolution, canonical top-left coordinates, mouse, time and custom defaults/overrides; choose finite, non-degenerate sample points and channel tolerances before comparing outputs.
-- [ ] Compile/link/run the imported-helper GLSL in real WebGL 2; compile/pipeline/draw the WGSL and sample **presented** WebGPU canvas pixels (not only an offscreen buffer or compilation messages).
-- [ ] Compare expected sample colors and backend parity within tolerances; assert reachability/emitted-once, correct uniform metadata/grouping, and no bit-identity claim.
-- [ ] Install two artifacts sharing an imported uniform definition into separate renderer instances; update/reset one and check the other's first/current pixels and defaults are unaffected.
+- [x] Pin resolution, canonical top-left coordinates, mouse, time and custom defaults/overrides; choose finite, non-degenerate sample points and channel tolerances before comparing outputs.
+- [x] Compile/link/run the imported-helper GLSL in real WebGL 2; compile/pipeline/draw the WGSL and sample **presented** WebGPU canvas pixels (not only an offscreen buffer or compilation messages).
+- [x] Compare expected sample colors and backend parity within tolerances; assert reachability/emitted-once, correct uniform metadata/grouping, and no bit-identity claim.
+- [x] Install two artifacts sharing an imported uniform definition into separate renderer instances; update/reset one and check the other's first/current pixels and defaults are unaffected.
 
 Verification:
 
-- Automated: extend `apps/vite-basic/verify-render.mjs` or add the runtime browser test and wire it into `@shdr/runtime`'s script; run `pnpm --dir apps/vite-basic test:render` and `pnpm --filter @shdr/runtime test` after build. Assert real target compilation and WebGL readback versus presented WebGPU pixels for pinned inputs, plus isolated updates.
-- Manual: Not needed when Playwright Chromium WebGL 2 and WebGPU are available and the automated test samples the presented canvas. If unavailable, record a Blocked gate rather than accepting module compilation as pixel evidence.
+- Automated: `pnpm --filter vite-basic check`, `pnpm --filter vite-basic build`, and `pnpm --dir apps/vite-basic test:render` passed. The fixture now checks a composed transitive graph (`composedColor` → `guardedAmount`) using vectors, a guarded `sqrt`, and the imported `gain` schema in both generated targets; it asserts each helper is emitted once, samples center/top/bottom non-center pixels on the presented WebGPU canvas, verifies shared-schema metadata/grouping, and renders two consumers sharing one imported schema with independent WebGL/WebGPU update/reset behavior. `pnpm --filter @shdr/runtime test` also passed all existing WebGL/presented-WebGPU lifecycle and uniform-isolation suites.
+- Manual: Not needed; Playwright Chromium provided real WebGL 2 and WebGPU contexts. No bit-identity claim is made.
 
-Completion gate: both real targets render the imported helper/default shader at the agreed samples, runtime schema isolation holds and existing WebGL/presented-WebGPU suites pass. Evidence: Not run.
+Completion gate: both real targets render the imported helper/default shader at the agreed samples, runtime schema isolation holds and existing WebGL/presented-WebGPU suites pass. Evidence: Verified on 2026-10-09 in the working tree.
 
 ### Step 4.2 — Documentation and complete regression/PR gate
 
@@ -374,10 +374,10 @@ Phase exit gate: feature-complete local implementation satisfies the governing s
 | ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | Focused local core/adapter verified; final review pending |
 | AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Pending; not run                                          |
-| AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Pending; not run                                          |
+| AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Verified: shared-schema metadata and independent rendered updates on 2026-10-09 |
 | AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Pending; not run                                          |
 | AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Pending; not run                                          |
-| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | 1.1 compile/link verified; 4.1 pending                    |
+| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | Verified: core target compilation and Vite presented-pixel gate on 2026-10-09 |
 | AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Pending; not run                                          |
 | AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Verified: browser REPL suite on 2026-10-09                     |
 | AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Core verified; documentation/final gate pending           |
