@@ -110,13 +110,13 @@ try {
   const glslTab = page.getByRole("tab", { name: "GLSL ES 3.00" });
   const wgslTab = page.getByRole("tab", { name: "WGSL" });
   assert.equal(await glslTab.getAttribute("aria-selected"), "true");
-  assert.match(
-    await page.getByRole("tabpanel").textContent(),
-    /u_resolution\.y - gl_FragCoord\.y/,
-  );
+  const glslOutput = await page.getByRole("tabpanel").textContent();
+  assert.match(glslOutput, /shdr_internal_fn_0/);
+  assert.match(glslOutput, /u_resolution\.y - gl_FragCoord\.y/);
   await wgslTab.click();
   assert.equal(await wgslTab.getAttribute("aria-selected"), "true");
   const wgslOutput = await page.getByRole("tabpanel").textContent();
+  assert.match(wgslOutput, /fn shdr_internal_fn_0/);
   assert.match(wgslOutput, /@builtin\(position\) shdr_coord/);
   assert.match(wgslOutput, /shdr_coord\.xy/);
   assert.doesNotMatch(wgslOutput, /resolution\.y -/);
@@ -442,6 +442,29 @@ export default createFragmentShader(({ coord, uniforms }) => {
     (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
     editedGpuPixel,
   );
+
+  const missingImportSource = `import { createFragmentShader, vec4 } from "shdr";
+import { helper } from "./missing-helper.shdr.ts";
+
+export default createFragmentShader(({ uniforms }) =>
+  vec4(helper(uniforms.time)),
+);
+`;
+  await compileSource(page, editor, missingImportSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1300/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.deepEqual(await readCenterPixel(page), editedPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    editedGpuPixel,
+  );
+  await compileSource(page, editor, originalSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
 
   await verifyCustomUniforms(
     page,

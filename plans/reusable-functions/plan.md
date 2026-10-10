@@ -281,7 +281,7 @@ Completion gate: adapter/LSP checks and **real VS Code UI** demonstrate cross-fi
 
 ### Step 3.3 — Preserve single-textarea REPL behavior
 
-Status: Pending
+Status: Verified — single-textarea local-helper rendering, unresolved external-import blocking, and last-render preservation.
 Requirements / acceptance: R6, R10–R12; AC8.
 Depends on: Phase 1 local helpers and Phase 2 single-string failure contract.
 Review boundary: no new tabs/file-picker or automatic fetch; browser compilation/preview behavior only.
@@ -293,18 +293,18 @@ Expected files:
 
 Tasks:
 
-- [ ] Compile/render a shader with a local helper from the current textarea; verify both generated target panels and both previews when WebGPU is available.
-- [ ] Compile a source importing an external helper without a map; show a clear unresolved-import diagnostic, avoid network loads, preserve the last installed shader/pixels and keep errors shared across backends.
-- [ ] Preserve custom-uniform controls, compiler opt-in entry and single-source fallback behavior.
+- [x] Compile/render a shader with a local helper from the current textarea; verify both generated target panels and both previews when WebGPU is available.
+- [x] Compile a source importing an external helper without a map; show a clear unresolved-import diagnostic, avoid network loads, preserve the last installed shader/pixels and keep errors shared across backends.
+- [x] Preserve custom-uniform controls, compiler opt-in entry and single-source fallback behavior.
 
 Verification:
 
-- Automated: extend `apps/repl/verify-browser.mjs`, then run `pnpm --dir apps/repl test` after `pnpm build` has provided workspace dist. Assert both rendered paths for valid local helper and no partial replacement/fetch on missing import.
-- Manual: Not needed for this step if the browser UI test exercises source edits, diagnostics and installed pixels; document WebGPU-unavailable fallback separately in existing tests.
+- Automated: `pnpm --filter @shdr/core check`; focused core artifact/local-helper tests passed (60 tests); `pnpm --filter repl check`, `pnpm --filter repl build`, and `pnpm --filter repl test` passed after rebuilding workspace dist. The browser test verified the local helper in both generated target panels and both previews, and verified `SHDR1300` blocks both backends while preserving the last WebGL/WebGPU renders for an external `.shdr.ts` import without a virtual graph. Core coverage also preserves unused ordinary runtime imports, rejects side-effect `.shdr.ts` imports, and ignores external type-only imports in string-only compilation.
+- Manual: Not needed; the browser UI exercised source edits, diagnostics and installed-pixel preservation. Existing unavailable-WebGPU fallback coverage remains part of the same browser suite.
 
-Completion gate: same-textarea helpers render successfully and missing imported files block both previews without changing the last good image. Evidence: Not run.
+Completion gate: same-textarea helpers render successfully and missing imported files block both previews without changing the last good image. Evidence: Verified on 2026-10-09 in the working tree.
 
-Phase exit gate: focused Vite, language-service/LSP, editor UI, and REPL gates all pass on the shared project/virtual graph; `pnpm build` keeps static host bundles compiler-free. Evidence: Not run.
+Phase exit gate: focused Vite, language-service/LSP, editor UI, and REPL gates all pass on the shared project/virtual graph; `pnpm build` passed all 11 tasks, `pnpm exec turbo run check --force` passed all 17 tasks, and static host bundles remain compiler-free. Evidence: Verified on 2026-10-09; Phase 4 GPU/documentation/final acceptance remains pending.
 
 ## Phase 4 — Cross-backend and regression acceptance
 
@@ -379,7 +379,7 @@ Phase exit gate: feature-complete local implementation satisfies the governing s
 | AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Pending; not run                                          |
 | AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | 1.1 compile/link verified; 4.1 pending                    |
 | AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Pending; not run                                          |
-| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Pending; not run                                          |
+| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Verified: browser REPL suite on 2026-10-09                     |
 | AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Core verified; documentation/final gate pending           |
 
 ## Rollback and recovery

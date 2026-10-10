@@ -603,11 +603,12 @@ function parseImports(file: File): ParsedImports {
     if (statement.source.value !== SHDR_MODULE_NAME) {
       if (
         statement.importKind !== "type" &&
-        statement.specifiers.some(
-          (specifier) =>
-            specifier.type !== "ImportSpecifier" ||
-            specifier.importKind !== "type",
-        )
+        (statement.specifiers.length === 0 ||
+          statement.specifiers.some(
+            (specifier) =>
+              specifier.type !== "ImportSpecifier" ||
+              specifier.importKind !== "type",
+          ))
       ) {
         sourceImports.push({
           source: statement.source.value,

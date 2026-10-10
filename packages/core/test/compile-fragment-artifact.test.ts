@@ -88,6 +88,58 @@ describe("dual-target fragment artifact", () => {
     },
   );
 
+  it("reports unresolved value imports without a virtual graph", () => {
+    const sourceFor = (specifier: string, body: string) =>
+      `import { createFragmentShader, vec4 } from "shdr";\nimport { helper } from "${specifier}";\nexport default createFragmentShader(({ uniforms }) => ${body});`;
+    for (const [specifier, body] of [
+      ["./helper.shdr.ts", "vec4(helper(uniforms.time))"],
+      ["./helper.shdr.ts", "vec4(1)"],
+      ["@shader/helper", "vec4(helper(uniforms.time))"],
+    ] as const) {
+      const text = sourceFor(specifier, body);
+      expect(compileFragmentArtifact(text)).toMatchObject({
+        ok: false,
+        diagnostics: [
+          {
+            code: ShaderDiagnosticCode.MissingShaderModule,
+            range: {
+              start: text.indexOf(JSON.stringify(specifier)),
+              length: JSON.stringify(specifier).length,
+            },
+          },
+        ],
+      });
+    }
+    expect(
+      compileFragmentArtifact(sourceFor("@shader/helper", "vec4(1)")).ok,
+    ).toBe(true);
+  });
+
+  it("rejects side-effect imports without a virtual graph", () => {
+    const text = `import { createFragmentShader, vec4 } from "shdr";
+import "./missing-helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(1));`;
+    expect(compileFragmentArtifact(text)).toMatchObject({
+      ok: false,
+      diagnostics: [
+        {
+          code: ShaderDiagnosticCode.MissingShaderModule,
+          range: {
+            start: text.indexOf('"./missing-helper.shdr.ts"'),
+            length: '"./missing-helper.shdr.ts"'.length,
+          },
+        },
+      ],
+    });
+  });
+
+  it("allows external type-only imports in string-only compilation", () => {
+    const text = `import { createFragmentShader, vec4 } from "shdr";
+import type { Helper } from "@shader/helper";
+export default createFragmentShader(({ uniforms }) => vec4(1));`;
+    expect(compileFragmentArtifact(text).ok).toBe(true);
+  });
+
   it("derives bindings from each generator's emitted dependencies", () => {
     const text = `import { defineUniforms, vec4 } from "shdr";
 export default defineUniforms((u) => ({ unused: u.vec2(0, 0), gain: u.f32(0.5), color: u.vec3(1, 0, 0) }))
