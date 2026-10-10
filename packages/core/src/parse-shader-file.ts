@@ -474,31 +474,34 @@ function parseShaderModule(
   }
 
   const parameter = callback.params[0];
-  if (callback.params.length !== 1 || !isContextParameter(parameter)) {
+  const calleeNames = new Set([
+    ...imports.shaderCallableImports.map((importInfo) => importInfo.localName),
+    ...imports.sourceImports.flatMap((entry) =>
+      entry.specifiers.map((specifier) => specifier.localName),
+    ),
+    ...helpers.functions.map((helper) => helper.name),
+  ]);
+  if (
+    callback.params.length > 1 ||
+    (parameter &&
+      (!isContextParameter(parameter) ||
+        (parameter.type === "Identifier" && calleeNames.has(parameter.name))))
+  ) {
     return {
       shaderRegion: callbackRange,
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.InvalidCallbackParameter,
-          "The callback parameter must be ({ coord, uniforms }) or ({ uniforms }).",
+          parameter?.type === "Identifier" && calleeNames.has(parameter.name)
+            ? `The fragment context parameter ${JSON.stringify(parameter.name)} cannot shadow a shader callable.`
+            : "The callback accepts (), a simple context identifier, or an object pattern selecting coord and/or uniforms in either order.",
           parameter ? rangeOf(parameter) : rangeOf(callback),
         ),
       ],
     };
   }
 
-  const syntaxDiagnostics = validateShaderSyntax(
-    callback,
-    new Set([
-      ...imports.shaderCallableImports.map(
-        (importInfo) => importInfo.localName,
-      ),
-      ...imports.sourceImports.flatMap((entry) =>
-        entry.specifiers.map((specifier) => specifier.localName),
-      ),
-      ...helpers.functions.map((helper) => helper.name),
-    ]),
-  );
+  const syntaxDiagnostics = validateShaderSyntax(callback, calleeNames);
   if (syntaxDiagnostics.length > 0) {
     return {
       diagnostics: syntaxDiagnostics,
@@ -522,7 +525,9 @@ function parseShaderModule(
       defaultExportCallRange: rangeOf(call),
       callback: {
         range: callbackRange,
-        parameterRange: rangeOf(parameter),
+        parameterRange: parameter
+          ? rangeOf(parameter)
+          : { start: callback.start ?? 0, length: 0 },
         bodyRange: rangeOf(callback.body),
         syntax,
       },
@@ -819,30 +824,27 @@ function isDirectShaderCall(node: Node): node is CallExpression {
 }
 
 function isContextParameter(
-  parameter: ArrowFunctionExpression["params"][number] | undefined,
-): parameter is ObjectPattern {
-  if (!parameter || parameter.type !== "ObjectPattern") return false;
-  if (parameter.properties.length !== 2 && parameter.properties.length !== 1)
-    return false;
-
-  return parameter.properties.every((property, index) => {
-    const expectedName =
-      parameter.properties.length === 1
-        ? "uniforms"
-        : index === 0
-          ? "coord"
-          : "uniforms";
-
-    return (
-      property.type === "ObjectProperty" &&
-      property.computed === false &&
-      property.shorthand === true &&
-      property.key.type === "Identifier" &&
-      property.key.name === expectedName &&
-      property.value.type === "Identifier" &&
-      property.value.name === expectedName
-    );
+  parameter: ArrowFunctionExpression["params"][number],
+): parameter is ObjectPattern | Identifier {
+  if (parameter.type === "Identifier")
+    return !parameter.typeAnnotation && !parameter.optional;
+  if (parameter.type !== "ObjectPattern") return false;
+  const names = parameter.properties.map((property) => {
+    if (
+      property.type !== "ObjectProperty" ||
+      property.computed ||
+      !property.shorthand ||
+      property.key.type !== "Identifier" ||
+      property.value.type !== "Identifier" ||
+      property.value.name !== property.key.name
+    )
+      return undefined;
+    return property.key.name;
   });
+  return (
+    names.every((name) => name === "coord" || name === "uniforms") &&
+    new Set(names).size === names.length
+  );
 }
 
 function traverse(node: Node, visit: (node: Node) => void): void {

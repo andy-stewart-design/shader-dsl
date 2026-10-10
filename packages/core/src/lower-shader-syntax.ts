@@ -83,6 +83,7 @@ interface LoweringContext {
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
   readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
   readonly contextBindings: ReadonlySet<string>;
+  readonly contextName?: string;
   readonly importedCallables: ReadonlySet<string>;
   readonly functions: ReadonlyMap<string, ShaderFunction>;
 }
@@ -169,14 +170,17 @@ export function lowerShaderBody(
 
   for (const declaration of syntax.declarations) {
     if (
-      (!options.parameters && CONTEXT_BINDING_NAMES.has(declaration.name)) ||
+      (!options.parameters &&
+        (CONTEXT_BINDING_NAMES.has(declaration.name) ||
+          syntax.contextName === declaration.name)) ||
       importedCallables.has(declaration.name) ||
       locals.has(declaration.name)
     ) {
       return failure(
         diagnostic(
           ShaderDiagnosticCode.DuplicateLocal,
-          CONTEXT_BINDING_NAMES.has(declaration.name)
+          CONTEXT_BINDING_NAMES.has(declaration.name) ||
+            syntax.contextName === declaration.name
             ? `Shader local ${JSON.stringify(declaration.name)} conflicts with a shader context binding.`
             : importedCallables.has(declaration.name)
               ? `Shader local ${JSON.stringify(declaration.name)} shadows an imported shader callable.`
@@ -193,6 +197,7 @@ export function lowerShaderBody(
       localInitializers,
       customUniforms: custom,
       contextBindings,
+      ...(options.parameters ? {} : { contextName: syntax.contextName }),
       importedCallables,
       functions,
     });
@@ -228,6 +233,7 @@ export function lowerShaderBody(
     localInitializers,
     customUniforms: custom,
     contextBindings,
+    ...(options.parameters ? {} : { contextName: syntax.contextName }),
     importedCallables,
     functions,
   });
@@ -270,6 +276,13 @@ function lowerExpression(
       };
 
     case "identifier": {
+      if (syntax.name === context.contextName) {
+        return expressionFailure(
+          ShaderDiagnosticCode.UnsupportedPropertyAccess,
+          "The fragment context must be accessed through coord or uniforms.",
+          syntax.range,
+        );
+      }
       if (syntax.name === "coord" && context.contextBindings.has("coord")) {
         return {
           ok: true,
@@ -327,11 +340,39 @@ function lowerExpression(
 
     case "property-access":
       if (
+        syntax.object.kind === "property-access" &&
+        syntax.object.object.kind === "identifier" &&
+        syntax.object.object.name === context.contextName &&
+        syntax.object.propertyName === "uniforms"
+      ) {
+        return lowerDefaultUniform(syntax, context.customUniforms);
+      }
+      if (
         syntax.object.kind === "identifier" &&
         syntax.object.name === "uniforms" &&
         context.contextBindings.has("uniforms")
       ) {
         return lowerDefaultUniform(syntax, context.customUniforms);
+      }
+      if (
+        syntax.object.kind === "identifier" &&
+        syntax.object.name === context.contextName
+      ) {
+        if (syntax.propertyName === "coord")
+          return {
+            ok: true,
+            expression: {
+              kind: "builtin-input",
+              input: "fragment-position",
+              type: VEC4_F32_TYPE,
+              range: syntax.range,
+            },
+          };
+        return expressionFailure(
+          ShaderDiagnosticCode.UnsupportedPropertyAccess,
+          "Only coord and uniforms are available on the fragment context.",
+          syntax.range,
+        );
       }
       return lowerSwizzle(syntax, context);
 

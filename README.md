@@ -135,7 +135,7 @@ A shader module must have:
 
 - Direct named imports from exactly `"shdr"` for DSL functions and expression types; no aliases or namespace imports. Shader modules may additionally use direct named imports from relative or configured-alias `.shdr.ts` files.
 - A fragment entry has exactly one default-exported `createFragmentShader(...)` call, or a direct `defineUniforms(...).createFragmentShader(...)` chain. A same-file or imported `const uniforms = defineUniforms(...)` may instead be linked with `createFragmentShader(callback, { uniforms })`; helper-only modules may omit a default fragment export.
-- A synchronous arrow callback with `({ coord, uniforms })` or `({ uniforms })` destructuring.
+- A fragment entry uses a synchronous arrow callback with `()`, a simple context parameter such as `(context)`, or object destructuring of `coord` and/or `uniforms` in either order (including `({ uniforms, coord })`). Access context inputs through `context.coord` and `context.uniforms` when using a simple parameter; helpers instead use explicitly typed expression parameters.
 - No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_` or `shdr_internal_` (reserved for generated helpers).
 
 ### Reusable shader functions and modules

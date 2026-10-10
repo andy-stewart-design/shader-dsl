@@ -35,7 +35,9 @@ export function validateShaderSyntax(
               ? [property.key.name]
               : [],
           )
-        : []),
+        : parameter?.type === "Identifier"
+          ? [parameter.name]
+          : []),
   );
   if (callback.body.type !== "BlockStatement") {
     const issue = validateExpression(callback.body, localNames, calleeNames);

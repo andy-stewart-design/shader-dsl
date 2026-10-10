@@ -401,6 +401,34 @@ export default createFragmentShader(({ coord, uniforms }) => {
     }
   }
 
+  for (const [name, callback, samples] of [
+    ["no context", "() => vec4(0.25, 0.5, 0.75, 1)", [[0.25, 0.25]]],
+    [
+      "coord only",
+      "({ coord }) => vec4(coord.x / 100, coord.y / 100, 0, 1)",
+      [[0.25, 0.75]],
+    ],
+    [
+      "uniforms only",
+      "({ uniforms }) => vec4(uniforms.resolution.x / uniforms.resolution.x, 0, 0, 1)",
+      [[0.5, 0.5]],
+    ],
+    [
+      "reordered context",
+      "({ uniforms, coord }) => vec4(coord.x / uniforms.resolution.x, coord.y / uniforms.resolution.y, 0, 1)",
+      [[0.25, 0.75]],
+    ],
+  ]) {
+    await compileSource(
+      page,
+      editor,
+      `import { createFragmentShader, vec4 } from "shdr";\nexport default createFragmentShader(${callback});`,
+    );
+    await waitForValidation(page, "glsl-es-300", "success");
+    await waitForValidation(page, "wgsl", "success");
+    await assertPixelParity(page, `${name} fragment callback`, samples, 5);
+  }
+
   await compileSource(
     page,
     editor,

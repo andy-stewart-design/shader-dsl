@@ -57,6 +57,40 @@ function hover(
 }
 
 describe("same-file shader helper TypeScript 7 editor parity", () => {
+  it("maps every fragment context form without losing TypeScript hovers or source diagnostics", () => {
+    const editor = adapter();
+    const prefix = 'import { createFragmentShader, vec4 } from "shdr";\n';
+    try {
+      for (const [index, callback] of [
+        "() => vec4(0.25)",
+        "(ctx) => vec4(ctx.coord.x / ctx.uniforms.resolution.x, ctx.uniforms.time, 0, 1)",
+        "({ coord }) => vec4(coord.x, 0, 0, 1)",
+        "({ uniforms }) => vec4(uniforms.time)",
+        "({ coord, uniforms }) => vec4(coord.x, uniforms.time, 0, 1)",
+        "({ uniforms, coord }) => vec4(coord.x, uniforms.time, 0, 1)",
+      ].entries()) {
+        const text = `${prefix}export default createFragmentShader(${callback});`;
+        const document = update(editor, text, index + 1, index + 1);
+        expect(document.diagnostics, callback).toEqual([]);
+        if (callback.startsWith("(ctx)")) {
+          expect(
+            document.getQuickInfoAtPosition(text.indexOf("ctx.coord") + 4)
+              ?.display,
+          ).toContain("Expr<Vec4<F32>>");
+        }
+      }
+      const bad = `${prefix}export default createFragmentShader(() => vec4(coord.x));`;
+      const invalid = update(editor, bad, 7, 7);
+      expect(invalid.diagnostics).toEqual([
+        expect.objectContaining({
+          source: "shdr",
+          code: ShaderDiagnosticCode.ClosureCapture,
+        }),
+      ]);
+    } finally {
+      editor.dispose();
+    }
+  });
   it("transforms helper-only bodies while retaining ordinary TypeScript diagnostics", () => {
     const editor = adapter();
     const text = `import { defineShaderFunction } from "shdr";
