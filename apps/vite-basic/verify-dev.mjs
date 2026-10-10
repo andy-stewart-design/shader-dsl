@@ -230,28 +230,32 @@ try {
     (module) => /"default":\s*(?:0)?\.5/.test(module),
   );
 
-  const customParity = await page.evaluate(async (source) => {
-    const { compileFragmentArtifact } =
-      await import("/src/browser-compiler-smoke.ts");
-    const { default: staticCustom } =
-      await import("/src/custom-uniforms.shdr.ts");
-    const compiled = compileFragmentArtifact(source);
-    const invalidSource = source.replace(
-      "u.f32(12)",
-      "u.f32(window.devicePixelRatio)",
-    );
-    const invalid = compileFragmentArtifact(invalidSource);
-    return {
-      equal:
-        compiled.ok &&
-        JSON.stringify(compiled.artifact) === JSON.stringify(staticCustom),
-      invalidCode: invalid.ok ? undefined : invalid.diagnostics[0]?.code,
-      invalidOffset: invalid.ok
-        ? undefined
-        : invalid.diagnostics[0]?.range.start,
-      expectedOffset: invalidSource.indexOf("window.devicePixelRatio"),
-    };
-  }, customSource);
+  const customParity = await evaluateAfterHmr(
+    page,
+    async (source) => {
+      const { compileFragmentArtifact } =
+        await import("/src/browser-compiler-smoke.ts");
+      const { default: staticCustom } =
+        await import("/src/custom-uniforms.shdr.ts");
+      const compiled = compileFragmentArtifact(source);
+      const invalidSource = source.replace(
+        "u.f32(12)",
+        "u.f32(window.devicePixelRatio)",
+      );
+      const invalid = compileFragmentArtifact(invalidSource);
+      return {
+        equal:
+          compiled.ok &&
+          JSON.stringify(compiled.artifact) === JSON.stringify(staticCustom),
+        invalidCode: invalid.ok ? undefined : invalid.diagnostics[0]?.code,
+        invalidOffset: invalid.ok
+          ? undefined
+          : invalid.diagnostics[0]?.range.start,
+        expectedOffset: invalidSource.indexOf("window.devicePixelRatio"),
+      };
+    },
+    customSource,
+  );
   if (
     !customParity.equal ||
     customParity.invalidCode !== "SHDR1210" ||
@@ -259,7 +263,8 @@ try {
   )
     throw new Error("Custom-uniform browser/static compilation diverged.");
 
-  const demoParity = await page.evaluate(
+  const demoParity = await evaluateAfterHmr(
+    page,
     async ({ named, inline }) => {
       const { compileFragmentArtifact } =
         await import("/src/browser-compiler-smoke.ts");
@@ -462,6 +467,23 @@ async function waitForCustomTransform(baseUrl) {
   throw new Error(
     `Vite did not invalidate the custom-uniform transform: ${latest}`,
   );
+}
+
+async function evaluateAfterHmr(page, expression, argument) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
+      await page.waitForTimeout(100);
+      return await page.evaluate(expression, argument);
+    } catch (error) {
+      lastError = error;
+      if (!/Execution context was destroyed|navigation/i.test(String(error)))
+        throw error;
+      await page.waitForTimeout(250);
+    }
+  }
+  throw lastError;
 }
 
 function assertIncludes(source, expected) {

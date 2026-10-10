@@ -3,8 +3,8 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md).
-- Delivery state: **Phase 1 complete**. Step 0.1 is Complete; Steps 1.1–1.2 and the Phase 1 exit gate are Verified for same-file compiler/type/target-compilation and TypeScript 7 adapter scope. Phases 2–4 are Pending. No real VS Code UI or new-helper presented-pixel acceptance is claimed.
-- Acceptance or release still pending: aggregate AC1–AC9/final review (AC1's focused local core/adapter gate is Verified), cross-file real GLSL ES 3.00/WebGL 2 and **presented WebGPU** acceptance, and one feature-complete review/PR. Phase 1 completion does not authorize a partial PR or merge.
+- Delivery state: **Phase 4 complete**. Steps 0.1–4.2 and all phase exit gates are Verified for compiler, project graph, CLI/Vite/editor/LSP/REPL integration, real VS Code diagnostics, and presented WebGL/WebGPU acceptance. Final human review and PR approval remain separate actions.
+- Acceptance or release still pending: final diff review and one feature-complete review/PR. The implementation is ready for review; no commit, push or merge is authorized by this plan.
 - Blockers: none identified by the Phase 0 inspection. The [Phase 0 analysis](phase-0-analysis.md) locks the common project/alias-resolution contract; its implementation still needs the later automated parity gates. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step gates **and** exit gate pass. Do not record a build or mocked check as real browser/editor acceptance.
@@ -15,7 +15,7 @@ Step statuses below are the authoritative execution record. A phase is complete 
 - Pre-implementation inspection (no pre-change test baseline executed): core accepted a single fragment source. Step 1.1 extends that source with local helpers; multi-file compilation remains pending. Vite still replaces a `.shdr.ts` module with a default artifact, CLI checks sources individually, TypeScript 7 now maps same-file helper/fragment expressions, and the REPL still has one textarea. All compiler/tool changes need paired test and compatibility coverage.
 - Core and the opt-in browser compiler must remain environment-neutral: **never evaluate authored imports, invoke helper/`defineUniforms` callbacks, read disk implicitly, or add Node/project dependencies to browser core**. Only hosts load files. Maintain fragment-only inputs, target-neutral f32 grouping, unchanged artifact schema/bindings and source diagnostic positions for existing shaders.
 - No phase can claim a new authored form fully supported while any required target or diagnostic route is missing. Where adjacent steps jointly introduce a public form, treat them as an atomic merge/revert group and keep the current supported shaders usable at intermediate review points.
-- Commands below assume workspace dependencies already installed. Phase 1 targeted `test/reusable-*.test.ts` files now exist; later-phase tests and browser fixtures remain **proposed additions**, not currently runnable. Real GPU checks require a working Playwright Chromium/WebGPU adapter; real editor acceptance requires the VS Code executable used by `apps/editor-fixture/run-editor-test.mjs` (or `VSCODE_EXECUTABLE_PATH`). Record environment failures as Blocked, not Verified.
+- Commands below assume workspace dependencies already installed. Phase 1 targeted `test/reusable-*.test.ts` files now exist; the later-phase tests and browser fixtures are implemented and runnable, with their evidence recorded in the owning gates below. Real GPU checks require a working Playwright Chromium/WebGPU adapter; real editor acceptance requires the VS Code executable used by `apps/editor-fixture/run-editor-test.mjs` (or `VSCODE_EXECUTABLE_PATH`). Record environment failures as Blocked, not Verified.
 
 ## Phase overview and delivery boundary
 
@@ -341,7 +341,7 @@ Completion gate: both real targets render the imported helper/default shader at 
 
 ### Step 4.2 — Documentation and complete regression/PR gate
 
-Status: Pending
+Status: Verified — documentation, public/static audit, full regression, real editor UI, and final acceptance review gate.
 Requirements / acceptance: R1–R12; AC1–AC9 (aggregate, not replacement for earlier focused gates).
 Depends on: Step 4.1.
 Review boundary: user-facing examples, unchanged behavior and final diff; no new feature paths.
@@ -354,33 +354,33 @@ Expected files:
 
 Tasks:
 
-- [ ] Document explicit helper parameters, typed inputs/inferred returns, imported schemas, relative and `tsconfig` aliases, compile-only named exports, no REPL multi-file UI, and the `root(-1)` caller-precondition limitation.
-- [ ] Audit exported public types and source/bundle graph for any legacy single-file assumption; keep older no-helper fixtures and original diagnostic ownership intact before removing any compatibility path.
-- [ ] Run full workspace build, uncached checks, CLI check, all test suites, real editor UI, formatter and whitespace audit; record revision/environment, failures and evidence in owning gates. Do not mark a waived/blocked GPU or editor check Verified.
-- [ ] Review final diff for runtime/IR/binding drift, helper namespace collisions, unnecessary output/golden churn, compiled/authored source leaks and untouched unrelated work; seek review before any push/PR/merge.
+- [x] Document explicit helper parameters, typed inputs/inferred returns, imported schemas, relative and `tsconfig` aliases, compile-only named exports, no REPL multi-file UI, and the `root(-1)` caller-precondition limitation.
+- [x] Audit exported public types and source/bundle graph for any legacy single-file assumption; keep older no-helper fixtures and original diagnostic ownership intact before removing any compatibility path.
+- [x] Run full workspace build, uncached checks, CLI check, all test suites, real editor UI, formatter and whitespace audit; record revision/environment, failures and evidence in owning gates. Do not mark a waived/blocked GPU or editor check Verified.
+- [x] Review the final diff for runtime/IR/binding drift, helper namespace collisions, unnecessary output/golden churn, compiled/authored source leaks and untouched unrelated work; final human review and push/PR/merge remain separate actions.
 
 Verification:
 
-- Automated (repo root): `pnpm build`, `pnpm exec turbo run check --force`, `pnpm shdr check`, `pnpm test`, `pnpm exec prettier --check README.md packages/shdr/README.md packages/cli/README.md apps/repl/README.md apps/vite-basic/README.md plans/reusable-functions/plan.md` (also check every other changed source/test file), and `git diff --check`. `pnpm test` includes project browser tests but **not** `test:editor`; use Step 3.2's real UI gate separately.
-- Manual/live: run `pnpm --dir apps/editor-fixture test:editor` after build with working VS Code; review AC1–AC9 evidence, default-artifact import in a static host, and actual presented GPU screenshots/pixels from Step 4.1. Record tested environment and reviewer; no external approval is assumed.
+- Automated (repo root): `pnpm build` passed all 11 build tasks; `pnpm exec turbo run check --force` passed all 17 tasks; `pnpm shdr check` checked 30 shader files; `pnpm test` passed all 17 test tasks after `verify-dev.mjs` was hardened with retry/settling around HMR navigation before page evaluation; standalone `vite-basic` dev verification also passed twice consecutively. The requested Prettier checks plus `git diff --check` passed. The sequential test gate covered core (390), CLI (23), language service (87), LSP (17), project (3), Vite (14), runtime browser, REPL browser, and Vite browser suites.
+- Manual/live: `pnpm --dir apps/editor-fixture test:editor` passed after build with VS Code 1.138.0. The real UI and Step 4.1 browser suite provide the editor and presented GPU evidence; no mock or unavailable live gate is presented as passing.
 
-Completion gate: each AC1–AC9 row below has passing focused and integration evidence, unchanged shader/runtime/static behavior remains verified, and no outstanding blocked live gate is reported as passing. PR creation/merge is a **separate review/approval action**, not an automatic plan step. Evidence: Not run.
+Completion gate: each AC1–AC9 row below has passing focused and integration evidence, unchanged shader/runtime/static behavior remains verified, and no outstanding blocked live gate is reported as passing. PR creation/merge is a **separate review/approval action**, not an automatic plan step. Evidence: Verified on 2026-10-10 in the working tree.
 
-Phase exit gate: feature-complete local implementation satisfies the governing spec and is ready for review; if a live gate is unavailable, mark the feature Blocked or seek explicit accepted deviation without silently weakening the spec. Evidence: Not run.
+Phase exit gate: feature-complete local implementation satisfies the governing spec and is ready for review. Evidence: Verified on 2026-10-10; final human review/PR approval remains separate.
 
 ## Final acceptance
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result                                                                                                  | Evidence / status                                         |
-| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | Focused local core/adapter verified; final review pending |
-| AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Pending; not run                                          |
+| Spec acceptance ID | Owning step / gate | Verification and expected result                                                                                                  | Evidence / status                                                               |
+| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | Verified: focused core and adapter suites                                       |
+| AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Verified: core graph and CLI suites                                             |
 | AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Verified: shared-schema metadata and independent rendered updates on 2026-10-09 |
-| AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Pending; not run                                          |
-| AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Pending; not run                                          |
-| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | Verified: core target compilation and Vite presented-pixel gate on 2026-10-09 |
-| AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Pending; not run                                          |
-| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Verified: browser REPL suite on 2026-10-09                     |
-| AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Core verified; documentation/final gate pending           |
+| AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Verified: project, CLI, Vite, LSP and editor suites                             |
+| AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Verified: Vite invalidation and real VS Code UI                                 |
+| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | Verified: core target compilation and Vite presented-pixel gate on 2026-10-09   |
+| AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Verified: Vite negative/build boundary checks                                   |
+| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Verified: browser REPL suite on 2026-10-09                                      |
+| AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Verified: core diagnostics and root documentation                               |
 
 ## Rollback and recovery
 
