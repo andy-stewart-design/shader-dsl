@@ -1,0 +1,392 @@
+# Reusable shader functions implementation plan
+
+## Status and governing source
+
+- Governing spec: [spec.md](spec.md).
+- Delivery state: **Phase 4 complete**. Steps 0.1–4.2 and all phase exit gates are Verified for compiler, project graph, CLI/Vite/editor/LSP/REPL integration, real VS Code diagnostics, and presented WebGL/WebGPU acceptance. Final human review and PR approval remain separate actions.
+- Acceptance or release still pending: final diff review and one feature-complete review/PR. The implementation is ready for review; no commit, push or merge is authorized by this plan.
+- Blockers: none identified by the Phase 0 inspection. The [Phase 0 analysis](phase-0-analysis.md) locks the common project/alias-resolution contract; its implementation still needs the later automated parity gates. If CLI/Vite/editor cannot honor it, stop and resolve that conflict against the governing spec; do not silently substitute a Vite-only alias.
+
+Step statuses below are the authoritative execution record. A phase is complete only when its step gates **and** exit gate pass. Do not record a build or mocked check as real browser/editor acceptance.
+
+## Execution constraints
+
+- Paths are relative to repository root. Preserve existing unrelated work, including any in-progress moves under `plans/`; expected files are scope estimates, not permission to edit unrelated files.
+- Pre-implementation inspection (no pre-change test baseline executed): core accepted a single fragment source. Step 1.1 extends that source with local helpers; multi-file compilation remains pending. Vite still replaces a `.shdr.ts` module with a default artifact, CLI checks sources individually, TypeScript 7 now maps same-file helper/fragment expressions, and the REPL still has one textarea. All compiler/tool changes need paired test and compatibility coverage.
+- Core and the opt-in browser compiler must remain environment-neutral: **never evaluate authored imports, invoke helper/`defineUniforms` callbacks, read disk implicitly, or add Node/project dependencies to browser core**. Only hosts load files. Maintain fragment-only inputs, target-neutral f32 grouping, unchanged artifact schema/bindings and source diagnostic positions for existing shaders.
+- No phase can claim a new authored form fully supported while any required target or diagnostic route is missing. Where adjacent steps jointly introduce a public form, treat them as an atomic merge/revert group and keep the current supported shaders usable at intermediate review points.
+- Commands below assume workspace dependencies already installed. Phase 1 targeted `test/reusable-*.test.ts` files now exist; the later-phase tests and browser fixtures are implemented and runnable, with their evidence recorded in the owning gates below. Real GPU checks require a working Playwright Chromium/WebGPU adapter; real editor acceptance requires the VS Code executable used by `apps/editor-fixture/run-editor-test.mjs` (or `VSCODE_EXECUTABLE_PATH`). Record environment failures as Blocked, not Verified.
+
+## Phase overview and delivery boundary
+
+| Phase | Outcome                                                                                       | Dependencies   | Exit gate                                                                                |
+| ----- | --------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| 0     | Baseline and project-resolution/diagnostic decision lock                                      | Governing spec | Written contracts and identified seams; no production change                             |
+| 1     | Same-file typed functions compile to both targets and work in the TypeScript 7 editor         | Phase 0        | Local helper + builtin-domain/invalid-shape cases pass in core and editor                |
+| 2     | Core virtual module graph, imported uniforms, and project-backed CLI paths                    | Phase 1        | Cross-file artifacts/diagnostics and CLI graph cases agree; old single-source API intact |
+| 3     | Vite static/development, project editor/LSP, and single-textarea REPL compose with that graph | Phase 2        | Consumer-specific positive/negative and invalidation checks pass                         |
+| 4     | Real GPU/browser parity, shared-uniform isolation, documentation, and final acceptance        | Phase 3        | All AC1–AC9 gates plus full regression review                                            |
+
+Delivery boundary: **one feature-complete PR after Phase 4**; these phases are reviewable increments, not permission to merge partial public behavior. Atomic groups: Steps 1.1–1.2 for local helper compiler/editor parity, and Steps 2.1–3.2 for publicly reusable cross-file imports across core, CLI, Vite and editor. Do not land or revert only one member of an atomic group with consumers depending on it.
+
+## Phase 0 — Contract and feasibility baseline
+
+Outcome: select a testable, consistent multi-host resolution contract without changing app behavior.
+Depends on: governing spec.
+Review boundary: only existing source/test inspection and the linked [Phase 0 analysis](phase-0-analysis.md); do not build a resolver or run GPU/editor suites here.
+
+### Step 0.1 — Lock paths, module shape, and attribution seam
+
+Status: Complete — source/test inspection and written contract only; no behavior acceptance claimed.
+Requirements / acceptance: R3, R5–R7, R9; informs AC2, AC4, AC5.
+Depends on: None.
+Review boundary: specification/feasibility only; no production change.
+
+Expected files:
+
+- `plans/reusable-functions/phase-0-analysis.md` — record the confirmed resolution/diagnostic decision and any required spec clarification (without silently weakening `spec.md`).
+- `plans/reusable-functions/plan.md` — retain execution status and links to the analysis.
+- `packages/core/src/parse-shader-file.ts`, `packages/core/src/diagnostics.ts`, `packages/lsp/src/project-discovery.ts`, `packages/language-service/src/typescript-7-editor-adapter.ts`, `packages/vite/src/index.ts`, `packages/cli/src/check.ts` — inspect only.
+
+Tasks:
+
+- [x] Trace the currently supported `shdr` import and same-file `defineUniforms` forms, public diagnostic shapes, and single-source core/browser API; record compatibility constraints.
+- [x] Determine a shared rule for selected `tsconfig.json`, `paths`/relative imports, missing configs, canonical paths, duplicate imports and dependency cycles; identify how CLI, Vite and editor will supply files to core without using Vite-only resolution.
+- [x] Inspect virtual-source project/hover mapping and Vite transformation/watch behavior for helper-only and mixed-export modules; note what needs atomic change.
+- [x] Choose a representative three-file helper + imported-uniform fixture and a minimal invalid-cycle/missing-import case; confirm the assumed direct-export and one-schema syntax against the spec examples.
+
+Verification:
+
+- Automated: Not applicable; this is a read-only feasibility/decision gate, not behavior proof.
+- Manual: Compare the recorded rules with the actual entry/config semantics in the cited files; ensure the same alias maps to the same file for each proposed host and a browser virtual map. Record any counterexample and stop the affected work until resolved.
+
+Completion gate: project/alias resolution, file-identity/diagnostic attribution, and module-cycle rules are documented with no unaddressed conflict with R5. Evidence: Static inspection on 2026-10-08 at revision `796bb21` and subsequent review corrections; see [Phase 0 analysis](phase-0-analysis.md), sections B and D. No tests executed.
+
+Phase exit gate: review the [Phase 0 analysis](phase-0-analysis.md) before code changes; resolve material conflicts against the spec rather than implementing alternatives quietly. Evidence: R5/R12 review completed; no selected config disables aliases, not compilation, and config-search roots do not restrict dependencies. Ready for Phase 1; behavior acceptance remains pending.
+
+## Phase 1 — Same-file typed helpers
+
+Outcome: a local helper can be authored once, called inside a fragment, and emitted as a typed function in GLSL/WGSL; TypeScript 7 preserves source hovers/diagnostics.
+Depends on: Phase 0.
+Review boundary: local helpers only; cross-file resolution and imported uniforms remain unsupported until Phase 2. Steps 1.1–1.2 form an atomic user-visible acceptance gate.
+
+### Step 1.1 — Typed local helper through parsing, IR, and both emitters
+
+Status: Verified — compiler/type/real target-compilation gate; paired Step 1.2 is now Verified.
+Requirements / acceptance: R1–R2, R8, R11–R12; AC1, AC9 (core portion).
+Depends on: Step 0.1.
+Review boundary: local `defineShaderFunction` syntax and semantics; no module graph or editor claims.
+
+Expected files:
+
+- `packages/shdr/src/dsl.ts`, `packages/shdr/src/types.ts`, `packages/shdr/src/index.ts`, `packages/shdr/test/` — source marker/signature and type-level cases.
+- `packages/core/src/parse-shader-file.ts`, `parse-shader-functions.ts` (new), `validate-shader-syntax.ts`, `normalize-shader-syntax.ts`, `shader-syntax.ts`, `lower-shader-syntax.ts`, `lower-shader-functions.ts` (new), `lower-fragment.ts`, `evaluate-shader-constant.ts`, `shader-ir.ts`, `diagnostics.ts`, `index.ts` — local function parsing, shared body lowering, typed parameters/return, call resolution and source diagnostics.
+- `packages/core/src/generate-glsl-expression.ts`, `generate-glsl-fragment.ts`, `generate-wgsl-expression.ts`, `generate-wgsl-fragment.ts`, `shader-local-name.ts`, `compile-fragment-artifact.ts`, `packages/core/test/reusable-local.test.ts` (new) — callable emission/name isolation and focused tests.
+
+Tasks:
+
+- [x] Recognize top-level `const` helpers with typed `Expr` parameters, supported `import type` from `shdr`, optional return annotations, expression/block bodies, and a marker that does not execute authored functions. Keep ordinary JS callables out of shader lowering.
+- [x] Lower parameter/local references and calls to target-neutral types with inferred/checked returns, no captures, exact shape/arity checks, collision-safe names and direct/indirect local recursion rejection.
+- [x] Emit each reachable local helper in both targets with correct signatures, grouping and builtin/splat support; preserve existing artifact fields and single-source fragments.
+- [x] Add focused success/failure tests for scalar/V2/V3/V4, annotation inference/mismatch, capture, invalid calls, nested helper calls, and locally provable builtin-domain errors versus `root(-1)` precondition behavior. Include real WebGL shader compilation and WGSL module compilation for a representative local helper, not only string snapshots.
+
+Verification:
+
+- Automated: add `packages/core/test/reusable-local.test.ts` and `packages/shdr/test/reusable-function-types.ts`, then run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-local.test.ts`, `pnpm --filter shdr check`, `pnpm --filter shdr test`, and `pnpm --filter @shdr/core check` (repo root). Check concrete type signatures, valid GLSL/WGSL compilation and exact invalid-source ranges; no new errors for existing single-source cases.
+- Manual: Not needed; core, type and actual target-compilation tests cover this step's limited scope.
+
+Completion gate: local helper source yields a valid dual-target artifact and both real target compilers accept it; invalid calls/captures/domain cases fail at authored ranges, and existing no-helper compilation still works. **Not a merge gate until Step 1.2 passes.** Evidence: Verified on 2026-10-08 in the working tree over `a521119`:
+
+- Focused local-helper suite: 40 tests passed, including real WebGL 2 compile/link and WGSL module compilation for transitive helpers, reserved-name/grouping cases and vector builtin guards/splats. No new-helper pipeline/presented-pixel claim.
+- `shdr` and core builds/checks passed (type fixtures included); `shdr` tests: 7 passed; full core suite: 366 passed. Existing language-service check and 51 regression tests passed; these are not new-helper editor acceptance.
+- Environment: macOS arm64, Node 24.21.0, pnpm 11.23.0, TypeScript 7.0.2, Playwright 1.63.0, Chromium 153.0.8010.12 with SwiftShader/WebGPU test flags. Changed-file formatting and whitespace checks passed. No module-graph, Step 1.2, real VS Code or final acceptance gate was performed.
+
+### Step 1.2 — Local-helper editor transformation and typed hovers
+
+Status: Verified — real TypeScript 7 adapter/mapping scope; no VS Code UI claim.
+Requirements / acceptance: R1–R2, R7, R9, R12; AC1 (editor portion).
+Depends on: Step 1.1.
+Review boundary: same-file TypeScript 7 virtual transformations/diagnostic routing; no cross-file edits.
+
+Expected files:
+
+- `packages/core/src/create-virtual-source.ts`, `transform-shader-expressions.ts`, `parse-shader-file.ts`, `mapped-text-writer.ts`, `analyze-fragment.ts`, `packages/core/test/reusable-local-virtual.test.ts` (new) — map every helper body alongside fragment expressions and retain disjoint boundaries on failures.
+- `packages/language-service/src/typescript-7-editor-adapter.ts`, `typescript-7-checker.ts`, `diagnostic-routing.ts`, `packages/language-service/test/reusable-local-editor.test.ts` (new), `diagnostic-routing.test.ts`, `test/fixtures/project/reusable-local.shdr.ts` (new) — typed QuickInfo, native snapshot/cache coherence and routed ranges.
+- `apps/editor-fixture/` (if needed for real UI later) — valid local-helper authoring fixture.
+
+Tasks:
+
+- [x] Rewrite helper expressions in the TypeScript 7 virtual document without executing them or mapping a generated operation to an unrelated original range; preserve existing callback mapping.
+- [x] Route missing annotations, capture, wrong-arity/shape, return-type and builtin-domain diagnostics to original helper/call spans; check typed hovers at definition/usage.
+- [x] Add adapter tests for valid helpers and negative edits, including ordinary `.ts` delegation and existing shader hover/diagnostic regressions.
+
+Verification:
+
+- Automated: add `packages/language-service/test/reusable-local-editor.test.ts`, then run `pnpm --filter @shdr/language-service test` and `pnpm --filter @shdr/core test` (root). Assert hovers/diagnostic ownership and unchanged no-helper behavior.
+- Manual: Not needed for this local adapter increment; real VS Code UI is required at Step 3.2/final acceptance.
+
+Completion gate: the TypeScript 7 adapter and core agree on local-helper calls/types/errors with original positions, and existing fragment/ordinary-TS tests stay green. Evidence: Verified on 2026-10-08 in the working tree over `41f575c`:
+
+- Real TypeScript 7 adapter suite: 33 local-helper tests passed; full language-service suite: 85 passed. Covers inferred/annotated scalar/V2/V3/V4, forward/transitive calls, exact definition/use/local hovers, captures/signatures/domains/recursion, explicit uniform arguments, unsaved edits, identity-only transitions, project-version/reopen/disposal, independent documents and ordinary `.ts` delegation.
+- Five core mapping tests plus a routing regression passed, including CRLF/non-BMP UTF-16 ranges, helpers after the fragment, unused helper transformation, generated-only hover/mapping suppression and ordinary TypeScript diagnostics between disjoint shader regions. Full core suite: 371 passed (including Step 1.1's real target-compilation tests).
+- Fixed TS 7.0.2 stale client AST ranges and stale generic marker inference by clearing the frontend cache and reopening helper virtual checks. Failed definitions suppress untrusted shader hovers/cascades; fragment-only call failures retain valid helper signature hovers. Environment: macOS arm64, Node 24.21.0, pnpm 11.23.0, TypeScript 7.0.2. Formatting/whitespace checks passed. No authored execution, cross-file support or VS Code UI acceptance.
+
+Phase exit gate: run `pnpm build` and `pnpm exec turbo run check --force` after both steps; the local helper works in both targets and the TypeScript 7 adapter, while old shaders remain accepted. No cross-file or REPL claims yet. Evidence: Verified on 2026-10-08; workspace build passed (10 build tasks, including existing static/browser-boundary checks), and forced check passed (15 tasks including dependency builds; no cache hits). An initial combined invocation timed out; tests/build/check were rerun separately and all passed. The feature-complete PR boundary still applies.
+
+## Phase 2 — Virtual source graph and project-backed checks
+
+Outcome: a browser-supplied virtual graph or project-backed CLI can compile a fragment with imported helpers/uniform schema, diagnose source-file faults and preserve the old single-source API.
+Depends on: Phase 1.
+Review boundary: core + CLI; no Vite/editor cross-file completion claim until Phase 3.
+
+### Step 2.1 — Environment-neutral named imports and graph compilation
+
+Status: Verified — browser-safe virtual graph/compiler gate; project-backed CLI, imported schemas and consumer integration remain pending.
+Requirements / acceptance: R3, R5–R8, R12; AC2, AC4 (core virtual-graph portion).
+Depends on: Phase 1 exit.
+Review boundary: relative `.shdr.ts` helpers, import aliases and transitive graph in core; custom schemas and project aliases follow.
+
+Expected files:
+
+- `packages/core/src/parse-shader-file.ts`, `shader-syntax.ts`, `shader-ir.ts`, `lower-fragment.ts`, `lower-shader-syntax.ts`, `compile-fragment-artifact.ts`, `diagnostics.ts`, `browser.ts`, `index.ts` — module exports/imports, file-aware diagnostics and virtual input contract.
+- `packages/core/src/` (new graph resolver, if needed), `packages/core/test/reusable-graph.test.ts` (new) — pure path/graph logic and tests.
+
+Tasks:
+
+- [x] Accept helper-only and mixed-export `.shdr.ts` sources; bind direct named imports to stable definitions even with aliases/colliding spellings; follow transitive dependencies without evaluating modules.
+- [x] Define a virtual entry/files API with normalized file identities and relative resolution; report missing exports/files, malformed imports and module/function cycles with a useful path; keep single-string no-import usage unchanged.
+- [x] Carry original file identity plus ranges through graph failures, while preserving legacy single-source diagnostic shapes where possible. Reject partial artifacts and deduplicate repeated helper emission.
+- [x] Test an imported helper from a mixed module, a three-file chain, helper-only modules, alias/cycle/missing-import failures, frozen/deterministic results and default-shader reachability. Check GLSL/WGSL output for reachable helpers, not merely parse success.
+
+Verification:
+
+- Automated: add `packages/core/test/reusable-graph.test.ts`, then run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-graph.test.ts` and `pnpm --filter @shdr/core check`. Assertions include browser-safe graph compilation with no Node dependency, file/range fault ownership and unchanged single-source artifacts.
+- Manual: Not needed; input map and emitted text are fully observable in focused core tests. Real project resolver and GPU acceptance occur later.
+
+Completion gate: a three-file virtual map produces both target shaders and precise graph diagnostics without filesystem/JS execution; old single-source inputs still compile. **Cross-file public feature not mergeable until Steps 2.2–3.2.** Evidence: `test/reusable-graph.test.ts` passed 12 tests, including exact/longest-wildcard alias precedence, malformed dependency-export diagnostics, unused mixed-module default handling, real WebGL 2 GLSL compile/link and WebGPU WGSL module compilation; full core suite passed 383 tests; `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. GPU unavailability is now an explicit failing/Blocked diagnostic rather than a silent skip. No authored module/callback execution or filesystem access was introduced.
+
+### Step 2.2 — Imported uniform schema without artifact changes
+
+Status: Verified — imported schema selection/metadata parity and negative core cases; runtime isolation remains owned by Step 4.1.
+Requirements / acceptance: R4, R7–R8, R12; AC3 (compile/type portion).
+Depends on: Step 2.1.
+Review boundary: named `defineUniforms` import and one explicitly linked schema; no runtime/backend resource changes.
+
+Expected files:
+
+- `packages/core/src/parse-shader-file.ts`, `parse-custom-uniforms.ts`, `lower-fragment.ts`, `shader-ir.ts`, `compile-fragment-artifact.ts`, `packages/core/test/reusable-uniforms.test.ts` (new) — schema resolution/metadata and negative cases.
+- `packages/shdr/src/dsl.ts`, `packages/shdr/test/` — check source/host schema typing for an imported definition if declaration types need adjustment.
+
+Tasks:
+
+- [x] Resolve the selected `{ uniforms }` declaration by named import or existing same-file declaration, without evaluating builder callbacks; retain complete literal defaults and referenced subset.
+- [x] Verify two independent fragments can import one schema, and a helper can only use its fields when explicitly passed arguments.
+- [x] Reject missing, invalid, mismatched or multiply selected definitions at their authored locations while preserving the inline/chained and local named forms.
+- [x] Compare JSON metadata and output bindings to equivalent same-file input; do not add fields or inferred runtime bindings.
+
+Verification:
+
+- Automated: add `packages/core/test/reusable-uniforms.test.ts`; run `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/reusable-uniforms.test.ts test/custom-uniforms.test.ts`, `pnpm --filter shdr test`, and `pnpm --filter @shdr/core check`. Expect identical schema/defaults and no helper capture; runtime independence gets a real check in Step 4.1.
+- Manual: Not needed; this step changes compile-time linkage and metadata only.
+
+Completion gate: virtual imports select the same custom schema/metadata as a local definition; malformed links yield original-file diagnostics and all existing custom-uniform fixtures still pass. Evidence: imported-schema cases in `test/reusable-graph.test.ts` passed with metadata/reference-subset parity across local, exported-same-file, and aliased imported schemas, plus source-owned missing/invalid diagnostics; full core suite passed 386 tests; `shdr` tests/check, `@shdr/core` check/build, formatting and `git diff --check` passed on 2026-10-08. No builder callback was evaluated and no artifact fields changed.
+
+### Step 2.3 — Shared TypeScript-project paths and CLI graph checking
+
+Status: Verified — shared TypeScript 7 project loading and CLI graph-checking gate; Vite/editor host integration remains pending.
+Requirements / acceptance: R5, R7, R9, R12; AC4, AC5 (CLI portion).
+Depends on: Steps 2.1–2.2 and Phase 0 resolution rule.
+Review boundary: project-backed resolution and CLI check presentation; Vite/editor must reuse the resulting effective graph contract, not invent new alias semantics.
+
+Expected files:
+
+- `packages/cli/src/check.ts`, `discover.ts`, `package.json` (only if config parsing requires a runtime dependency), `packages/cli/test/cli.test.ts` (or new `reusable-graph.test.ts`) — project/relative resolution and one diagnostic per authored fault.
+- `packages/core/src/` (graph-input/path normalization contract, if needed) — only environment-neutral changes.
+- `packages/project/` (new Node-only shared host package), consumer package manifests/lockfile, `packages/lsp/src/project-discovery.ts` and project fixtures — extract/reuse the Phase 0 project-selection/config/loading contract without adding host dependencies to core. Preserve the LSP discovery facade/tests where practical.
+
+Tasks:
+
+- [x] Load a selected project's `tsconfig.json` `paths` (including relevant config inheritance), resolve relative/aliased `.shdr.ts` sources with deterministic file identities, and give explicit errors for unsupported/no-config alias use.
+- [x] Check helper-only entries, discovered fragments and their allowed dependencies; report a shared-file error once per check rather than multiplying it by dependents.
+- [x] Use isolated temporary TS projects to test aliases, missing/non-shader files, cyclic graphs and diagnostics at the actual owner file/line, without modifying workspace fixtures during the run. Include no-config/excluded-config no-import and relative-graph successes, alias failures without selected config, and an explicit entry outside cwd importing `../lib/helper.shdr.ts` outside its config-search root.
+- [x] Keep existing CLI discovery, single-file checks and ordinary TypeScript responsibility unchanged.
+
+Verification:
+
+- Automated: add CLI temp-project cases, then run `pnpm --filter @shdr/cli test` and `pnpm --filter @shdr/cli check` (root). Expect distinct successful relative/alias cases and deterministic negative output with no duplicated shared-file fault.
+- Manual: Not needed; CLI invocation and file/line output are covered by process-level tests. Final workspace `pnpm shdr check` is gated by Phase 4.
+
+Completion gate: CLI and virtual-map compilation agree on an equivalent graph, helper-only files check without dummy fragments, and no Node filesystem code enters browser core. Evidence: `@shdr/project` tests passed 3 tests for inherited aliases, reachable-only loading, excluded projects, external relative dependencies and symlinked alias identity; CLI suite passed 23 tests including project aliases, helper-only entries, shared-fault deduplication, no-config alias failure and external relative dependencies; project/CLI checks and builds passed on 2026-10-08. Core remains environment-neutral and only receives the loaded virtual map. The project fixture also matches an equivalent canonical virtual graph for artifact output and source-owned diagnostics.
+
+Phase exit gate: `pnpm build`, focused core/CLI suites and uncached checks succeed; a project fixture and equivalent virtual map produce the same artifact and file-aware errors. Do not claim Vite/editor alias parity until Phase 3. Evidence: `pnpm build` passed all 11 build tasks; `pnpm exec turbo run check --force` passed all 17 tasks with zero cache hits; core/CLI/project tests passed (386/23/3); project parity coverage passed for artifact equality and helper diagnostics with canonical file ownership. Vite/editor alias parity remains explicitly deferred to Phase 3.
+
+## Phase 3 — Consumer integration and project editing
+
+Outcome: static builds and development invalidation, editor project diagnostics/hovers, and current REPL behavior honor the new contract.
+Depends on: Phase 2.
+Review boundary: no new language shapes or runtime API; fix consumer integration without altering core's browser-safe graph semantics.
+
+### Step 3.1 — Vite source-graph transform and static boundary
+
+Status: Verified — graph-aware Vite transform, dependency watching/HMR and static-boundary gate; editor/LSP integration remains pending.
+Requirements / acceptance: R5, R8–R9, R12; AC4, AC5 (Vite portions), AC7.
+Depends on: Phase 2 exit.
+Review boundary: host file loading, dependency watching, artifact output and negative named-runtime imports.
+
+Expected files:
+
+- `packages/vite/src/index.ts`, `packages/vite/test/index.test.ts`, `packages/vite/package.json` — graph-aware transform/error locations and shared `@shdr/project` dependency.
+- `apps/vite-basic/src/` (new shared `.shdr.ts` and importing entry fixtures), `apps/vite-basic/verify-build.mjs`, `verify-dev.mjs` — static bundle and invalidation checks with isolated/edit-restoring source handling.
+
+Tasks:
+
+- [x] Resolve fragments through the same effective project/alias rule as CLI, load reachable `.shdr.ts` sources before transformation and register them as Vite dependencies; keep the default runtime export as JSON artifact data.
+- [x] Handle helper-only modules as compile-time sources and reject ordinary host named imports of helpers/uniform declarations rather than shipping source or a fake callable export.
+- [x] Check a valid imported helper/schema, invalid import attribution, shared-helper edits propagating to two dependent fragments, and schema-default edits changing both artifacts; test restoring/isolating edited source on failure.
+- [x] Inspect both production dual-backend and WebGL-only bundles for compiler/DSL/authored-source leakage while retaining existing artifact type usability.
+
+Verification:
+
+- Automated: extend `packages/vite/test/index.test.ts`, `apps/vite-basic/verify-dev.mjs` and `verify-build.mjs`; run `pnpm --filter @shdr/vite test`, `pnpm --dir apps/vite-basic build`, and `pnpm --dir apps/vite-basic test:dev` after dependency builds. Unit tests prove transform behavior; Vite dev checks prove real dependent invalidation; production checks prove static bundle exclusion. A proposed negative fixture asserts named runtime imports fail clearly.
+- Manual: Not needed if the dev-server tests perform actual dependency edits/reloads and the build checks inspect the emitted graph.
+
+Completion gate: both entries update after a shared edit, malformed imports report the correct authored file, the production bundle contains only artifacts/renderer code, and host named helper imports do not execute. Evidence: `@shdr/vite` passed 14 tests and its check, including aliased imported helper/schema transforms, dependency-owned diagnostics, schema edits, dependency watching, direct helper-module rejection and an ordinary-host Vite build rejection fixture; `vite-basic` check passed, production build verification passed, and real Vite dev verification passed same-module-ID shared-helper invalidation for two entries, two-consumer imported-schema invalidation/restoration, plus browser reload on 2026-10-08. The static dual/WebGL-only bundles contain no compiler, DSL source or unused renderer.
+
+### Step 3.2 — Project-aware editor and LSP diagnostics
+
+Status: Verified — project-aware LSP/editor diagnostics, aliases, dependency refresh and real VS Code UI gate.
+Requirements / acceptance: R5, R7, R9, R12; AC4, AC5 (editor portions).
+Depends on: Phase 2 exit and completed Step 3.1 (shared graph/alias contract).
+Review boundary: virtual project snapshots, cross-file QuickInfo/ranges and invalidation; ordinary `.ts` remains delegated.
+
+Expected files:
+
+- `packages/language-service/src/typescript-7-editor-adapter.ts`, `typescript-7-checker.ts`, `diagnostic-routing.ts`, `packages/language-service/test/reusable-project-editor.test.ts` (new) — cross-file mapping/refresh.
+- `packages/lsp/src/project-discovery.ts`, `server.ts`, `packages/lsp/test/`, language-service/LSP package manifests — shared host-loader integration, project-aware source lookup and file-owned protocol publication/tests.
+- `apps/editor-fixture/` (new project helper/fragment fixtures), `apps/editor-fixture/src/extension.test.ts`, `apps/editor-fixture/test.mjs` — real editor coverage.
+
+Tasks:
+
+- [x] Transform/recheck helper-body operations in their defining file as well as fragments, and map imported call/type errors to callers without attributing a dependency fault to every consumer.
+- [x] Use the same selected TS project's resolution as CLI/Vite, including `paths`, while maintaining consistent open-file unsaved edits, project-version invalidation and hovers after dependency updates.
+- [x] Add valid and negative multi-file project fixtures and LSP/editor tests for definition/call hovers, original ranges, aliases, helper-only files, and unchanged ordinary `.ts` ownership.
+- [x] Extend the real VS Code UI test itself to open helper and fragment fixtures, edit a dependency and check refreshed owning-file diagnostics/hovers; retain its existing diagnostic/hover cases.
+
+Verification:
+
+- Automated: language-service: 87 tests; LSP: 17 tests; project: 3 tests; editor-fixture typecheck/build passed. Coverage includes helper-only virtual transformation, ordinary TS2322 ownership, alias resolution, cross-file hovers, dependency invalidation and stale-result prevention.
+- Manual/live: `pnpm --dir apps/editor-fixture test:editor` passed after build using the installed VS Code executable (`/Applications/Visual Studio Code.app/Contents/MacOS/Code`, VS Code 1.138.0). The real extension opened the aliased helper and fragment, observed the helper-owned TS2322 diagnostic, changed the mixed helper/default module from `Expr<F32>` to `Expr<Vec2<F32>>`, observed the caller's SHDR1213 error, then cleared it by changing the argument; removing and restoring the last helper marker also produced and cleared SHDR1302, without ordinary `.ts` takeover.
+
+Completion gate: adapter/LSP checks and **real VS Code UI** demonstrate cross-file edit/hover/diagnostic ownership; no test-only virtual result is presented as editor acceptance. **Evidence: Verified on 2026-10-09 in the working tree.**
+
+### Step 3.3 — Preserve single-textarea REPL behavior
+
+Status: Verified — single-textarea local-helper rendering, unresolved external-import blocking, and last-render preservation.
+Requirements / acceptance: R6, R10–R12; AC8.
+Depends on: Phase 1 local helpers and Phase 2 single-string failure contract.
+Review boundary: no new tabs/file-picker or automatic fetch; browser compilation/preview behavior only.
+
+Expected files:
+
+- `apps/repl/src/App.tsx` (only if needed), `apps/repl/verify-browser.mjs` — same-file helper and missing-external-file cases.
+- `apps/repl/README.md` — document local helper support and explicit virtual-map limit.
+
+Tasks:
+
+- [x] Compile/render a shader with a local helper from the current textarea; verify both generated target panels and both previews when WebGPU is available.
+- [x] Compile a source importing an external helper without a map; show a clear unresolved-import diagnostic, avoid network loads, preserve the last installed shader/pixels and keep errors shared across backends.
+- [x] Preserve custom-uniform controls, compiler opt-in entry and single-source fallback behavior.
+
+Verification:
+
+- Automated: `pnpm --filter @shdr/core check`; focused core artifact/local-helper tests passed (60 tests); `pnpm --filter repl check`, `pnpm --filter repl build`, and `pnpm --filter repl test` passed after rebuilding workspace dist. The browser test verified the local helper in both generated target panels and both previews, and verified `SHDR1300` blocks both backends while preserving the last WebGL/WebGPU renders for an external `.shdr.ts` import without a virtual graph. Core coverage also preserves unused ordinary runtime imports, rejects side-effect `.shdr.ts` imports, and ignores external type-only imports in string-only compilation.
+- Manual: Not needed; the browser UI exercised source edits, diagnostics and installed-pixel preservation. Existing unavailable-WebGPU fallback coverage remains part of the same browser suite.
+
+Completion gate: same-textarea helpers render successfully and missing imported files block both previews without changing the last good image. Evidence: Verified on 2026-10-09 in the working tree.
+
+Phase exit gate: focused Vite, language-service/LSP, editor UI, and REPL gates all pass on the shared project/virtual graph; `pnpm build` passed all 11 tasks, `pnpm exec turbo run check --force` passed all 17 tasks, and static host bundles remain compiler-free. Evidence: Verified on 2026-10-09; Phase 4 GPU/documentation/final acceptance remains pending.
+
+## Phase 4 — Cross-backend and regression acceptance
+
+Outcome: non-degenerate rendered proof for imported helpers/uniforms and no regressions in public/static consumers.
+Depends on: Phase 3.
+Review boundary: composed behavior, user docs and final audit; do not broaden language syntax to make reference ports pass.
+
+### Step 4.1 — Pinned two-target pixels and independent schema usage
+
+Status: Verified — imported-helper two-target rendering, presented-WebGPU parity, and independent shared-schema runtime state.
+Requirements / acceptance: R3–R4, R8, R11–R12; AC3 (renderer portion), AC6.
+Depends on: Phase 3 exit.
+Review boundary: browser integration fixture and reference expectations, not new runtime/binding APIs.
+
+Expected files:
+
+- `apps/vite-basic/src/` (new reused grain/palette-style and imported-uniform fixture, if not already added in Step 3.1), `apps/vite-basic/verify-render.mjs` — static Vite artifact/browser rendering.
+- `packages/runtime/test/` (new `verify-reusable-functions.mjs` if needed), `packages/runtime/package.json` only if wiring a new test command — independent renderer state.
+- `packages/core/test/` — focused output/binding regression if a browser failure exposes a missing case.
+
+Tasks:
+
+- [x] Pin resolution, canonical top-left coordinates, mouse, time and custom defaults/overrides; choose finite, non-degenerate sample points and channel tolerances before comparing outputs.
+- [x] Compile/link/run the imported-helper GLSL in real WebGL 2; compile/pipeline/draw the WGSL and sample **presented** WebGPU canvas pixels (not only an offscreen buffer or compilation messages).
+- [x] Compare expected sample colors and backend parity within tolerances; assert reachability/emitted-once, correct uniform metadata/grouping, and no bit-identity claim.
+- [x] Install two artifacts sharing an imported uniform definition into separate renderer instances; update/reset one and check the other's first/current pixels and defaults are unaffected.
+
+Verification:
+
+- Automated: `pnpm --filter vite-basic check`, `pnpm --filter vite-basic build`, and `pnpm --dir apps/vite-basic test:render` passed. The fixture now checks a composed transitive graph (`composedColor` → `guardedAmount`) using vectors, a guarded `sqrt`, and the imported `gain` schema in both generated targets; it asserts each helper is emitted once, samples center/top/bottom non-center pixels on the presented WebGPU canvas, verifies shared-schema metadata/grouping, and renders two consumers sharing one imported schema with independent WebGL/WebGPU update/reset behavior. `pnpm --filter @shdr/runtime test` also passed all existing WebGL/presented-WebGPU lifecycle and uniform-isolation suites.
+- Manual: Not needed; Playwright Chromium provided real WebGL 2 and WebGPU contexts. No bit-identity claim is made.
+
+Completion gate: both real targets render the imported helper/default shader at the agreed samples, runtime schema isolation holds and existing WebGL/presented-WebGPU suites pass. Evidence: Verified on 2026-10-09 in the working tree.
+
+### Step 4.2 — Documentation and complete regression/PR gate
+
+Status: Verified — documentation, public/static audit, full regression, real editor UI, and final acceptance review gate.
+Requirements / acceptance: R1–R12; AC1–AC9 (aggregate, not replacement for earlier focused gates).
+Depends on: Step 4.1.
+Review boundary: user-facing examples, unchanged behavior and final diff; no new feature paths.
+
+Expected files:
+
+- `README.md`, `packages/shdr/README.md`, `packages/cli/README.md`, `apps/repl/README.md`, `apps/vite-basic/README.md` (only where examples/contracts change) — authoring/import/domain limits.
+- `plans/reusable-functions/plan.md` — execution evidence and any accepted deviations.
+- Existing tests/fixtures only where final integration uncovers a regression.
+
+Tasks:
+
+- [x] Document explicit helper parameters, typed inputs/inferred returns, imported schemas, relative and `tsconfig` aliases, compile-only named exports, no REPL multi-file UI, and the `root(-1)` caller-precondition limitation.
+- [x] Audit exported public types and source/bundle graph for any legacy single-file assumption; keep older no-helper fixtures and original diagnostic ownership intact before removing any compatibility path.
+- [x] Run full workspace build, uncached checks, CLI check, all test suites, real editor UI, formatter and whitespace audit; record revision/environment, failures and evidence in owning gates. Do not mark a waived/blocked GPU or editor check Verified.
+- [x] Review the final diff for runtime/IR/binding drift, helper namespace collisions, unnecessary output/golden churn, compiled/authored source leaks and untouched unrelated work; final human review and push/PR/merge remain separate actions.
+
+Verification:
+
+- Automated (repo root): `pnpm build` passed all 11 build tasks; `pnpm exec turbo run check --force` passed all 17 tasks; `pnpm shdr check` checked 30 shader files; `pnpm test` passed all 17 test tasks after `verify-dev.mjs` was hardened with retry/settling around HMR navigation before page evaluation; standalone `vite-basic` dev verification also passed twice consecutively. The requested Prettier checks plus `git diff --check` passed. The subsequent uncached regression also covered the added fragment callback forms (`()`, `(context)`, and any shorthand subset of `coord`/`uniforms` in either order) with core (394), CLI (23), language service (88), LSP (17), project (3), Vite (14), runtime browser, REPL browser, and Vite browser suites. The composed Vite fixture now uses a named context and verifies its real WebGL/presented-WebGPU pixels.
+- Manual/live: `pnpm --dir apps/editor-fixture test:editor` passed after build with VS Code 1.138.0. The real UI and Step 4.1 browser suite provide the editor and presented GPU evidence; no mock or unavailable live gate is presented as passing.
+
+Completion gate: each AC1–AC9 row below has passing focused and integration evidence, unchanged shader/runtime/static behavior remains verified, and no outstanding blocked live gate is reported as passing. PR creation/merge is a **separate review/approval action**, not an automatic plan step. Evidence: Verified on 2026-10-10 in the working tree.
+
+Phase exit gate: feature-complete local implementation satisfies the governing spec and is ready for review. Evidence: Verified on 2026-10-10; final human review/PR approval remains separate.
+
+## Final acceptance
+
+| Spec acceptance ID | Owning step / gate | Verification and expected result                                                                                                  | Evidence / status                                                               |
+| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| AC1                | 1.1–1.2            | Typed helper/inference and invalid calls/captures in core + TypeScript 7 hovers/ranges.                                           | Verified: focused core and adapter suites                                       |
+| AC2                | 2.1, 2.3           | Virtual + CLI mixed/helper-only/transitive graph, aliases and cycle/missing-export diagnostics; reachable-only emission.          | Verified: core graph and CLI suites                                             |
+| AC3                | 2.2, 4.1           | Imported schema metadata/type parity and independent WebGL/WebGPU runtime defaults/updates.                                       | Verified: shared-schema metadata and independent rendered updates on 2026-10-09 |
+| AC4                | 2.1, 2.3, 3.1–3.2  | Equivalent virtual, project CLI, Vite and editor resolution; unsupported imports fail at authored file/range.                     | Verified: project, CLI, Vite, LSP and editor suites                             |
+| AC5                | 2.3, 3.1–3.2       | Shared fault reported once; dependent Vite rebuild and real editor hover/diagnostic refresh, ordinary `.ts` delegated.            | Verified: Vite invalidation and real VS Code UI                                 |
+| AC6                | 1.1, 4.1           | Reachable-once real GLSL ES 3.00/WebGL and WGSL pipeline plus pinned **presented WebGPU** pixels.                                 | Verified: core target compilation and Vite presented-pixel gate on 2026-10-09   |
+| AC7                | 3.1, 4.2           | Host named imports fail and production dual/WebGL-only bundles contain artifact, not authored source/compiler.                    | Verified: Vite negative/build boundary checks                                   |
+| AC8                | 3.3                | Local helper renders in REPL; unresolved external import never fetches/replaces installed shader.                                 | Verified: browser REPL suite on 2026-10-09                                      |
+| AC9                | 1.1, 4.2           | Direct invalid builtins inside helper diagnosed; `root(-1)` remains documented caller precondition without invalid-pixel promise. | Verified: core diagnostics and root documentation                               |
+
+## Rollback and recovery
+
+The feature has no persistent data migration or destructive external operation. Keep old source-only compile and renderer contracts active until graph output and static consumers have passing parity tests. Within an unmerged implementation, revert a failing step and its dependent work as a unit; for a broken public helper path revert the atomic Phase 1 local-helper group or the Phase 2–3 cross-file group rather than leaving exposed syntax with no target/editor/consumer support. A Vite/CLI project-resolution failure must not be hidden by returning a stale or partial artifact; restore the last known-good compile path while fixing resolution. Ordinary runtime failed-replacement preservation remains owned by the existing renderer contract. No commit, push, PR or merge is authorized by this document.
+
+## Deferred checks and accepted deviations
+
+- None accepted. Real VS Code and presented WebGPU gates may be unavailable on a particular machine; record them Blocked with environment details, or obtain explicit acceptance of a deviation and follow-up. A passing mock/WGSL-module test is not a substitute.
+- Defer package imports, barrel/namespace imports, a multi-file REPL UI, type-polymorphic helpers, module-value captures, recursion and interprocedural domain proofs per [spec.md](spec.md). Do not attach an implied schedule or treat those as silently supported by this plan.

@@ -1,7 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { relative, sep } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { dirname, relative, resolve, sep } from "node:path";
 
-import { lowerFragment, type ShaderDiagnostic } from "@shdr/core";
+import {
+  checkShaderGraph,
+  type ShaderDiagnostic,
+  type ShaderGraphDiagnostic,
+} from "@shdr/core";
+import { loadShaderGraph, ProjectInputError } from "@shdr/project";
 
 import { CliInputError, type CheckOutcome } from "./contract.js";
 import { discoverShaderFiles } from "./discover.js";
@@ -20,38 +25,83 @@ export async function checkShaderPaths(
     readFile(file, "utf8"),
 ): Promise<CheckResult> {
   const files = await discoverShaderFiles(paths, cwd);
-  const lines: string[] = [];
+  const searchRoots = await configSearchRoots(paths, cwd);
+  const diagnostics = new Map<
+    string,
+    { readonly diagnostic: ShaderGraphDiagnostic; readonly source: string }
+  >();
   for (const file of files) {
-    let source: string;
+    let loaded;
     try {
-      source = await readSource(file);
+      loaded = await loadShaderGraph({
+        entry: file,
+        searchRoots,
+        readSource,
+      });
     } catch (error) {
-      throw new CliInputError(
-        `Cannot read shader file ${JSON.stringify(file)}.`,
-        {
-          cause: error,
-        },
-      );
+      if (error instanceof ProjectInputError) {
+        throw new CliInputError(error.message, { cause: error.cause });
+      }
+      throw error;
     }
-    const result = lowerFragment(source);
+    const result = checkShaderGraph(loaded.input);
     if (result.ok) continue;
-
-    const displayPath = relative(cwd, file).split(sep).join("/");
-    const diagnostics = [...result.diagnostics].sort(
-      (a, b) =>
-        a.range.start - b.range.start ||
-        compare(a.code, b.code) ||
-        a.range.length - b.range.length,
-    );
-    for (const diagnostic of diagnostics) {
-      lines.push(formatDiagnostic(displayPath, source, diagnostic));
+    for (const diagnostic of result.diagnostics) {
+      const fileMap = loaded.input.files as ReadonlyMap<string, string>;
+      const source =
+        typeof fileMap.get === "function"
+          ? fileMap.get(diagnostic.fileName)
+          : (loaded.input.files as Readonly<Record<string, string>>)[
+              diagnostic.fileName
+            ];
+      if (source === undefined) continue;
+      const key = `${diagnostic.fileName}\0${diagnostic.code}\0${diagnostic.range.start}\0${diagnostic.range.length}\0${diagnostic.message}`;
+      diagnostics.set(key, { diagnostic, source });
     }
   }
+  const ordered = [...diagnostics.values()].sort((left, right) => {
+    const leftPath = relative(cwd, left.diagnostic.fileName)
+      .split(sep)
+      .join("/");
+    const rightPath = relative(cwd, right.diagnostic.fileName)
+      .split(sep)
+      .join("/");
+    return (
+      compare(leftPath, rightPath) ||
+      left.diagnostic.range.start - right.diagnostic.range.start ||
+      compare(left.diagnostic.code, right.diagnostic.code) ||
+      left.diagnostic.range.length - right.diagnostic.range.length
+    );
+  });
   return {
-    outcome: lines.length > 0 ? "diagnostics" : "clean",
+    outcome: ordered.length > 0 ? "diagnostics" : "clean",
     fileCount: files.length,
-    lines,
+    lines: ordered.map(({ diagnostic, source }) =>
+      formatDiagnostic(
+        relative(cwd, diagnostic.fileName).split(sep).join("/"),
+        source,
+        diagnostic,
+      ),
+    ),
   };
+}
+
+async function configSearchRoots(
+  paths: readonly string[],
+  cwd: string,
+): Promise<readonly string[]> {
+  const roots = new Set<string>([resolve(cwd)]);
+  for (const path of paths) {
+    const absolute = resolve(cwd, path);
+    try {
+      roots.add(
+        (await stat(absolute)).isDirectory() ? absolute : dirname(absolute),
+      );
+    } catch {
+      // discoverShaderFiles owns the user-facing path error; retain cwd here.
+    }
+  }
+  return [...roots];
 }
 
 function formatDiagnostic(

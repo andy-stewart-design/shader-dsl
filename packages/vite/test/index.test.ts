@@ -1,5 +1,10 @@
 import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { build } from "vite";
 import type { Plugin } from "vite";
 import { compileFragmentArtifact } from "@shdr/core/browser";
 
@@ -116,6 +121,147 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
     }
   });
 
+  it("compiles aliased imported helpers and schemas and watches their sources", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shdr-vite-graph-"));
+    try {
+      const sourceDirectory = join(root, "src");
+      await mkdir(sourceDirectory, { recursive: true });
+      await writeFile(
+        join(root, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: {
+            paths: { "@shader/*": ["./src/*.shdr.ts"] },
+          },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      const entry = join(sourceDirectory, "entry.shdr.ts");
+      await writeFile(
+        join(sourceDirectory, "helper.shdr.ts"),
+        `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const helper = defineShaderFunction((x: Expr<F32>) => x);`,
+      );
+      await writeFile(
+        join(sourceDirectory, "schema.shdr.ts"),
+        `import { defineUniforms } from "shdr";
+export const uniforms = defineUniforms((u) => ({ gain: u.f32(0.5) }));`,
+      );
+      const source = `import { createFragmentShader, vec4 } from "shdr";
+import { helper } from "@shader/helper";
+import { uniforms } from "@shader/schema";
+export default createFragmentShader(({ uniforms }) => vec4(helper(uniforms.gain)), { uniforms });`;
+      await writeFile(entry, source);
+      const plugin = shdr();
+      configure(plugin, root);
+      const watched: string[] = [];
+      const result = await transform(plugin, source, entry, watched);
+      expect(result).not.toBeNull();
+      expect(watched.sort()).toEqual(
+        [
+          await realpath(join(sourceDirectory, "helper.shdr.ts")),
+          await realpath(join(sourceDirectory, "schema.shdr.ts")),
+        ].sort(),
+      );
+      const artifact = parseArtifact(result);
+      expect(artifact.custom?.declarations).toEqual([
+        { name: "gain", type: "f32", default: 0.5 },
+      ]);
+      expect(artifact.glsl).toContain("shdr_internal_fn_0");
+      expect(artifact.wgsl).toContain("fn shdr_internal_fn_0");
+
+      await writeFile(
+        join(sourceDirectory, "schema.shdr.ts"),
+        `import { defineUniforms } from "shdr";
+export const uniforms = defineUniforms((u) => ({ gain: u.f32(0.75) }));`,
+      );
+      const edited = await transform(plugin, source, entry);
+      const editedArtifact = parseArtifact(edited);
+      expect(editedArtifact.custom?.declarations).toEqual([
+        { name: "gain", type: "f32", default: 0.75 },
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("attributes dependency faults to the dependency and rejects direct helper runtime imports", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shdr-vite-errors-"));
+    try {
+      const entry = join(root, "entry.shdr.ts");
+      const helper = join(root, "helper.shdr.ts");
+      const validHelper = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const helper = defineShaderFunction((x: Expr<F32>) => x);`;
+      await writeFile(
+        helper,
+        `import { defineShaderFunction, sqrt } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const helper = defineShaderFunction((x: Expr<F32>) => sqrt(-1));`,
+      );
+      const source = `import { createFragmentShader, vec4 } from "shdr";
+import { helper } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(helper(uniforms.time)));`;
+      await writeFile(entry, source);
+      const plugin = shdr();
+      configure(plugin, root);
+      let thrown: unknown;
+      try {
+        await transform(plugin, source, entry);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(helper),
+        pluginCode: "SHDR1209",
+      });
+
+      let directImportError: unknown;
+      try {
+        await transform(plugin, validHelper, helper);
+      } catch (error) {
+        directImportError = error;
+      }
+      expect(directImportError).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(helper),
+        pluginCode: "SHDR1008",
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects named helper imports from an ordinary host Vite build", async () => {
+    const fixtureRoot = fileURLToPath(new URL("./fixtures/", import.meta.url));
+    const outputDirectory = await mkdtemp(join(tmpdir(), "shdr-vite-host-"));
+    let thrown: unknown;
+    try {
+      await build({
+        root: fixtureRoot,
+        logLevel: "silent",
+        plugins: [shdr()],
+        build: {
+          outDir: outputDirectory,
+          emptyOutDir: true,
+          rollupOptions: {
+            input: fileURLToPath(
+              new URL("./fixtures/host-named-import.ts", import.meta.url),
+            ),
+          },
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
+    expect(thrown).toBeDefined();
+    expect(String(thrown)).toContain("SHDR1008");
+    expect(String(thrown)).toContain("helper.shdr.ts");
+  });
+
   it("reports a source-located Vite error for a dynamic uniform default", async () => {
     const source = readFileSync(
       new URL(
@@ -195,11 +341,15 @@ async function transform(
   plugin: Plugin,
   source: string,
   id: string,
+  watched: string[] = [],
 ): Promise<TransformResult | null> {
   const hook = plugin.transform;
   if (!hook) throw new Error("Expected the plugin to expose transform().");
   const handler = typeof hook === "function" ? hook : hook.handler;
   const context = {
+    addWatchFile(fileName: string) {
+      watched.push(fileName);
+    },
     error(error: unknown): never {
       throw error;
     },
@@ -209,6 +359,25 @@ async function transform(
     source,
     id,
   ])) as TransformResult | null;
+}
+
+function configure(plugin: Plugin, root: string): void {
+  const hook = plugin.configResolved;
+  if (!hook) throw new Error("Expected the plugin to expose configResolved().");
+  const handler = typeof hook === "function" ? hook : hook.handler;
+  Reflect.apply(handler, plugin, [{ root }]);
+}
+
+function parseArtifact(result: TransformResult | null): {
+  readonly glsl: string;
+  readonly wgsl: string;
+  readonly custom?: {
+    readonly declarations: readonly unknown[];
+  };
+} {
+  expect(result).not.toBeNull();
+  if (!result) throw new Error("Expected a transformed artifact.");
+  return JSON.parse(result.code.slice("export default ".length, -";\n".length));
 }
 
 function targetSource(): string {

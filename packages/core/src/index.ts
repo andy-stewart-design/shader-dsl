@@ -20,6 +20,7 @@ export {
 export {
   ShaderDiagnosticCode,
   type ShaderDiagnostic,
+  type ShaderGraphDiagnostic,
   type ShaderDiagnosticCode as ShaderDiagnosticCodeValue,
 } from "./diagnostics.js";
 export { generateFragment, type ShaderTarget } from "./generate-fragment.js";
@@ -34,6 +35,7 @@ export {
   type LowerShaderSyntaxFailure,
   type LowerShaderSyntaxResult,
   type LowerShaderSyntaxSuccess,
+  type LowerShaderSyntaxOptions,
 } from "./lower-shader-syntax.js";
 export {
   MappedTextWriter,
@@ -55,6 +57,8 @@ export type {
   ShaderCallTarget,
   ShaderConstDeclaration,
   ShaderConstructorName,
+  ShaderFunction,
+  ShaderFunctionParameter,
   ShaderCustomUniformExpression,
   ShaderDefaultUniform,
   ShaderDefaultUniformExpression,
@@ -89,12 +93,25 @@ export {
   type ShaderCallbackInfo,
   type ShaderFileInfo,
   type ShaderImportInfo,
+  type ShaderSourceImportInfo,
 } from "./parse-shader-file.js";
+export {
+  checkShaderGraph,
+  lowerShaderGraph,
+  type CheckShaderGraphFailure,
+  type CheckShaderGraphResult,
+  type CheckShaderGraphSuccess,
+  type LowerShaderGraphFailure,
+  type LowerShaderGraphResult,
+  type LowerShaderGraphSuccess,
+  type ShaderVirtualGraphInput,
+} from "./shader-module-graph.js";
 export type {
   ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,
   ShaderCallExpressionSyntax,
   ShaderConstDeclarationSyntax,
+  ShaderFunctionSyntax,
   ShaderExpressionSyntax,
   ShaderIdentifierSyntax,
   ShaderNumericLiteralSyntax,

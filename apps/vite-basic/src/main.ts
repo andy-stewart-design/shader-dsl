@@ -5,6 +5,7 @@ import type { Renderer } from "@shdr/runtime/types";
 import type { CompiledFragmentArtifact } from "shdr";
 
 import fragmentShader from "./gradient.shdr.ts";
+import alternateFragmentShader from "./gradient-alt.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
@@ -16,9 +17,13 @@ import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
 import customNamed from "./custom-demo-named.shdr.ts";
+import sharedSchemaA from "./custom-shared-a.shdr.ts";
+import sharedSchemaB from "./custom-shared-b.shdr.ts";
+import composedReusable from "./reusable-composed.shdr.ts";
 import "./style.css";
 
 const shader: CompiledFragmentArtifact = fragmentShader;
+const alternateShader: CompiledFragmentArtifact = alternateFragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
 const cells: CompiledFragmentArtifact = cellsShader;
@@ -27,9 +32,22 @@ const readableOutput: CompiledFragmentArtifact = readableOutputShader;
 const horizonBurn: CompiledFragmentArtifact = horizonBurnShader;
 const plasma: CompiledFragmentArtifact = plasmaShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
+const composed: CompiledFragmentArtifact = composedReusable;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
-  !customUniformsShader.wgsl.includes("@group(1) @binding(0)")
+  sharedSchemaA.custom?.declarations[0]?.type !== "f32" ||
+  sharedSchemaB.custom?.declarations[0]?.type !== "f32" ||
+  composed.custom?.declarations.map((item) => item.name).join(",") !== "gain" ||
+  !customUniformsShader.wgsl.includes("@group(1) @binding(0)") ||
+  !sharedSchemaA.glsl.includes("uniform float shdr_custom_0") ||
+  !sharedSchemaB.glsl.includes("uniform float shdr_custom_0") ||
+  !sharedSchemaA.wgsl.includes("@group(1) @binding(0)") ||
+  !sharedSchemaB.wgsl.includes("@group(1) @binding(0)") ||
+  (composed.glsl.match(/(?:float|vec3) shdr_internal_fn_\d+\s*\(/g) ?? [])
+    .length !== 2 ||
+  (composed.wgsl.match(/fn shdr_internal_fn_\d+\s*\(/g) ?? []).length !== 2 ||
+  !composed.glsl.includes("sqrt") ||
+  !composed.wgsl.includes("sqrt")
 )
   throw new Error(
     "The custom-uniform artifact was not generated at build time.",
@@ -37,6 +55,9 @@ if (
 if (
   !expanded.glsl.includes("vec3(") ||
   !shader.wgsl.includes("shdr_fragment_main") ||
+  !shader.glsl.includes("vec4 shdr_internal_fn_0") ||
+  !shader.wgsl.includes("fn shdr_internal_fn_0") ||
+  !alternateShader.glsl.includes("void main()") ||
   !vectorArithmetic.wgsl.includes("vec3<f32>(1.0f)") ||
   !vectorArithmetic.glsl.includes("vec3(") ||
   !cells.wgsl.includes("mix(") ||
@@ -70,17 +91,33 @@ app.innerHTML = `
     <h2>Math builtins</h2>
     <canvas id="math-canvas" width="128" height="128"></canvas>
     <p id="math-status" role="status">Compiling generated math shader…</p>
+    <h2>Composed reusable graph</h2>
+    <canvas id="composed-canvas" width="128" height="128"></canvas>
+    <p id="composed-status" role="status">Compiling composed shader…</p>
+    <canvas id="composed-gpu-canvas" width="128" height="128"></canvas>
+    <p id="composed-gpu-status" role="status">Starting composed WebGPU…</p>
     <h2>Custom uniforms (inline and named declarations)</h2>
     <canvas id="custom-gl-canvas" aria-label="Custom uniforms WebGL" width="32" height="32"></canvas>
     <p id="custom-gl-status" role="status">Starting custom WebGL…</p>
     <canvas id="custom-gpu-canvas" aria-label="Custom uniforms WebGPU" width="32" height="32"></canvas>
     <p id="custom-gpu-status" role="status">Starting custom WebGPU…</p>
+    <h2>Imported schema isolation</h2>
+    <canvas id="shared-a-gl-canvas" aria-label="Shared schema A WebGL" width="32" height="32"></canvas>
+    <p id="shared-a-gl-status" role="status">Starting shared schema A WebGL…</p>
+    <canvas id="shared-b-gl-canvas" aria-label="Shared schema B WebGL" width="32" height="32"></canvas>
+    <p id="shared-b-gl-status" role="status">Starting shared schema B WebGL…</p>
+    <canvas id="shared-a-gpu-canvas" aria-label="Shared schema A WebGPU" width="32" height="32"></canvas>
+    <p id="shared-a-gpu-status" role="status">Starting shared schema A WebGPU…</p>
+    <canvas id="shared-b-gpu-canvas" aria-label="Shared schema B WebGPU" width="32" height="32"></canvas>
+    <p id="shared-b-gpu-status" role="status">Starting shared schema B WebGPU…</p>
     <div class="uniform-actions">
       <button id="custom-set" type="button">Set custom uniforms</button>
       <button id="custom-reset-gain" type="button">Reset gain</button>
       <button id="custom-reset-all" type="button">Reset all custom uniforms</button>
       <button id="custom-named" type="button">Use named shader</button>
       <button id="custom-inline" type="button">Use inline shader</button>
+      <button id="shared-set-a" type="button">Set shared A gain</button>
+      <button id="shared-reset-a" type="button">Reset shared A gain</button>
     </div>
   </main>
 `;
@@ -91,13 +128,27 @@ const gpuStatus =
   document.querySelector<HTMLParagraphElement>("#webgpu-status");
 const mathCanvas = document.querySelector<HTMLCanvasElement>("#math-canvas");
 const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
+const composedCanvas =
+  document.querySelector<HTMLCanvasElement>("#composed-canvas");
+const composedStatus =
+  document.querySelector<HTMLParagraphElement>("#composed-status");
+const composedGpuCanvas = document.querySelector<HTMLCanvasElement>(
+  "#composed-gpu-canvas",
+);
+const composedGpuStatus = document.querySelector<HTMLParagraphElement>(
+  "#composed-gpu-status",
+);
 if (
   !canvas ||
   !status ||
   !gpuCanvas ||
   !gpuStatus ||
   !mathCanvas ||
-  !mathStatus
+  !mathStatus ||
+  !composedCanvas ||
+  !composedStatus ||
+  !composedGpuCanvas ||
+  !composedGpuStatus
 )
   throw new Error("The shader fixture UI is incomplete.");
 
@@ -155,6 +206,26 @@ async function renderWebGpu(): Promise<void> {
         ? "unavailable"
         : "error";
     gpuStatus!.textContent =
+      error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function renderComposedWebGpu(): Promise<void> {
+  try {
+    const renderer = await createWebGpuRenderer(composedGpuCanvas!, composed, {
+      signal: lifetime.signal,
+      animate: false,
+    });
+    renderers.push(renderer);
+    composedGpuCanvas!.dataset.renderStatus = "success";
+    composedGpuStatus!.textContent =
+      "Composed WGSL pipelined and rendered in WebGPU.";
+  } catch (error) {
+    composedGpuCanvas!.dataset.renderStatus =
+      error instanceof ShdrRuntimeError && error.kind === "unavailable"
+        ? "unavailable"
+        : "error";
+    composedGpuStatus!.textContent =
       error instanceof Error ? error.message : String(error);
   }
 }
@@ -246,11 +317,110 @@ async function renderCustomUniformDemos(): Promise<void> {
   });
 }
 
+async function renderSharedSchemaDemos(): Promise<void> {
+  const sharedAGlCanvas = document.querySelector<HTMLCanvasElement>(
+    "#shared-a-gl-canvas",
+  );
+  const sharedBGlCanvas = document.querySelector<HTMLCanvasElement>(
+    "#shared-b-gl-canvas",
+  );
+  const sharedAGpuCanvas = document.querySelector<HTMLCanvasElement>(
+    "#shared-a-gpu-canvas",
+  );
+  const sharedBGpuCanvas = document.querySelector<HTMLCanvasElement>(
+    "#shared-b-gpu-canvas",
+  );
+  const sharedAGlStatus = document.querySelector<HTMLParagraphElement>(
+    "#shared-a-gl-status",
+  );
+  const sharedBGlStatus = document.querySelector<HTMLParagraphElement>(
+    "#shared-b-gl-status",
+  );
+  const sharedAGpuStatus = document.querySelector<HTMLParagraphElement>(
+    "#shared-a-gpu-status",
+  );
+  const sharedBGpuStatus = document.querySelector<HTMLParagraphElement>(
+    "#shared-b-gpu-status",
+  );
+  if (
+    !sharedAGlCanvas ||
+    !sharedBGlCanvas ||
+    !sharedAGpuCanvas ||
+    !sharedBGpuCanvas ||
+    !sharedAGlStatus ||
+    !sharedBGlStatus ||
+    !sharedAGpuStatus ||
+    !sharedBGpuStatus
+  )
+    throw new Error("Missing shared-schema fixture elements.");
+
+  const sharedA = await createWebGlRenderer(sharedAGlCanvas, sharedSchemaA, {
+    signal: lifetime.signal,
+    animate: false,
+    uniforms: { gain: 0.25 },
+  });
+  const sharedB = await createWebGlRenderer(sharedBGlCanvas, sharedSchemaB, {
+    signal: lifetime.signal,
+    animate: false,
+    uniforms: { gain: 0.75 },
+  });
+  renderers.push(sharedA, sharedB);
+  sharedAGlCanvas.dataset.renderStatus = "success";
+  sharedBGlCanvas.dataset.renderStatus = "success";
+  sharedAGlStatus.textContent = "Shared schema A WebGL rendered.";
+  sharedBGlStatus.textContent = "Shared schema B WebGL rendered.";
+
+  let sharedAGpuRenderer: Renderer | undefined;
+  for (const [canvas, artifact, status, label, uniforms] of [
+    [sharedAGpuCanvas, sharedSchemaA, sharedAGpuStatus, "A", { gain: 0.25 }],
+    [sharedBGpuCanvas, sharedSchemaB, sharedBGpuStatus, "B", { gain: 0.75 }],
+  ] as const) {
+    try {
+      const renderer = await createWebGpuRenderer(canvas, artifact, {
+        signal: lifetime.signal,
+        animate: false,
+        uniforms,
+      });
+      if (label === "A") sharedAGpuRenderer = renderer;
+      renderers.push(renderer);
+      canvas.dataset.renderStatus = "success";
+      status.textContent = `Shared schema ${label} WebGPU rendered.`;
+    } catch (error) {
+      canvas.dataset.renderStatus =
+        error instanceof ShdrRuntimeError && error.kind === "unavailable"
+          ? "unavailable"
+          : "error";
+      status.textContent =
+        error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  const allA = [sharedA, ...(sharedAGpuRenderer ? [sharedAGpuRenderer] : [])];
+  const action = (
+    id: string,
+    operation: (renderer: Renderer) => void,
+  ): void => {
+    document
+      .querySelector<HTMLButtonElement>(`#${id}`)
+      ?.addEventListener("click", () => {
+        for (const renderer of allA) {
+          operation(renderer);
+          void renderer.draw();
+        }
+      });
+  };
+  action("shared-set-a", (renderer) => renderer.setUniforms({ gain: 1 }));
+  action("shared-reset-a", (renderer) => renderer.resetUniforms("gain"));
+}
+
 // The host chooses both explicit backends. Each preview reports its own error;
 // missing WebGPU never interrupts WebGL, and no rejected setup goes unhandled.
 void Promise.allSettled([
   renderWebGl(canvas, status, shader),
   renderWebGl(mathCanvas, mathStatus, math),
+  renderWebGl(composedCanvas, composedStatus, composed),
   renderWebGpu(),
+  renderComposedWebGpu(),
   renderCustomUniformDemos(),
+  renderSharedSchemaDemos(),
 ]);

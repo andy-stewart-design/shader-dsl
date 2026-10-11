@@ -19,8 +19,12 @@ export function normalizeShaderSyntax(
             : "uniforms",
         )
       : [];
-  const contextBindings =
-    bindings.length === 1 ? { contextBindings: bindings } : {};
+  const contextBindings = {
+    contextBindings: bindings,
+    ...(callback.params[0]?.type === "Identifier"
+      ? { contextName: callback.params[0].name }
+      : {}),
+  };
   if (callback.body.type !== "BlockStatement") {
     return {
       range: rangeOf(callback),

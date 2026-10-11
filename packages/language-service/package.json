@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@shdr/core": "workspace:*",
+    "@shdr/project": "workspace:*",
     "typescript": "7.0.2"
   },
   "devDependencies": {

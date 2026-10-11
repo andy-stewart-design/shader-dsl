@@ -133,10 +133,41 @@ Select either generated target in the UI. WGSL only reports rendered after succe
 
 A shader module must have:
 
-- Direct named imports from exactly `"shdr"`; no aliases or namespace imports.
-- Exactly one default-exported `createFragmentShader(...)` call, or a direct `defineUniforms(...).createFragmentShader(...)` chain. A same-file `const uniforms = defineUniforms(...)` may instead be linked with `createFragmentShader(callback, { uniforms })`.
-- A synchronous arrow callback with `({ coord, uniforms })` or `({ uniforms })` destructuring.
+- Direct named imports from exactly `"shdr"` for DSL functions and expression types; no aliases or namespace imports. Shader modules may additionally use direct named imports from relative or configured-alias `.shdr.ts` files.
+- A fragment entry has exactly one default-exported `createFragmentShader(...)` call, or a direct `defineUniforms(...).createFragmentShader(...)` chain. A same-file or imported `const uniforms = defineUniforms(...)` may instead be linked with `createFragmentShader(callback, { uniforms })`; helper-only modules may omit a default fragment export.
+- A fragment entry uses a synchronous arrow callback with `()`, a simple context parameter such as `(context)`, or object destructuring of `coord` and/or `uniforms` in either order (including `({ uniforms, coord })`). Access context inputs through `context.coord` and `context.uniforms` when using a simple parameter; helpers instead use explicitly typed expression parameters.
 - No closure captures, nested functions, asynchronous code, or identifiers beginning with `__shdr_internal_` or `shdr_internal_` (reserved for generated helpers).
+
+### Reusable shader functions and modules
+
+A helper is a top-level `const` created with `defineShaderFunction`. Give every parameter an explicit `Expr<F32>` or `Expr<Vec2/3/4<F32>>` type; returns may be inferred or explicitly annotated. Helpers use only their parameters, supported shader expressions, and other helpers passed through arguments—there are no captures of `coord`, uniforms, module values, or host JavaScript.
+
+```ts
+// shared.shdr.ts — compile-only named export; no default fragment is required
+import { defineShaderFunction, vec3 } from "shdr";
+import type { Expr, F32, Vec2, Vec3 } from "shdr";
+
+export const color = defineShaderFunction(
+  (uv: Expr<Vec2<F32>>, gain: Expr<F32>): Expr<Vec3<F32>> =>
+    vec3(uv.x, uv.y, gain),
+);
+```
+
+A fragment can import that helper, or an explicitly linked `defineUniforms` schema, from a relative `.shdr.ts` path or a selected TypeScript project's `paths` alias:
+
+```ts
+import { createFragmentShader, vec4 } from "shdr";
+import { color } from "./shared.shdr.ts";
+import { uniforms } from "./schema.shdr.ts";
+
+export default createFragmentShader(
+  ({ coord, uniforms }) =>
+    vec4(color(coord.xy / uniforms.resolution, uniforms.gain), 1),
+  { uniforms },
+);
+```
+
+The compiler follows the supplied virtual/project graph without executing authored modules or callbacks. Named helper/schema exports are compile-time inputs; Vite exposes only the default artifact at runtime. The CLI, Vite, editor and LSP use the selected `tsconfig.json` aliases consistently. The single-textarea REPL supports local helpers only: an external `.shdr.ts` import without a supplied virtual graph reports `SHDR1300`, does not fetch a file, and preserves the last successful render.
 
 The callback supports only:
 
@@ -189,7 +220,7 @@ For ordinary finite inputs, `step(edge, x)` is `0` when `x < edge` and `1` other
 
 A [representative cells shader](apps/vite-basic/src/cells-representative.shdr.ts) uses both builtins and typed custom defaults for `dpi`, `spread`, and `blur` (corresponding to reference shader 1's `u_dpi`, `u_spread`, `u_blur`). It explicitly converts Shdr's top-left `coord` and mouse inputs to bottom-left positions. The fixture pins `dpi = 1`, `spread = 0.32`, and `blur = 0.08`; host updates require `dpi > 0`, `blur > 0`, finite positive resolution, and a meaningful spread. Browser tests compare representative default/mouse/update/reset frames on WebGL and presented WebGPU canvases. **This is not a pixel-exact reproduction of the reference GLSL:** its original host values and reference frames are not available here.
 
-The PR 3 math builtins have **dynamic input preconditions**. `sqrt` needs nonnegative components; `pow` needs nonnegative bases, and base `0` requires a positive exponent (so `0^0` is excluded); `clamp` needs `low <= high` component-wise, with equal bounds allowed. Provably invalid f32-rounded components (even when another vector component is dynamic), non-finite compound arguments, and clear `exp`/`pow` overflow report `SHDR1209` on the original call. Inputs whose domain cannot be established statically remain the caller's responsibility; WGSL parameter helpers prevent premature shader-creation errors but do **not** guarantee valid runtime values. `exp` can overflow dynamically. Results of transcendental functions are not bit-exact across targets; pixel tests use ordinary finite values and channel tolerances.
+The PR 3 math builtins have **dynamic input preconditions**. `sqrt` needs nonnegative components; `pow` needs nonnegative bases, and base `0` requires a positive exponent (so `0^0` is excluded); `clamp` needs `low <= high` component-wise, with equal bounds allowed. Provably invalid f32-rounded components (even when another vector component is dynamic), non-finite compound arguments, and clear `exp`/`pow` overflow report `SHDR1209` on the original call. Inputs whose domain cannot be established statically remain the caller's responsibility; WGSL parameter helpers prevent premature shader-creation errors but do **not** guarantee valid runtime values. For example, a helper `root(x: Expr<F32>) = sqrt(x)` is valid, and `root(-1)` is not rejected by an interprocedural proof; the caller still owns the nonnegative-input precondition and no finite/portable invalid-pixel result is promised. `exp` can overflow dynamically. Results of transcendental functions are not bit-exact across targets; pixel tests use ordinary finite values and channel tolerances.
 
 `smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. `distance` is equivalent to `length(x - y)` for ordinary finite values, but avoid exact equality or overflow guarantees. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
 

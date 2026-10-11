@@ -62,6 +62,15 @@ type Swizzles<T extends ShaderType> =
 
 export type Expr<T extends ShaderType> = ExpressionBrand<T> & Swizzles<T>;
 
+declare const shaderFunctionBrand: unique symbol;
+/** Source-only callable marker; authored callbacks are never evaluated. */
+export type ShaderFunction<
+  Args extends readonly Expr<ShaderType>[],
+  Result extends Expr<ShaderType>,
+> = ((...args: Args) => Result) & {
+  readonly [shaderFunctionBrand]: true;
+};
+
 export interface DefaultUniforms {
   readonly resolution: Expr<Vec2<F32>>;
   readonly mouse: Expr<Vec2<F32>>;

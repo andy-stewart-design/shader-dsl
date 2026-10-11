@@ -8,14 +8,16 @@ import type { ShaderDiagnostic, ShaderTarget, TextRange } from "@shdr/core";
 import type { CompiledFragmentArtifact } from "shdr";
 import "./App.css";
 
-const INITIAL_SOURCE = `import { createFragmentShader, vec4 } from "shdr";
+const INITIAL_SOURCE = `import { createFragmentShader, defineShaderFunction, vec4 } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
 
-export default createFragmentShader(({ coord, uniforms }) => {
-  const uv = coord.xy / uniforms.resolution;
-  const color = vec4(uv.x, uv.y, 0, 1);
+const color = defineShaderFunction((uv: Expr<Vec2<F32>>) =>
+  vec4(uv.x, uv.y, 0, 1),
+);
 
-  return color;
-});
+export default createFragmentShader(({ coord, uniforms }) =>
+  color(coord.xy / uniforms.resolution),
+);
 `;
 
 const TARGETS: readonly {

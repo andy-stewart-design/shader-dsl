@@ -27,6 +27,22 @@ const otherShader = join(
   root,
   "packages/lsp/test/fixtures/project-b/independent.shdr.ts",
 );
+const projectCHelper = join(
+  root,
+  "packages/lsp/test/fixtures/project-c/helper.shdr.ts",
+);
+const projectCEntry = join(
+  root,
+  "packages/lsp/test/fixtures/project-c/entry.shdr.ts",
+);
+const projectDMixed = join(
+  root,
+  "packages/lsp/test/fixtures/project-d/mixed.shdr.ts",
+);
+const projectDEntry = join(
+  root,
+  "packages/lsp/test/fixtures/project-d/entry.shdr.ts",
+);
 const original = readFileSync(otherShader, "utf8");
 
 function uri(path: string): string {
@@ -185,6 +201,127 @@ describe("project-aware built LSP process", () => {
         position: { line: 0, character: 0 },
       });
       expect(session.published).toHaveLength(count);
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("routes cross-file helper hovers and diagnostics to the owning source", async () => {
+    const session = connect(join(root, "packages/lsp/test/fixtures/project-c"));
+    const helperSource = readFileSync(projectCHelper, "utf8");
+    const entrySource = readFileSync(projectCEntry, "utf8");
+    try {
+      await session.initialize();
+      session.open(projectCHelper, helperSource);
+      session.open(projectCEntry, entrySource);
+      expect(await session.diagnostics(projectCHelper, 1)).toEqual([]);
+      expect(await session.diagnostics(projectCEntry, 1)).toEqual([]);
+
+      const helperHover = await session.client.sendRequest<{
+        contents: { value: string };
+      }>("textDocument/hover", {
+        textDocument: { uri: uri(projectCHelper) },
+        position: positionAt(
+          projectCHelper,
+          helperSource,
+          helperSource.indexOf("scale ="),
+        ),
+      });
+      expect(helperHover.contents.value).toContain("ShaderFunction");
+      const entryHover = await session.client.sendRequest<{
+        contents: { value: string };
+      }>("textDocument/hover", {
+        textDocument: { uri: uri(projectCEntry) },
+        position: positionAt(
+          projectCEntry,
+          entrySource,
+          entrySource.indexOf("scale("),
+        ),
+      });
+      expect(entryHover.contents.value).toContain("Expr<F32>");
+
+      const widenedHelper = helperSource
+        .replace("import type { Expr, F32 }", "import type { Expr, F32, Vec2 }")
+        .replace("Expr<F32>", "Expr<Vec2<F32>>");
+      session.change(projectCHelper, widenedHelper, 2);
+      const refreshedEntryHover = await session.client.sendRequest<{
+        contents: { value: string };
+      }>("textDocument/hover", {
+        textDocument: { uri: uri(projectCEntry) },
+        position: positionAt(
+          projectCEntry,
+          entrySource,
+          entrySource.indexOf("scale("),
+        ),
+      });
+      expect(refreshedEntryHover.contents.value).toContain("Expr<Vec2<F32>>");
+      expect(await session.diagnostics(projectCEntry, 1)).toEqual([
+        expect.objectContaining({ source: "shdr", code: "SHDR1213" }),
+      ]);
+
+      session.change(projectCHelper, helperSource, 3);
+      expect(await session.diagnostics(projectCHelper, 3)).toEqual([]);
+      expect(await session.diagnostics(projectCEntry, 1)).toEqual([]);
+
+      const invalidHelper = helperSource
+        .replace(
+          "import { defineShaderFunction }",
+          "import { defineShaderFunction, sqrt }",
+        )
+        .replace("x * 0.5", "sqrt(-1)");
+      session.change(projectCHelper, invalidHelper, 4);
+      expect(await session.diagnostics(projectCHelper, 4)).toEqual([
+        expect.objectContaining({ source: "shdr", code: "SHDR1209" }),
+      ]);
+      expect(await session.diagnostics(projectCEntry, 1)).toEqual([]);
+
+      session.change(projectCHelper, helperSource, 5);
+      expect(await session.diagnostics(projectCHelper, 5)).toEqual([]);
+
+      const invalidEntry = entrySource.replace(
+        "scale(uniforms.time)",
+        "scale()",
+      );
+      session.change(projectCEntry, invalidEntry, 2);
+      expect(await session.diagnostics(projectCEntry, 2)).toEqual([
+        expect.objectContaining({ source: "shdr", code: "SHDR1213" }),
+      ]);
+      expect(await session.diagnostics(projectCHelper, 5)).toEqual([]);
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("refreshes callers when a mixed module loses its last helper marker", async () => {
+    const session = connect(join(root, "packages/lsp/test/fixtures/project-d"));
+    const mixedSource = readFileSync(projectDMixed, "utf8");
+    const entrySource = readFileSync(projectDEntry, "utf8");
+    try {
+      await session.initialize();
+      session.open(projectDMixed, mixedSource);
+      session.open(projectDEntry, entrySource);
+      expect(await session.diagnostics(projectDEntry, 1)).toEqual([]);
+
+      const withoutHelper = mixedSource
+        .replace(
+          "createFragmentShader, defineShaderFunction, vec4",
+          "createFragmentShader, vec4",
+        )
+        .replace('import type { Expr, F32 } from "shdr";\n\n', "")
+        .replace(
+          "export const scale = defineShaderFunction((x: Expr<F32>) => x * 0.5);\n\n",
+          "",
+        )
+        .replace("vec4(scale(uniforms.time))", "vec4(uniforms.time)");
+      session.change(projectDMixed, withoutHelper, 2);
+      expect(await session.diagnostics(projectDMixed, 2)).toEqual([]);
+      expect(await session.diagnostics(projectDEntry, 1)).toEqual([
+        expect.objectContaining({ source: "shdr", code: "SHDR1302" }),
+      ]);
+
+      session.change(projectDMixed, mixedSource, 3);
+      expect(await session.diagnostics(projectDMixed, 3)).toEqual([]);
+      expect(await session.diagnostics(projectDEntry, 1)).toEqual([]);
     } finally {
       await session.close();
     }

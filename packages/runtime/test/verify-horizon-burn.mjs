@@ -21,6 +21,25 @@ const original = await readFile(
 const compiled = compileFragmentArtifact(authored);
 assert.equal(compiled.ok, true, JSON.stringify(compiled.diagnostics));
 const artifact = compiled.artifact;
+assert.equal(
+  (artifact.glsl.match(/(?:float|vec3) shdr_internal_fn_\d+\(/g) ?? []).length,
+  2,
+  "GLSL should emit palette and filmGrain once each",
+);
+assert.equal(
+  (artifact.wgsl.match(/fn shdr_internal_fn_\d+\(/g) ?? []).length,
+  2,
+  "WGSL should emit palette and filmGrain once each",
+);
+const grainName = artifact.glsl.match(/float (shdr_internal_fn_\d+)\(/)?.[1];
+assert.ok(grainName, "GLSL should emit the scalar grain helper");
+for (const target of [artifact.glsl, artifact.wgsl]) {
+  assert.equal(
+    (target.match(new RegExp(`${grainName}\\(`, "g")) ?? []).length,
+    3,
+    "both grain calls should reuse one emitted helper",
+  );
+}
 const server = await createServer({
   root: new URL("../", import.meta.url).pathname,
   configFile: false,

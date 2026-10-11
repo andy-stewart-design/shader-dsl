@@ -20,7 +20,8 @@
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },
   "dependencies": {
-    "@shdr/core": "workspace:*"
+    "@shdr/core": "workspace:*",
+    "@shdr/project": "workspace:*"
   },
   "peerDependencies": {
     "vite": "^8.3.0"

@@ -50,6 +50,103 @@ function invoke(cwd: string, ...args: string[]) {
 }
 
 describe("installed executable", () => {
+  it("checks helper-only and aliased graph entries through a selected tsconfig", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src/lib"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: {
+            noEmit: true,
+            paths: { "@shader/*": ["./src/lib/*.shdr.ts"] },
+          },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      await writeFile(
+        join(cwd, "src/lib/math.shdr.ts"),
+        `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const gain = defineShaderFunction((x: Expr<F32>) => x * 2);`,
+      );
+      await writeFile(
+        join(cwd, "src/scene.shdr.ts"),
+        `import { createFragmentShader, vec4 } from "shdr";
+import { gain } from "@shader/math";
+export default createFragmentShader(({ uniforms }) => vec4(gain(uniforms.time)));`,
+      );
+      const result = invoke(cwd, "check");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+      expect(result.stderr).toBe("");
+    });
+  });
+
+  it("checks relative dependencies outside the config-search root and rejects aliases without a project", async () => {
+    await withProject(async (cwd) => {
+      const external = await mkdtemp(join(tmpdir(), "shdr-cli-external-"));
+      try {
+        await mkdir(join(external, "scenes"), { recursive: true });
+        await mkdir(join(external, "lib"), { recursive: true });
+        const entry = join(external, "scenes/scene.shdr.ts");
+        await writeFile(
+          entry,
+          `import { createFragmentShader, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+import { helper } from "../lib/helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(helper(uniforms.time)));`,
+        );
+        await writeFile(
+          join(external, "lib/helper.shdr.ts"),
+          `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const helper = defineShaderFunction((x: Expr<F32>) => x);`,
+        );
+        const relativeResult = invoke(cwd, "check", entry);
+        expect(relativeResult.status).toBe(0);
+        expect(relativeResult.stdout).toBe(
+          "Checked 1 shader file: no Shdr diagnostics.\n",
+        );
+
+        await writeFile(
+          entry,
+          `import { createFragmentShader, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+import { helper } from "@shader/helper";
+export default createFragmentShader(({ uniforms }) => vec4(helper(uniforms.time)));`,
+        );
+        const aliasResult = invoke(cwd, "check", entry);
+        expect(aliasResult.status).toBe(1);
+        expect(aliasResult.stdout).toMatch(/scene\.shdr\.ts:3:24: SHDR1301: /);
+      } finally {
+        await rm(external, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("reports one shared helper fault for multiple dependent entries", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src"), { recursive: true });
+      await writeFile(
+        join(cwd, "src/shared.shdr.ts"),
+        `import { defineShaderFunction, sqrt } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const bad = defineShaderFunction((x: Expr<F32>) => sqrt(-1));`,
+      );
+      for (const name of ["a", "b"]) {
+        await writeFile(
+          join(cwd, `src/${name}.shdr.ts`),
+          `import { bad } from "./shared.shdr.ts";\nexport default bad;\n`,
+        );
+      }
+      const result = invoke(cwd, "check");
+      expect(result.status).toBe(1);
+      expect(result.stdout.match(/SHDR1209/g)).toHaveLength(1);
+    });
+  });
+
   it("checks valid shaders from another working directory without checking ordinary TS", async () => {
     await withProject(async (cwd) => {
       await fixture(cwd, "valid.shdr.ts", "folder with spaces/valid.shdr.ts");

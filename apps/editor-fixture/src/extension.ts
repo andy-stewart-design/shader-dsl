@@ -41,9 +41,27 @@ export async function activate(
   };
 
   const updateOpenShaderDocuments = (): void => {
-    for (const document of vscode.workspace.textDocuments) {
-      updateDocument(document);
+    const openDocuments = [...vscode.workspace.textDocuments].sort(
+      (left, right) =>
+        Number(isShaderDependencySource(right.getText())) -
+        Number(isShaderDependencySource(left.getText())),
+    );
+    for (const document of openDocuments) updateDocument(document);
+  };
+
+  const updateAfterShaderEdit = (document: vscode.TextDocument): void => {
+    const previous = documents.get(document.uri.toString())?.source ?? "";
+    const dependencyChanged =
+      isShaderDependencySource(previous) ||
+      isShaderDependencySource(document.getText());
+    if (dependencyChanged) projectVersion += 1;
+    // Check the edited dependency first so callers see its new virtual
+    // TypeScript snapshot when they are refreshed below.
+    if (dependencyChanged) updateDocument(document);
+    for (const open of vscode.workspace.textDocuments) {
+      if (open !== document) updateDocument(open);
     }
+    if (!dependencyChanged) updateDocument(document);
   };
 
   const configWatcher = vscode.workspace.createFileSystemWatcher(
@@ -62,7 +80,7 @@ export async function activate(
     configWatcher.onDidDelete(updateProject),
     vscode.workspace.onDidOpenTextDocument(updateDocument),
     vscode.workspace.onDidChangeTextDocument((event) =>
-      updateDocument(event.document),
+      updateAfterShaderEdit(event.document),
     ),
     vscode.workspace.onDidCloseTextDocument((document) => {
       documents.delete(document.uri.toString());
@@ -92,6 +110,10 @@ export async function activate(
 }
 
 export function deactivate(): void {}
+
+function isShaderDependencySource(source: string): boolean {
+  return /\b(?:defineShaderFunction|defineUniforms)\b/.test(source);
+}
 
 function toVsCodeDiagnostic(
   document: vscode.TextDocument,

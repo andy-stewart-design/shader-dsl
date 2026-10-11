@@ -27,6 +27,8 @@ export interface RoutedDiagnostic {
 export interface RouteShaderDiagnosticsInput {
   /** Original-source callback range. Defaults to virtualSource.shaderRegion. */
   readonly shaderRegion?: TextRange;
+  /** All shader-owned boundaries; defaults to virtual regions or the legacy callback. */
+  readonly shaderRegions?: readonly TextRange[];
   readonly virtualSource?: VirtualSource;
   readonly originalSyntacticDiagnostics?: readonly TypeScriptCheckerDiagnostic[];
   readonly originalSemanticDiagnostics?: readonly TypeScriptCheckerDiagnostic[];
@@ -43,6 +45,12 @@ export function routeShaderDiagnostics(
   input: RouteShaderDiagnosticsInput,
 ): readonly RoutedDiagnostic[] {
   const shaderRegion = input.shaderRegion ?? input.virtualSource?.shaderRegion;
+  const shaderRegions =
+    input.shaderRegions ??
+    input.virtualSource?.shaderRegions ??
+    (shaderRegion ? [shaderRegion] : []);
+  const isShaderRange = (range: TextRange) =>
+    shaderRegions.some((region) => rangesOverlap(range, region));
   const originalSyntactic = input.originalSyntacticDiagnostics ?? [];
   const originalSemantic = input.originalSemanticDiagnostics ?? [];
   const virtualSemantic = input.virtualSemanticDiagnostics ?? [];
@@ -55,7 +63,7 @@ export function routeShaderDiagnostics(
   }
 
   for (const diagnostic of originalSemantic) {
-    if (!shaderRegion || !rangesOverlap(diagnostic.range, shaderRegion)) {
+    if (!isShaderRange(diagnostic.range)) {
       addDiagnostic(routed, fromTypeScriptDiagnostic(diagnostic, "typescript"));
     }
   }
@@ -80,12 +88,12 @@ export function routeShaderDiagnostics(
   }
 
   for (const diagnostic of shaderOperations) {
-    if (!shaderRegion || rangesOverlap(diagnostic.range, shaderRegion)) {
+    if (!shaderRegions.length || isShaderRange(diagnostic.range)) {
       addDiagnostic(routed, fromTypeScriptDiagnostic(diagnostic, "shdr"));
     }
   }
 
-  if (input.virtualSource && shaderRegion) {
+  if (input.virtualSource && shaderRegions.length) {
     for (const diagnostic of virtualSemantic) {
       if (diagnostic.message.includes("__shdr_internal_")) continue;
 
@@ -93,7 +101,7 @@ export function routeShaderDiagnostics(
         input.virtualSource,
         diagnostic.range,
       );
-      if (!originalRange || !rangesOverlap(originalRange, shaderRegion)) {
+      if (!originalRange || !isShaderRange(originalRange)) {
         continue;
       }
 

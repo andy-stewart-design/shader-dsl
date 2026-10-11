@@ -110,13 +110,13 @@ try {
   const glslTab = page.getByRole("tab", { name: "GLSL ES 3.00" });
   const wgslTab = page.getByRole("tab", { name: "WGSL" });
   assert.equal(await glslTab.getAttribute("aria-selected"), "true");
-  assert.match(
-    await page.getByRole("tabpanel").textContent(),
-    /u_resolution\.y - gl_FragCoord\.y/,
-  );
+  const glslOutput = await page.getByRole("tabpanel").textContent();
+  assert.match(glslOutput, /shdr_internal_fn_0/);
+  assert.match(glslOutput, /u_resolution\.y - gl_FragCoord\.y/);
   await wgslTab.click();
   assert.equal(await wgslTab.getAttribute("aria-selected"), "true");
   const wgslOutput = await page.getByRole("tabpanel").textContent();
+  assert.match(wgslOutput, /fn shdr_internal_fn_0/);
   assert.match(wgslOutput, /@builtin\(position\) shdr_coord/);
   assert.match(wgslOutput, /shdr_coord\.xy/);
   assert.doesNotMatch(wgslOutput, /resolution\.y -/);
@@ -401,6 +401,34 @@ export default createFragmentShader(({ coord, uniforms }) => {
     }
   }
 
+  for (const [name, callback, samples] of [
+    ["no context", "() => vec4(0.25, 0.5, 0.75, 1)", [[0.25, 0.25]]],
+    [
+      "coord only",
+      "({ coord }) => vec4(coord.x / 100, coord.y / 100, 0, 1)",
+      [[0.25, 0.75]],
+    ],
+    [
+      "uniforms only",
+      "({ uniforms }) => vec4(uniforms.resolution.x / uniforms.resolution.x, 0, 0, 1)",
+      [[0.5, 0.5]],
+    ],
+    [
+      "reordered context",
+      "({ uniforms, coord }) => vec4(coord.x / uniforms.resolution.x, coord.y / uniforms.resolution.y, 0, 1)",
+      [[0.25, 0.75]],
+    ],
+  ]) {
+    await compileSource(
+      page,
+      editor,
+      `import { createFragmentShader, vec4 } from "shdr";\nexport default createFragmentShader(${callback});`,
+    );
+    await waitForValidation(page, "glsl-es-300", "success");
+    await waitForValidation(page, "wgsl", "success");
+    await assertPixelParity(page, `${name} fragment callback`, samples, 5);
+  }
+
   await compileSource(
     page,
     editor,
@@ -442,6 +470,29 @@ export default createFragmentShader(({ coord, uniforms }) => {
     (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
     editedGpuPixel,
   );
+
+  const missingImportSource = `import { createFragmentShader, vec4 } from "shdr";
+import { helper } from "./missing-helper.shdr.ts";
+
+export default createFragmentShader(({ uniforms }) =>
+  vec4(helper(uniforms.time)),
+);
+`;
+  await compileSource(page, editor, missingImportSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1300/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.deepEqual(await readCenterPixel(page), editedPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    editedGpuPixel,
+  );
+  await compileSource(page, editor, originalSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
 
   await verifyCustomUniforms(
     page,

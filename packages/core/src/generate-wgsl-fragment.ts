@@ -14,6 +14,7 @@ import type { GeneratedFragment } from "./generate-fragment.js";
 import {
   emittedShaderLocalName,
   planShaderLocalNames,
+  shaderFunctionName,
   type ShaderLocalNames,
 } from "./shader-local-name.js";
 
@@ -51,13 +52,32 @@ export function generateWgslFragmentOutput(
   const statements = module.statements.map((statement) =>
     generateStatement(statement, customNames, localNames),
   );
+  const functions = (module.functions ?? []).map((helper) => {
+    const names = planShaderLocalNames(helper);
+    const body = helper.statements.map((statement) =>
+      generateStatement(statement, [], names),
+    );
+    const parameters = helper.parameters
+      .map(
+        (parameter) =>
+          `${emittedShaderLocalName(parameter.symbolId, names)}: ${wgslTypeName(parameter.type)}`,
+      )
+      .join(", ");
+    return {
+      code: `fn ${shaderFunctionName(helper.functionId)}(${parameters}) -> ${wgslTypeName(helper.returnType)} {\n${body.map((statement) => statement.code).join("\n")}\n}`,
+      statements: body,
+    };
+  });
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
   const guardedBuiltinSignatures = new Set<WgslGuardedSignature>();
   let usesFragmentPosition = false;
 
-  for (const statement of statements) {
+  for (const statement of [
+    ...statements,
+    ...functions.flatMap((helper) => helper.statements),
+  ]) {
     usesFragmentPosition ||= statement.expression.usesFragmentPosition;
     for (const shape of statement.expression.smoothstepShapes) {
       smoothstepShapes.add(shape);
@@ -105,6 +125,8 @@ export function generateWgslFragmentOutput(
   for (const signature of [...guardedBuiltinSignatures].sort()) {
     sections.push(guardedBuiltinHelper(signature));
   }
+
+  sections.push(...functions.map((helper) => helper.code));
 
   const parameters = usesFragmentPosition
     ? `\n  @builtin(position) ${FRAGMENT_POSITION_NAME}: vec4<f32>,\n`

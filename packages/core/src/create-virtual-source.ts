@@ -5,7 +5,10 @@ import {
   type ParseShaderFileResult,
 } from "./parse-shader-file.js";
 import type { TextRange } from "./source-range.js";
-import { transformShaderExpressions } from "./transform-shader-expressions.js";
+import {
+  transformShaderExpressions,
+  transformShaderExpressionsForHelpers,
+} from "./transform-shader-expressions.js";
 
 export interface CreateVirtualSourceSuccess {
   readonly ok: true;
@@ -16,8 +19,10 @@ export interface CreateVirtualSourceSuccess {
 export interface CreateVirtualSourceFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
-  /** Present when the shader callback boundary was recognized before validation failed. */
+  /** Present when the fragment callback boundary was recognized before validation failed. */
   readonly shaderRegion?: TextRange;
+  /** Recognized helper declarations and fragment callback, even on invalid signatures/bodies. */
+  readonly shaderRegions?: readonly TextRange[];
 }
 
 export type CreateVirtualSourceResult =
@@ -44,13 +49,22 @@ export function createVirtualSourceFromParsed(
   parsed: ParseShaderFileResult,
 ): CreateVirtualSourceResult {
   if (!parsed.info) {
-    return parsed.shaderRegion
-      ? {
-          ok: false,
-          diagnostics: parsed.diagnostics,
-          shaderRegion: parsed.shaderRegion,
-        }
-      : { ok: false, diagnostics: parsed.diagnostics };
+    if (parsed.helperFunctions?.length) {
+      return {
+        ok: true,
+        virtualSource: transformShaderExpressionsForHelpers(
+          source,
+          parsed.helperFunctions,
+        ),
+        diagnostics: [],
+      };
+    }
+    return {
+      ok: false,
+      diagnostics: parsed.diagnostics,
+      ...(parsed.shaderRegion ? { shaderRegion: parsed.shaderRegion } : {}),
+      ...(parsed.shaderRegions ? { shaderRegions: parsed.shaderRegions } : {}),
+    };
   }
 
   return {

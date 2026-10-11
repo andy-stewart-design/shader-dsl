@@ -32,7 +32,10 @@ export interface VirtualSource {
   readonly code: string;
   readonly mappings: readonly SourceMapping[];
   readonly operations: readonly VirtualOperation[];
+  /** Legacy fragment callback boundary. */
   readonly shaderRegion: TextRange;
+  /** Disjoint helper declarations and fragment callback, in source order. */
+  readonly shaderRegions?: readonly TextRange[];
 }
 
 /**
@@ -128,14 +131,22 @@ export class MappedTextWriter {
     return generated;
   }
 
-  public finish(shaderRegion: TextRange): VirtualSource {
+  public finish(
+    shaderRegion: TextRange,
+    shaderRegions?: readonly TextRange[],
+  ): VirtualSource {
     assertRangeWithin(shaderRegion, this.#source.length, "shader region");
+    for (const region of shaderRegions ?? [])
+      assertRangeWithin(region, this.#source.length, "shader region");
 
     return {
       code: this.#chunks.join(""),
       mappings: this.#mappings.map(cloneMapping),
       operations: this.#operations.map(cloneOperation),
       shaderRegion: cloneRange(shaderRegion),
+      ...(shaderRegions
+        ? { shaderRegions: shaderRegions.map(cloneRange) }
+        : {}),
     };
   }
 }

@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@helpers/*": ["*"]
+    },
+    "noEmit": true
+  },
+  "include": ["*.shdr.ts"]
+}

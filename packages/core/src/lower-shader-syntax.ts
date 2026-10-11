@@ -16,6 +16,9 @@ import type {
   ShaderModule,
   ShaderSwizzleComponents,
   ShaderVectorComponent,
+  ShaderFunction,
+  ShaderFunctionParameter,
+  ShaderStatement,
 } from "./shader-ir.js";
 import type {
   ShaderCustomUniformDeclaration,
@@ -80,19 +83,79 @@ interface LoweringContext {
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
   readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
   readonly contextBindings: ReadonlySet<string>;
+  readonly contextName?: string;
+  readonly importedCallables: ReadonlySet<string>;
+  readonly functions: ReadonlyMap<string, ShaderFunction>;
 }
 
 type LowerExpressionResult =
   | { readonly ok: true; readonly expression: ShaderExpression }
   | { readonly ok: false; readonly diagnostic: ShaderDiagnostic };
 
-/** Lowers normalized callback syntax without consulting a target backend. */
+export interface LowerShaderSyntaxOptions {
+  readonly functions?: ReadonlyMap<string, ShaderFunction>;
+}
+
+interface LowerShaderBodyOptions extends LowerShaderSyntaxOptions {
+  readonly parameters?: readonly ShaderFunctionParameter[];
+}
+
+type LowerShaderBodyResult =
+  | {
+      readonly ok: true;
+      readonly statements: readonly ShaderStatement[];
+      readonly returnType: ShaderValueType;
+      readonly diagnostics: readonly [];
+    }
+  | LowerShaderSyntaxFailure;
+
+/** Lowers normalized fragment syntax without consulting a target backend. */
 export function lowerShaderSyntax(
   syntax: ShaderCallbackSyntax,
   importedCallables: ReadonlySet<string> = new Set(),
   customUniforms: readonly ShaderCustomUniformDeclaration[] = [],
+  options: LowerShaderSyntaxOptions = {},
 ): LowerShaderSyntaxResult {
-  const locals = new Map<string, LocalBinding>();
+  const body = lowerShaderBody(
+    syntax,
+    importedCallables,
+    customUniforms,
+    options,
+  );
+  if (!body.ok) return body;
+  if (!isVec4(body.returnType)) {
+    return failure(
+      diagnostic(
+        ShaderDiagnosticCode.InvalidReturnType,
+        `Fragment shaders must return "Expr<Vec4<F32>>"; received ${JSON.stringify(formatExpressionType(body.returnType))}.`,
+        syntax.returnExpression.range,
+      ),
+    );
+  }
+  return {
+    ok: true,
+    module: {
+      kind: "shader-module",
+      stage: "fragment",
+      ...(customUniforms.length ? { customUniforms } : {}),
+      statements: body.statements,
+      range: syntax.range,
+    },
+    diagnostics: [],
+  };
+}
+
+/** Shared straight-line body lowering; helpers produce functions, never fake fragments. */
+export function lowerShaderBody(
+  syntax: ShaderCallbackSyntax,
+  importedCallables: ReadonlySet<string>,
+  customUniforms: readonly ShaderCustomUniformDeclaration[],
+  options: LowerShaderBodyOptions,
+): LowerShaderBodyResult {
+  const locals = new Map<string, LocalBinding>(
+    options.parameters?.map((parameter) => [parameter.name, parameter]) ?? [],
+  );
+  const functions = options.functions ?? new Map<string, ShaderFunction>();
   const constantLocals = new Map<ShaderLocalSymbolId, ShaderKnownComponents>();
   const localInitializers = new Map<ShaderLocalSymbolId, ShaderExpression>();
   const futureNames = new Set(
@@ -101,20 +164,23 @@ export function lowerShaderSyntax(
   const statements: ShaderConstDeclaration[] = [];
   const custom = new Map(customUniforms.map((item) => [item.name, item]));
   const contextBindings = new Set(
-    syntax.contextBindings ?? ["coord", "uniforms"],
+    options.parameters ? [] : (syntax.contextBindings ?? ["coord", "uniforms"]),
   );
-  let nextSymbolId = 0;
+  let nextSymbolId = options.parameters?.length ?? 0;
 
   for (const declaration of syntax.declarations) {
     if (
-      CONTEXT_BINDING_NAMES.has(declaration.name) ||
+      (!options.parameters &&
+        (CONTEXT_BINDING_NAMES.has(declaration.name) ||
+          syntax.contextName === declaration.name)) ||
       importedCallables.has(declaration.name) ||
       locals.has(declaration.name)
     ) {
       return failure(
         diagnostic(
           ShaderDiagnosticCode.DuplicateLocal,
-          CONTEXT_BINDING_NAMES.has(declaration.name)
+          CONTEXT_BINDING_NAMES.has(declaration.name) ||
+            syntax.contextName === declaration.name
             ? `Shader local ${JSON.stringify(declaration.name)} conflicts with a shader context binding.`
             : importedCallables.has(declaration.name)
               ? `Shader local ${JSON.stringify(declaration.name)} shadows an imported shader callable.`
@@ -131,6 +197,9 @@ export function lowerShaderSyntax(
       localInitializers,
       customUniforms: custom,
       contextBindings,
+      ...(options.parameters ? {} : { contextName: syntax.contextName }),
+      importedCallables,
+      functions,
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
 
@@ -164,34 +233,22 @@ export function lowerShaderSyntax(
     localInitializers,
     customUniforms: custom,
     contextBindings,
+    ...(options.parameters ? {} : { contextName: syntax.contextName }),
+    importedCallables,
+    functions,
   });
   if (!returned.ok) return failure(returned.diagnostic);
-  if (!isVec4(returned.expression.type)) {
-    return failure(
-      diagnostic(
-        ShaderDiagnosticCode.InvalidReturnType,
-        `Fragment shaders must return "Expr<Vec4<F32>>"; received ${JSON.stringify(formatExpressionType(returned.expression.type))}.`,
-        syntax.returnExpression.range,
-      ),
-    );
-  }
-
   return {
     ok: true,
-    module: {
-      kind: "shader-module",
-      stage: "fragment",
-      ...(customUniforms.length ? { customUniforms } : {}),
-      statements: [
-        ...statements,
-        {
-          kind: "return-statement",
-          expression: returned.expression,
-          range: syntax.returnRange,
-        },
-      ],
-      range: syntax.range,
-    },
+    statements: [
+      ...statements,
+      {
+        kind: "return-statement",
+        expression: returned.expression,
+        range: syntax.returnRange,
+      },
+    ],
+    returnType: returned.expression.type,
     diagnostics: [],
   };
 }
@@ -219,6 +276,13 @@ function lowerExpression(
       };
 
     case "identifier": {
+      if (syntax.name === context.contextName) {
+        return expressionFailure(
+          ShaderDiagnosticCode.UnsupportedPropertyAccess,
+          "The fragment context must be accessed through coord or uniforms.",
+          syntax.range,
+        );
+      }
       if (syntax.name === "coord" && context.contextBindings.has("coord")) {
         return {
           ok: true,
@@ -276,11 +340,39 @@ function lowerExpression(
 
     case "property-access":
       if (
+        syntax.object.kind === "property-access" &&
+        syntax.object.object.kind === "identifier" &&
+        syntax.object.object.name === context.contextName &&
+        syntax.object.propertyName === "uniforms"
+      ) {
+        return lowerDefaultUniform(syntax, context.customUniforms);
+      }
+      if (
         syntax.object.kind === "identifier" &&
         syntax.object.name === "uniforms" &&
         context.contextBindings.has("uniforms")
       ) {
         return lowerDefaultUniform(syntax, context.customUniforms);
+      }
+      if (
+        syntax.object.kind === "identifier" &&
+        syntax.object.name === context.contextName
+      ) {
+        if (syntax.propertyName === "coord")
+          return {
+            ok: true,
+            expression: {
+              kind: "builtin-input",
+              input: "fragment-position",
+              type: VEC4_F32_TYPE,
+              range: syntax.range,
+            },
+          };
+        return expressionFailure(
+          ShaderDiagnosticCode.UnsupportedPropertyAccess,
+          "Only coord and uniforms are available on the fragment context.",
+          syntax.range,
+        );
       }
       return lowerSwizzle(syntax, context);
 
@@ -319,12 +411,13 @@ function lowerCallExpression(
     name !== "vec2" &&
     name !== "vec3" &&
     name !== "vec4" &&
-    !isShaderBuiltinName(name)
+    (!isShaderBuiltinName(name) || !context.importedCallables.has(name)) &&
+    !context.functions.has(name)
   ) {
     return expressionFailure(
       ShaderDiagnosticCode.UnsupportedCall,
       `Unsupported shader call ${JSON.stringify(syntax.calleeName)}.`,
-      syntax.calleeRange,
+      syntax.arguments.length ? syntax.range : syntax.calleeRange,
     );
   }
 
@@ -333,6 +426,37 @@ function lowerCallExpression(
     const lowered = lowerExpression(argument, context);
     if (!lowered.ok) return lowered;
     args.push(lowered.expression);
+  }
+
+  const helper = context.functions.get(name);
+  if (helper) {
+    if (
+      args.length !== helper.parameters.length ||
+      args.some(
+        (arg, index) =>
+          !sameTypeResult(arg.type, helper.parameters[index]!.type),
+      )
+    ) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidShaderFunctionCall,
+        `No matching ${JSON.stringify(name)} helper for argument types (${args.map((arg) => formatExpressionType(arg.type)).join(", ")}); expected (${helper.parameters.map((param) => formatExpressionType(param.type)).join(", ")}).`,
+        syntax.range,
+      );
+    }
+    return {
+      ok: true,
+      expression: {
+        kind: "call",
+        target: {
+          kind: "shader-function",
+          name,
+          functionId: helper.functionId,
+        },
+        arguments: args,
+        type: helper.returnType,
+        range: syntax.range,
+      },
+    };
   }
 
   if (isShaderBuiltinName(name)) {
@@ -405,6 +529,13 @@ function lowerCallExpression(
     };
   }
 
+  if (name !== "vec2" && name !== "vec3" && name !== "vec4") {
+    return expressionFailure(
+      ShaderDiagnosticCode.UnsupportedCall,
+      `Unsupported shader call ${JSON.stringify(name)}.`,
+      syntax.calleeRange,
+    );
+  }
   if (!isConstructorArguments(name, args)) {
     const argumentTypes = args
       .map((argument) => formatExpressionType(argument.type))

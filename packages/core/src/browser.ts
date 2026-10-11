@@ -5,3 +5,14 @@ export {
   type CompileArtifactResult,
   type CompileArtifactSuccess,
 } from "./compile-fragment-artifact.js";
+export type { ShaderGraphDiagnostic } from "./diagnostics.js";
+export {
+  checkShaderGraph,
+  type ShaderVirtualGraphInput,
+  type CheckShaderGraphFailure,
+  type CheckShaderGraphResult,
+  type CheckShaderGraphSuccess,
+  type LowerShaderGraphFailure,
+  type LowerShaderGraphResult,
+  type LowerShaderGraphSuccess,
+} from "./shader-module-graph.js";

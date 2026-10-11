@@ -85,7 +85,7 @@ describe("parseShaderFile", () => {
     {
       fixture: "boundary/wrong-parameter",
       code: ShaderDiagnosticCode.InvalidCallbackParameter,
-      rangeText: "{ coord }",
+      rangeText: "{ mouse }",
     },
     {
       fixture: "boundary/reserved-identifier",

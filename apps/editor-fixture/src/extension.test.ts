@@ -351,6 +351,107 @@ export async function run(): Promise<void> {
     "smoothstep(0.5, 0.5, coord.x)",
   );
 
+  const helperUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "shared/editor-mixed.shdr.ts",
+  );
+  const helper = await vscode.workspace.openTextDocument(helperUri);
+  await vscode.window.showTextDocument(helper);
+  const helperTypeError = await waitForDiagnostics(
+    helperUri,
+    (diagnostics) => diagnostics.length === 1 && diagnostics[0]?.code === 2322,
+  );
+  assert.equal(helperTypeError[0]?.source, "ts");
+  await waitForHoverText(helper, "scale =", /Expr<F32>/);
+
+  const importedEntryUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "editor-entry.shdr.ts",
+  );
+  const importedEntry =
+    await vscode.workspace.openTextDocument(importedEntryUri);
+  await vscode.window.showTextDocument(importedEntry);
+  await waitForDiagnostics(
+    importedEntryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(importedEntry, "scale(", /Expr<F32>/);
+
+  await replaceText(helper, "Expr<F32>", "Expr<Vec2<F32>>");
+  await waitForDiagnostics(
+    helperUri,
+    (diagnostics) =>
+      diagnostics.length === 2 &&
+      diagnostics.some((diagnostic) => diagnostic.code === 2322) &&
+      diagnostics.some((diagnostic) => diagnostic.code === "SHDR1213"),
+  );
+  await waitForDiagnostics(
+    importedEntryUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1213",
+  );
+  await waitForHoverText(importedEntry, "scale(", /Expr<Vec2<F32>>/);
+  await replaceText(
+    importedEntry,
+    "scale(uniforms.time)",
+    "scale(uniforms.resolution), 0, 1",
+  );
+  await waitForDiagnostics(
+    importedEntryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
+  // Removing the final helper marker must still invalidate callers, even
+  // though the new mixed module no longer looks like a dependency.
+  await replaceText(helper, "Expr<Vec2<F32>>", "Expr<F32>");
+  await replaceText(
+    importedEntry,
+    "scale(uniforms.resolution), 0, 1",
+    "scale(uniforms.time)",
+  );
+  await waitForDiagnostics(
+    importedEntryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await replaceText(
+    helper,
+    "createFragmentShader, defineShaderFunction, vec4",
+    "createFragmentShader, vec4",
+  );
+  await replaceText(
+    helper,
+    "export const scale = defineShaderFunction((x: Expr<F32>) => x * 0.5);\n\n",
+    "",
+  );
+  await replaceText(
+    helper,
+    "vec4(scale(uniforms.time))",
+    "vec4(uniforms.time)",
+  );
+  await waitForDiagnostics(importedEntryUri, (diagnostics) =>
+    diagnostics.some((diagnostic) => diagnostic.code === "SHDR1302"),
+  );
+
+  await replaceText(
+    helper,
+    "createFragmentShader, vec4",
+    "createFragmentShader, defineShaderFunction, vec4",
+  );
+  await replaceText(
+    helper,
+    "export default createFragmentShader",
+    "export const scale = defineShaderFunction((x: Expr<F32>) => x * 0.5);\n\nexport default createFragmentShader",
+  );
+  await replaceText(
+    helper,
+    "vec4(uniforms.time)",
+    "vec4(scale(uniforms.time))",
+  );
+  await waitForDiagnostics(
+    importedEntryUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   // The standard TypeScript provider for ordinary .ts files is intentionally
   // covered by the manual editor check, not this isolated extension-host test.
   // This test launches with extensions disabled and should only assert behavior

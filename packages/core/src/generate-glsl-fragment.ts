@@ -12,6 +12,7 @@ import type { GeneratedFragment } from "./generate-fragment.js";
 import {
   emittedShaderLocalName,
   planShaderLocalNames,
+  shaderFunctionName,
   type ShaderLocalNames,
 } from "./shader-local-name.js";
 
@@ -45,6 +46,19 @@ export function generateGlslFragmentOutput(
   const statements = module.statements.map((statement) =>
     generateStatement(statement, customNames, localNames),
   );
+  const functions = (module.functions ?? []).map((helper) => {
+    const names = planShaderLocalNames(helper);
+    const body = helper.statements.map((statement) =>
+      generateStatement(statement, [], names, true),
+    );
+    const parameters = helper.parameters
+      .map(
+        (parameter) =>
+          `${glslTypeName(parameter.type)} ${emittedShaderLocalName(parameter.symbolId, names)}`,
+      )
+      .join(", ");
+    return `${glslTypeName(helper.returnType)} ${shaderFunctionName(helper.functionId)}(${parameters}) {\n${body.map((statement) => statement.code).join("\n")}\n}`;
+  });
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
   let usesFragmentPosition = false;
@@ -79,6 +93,7 @@ export function generateGlslFragmentOutput(
   if (customDeclarations.length) sections.push(customDeclarations.join("\n"));
 
   sections.push("out vec4 shdr_fragment_color;");
+  sections.push(...functions);
 
   const body: string[] = [];
   if (usesFragmentPosition) {
@@ -105,6 +120,7 @@ function generateStatement(
   statement: ShaderStatement,
   customUniforms: readonly string[],
   localNames: ShaderLocalNames,
+  helperReturn = false,
 ): GeneratedStatement {
   switch (statement.kind) {
     case "const-declaration": {
@@ -126,7 +142,9 @@ function generateStatement(
         localNames,
       });
       return {
-        code: `  shdr_fragment_color = ${expression.code};`,
+        code: helperReturn
+          ? `  return ${expression.code};`
+          : `  shdr_fragment_color = ${expression.code};`,
         expression,
       };
     }
