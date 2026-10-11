@@ -21,6 +21,16 @@ const original = await readFile(
 const compiled = compileFragmentArtifact(authored);
 assert.equal(compiled.ok, true, JSON.stringify(compiled.diagnostics));
 const artifact = compiled.artifact;
+assert.equal(
+  (artifact.glsl.match(/float shdr_internal_fn_\d+\(/g) ?? []).length,
+  1,
+  "GLSL should emit filmGrain once",
+);
+assert.equal(
+  (artifact.wgsl.match(/fn shdr_internal_fn_\d+\(/g) ?? []).length,
+  1,
+  "WGSL should emit filmGrain once",
+);
 const defaults = {
   scale: 8,
   speed: 1,
