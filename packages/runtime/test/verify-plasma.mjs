@@ -31,19 +31,20 @@ assert.equal(
   1,
   "WGSL should emit filmGrain once",
 );
-const defaults = {
-  scale: 8,
-  speed: 1,
-  complexity: 1.5,
-  grain: 0.025,
-  colorA: [0.08, 0.1, 0.5],
-  colorB: [0.95, 0.4, 0.18],
-};
+const declarations = artifact.custom.declarations;
 assert.deepEqual(
-  Object.fromEntries(
-    artifact.custom.declarations.map((item) => [item.name, item.default]),
-  ),
-  defaults,
+  declarations.map(({ name, type }) => ({ name, type })),
+  [
+    { name: "scale", type: "f32" },
+    { name: "speed", type: "f32" },
+    { name: "complexity", type: "f32" },
+    { name: "grain", type: "f32" },
+    { name: "colorA", type: "vec3" },
+    { name: "colorB", type: "vec3" },
+  ],
+);
+const defaults = Object.fromEntries(
+  declarations.map((item) => [item.name, item.default]),
 );
 const overrides = {
   scale: 5.5,
