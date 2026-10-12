@@ -596,12 +596,14 @@ function invalidBuiltinDomain(
     return "exp has a known result outside the finite f32 range.";
   if (
     name === "clamp" &&
+    first &&
     second &&
     third &&
-    second.some(
-      (low, index) =>
-        low !== undefined && third[index] !== undefined && low > third[index]!,
-    )
+    first.some((_, index) => {
+      const low = componentAt(second, index);
+      const high = componentAt(third, index);
+      return low !== undefined && high !== undefined && low > high;
+    })
   )
     return "clamp requires low <= high in every component.";
   if (name === "pow" && first) {
@@ -609,13 +611,16 @@ function invalidBuiltinDomain(
       return "pow requires nonnegative bases in every component.";
     if (
       second &&
-      first.some((base, index) => base === 0 && second[index]! <= 0)
+      first.some((base, index) => {
+        const exponent = componentAt(second, index);
+        return base === 0 && exponent !== undefined && exponent <= 0;
+      })
     )
       return "pow requires a positive exponent when a base is zero.";
     if (
       second &&
       first.some((base, index) => {
-        const exponent = second[index];
+        const exponent = componentAt(second, index);
         return (
           base !== undefined &&
           base > 0 &&
@@ -677,6 +682,14 @@ function hasKnownNonFiniteSubexpression(
     }
   }
   return false;
+}
+
+function componentAt(
+  components: ShaderKnownComponents | undefined,
+  index: number,
+): number | undefined {
+  if (!components) return undefined;
+  return components[components.length === 1 ? 0 : index];
 }
 
 function knownPowOverflow(base: number, exponent: number): boolean {

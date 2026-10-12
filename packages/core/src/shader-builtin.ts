@@ -8,8 +8,8 @@ export const SHADER_BUILTINS = {
   sqrt: "unary-same",
   exp: "unary-same",
   tanh: "unary-same",
-  clamp: "ternary-same",
-  pow: "binary-same",
+  clamp: "clamp",
+  pow: "pow",
   smoothstep: "ternary-same",
   mix: "ternary-interpolate",
   step: "binary-step",
@@ -53,6 +53,12 @@ export function builtinResultType(
       return args.length === 1 ? { kind: "scalar", scalar: "f32" } : undefined;
     case "binary-same":
       return args.length === 2 && sameShape(args[1]) ? first : undefined;
+    case "pow":
+      return args.length === 2 &&
+        (sameShape(args[1]) ||
+          (first.kind === "vector" && args[1]?.kind === "scalar"))
+        ? first
+        : undefined;
     case "binary-step": {
       const x = args[1];
       return args.length === 2 && x && (sameShape(x) || first.kind === "scalar")
@@ -76,6 +82,14 @@ export function builtinResultType(
         : undefined;
     case "ternary-same":
       return args.length === 3 && sameShape(args[1]) && sameShape(args[2])
+        ? first
+        : undefined;
+    case "clamp":
+      return args.length === 3 &&
+        (sameShape(args[1]) ||
+          (first.kind === "vector" && args[1]?.kind === "scalar")) &&
+        (sameShape(args[2]) ||
+          (first.kind === "vector" && args[2]?.kind === "scalar"))
         ? first
         : undefined;
     case "ternary-interpolate":

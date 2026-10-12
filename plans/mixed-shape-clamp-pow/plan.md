@@ -1,6 +1,6 @@
 # Mixed-shape `clamp` / `pow` implementation plan
 
-Status: **Phase 0 complete; implementation steps not started.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
+Status: **Phase 1 complete; implementation and target-generation steps remain.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
 
 ## Contract and delivery boundary
 
@@ -33,12 +33,19 @@ No new runtime uniform or binding slots, artifact fields, resource types, import
 
 ## Phase 1 — Public types, target-neutral semantics and diagnostics
 
-- [ ] Extend `packages/shdr/src/math.ts` with explicit V2/V3/V4 overloads for the four new cases per size; retain the scalar and same-shape overloads. Add accepted/rejected compile-time cases in `packages/shdr/test/pr3-types.ts` or a focused new types test. Do not introduce a general `Expr<ShaderType>` catch-all overload that hides invalid combinations.
-- [ ] Give `clamp` and `pow` dedicated signature rules in `packages/core/src/shader-builtin.ts` (or equivalent narrowly scoped checking), with result shape determined by the **first** argument. Keep `min`, `max`, `smoothstep` and other builtins unchanged. Preserve call IR argument shapes and source ranges in `packages/core/src/lower-shader-syntax.ts`.
-- [ ] Update `packages/core/src/evaluate-shader-constant.ts` and the domain checks in `lower-shader-syntax.ts` to read a scalar argument's one known f32 component for **each** vector lane. Do not manufacture a known value from `undefined`, mask a known-bad lane with an unknown lane, or use JS double-precision comparisons where the existing contract specifies f32-rounded operands. Cover nested/local constant cases and conservative overflow behavior without approximating uncertain `pow` values.
-- [ ] Add matrix-style core tests for every accepted family at V2/V3/V4; reject wrong vector sizes, reversed `pow` shapes and scalar-first `clamp` with `SHDR1208` on the full authored call. Verify `SHDR1209` and authored ranges for a reversed scalar bound against one vector lane, a negative/zero base with a scalar exponent, f32-rounded boundary cases and provably overflowing power. Include a partially known vector and an unknown dynamic input that must **not** be rejected. Preserve existing same-shape tests.
+- [x] Extend `packages/shdr/src/math.ts` with explicit V2/V3/V4 overloads for the four new cases per size; retain the scalar and same-shape overloads. Add accepted/rejected compile-time cases in `packages/shdr/test/pr3-types.ts` or a focused new types test. Do not introduce a general `Expr<ShaderType>` catch-all overload that hides invalid combinations.
+- [x] Give `clamp` and `pow` dedicated signature rules in `packages/core/src/shader-builtin.ts` (or equivalent narrowly scoped checking), with result shape determined by the **first** argument. Keep `min`, `max`, `smoothstep` and other builtins unchanged. Preserve call IR argument shapes and source ranges in `packages/core/src/lower-shader-syntax.ts`.
+- [x] Update `packages/core/src/evaluate-shader-constant.ts` and the domain checks in `lower-shader-syntax.ts` to read a scalar argument's one known f32 component for **each** vector lane. Do not manufacture a known value from `undefined`, mask a known-bad lane with an unknown lane, or use JS double-precision comparisons where the existing contract specifies f32-rounded operands. Cover nested/local constant cases and conservative overflow behavior without approximating uncertain `pow` values.
+- [x] Add matrix-style core tests for every accepted family at V2/V3/V4; reject wrong vector sizes, reversed `pow` shapes and scalar-first `clamp` with `SHDR1208` on the full authored call. Verify `SHDR1209` and authored ranges for a reversed scalar bound against one vector lane, a negative/zero base with a scalar exponent, f32-rounded boundary cases and provably overflowing power. Include a partially known vector and an unknown dynamic input that must **not** be rejected. Preserve existing same-shape tests.
 
-**Gate:** public types, IR/result types, exact source-located diagnostics and conservative domain behavior agree. No generated-code or editor acceptance is claimed yet; do not merge the public overloads on their own.
+**Phase 1 results (2026-10-12):**
+
+- Added explicit public overloads and compile-time acceptance/rejection coverage in `packages/shdr/src/math.ts` and `packages/shdr/test/pr3-types.ts`.
+- Added dedicated `clamp` / `pow` signature rules without changing unrelated builtin rules. The target-neutral IR retains scalar argument shapes, first-argument result types, authored call ranges, and authored argument ranges.
+- Scalar known components now broadcast only during `clamp` / `pow` constant evaluation and domain checking. f32-rounded equality, known reversed bounds, negative/zero bases, scalar exponent overflow, partially known vectors, dynamic inputs, and local scalar constants are covered in `packages/core/test/mixed-shape-clamp-pow.test.ts`. The old PR 3 mixed-signature rejection cases were updated to reflect the agreed contract.
+- `pnpm --filter @shdr/core test -- --runInBand` passed 422/422 tests; `pnpm --filter shdr test` passed 7/7. Core and public-package type checks and Prettier checks passed.
+
+**Gate:** public types, target-neutral IR/result types, exact source-located diagnostics, and conservative domain behavior agree. No generated-code, editor, CLI, or browser acceptance is claimed yet; Phase 2 remains required.
 
 ## Phase 2 — Both generators and TypeScript 7 editor
 
