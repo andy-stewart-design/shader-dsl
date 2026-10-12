@@ -25,10 +25,6 @@ The [language-extension roadmap](./language-exntesion.md) describes still-unimpl
 
 ## Optional builtin signature extensions
 
-### Delivered mixed scalar/vector `clamp` and `pow` signatures after PR 3
-
-The mixed-shape slice is delivered: `clamp(V, S | V, S | V) -> V` (each bound independently scalar or the same vector shape) and `pow(V, S) -> V`, where `S` is f32 and `V` is one fixed Vec2/3/4 shape. Existing same-shape forms remain valid. `clamp(S, V, V)`, `pow(S, V)`, and mixed vector dimensions remain unsupported; authors can explicitly construct a vector base with `vecN(...)`. This is **not** general broadcasting: scalar arguments are expanded only at the `clamp`/`pow` call boundary, and both generators emit explicit target-native splats while the target-neutral IR remains authored-shape-neutral. GLSL ES 3.00 accepts some vector `clamp`/scalar-bound forms, but partially mixed bounds and vector-base/scalar-exponent `pow` require explicit target splats; WGSL requires same-shape arguments, including in its guarded builtin calls. The implementation preserves f32-rounded, component-wise domain checks (`low <= high`, nonnegative bases, positive exponents for zero bases), diagnoses only locally provable invalid calls at authored ranges, and leaves dynamic inputs as caller preconditions. See the [completed PR 3 scope](./_completed/language-extension-first-three-plan.md) and the [mixed-shape implementation plan](./mixed-shape-clamp-pow/plan.md) for the delivered test and gate record.
-
 ### Additional `min`/`max`/`smoothstep` signatures
 
 - `min`/`max` with a vector and scalar would need an explicit choice of argument order and a WGSL splat. [GLSL `min`](https://docs.gl/el3/min) · [WGSL `min`](https://www.w3.org/TR/WGSL/#min-float-builtin)
