@@ -101,7 +101,7 @@ function calculateShaderComponents(
         case "pow": {
           const exponent = args[1];
           return first.map((base, index) => {
-            const power = exponent?.[index];
+            const power = componentAt(exponent, index);
             if (base === undefined || power === undefined) return undefined;
             if (base === 1 || (base > 0 && power === 0)) return 1;
             return base === 0 && power > 0 ? 0 : undefined;
@@ -111,8 +111,8 @@ function calculateShaderComponents(
           const low = args[1];
           const high = args[2];
           return first.map((value, index) => {
-            const min = low?.[index];
-            const max = high?.[index];
+            const min = componentAt(low, index);
+            const max = componentAt(high, index);
             return value !== undefined &&
               min !== undefined &&
               max !== undefined &&
@@ -233,6 +233,14 @@ export function identicalConstantExpressions(
     }
   }
   return true;
+}
+
+function componentAt(
+  components: ShaderKnownComponents | undefined,
+  index: number,
+): number | undefined {
+  if (!components) return undefined;
+  return components[components.length === 1 ? 0 : index];
 }
 
 function assertNever(value: never): never {

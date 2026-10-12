@@ -11,7 +11,9 @@ Status: candidates for future, separately reviewed work—not commitments or a s
 
 ### Textures and samplers
 
-Specify shader-side types and sampling calls together with host creation, binding, upload, and disposal. Choose coordinate origin, image orientation, color-space/format, and sampler-state conventions; verify real samples on WebGL and presented WebGPU. This is a resource/runtime milestone, not a parser-only addition.
+**Agreed direction for a first slice ([feature contract](./textures-and-sampling/spec.md), not yet an implementation plan):** add a typed texture uniform declared with `u.texture2D("/photo.png")` inside `defineUniforms`; shader-side sampling uses that handle, while each browser renderer fetches, decodes, uploads, binds and disposes its own GPU texture. The compiler and editor must never fetch the URL or execute `.shdr.ts` code; the JSON artifact carries resource metadata, not image data. Texture bindings are distinct from the existing numeric uniform buffer. Start with still images: Vite root-absolute URLs should follow its `public/` convention, including an explicit `base`-aware Shdr plugin transform for production deployments (a URL inside artifact JSON is not automatically rewritten by Vite). The simple single-textarea REPL accepts HTTPS image URLs in shader source; cross-origin load failures must be visible, and it does not add a file picker. Sampling uses normalized UVs with `(0, 0)` at the image's top-left, fixed linear filtering and clamp-to-edge addressing in the first slice. Renderers load required resources before the first draw or successful `setShader` replacement, preserving the previous installation on replacement failure when possible.
+
+**Explicitly deferred:** host-driven texture URL swaps via `setUniforms` (today synchronous and numeric-only), per-frame/video updates, a fuller REPL image picker/host image overrides, and configurable sampler filtering/addressing (including nearest-neighbor and repeat). Any later update API needs an asynchronous loading, supersession and failure policy; do not silently treat texture changes as numeric uniform patches. Still to define before implementation: shader sampling signature, color-space/alpha interpretation, mipmap policy, precise URL/base and CORS rules, resource metadata/bindings and disposal, and original-source versus runtime error paths. Verify actual samples on WebGL and presented WebGPU. This is a resource/runtime milestone, not a parser-only addition.
 
 ### Transparent canvas output
 
@@ -23,10 +25,6 @@ The [language-extension roadmap](./language-exntesion.md) describes still-unimpl
 
 ## Optional builtin signature extensions
 
-### Mixed scalar/vector `clamp` and `pow` signatures after PR 3
-
-The completed PR 3 accepts only same-shape f32 scalar or vector arguments for `clamp(T, T, T)` and `pow(T, T)`. Authors can explicitly write `clamp(v, vec3(low), vec3(high))` or `pow(v, vec3(exponent))`. GLSL ES 3.00 accepts vector `clamp` with scalar bounds, but WGSL requires matching shapes; neither target natively accepts a vector base with scalar exponent for `pow`. Review a coherent signature family—operand orders, explicit target splats, component-wise domain rules, and constant diagnostics—rather than inferring a general broadcast rule. Test public types, editor/core/CLI, both generators, and real pixels. See the [completed PR 3 scope](./_completed/language-extension-first-three-plan.md).
-
 ### Additional `min`/`max`/`smoothstep` signatures
 
 - `min`/`max` with a vector and scalar would need an explicit choice of argument order and a WGSL splat. [GLSL `min`](https://docs.gl/el3/min) · [WGSL `min`](https://www.w3.org/TR/WGSL/#min-float-builtin)
@@ -36,9 +34,19 @@ These are optional ergonomics, not gaps in the existing f32 subset. Require a re
 
 ## Editor, runtime, and distribution follow-ups
 
+### One editor LSP and shader navigation (possible SOW)
+
+Today the `.shdr.ts` editor paths provide diagnostics and hover, but not navigation. TypeScript 7 exposes symbol/declaration and reference primitives; Shdr must return **authored-file locations**, never positions in transformed virtual TypeScript or generated GLSL/WGSL. In this beta, prefer replacing the VS Code fixture's direct adapter transport with the existing Shdr LSP over maintaining both for compatibility. This is a candidate milestone, not a commitment to replicate every TypeScript navigation feature or publish an extension.
+
+- **Unify transports:** make the VS Code fixture a Shdr LSP client for `.shdr.ts` diagnostics/hover, using the same server as Zed; retain the shared TypeScript 7 adapter behind the server. After real-editor parity, remove the direct VS Code `DiagnosticCollection`/`HoverProvider` and duplicate project-refresh path, rather than keeping parallel providers or a fallback. Ordinary `.ts` remains owned by TypeScript. A repo-local beta client may launch the built server; clean-install distribution is a separate gate, not a prerequisite for replacing the fixture transport.
+- **Feasibility spike:** verify TypeScript 7's symbol/reference behavior for a transformed local helper, an imported helper alias, and an imported uniform schema. Decide how to map both the query and cross-file results through each file's original/virtual source, including unavailable or stale definitions. Use core graph information only where TypeScript cannot provide reliable shader identity.
+- **Definition slice:** expose a source-located definition result from the shared adapter through LSP `textDocument/definition` for both editors. Cover local helpers/locals and direct or aliased `.shdr.ts` imports; preserve normal handling of non-shader `.ts` files.
+- **References slice:** search the selected project for declarations and uses across files rather than only the open document. Return authored ranges for helper and schema declarations/imports/calls, including aliases and multiple consumers. Handle unsaved edits, dependency refresh, project boundaries, and stale results; do not claim interruptible cancellation while TypeScript checking still blocks the server event loop. Decide whether builtins and automatic uniforms are in scope separately.
+- **Acceptance:** retain current diagnostics/hover behavior in LSP protocol and real VS Code checks after removing the direct transport. Test local and cross-file navigation, transitive helpers, alias paths, mixed/helper-only modules, unsaved edits, and removal/restoration of a dependency. Assert exact original-file ranges and no generated-helper locations or unrelated `.ts` takeover; verify Zed through the same LSP when available. A hover or TypeScript-only symbol lookup does not satisfy the navigation gate.
+
 ### Editor hardening
 
-- The project-aware stdio LSP and shared TypeScript 7 adapter exist; **production/distributable** editor support does not. Keep VS Code's existing provider and the repo-local Zed extension separate until an integration decision warrants a change. Improve Zed's limited lexical highlighting before considering semantic tokens.
+- The project-aware stdio LSP and shared TypeScript 7 adapter exist; **production/distributable** editor support does not. A beta VS Code fixture can switch to the LSP without preserving its old direct transport; packaging and external-project support remain separate work. Improve Zed's limited lexical highlighting before considering semantic tokens.
 - The adapter still filters selected core diagnostics to avoid conflicts with TypeScript 7. If that causes a user-visible mismatch or grows, consider making core authoritative for shader-semantic errors while keeping TypeScript responsible for ordinary TS errors. Preserve source ranges, QuickInfo, and editor/core parity across invalid builtins and custom uniforms.
 - **Independent helper errors in one pass:** core stops at the first invalid helper; the editor suppresses virtual shader cascades while preserving ordinary TypeScript errors outside shader regions. If simultaneous independent shader errors become important, collect them while tracking dependent functions, then suppress only untrustworthy downstream diagnostics/hovers. Test original ranges and dependency cascades.
 - Move blocking checks off the synchronous editor/LSP path; design cancellation, supersession, and incremental caching. Extend project selection to multi-root/reference cases and unsaved files, and test TypeScript upgrades in real editors. Package/install/update integrations for projects outside this checkout.

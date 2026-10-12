@@ -48,14 +48,59 @@ export function clamp(
   high: Expr<Vec2<F32>>,
 ): Expr<Vec2<F32>>;
 export function clamp(
+  x: Expr<Vec2<F32>>,
+  low: Expr<F32>,
+  high: Expr<F32>,
+): Expr<Vec2<F32>>;
+export function clamp(
+  x: Expr<Vec2<F32>>,
+  low: Expr<F32>,
+  high: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function clamp(
+  x: Expr<Vec2<F32>>,
+  low: Expr<Vec2<F32>>,
+  high: Expr<F32>,
+): Expr<Vec2<F32>>;
+export function clamp(
   x: Expr<Vec3<F32>>,
   low: Expr<Vec3<F32>>,
   high: Expr<Vec3<F32>>,
 ): Expr<Vec3<F32>>;
 export function clamp(
+  x: Expr<Vec3<F32>>,
+  low: Expr<F32>,
+  high: Expr<F32>,
+): Expr<Vec3<F32>>;
+export function clamp(
+  x: Expr<Vec3<F32>>,
+  low: Expr<F32>,
+  high: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function clamp(
+  x: Expr<Vec3<F32>>,
+  low: Expr<Vec3<F32>>,
+  high: Expr<F32>,
+): Expr<Vec3<F32>>;
+export function clamp(
   x: Expr<Vec4<F32>>,
   low: Expr<Vec4<F32>>,
   high: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function clamp(
+  x: Expr<Vec4<F32>>,
+  low: Expr<F32>,
+  high: Expr<F32>,
+): Expr<Vec4<F32>>;
+export function clamp(
+  x: Expr<Vec4<F32>>,
+  low: Expr<F32>,
+  high: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function clamp(
+  x: Expr<Vec4<F32>>,
+  low: Expr<Vec4<F32>>,
+  high: Expr<F32>,
 ): Expr<Vec4<F32>>;
 export function clamp(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("clamp");
@@ -67,12 +112,24 @@ export function pow(
   exponent: Expr<Vec2<F32>>,
 ): Expr<Vec2<F32>>;
 export function pow(
+  base: Expr<Vec2<F32>>,
+  exponent: Expr<F32>,
+): Expr<Vec2<F32>>;
+export function pow(
   base: Expr<Vec3<F32>>,
   exponent: Expr<Vec3<F32>>,
 ): Expr<Vec3<F32>>;
 export function pow(
+  base: Expr<Vec3<F32>>,
+  exponent: Expr<F32>,
+): Expr<Vec3<F32>>;
+export function pow(
   base: Expr<Vec4<F32>>,
   exponent: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function pow(
+  base: Expr<Vec4<F32>>,
+  exponent: Expr<F32>,
 ): Expr<Vec4<F32>>;
 export function pow(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("pow");

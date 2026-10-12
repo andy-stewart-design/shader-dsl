@@ -110,8 +110,6 @@ it("matches core SHDR1208/SHDR1209 ranges and import boundaries without TS7 casc
     projectFileName: "tsconfig.json",
   });
   const calls = [
-    source("pow(v3, s)"),
-    source("clamp(v2, s, v2)"),
     source("sqrt(-1)"),
     source("pow(0, 0)"),
     source("exp(1000)"),
@@ -145,11 +143,7 @@ it("matches core SHDR1208/SHDR1209 ranges and import boundaries without TS7 casc
         document.diagnostics.map((item) => item.message).join("\n"),
         text,
       ).not.toContain("shdr_internal_");
-      if (index < 2)
-        expect(lowered.diagnostics[0]!.code).toBe(
-          ShaderDiagnosticCode.InvalidBuiltin,
-        );
-      else if (index < 7)
+      if (index < 5)
         expect(lowered.diagnostics[0]!.code).toBe(
           ShaderDiagnosticCode.InvalidBuiltinDomain,
         );

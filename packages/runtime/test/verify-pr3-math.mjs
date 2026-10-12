@@ -36,6 +36,67 @@ export default createFragmentShader(({ coord, uniforms }) => {
   const y = coord.y / uniforms.resolution.y;
   return vec4(sqrt(x) * 0.3 + exp(-y) * 0.1, clamp(pow(y, 2), 0.1, 0.9), tanh(x) * 0.5, 1);
 });`);
+const mixed = compile(
+  `import { clamp, createFragmentShader, defineUniforms, pow, vec2, vec3, vec4 } from "shdr";
+export default defineUniforms((u) => ({ gain: u.f32(0.35) })).createFragmentShader(({ coord, uniforms }) => {
+  const uv = coord.xy / uniforms.resolution;
+  const v2 = vec2(uv.x * 0.7 + 0.1, uv.y * 0.5 + 0.2);
+  const v3 = vec3(v2, 0.4);
+  const v4 = vec4(v3, 0.6);
+  const c2ss = clamp(v2, uniforms.gain, uniforms.gain);
+  const c2sv = clamp(v2, uniforms.gain, vec2(0.85));
+  const c2vs = clamp(v2, vec2(0.05), uniforms.gain);
+  const p2 = pow(vec2(0.4, 0.8), uniforms.gain);
+  const c3ss = clamp(v3, uniforms.gain, uniforms.gain);
+  const c3sv = clamp(v3, uniforms.gain, vec3(0.85));
+  const c3vs = clamp(v3, vec3(0.05), uniforms.gain);
+  const p3 = pow(vec3(0.4, 0.7, 0.9), uniforms.gain);
+  const c4ss = clamp(v4, uniforms.gain, uniforms.gain);
+  const c4sv = clamp(v4, uniforms.gain, vec4(0.85));
+  const c4vs = clamp(v4, vec4(0.05), uniforms.gain);
+  const p4 = pow(vec4(0.4, 0.6, 0.8, 0.9), uniforms.gain);
+  return vec4(
+    c2ss.x * 0.13 + c2sv.y * 0.17 + c2vs.x * 0.22 + p2.y * 0.31,
+    c3ss.x * 0.13 + c3sv.y * 0.17 + c3vs.z * 0.22 + p3.z * 0.31,
+    c4ss.x * 0.13 + c4sv.y * 0.17 + c4vs.z * 0.22 + p4.w * 0.31,
+    1
+  );
+});`,
+);
+
+function mixedReference(gain, x, y) {
+  const uv = [(x + 0.5) / 32, (y + 0.5) / 32];
+  const v2 = [uv[0] * 0.7 + 0.1, uv[1] * 0.5 + 0.2];
+  const v3 = [v2[0], v2[1], 0.4];
+  const v4 = [v3[0], v3[1], v3[2], 0.6];
+  const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+  const scalarClamp = (value) => value.map((item) => clamp(item, gain, gain));
+  const upperClamp = (value) => value.map((item) => clamp(item, gain, 0.85));
+  const lowerClamp = (value) => value.map((item) => clamp(item, 0.05, gain));
+  const p2 = [Math.pow(0.4, gain), Math.pow(0.8, gain)];
+  const p3 = [Math.pow(0.4, gain), Math.pow(0.7, gain), Math.pow(0.9, gain)];
+  const p4 = [
+    Math.pow(0.4, gain),
+    Math.pow(0.6, gain),
+    Math.pow(0.8, gain),
+    Math.pow(0.9, gain),
+  ];
+  const c2ss = scalarClamp(v2);
+  const c2sv = upperClamp(v2);
+  const c2vs = lowerClamp(v2);
+  const c3ss = scalarClamp(v3);
+  const c3sv = upperClamp(v3);
+  const c3vs = lowerClamp(v3);
+  const c4ss = scalarClamp(v4);
+  const c4sv = upperClamp(v4);
+  const c4vs = lowerClamp(v4);
+  return [
+    c2ss[0] * 0.13 + c2sv[1] * 0.17 + c2vs[0] * 0.22 + p2[1] * 0.31,
+    c3ss[0] * 0.13 + c3sv[1] * 0.17 + c3vs[2] * 0.22 + p3[2] * 0.31,
+    c4ss[0] * 0.13 + c4sv[1] * 0.17 + c4vs[2] * 0.22 + p4[3] * 0.31,
+    1,
+  ];
+}
 
 const server = await createServer({
   root: new URL("../", import.meta.url).pathname,
@@ -137,6 +198,30 @@ try {
       255,
     ];
   });
+  assert.deepEqual(mixed.custom.referenced, {
+    glsl: ["gain"],
+    wgsl: ["gain"],
+  });
+  await page.evaluate(async (artifact) => {
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+  }, mixed);
+  await expectPixels("mixed-shape default gain", samples, (x, y) =>
+    mixedReference(0.35, x, y).map((value) => Math.round(255 * value)),
+  );
+  await page.evaluate(async () => {
+    await Promise.all(
+      [window.glRenderer, window.gpuRenderer].map(async (renderer) => {
+        renderer.setUniforms({ gain: 0.55 });
+        return renderer.draw();
+      }),
+    );
+  });
+  await expectPixels("mixed-shape updated gain", samples, (x, y) =>
+    mixedReference(0.55, x, y).map((value) => Math.round(255 * value)),
+  );
   assert.deepEqual(errors, []);
   await page.evaluate(() => {
     window.glRenderer.dispose();

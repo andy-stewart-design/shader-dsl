@@ -8,6 +8,7 @@ import fragmentShader from "./gradient.shdr.ts";
 import alternateFragmentShader from "./gradient-alt.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import mixedShapeMathShader from "./mixed-shape-math.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
 import pr3MathShader from "./pr3-math.shdr.ts";
 import readableOutputShader from "./readable-output.shdr.ts";
@@ -26,6 +27,7 @@ const shader: CompiledFragmentArtifact = fragmentShader;
 const alternateShader: CompiledFragmentArtifact = alternateFragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+const mixedShapeMath: CompiledFragmentArtifact = mixedShapeMathShader;
 const cells: CompiledFragmentArtifact = cellsShader;
 const pr3Math: CompiledFragmentArtifact = pr3MathShader;
 const readableOutput: CompiledFragmentArtifact = readableOutputShader;
@@ -64,6 +66,9 @@ if (
   !cells.wgsl.includes("step(") ||
   !pr3Math.glsl.includes("pow(") ||
   !pr3Math.wgsl.includes("shdr_internal_safe_pow_vec3") ||
+  !mixedShapeMath.glsl.includes("vec2(") ||
+  !mixedShapeMath.wgsl.includes("vec2<f32>(") ||
+  !mixedShapeMath.wgsl.includes("shdr_internal_safe_pow_vec4") ||
   !readableOutput.glsl.includes(
     "vec2 inputMouse = vec2(u_mouse.x, u_resolution.y - u_mouse.y)",
   ) ||
