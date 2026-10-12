@@ -137,10 +137,28 @@ function emitExpression(
       }
     }
 
-    case "call":
-      return `${callTargetName(expression.target)}(${expression.arguments
-        .map((argument) => emitExpression(argument, options, state))
-        .join(", ")})`;
+    case "call": {
+      const args = expression.arguments.map((argument) =>
+        emitExpression(argument, options, state),
+      );
+      if (
+        expression.target.kind === "builtin-function" &&
+        expression.type.kind === "vector"
+      ) {
+        const scalarArguments =
+          expression.target.name === "clamp"
+            ? [1, 2]
+            : expression.target.name === "pow"
+              ? [1]
+              : [];
+        const vector = `vec${expression.type.size}`;
+        for (const index of scalarArguments) {
+          if (expression.arguments[index]?.type.kind === "scalar")
+            args[index] = `${vector}(${args[index]})`;
+        }
+      }
+      return `${callTargetName(expression.target)}(${args.join(", ")})`;
+    }
 
     default:
       return assertNever(expression);

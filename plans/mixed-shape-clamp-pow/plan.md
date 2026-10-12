@@ -1,6 +1,6 @@
 # Mixed-shape `clamp` / `pow` implementation plan
 
-Status: **Phase 1 complete; implementation and target-generation steps remain.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
+Status: **Phase 2 complete; browser pixels, documentation and completion gates remain.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
 
 ## Contract and delivery boundary
 
@@ -49,11 +49,17 @@ No new runtime uniform or binding slots, artifact fields, resource types, import
 
 ## Phase 2 — Both generators and TypeScript 7 editor
 
-- [ ] In `packages/core/src/generate-glsl-expression.ts` and `generate-wgsl-expression.ts`, emit vector splats for scalar `clamp` bounds and `pow` exponent as needed to call a same-shape builtin. In WGSL, splat **before** invoking the existing same-shape `shdr_internal_safe_clamp_vecN` / `shdr_internal_safe_pow_vecN` helpers; retain their parameterized calls for constant-domain protection. Preserve correct grouping and one evaluation of each emitted argument. Keep scalar/same-shape output unchanged unless a justified correction is covered by tests.
-- [ ] Test both generated sources and real target shader/module compilation for all new shapes, including nested helper calls and WGSL constant-domain guards; verify no generated name collision or helper emitted more than once per signature.
-- [ ] Exercise TypeScript 7 virtual-source QuickInfo and diagnostics in `packages/language-service/test/` for the new overloads in a fragment **and** a local/imported `defineShaderFunction` helper. Assert authored-file/range errors without virtual helper cascades, and refresh on unsaved edits. Add CLI check cases and a Vite static-import fixture so those paths use the same core semantics; keep ordinary `.ts` ownership. The REPL should compile an in-text example without fetching files.
+- [x] In `packages/core/src/generate-glsl-expression.ts` and `generate-wgsl-expression.ts`, emit vector splats for scalar `clamp` bounds and `pow` exponent as needed to call a same-shape builtin. In WGSL, splat **before** invoking the existing same-shape `shdr_internal_safe_clamp_vecN` / `shdr_internal_safe_pow_vecN` helpers; retain their parameterized calls for constant-domain protection. Preserve correct grouping and one evaluation of each emitted argument. Keep scalar/same-shape output unchanged unless a justified correction is covered by tests.
+- [x] Test both generated sources and real target shader/module compilation for all new shapes, including nested helper calls and WGSL constant-domain guards; verify no generated name collision or helper emitted more than once per signature.
+- [x] Exercise TypeScript 7 virtual-source QuickInfo and diagnostics in `packages/language-service/test/` for the new overloads in a fragment **and** a local/imported `defineShaderFunction` helper. Assert authored-file/range errors without virtual helper cascades, and refresh on unsaved edits. Add CLI check cases and a Vite static-import fixture so those paths use the same core semantics; keep ordinary `.ts` ownership. The REPL should compile an in-text example without fetching files.
 
-**Gate:** compiler, public types, CLI, Vite, editor adapter and LSP's existing diagnostic/hover path agree. Check the real VS Code fixture when practical; do not make this language slice depend on the proposed transport migration.
+**Phase 2 results (2026-10-12):**
+
+- GLSL now expands scalar vector-call arguments as `vecN(...)`; WGSL expands them as `vecN<f32>(...)` before the parameterized safe helpers. Existing scalar and same-shape expressions remain unchanged. `packages/core/test/mixed-shape-clamp-pow-generated.test.ts` verifies all V2/V3/V4 families, nested helper generation, one helper declaration per signature, and real WebGL 2/WebGPU compilation.
+- Added TypeScript 7 editor coverage in `packages/language-service/test/mixed-shape-editor.test.ts` for fragment QuickInfo, unsaved refresh, local/imported `defineShaderFunction` helpers, authored diagnostics/ranges, and domain parity. The CLI, Vite static-import fixture (`apps/vite-basic/src/mixed-shape-math.shdr.ts`), and REPL in-text textarea path are covered and passed.
+- Validation passed: core 423/423 tests, language service 92/92, CLI 24/24; Vite check/build and REPL check/build passed; the REPL browser verification passed with WebGL/WebGPU validation. Browser runs used Chromium headless with SwiftShader/WebGPU enabled.
+
+**Gate:** compiler, public types, CLI, Vite, editor adapter, and existing TypeScript 7 diagnostic/hover paths agree. Phase 3 still must provide rendered WebGL/presented-WebGPU pixel evidence, documentation, and full workspace completion checks. The real VS Code fixture and transport migration remain non-blocking.
 
 ## Phase 3 — Browser pixels, documentation and completion
 

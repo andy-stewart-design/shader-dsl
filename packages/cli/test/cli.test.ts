@@ -84,6 +84,71 @@ export default createFragmentShader(({ uniforms }) => vec4(gain(uniforms.time)))
     });
   });
 
+  it("checks mixed-shape clamp/pow calls through local and imported entries", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src/lib"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { noEmit: true },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      await writeFile(
+        join(cwd, "src/lib/mixed.shdr.ts"),
+        `import { clamp, defineShaderFunction, pow, vec3 } from "shdr";
+import type { Expr, F32, Vec3 } from "shdr";
+export const mixed = defineShaderFunction((value: Expr<Vec3<F32>>, exponent: Expr<F32>) =>
+  pow(clamp(value, exponent, vec3(2)), exponent)
+);`,
+      );
+      await writeFile(
+        join(cwd, "src/scene.shdr.ts"),
+        `import { clamp, createFragmentShader, pow, vec2, vec3, vec4 } from "shdr";
+import { mixed } from "./lib/mixed.shdr.ts";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const s = uniforms.time;
+  const v2 = coord.xy;
+  const v3 = coord.xyz;
+  const v4 = coord;
+  const a = clamp(v2, s, s);
+  const b = clamp(v2, s, v2);
+  const c = clamp(v2, v2, s);
+  const d = pow(v2, s);
+  const e = clamp(v3, s, s);
+  const f = clamp(v3, s, v3);
+  const g = clamp(v3, v3, s);
+  const h = pow(v3, s);
+  const i = clamp(v4, s, s);
+  const j = clamp(v4, s, v4);
+  const k = clamp(v4, v4, s);
+  const l = pow(v4, s);
+  const m = mixed(v3, s);
+  return vec4(a.x + b.x + c.x + d.x, e.x + f.x + g.x + h.x, i.x + j.x + k.x + l.x, m.x);
+});`,
+      );
+      const result = invoke(cwd, "check");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+      expect(result.stderr).toBe("");
+
+      await writeFile(
+        join(cwd, "src/scene.shdr.ts"),
+        `import { createFragmentShader, pow, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const s = uniforms.time;
+  return vec4(pow(s, coord.xyz));
+});`,
+      );
+      const invalid = invoke(cwd, "check");
+      expect(invalid.status).toBe(1);
+      expect(invalid.stdout).toMatch(/scene\.shdr\.ts:4:15: SHDR1208: /);
+      expect(invalid.stdout).not.toContain("shdr_internal_");
+    });
+  });
+
   it("checks relative dependencies outside the config-search root and rejects aliases without a project", async () => {
     await withProject(async (cwd) => {
       const external = await mkdtemp(join(tmpdir(), "shdr-cli-external-"));
@@ -332,7 +397,7 @@ export const bad = defineShaderFunction((x: Expr<F32>) => sqrt(-1));`,
         );
       }
       for (const [text, code] of [
-        [shader("pow(vec3(2), 3)"), ShaderDiagnosticCode.InvalidBuiltin],
+        [shader("pow(3, vec3(2))"), ShaderDiagnosticCode.InvalidBuiltin],
         [shader("sqrt(-1)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
         [shader("clamp(0.5, 1, 0)"), ShaderDiagnosticCode.InvalidBuiltinDomain],
         [shader("pow(0, 0)"), ShaderDiagnosticCode.InvalidBuiltinDomain],

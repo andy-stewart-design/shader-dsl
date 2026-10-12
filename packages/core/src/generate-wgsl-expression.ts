@@ -196,11 +196,21 @@ function emitExpression(
       );
       if (
         expression.target.kind === "builtin-function" &&
-        expression.target.name === "step" &&
-        expression.type.kind === "vector" &&
-        expression.arguments[0]?.type.kind === "scalar"
+        expression.type.kind === "vector"
       ) {
-        args[0] = `vec${expression.type.size}<f32>(${args[0]})`;
+        const scalarArguments =
+          expression.target.name === "clamp"
+            ? [1, 2]
+            : expression.target.name === "pow"
+              ? [1]
+              : expression.target.name === "step"
+                ? [0]
+                : [];
+        const vector = `vec${expression.type.size}<f32>`;
+        for (const index of scalarArguments) {
+          if (expression.arguments[index]?.type.kind === "scalar")
+            args[index] = `${vector}(${args[index]})`;
+        }
       }
       return `${name}(${args.join(", ")})`;
     }
