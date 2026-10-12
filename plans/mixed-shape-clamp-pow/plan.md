@@ -1,6 +1,6 @@
 # Mixed-shape `clamp` / `pow` implementation plan
 
-Status: **Ready to implement; no implementation steps completed.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
+Status: **Phase 0 complete; implementation steps not started.** The signature boundary below was agreed in discussion and recorded in [follow-up notes](../notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3). This is a focused extension of the [completed PR 3 contract](../_completed/language-extension-first-three-plan.md), not a general broadcasting feature. Paths below are relative to the repository root. Do not disturb unrelated worktree changes.
 
 ## Contract and delivery boundary
 
@@ -19,11 +19,17 @@ No new runtime uniform or binding slots, artifact fields, resource types, import
 
 ## Phase 0 — Raw-target feasibility and baseline (stop for review)
 
-- [ ] Inspect existing same-shape and rejected mixed-shape fixtures and run focused baseline checks before modifying implementation. Record baseline failures separately from work on this slice; do not claim they were caused by this change.
-- [ ] Probe **real** GLSL ES 3.00/WebGL 2 and WGSL/WebGPU acceptance of V2/V3/V4 `clamp` with each scalar-bound combination and `pow(V, S)` using nondegenerate values. For output, explicitly expand scalar arguments to the matching vector type wherever the native builtin or Shdr's wrapper requires it; do not assume GLSL's `clamp(V,S,S)` overload covers partially mixed bounds or that WGSL accepts any mixed form.
-- [ ] Probe a WGSL compile-time constant domain/overflow case: Shdr's `shdr_internal_safe_{clamp,pow}_vecN` parameter helpers must continue to prevent shader-creation failures for inputs Shdr cannot prove invalid. Stop and adjust the plan if the helper strategy or scalar splat changes shader-creation behavior.
+- [x] Inspect existing same-shape and rejected mixed-shape fixtures and run focused baseline checks before modifying implementation. Record baseline failures separately from work on this slice; do not claim they were caused by this change.
+- [x] Probe **real** GLSL ES 3.00/WebGL 2 and WGSL/WebGPU acceptance of V2/V3/V4 `clamp` with each scalar-bound combination and `pow(V, S)` using nondegenerate values. For output, explicitly expand scalar arguments to the matching vector type wherever the native builtin or Shdr's wrapper requires it; do not assume GLSL's `clamp(V,S,S)` overload covers partially mixed bounds or that WGSL accepts any mixed form.
+- [x] Probe a WGSL compile-time constant domain/overflow case: Shdr's `shdr_internal_safe_{clamp,pow}_vecN` parameter helpers must continue to prevent shader-creation failures for inputs Shdr cannot prove invalid. Stop and adjust the plan if the helper strategy or scalar splat changes shader-creation behavior.
 
-**Gate:** record the viable target spelling and observed compilation for each family, plus any issue that changes the agreed signatures. Raw source-string assertions alone are not proof of target feasibility. Existing probes in `packages/core/test/pr3-target-feasibility.test.ts` and the PR 3 generated math suites are useful starting points.
+**Phase 0 results (2026-10-12):**
+
+- Baseline had no failures. `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root . test/pr3-target-feasibility.test.ts test/math-builtin-target-feasibility.test.ts test/math-builtin-ir.test.ts test/math-builtin-parity.test.ts` passed 64/64 tests. `pnpm --filter @shdr/core check` and `pnpm --filter shdr check` also passed.
+- Added `packages/core/test/mixed-shape-clamp-pow-target-feasibility.test.ts`; its two browser probes pass. Under Chromium headless with WebGL 2 and WebGPU enabled using SwiftShader (`--enable-unsafe-swiftshader`, `--enable-unsafe-webgpu`, `--use-angle=swiftshader`), all V2/V3/V4 same-shape calls compile. GLSL ES accepts raw `clamp(V,S,S)` but rejects `clamp(V,S,V)`, `clamp(V,V,S)`, and `pow(V,S)`. WGSL rejects all raw mixed forms, including `clamp(V,S,S)`. Explicit `vecN` / `vecN<f32>` scalar expansion compiles for every new family on both targets.
+- Direct WGSL constant `clamp` calls with reversed bounds and `pow` calls with a provable overflowing vector result fail shader creation for V2/V3/V4. The corresponding parameterized `shdr_internal_safe_clamp_vecN` and `shdr_internal_safe_pow_vecN` helpers compile successfully, confirming the existing guard strategy remains viable. `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root . test/mixed-shape-clamp-pow-target-feasibility.test.ts` passed 2/2, and the test TypeScript check passed.
+
+**Gate:** target spelling is explicit vector expansion for every scalar argument in the new vector calls; same-shape calls remain unchanged. No issue changes the agreed signatures. Raw target acceptance and WGSL helper behavior are covered by the browser-backed probe, not source-string assertions alone. Existing probes in `packages/core/test/pr3-target-feasibility.test.ts` and the PR 3 generated math suites remain useful starting points.
 
 ## Phase 1 — Public types, target-neutral semantics and diagnostics
 
