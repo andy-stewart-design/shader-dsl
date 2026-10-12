@@ -13,7 +13,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });
 ```
 
-The example uses top-left-origin pixel coordinates and the drawing-buffer resolution. For an expanded shader exercising `vec3`, unary minus, arithmetic, and swizzles, see [the checked fixture](packages/core/test/fixtures/expanded.shdr.ts). For the original eleven math builtins, see the [Vite/WebGL fixture](apps/vite-basic/src/math-builtins.shdr.ts); for `ceil`, `distance`, and `cross`, see the [editor/REPL fixture](apps/editor-fixture/geometry-math.shdr.ts). For `mix`, `step`, and typed custom defaults, try the [representative cells shader](apps/vite-basic/src/cells-representative.shdr.ts). For `sqrt`, `exp`, `tanh`, `clamp`, and `pow`, see the [two-target color field](apps/vite-basic/src/pr3-math.shdr.ts) or the [translated plasma reference](apps/vite-basic/src/references/plasma.shdr.ts).
+The example uses top-left-origin pixel coordinates and the drawing-buffer resolution. For an expanded shader exercising `vec3`, unary minus, arithmetic, and swizzles, see [the checked fixture](packages/core/test/fixtures/expanded.shdr.ts). For the original eleven math builtins, see the [Vite/WebGL fixture](apps/vite-basic/src/math-builtins.shdr.ts); for `ceil`, `distance`, and `cross`, see the [editor/REPL fixture](apps/editor-fixture/geometry-math.shdr.ts). For `mix`, `step`, and typed custom defaults, try the [representative cells shader](apps/vite-basic/src/cells-representative.shdr.ts). For `sqrt`, `exp`, `tanh`, `clamp`, and `pow`, see the [two-target color field](apps/vite-basic/src/pr3-math.shdr.ts) or the [translated plasma reference](apps/vite-basic/src/references/plasma.shdr.ts). Mixed scalar/vector `clamp` and `pow` calls are exercised by the [mixed-shape fixture](apps/vite-basic/src/mixed-shape-math.shdr.ts).
 
 ## Requirements and workspace commands
 
@@ -198,23 +198,24 @@ Vector-plus-scalar packings place the vector first; other shapes such as `vec4(1
 
 Let `S = Expr<F32>` and `Vn = Expr<VecN<F32>>` for `n = 2, 3, 4`. Each `Vn` within a signature has the **same** dimension; a `T` is either `S` or one `Vn` for that call. Import each function directly by its exact name from `"shdr"`:
 
-| Builtin(s)                                                           | Accepted operands → result                                                       |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `sin`, `cos`, `abs`, `floor`, `fract`, `ceil`, `sqrt`, `exp`, `tanh` | `(S) → S`, `(Vn) → Vn` (component-wise vectors)                                  |
-| `smoothstep`                                                         | `(T edge0, T edge1, T x) → T` (same shape for all three; component-wise vectors) |
-| `mix`                                                                | `(S, S, S) → S`, `(Vn, Vn, S) → Vn`, `(Vn, Vn, Vn) → Vn`                         |
-| `step`                                                               | `(S edge, S x) → S`, `(S edge, Vn x) → Vn`, `(Vn edge, Vn x) → Vn`               |
-| `min`, `max`, `pow`                                                  | `(S, S) → S`, `(Vn, Vn) → Vn`                                                    |
-| `clamp`                                                              | `(T x, T low, T high) → T` (same shape throughout)                               |
-| `dot`                                                                | `(Vn, Vn) → S`                                                                   |
-| `distance`                                                           | `(S, S) → S`, `(Vn, Vn) → S`                                                     |
-| `cross`                                                              | `(V3, V3) → V3`                                                                  |
-| `length`                                                             | `(S) → S`, `(Vn) → S`                                                            |
-| `normalize`                                                          | `(Vn) → Vn`                                                                      |
+| Builtin(s)                                                           | Accepted operands → result                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `sin`, `cos`, `abs`, `floor`, `fract`, `ceil`, `sqrt`, `exp`, `tanh` | `(S) → S`, `(Vn) → Vn` (component-wise vectors)                                           |
+| `smoothstep`                                                         | `(T edge0, T edge1, T x) → T` (same shape for all three; component-wise vectors)          |
+| `mix`                                                                | `(S, S, S) → S`, `(Vn, Vn, S) → Vn`, `(Vn, Vn, Vn) → Vn`                                  |
+| `step`                                                               | `(S edge, S x) → S`, `(S edge, Vn x) → Vn`, `(Vn edge, Vn x) → Vn`                        |
+| `min`, `max`                                                         | `(S, S) → S`, `(Vn, Vn) → Vn`                                                             |
+| `pow`                                                                | `(S, S) → S`, `(Vn, Vn) → Vn`, `(Vn, S) → Vn`                                             |
+| `clamp`                                                              | `(S, S, S) → S`; `(Vn, L, H) → Vn` where each of `L` and `H` is independently `S` or `Vn` |
+| `dot`                                                                | `(Vn, Vn) → S`                                                                            |
+| `distance`                                                           | `(S, S) → S`, `(Vn, Vn) → S`                                                              |
+| `cross`                                                              | `(V3, V3) → V3`                                                                           |
+| `length`                                                             | `(S) → S`, `(Vn) → S`                                                                     |
+| `normalize`                                                          | `(Vn) → Vn`                                                                               |
 
-These are 85 signatures across twenty-one names. Apart from `mix`'s scalar factor and `step`'s scalar edge, no implicit call-site broadcasts, mixed dimensions, boolean-mask `mix`, vector-edge/scalar-input `step`, scalar-edge/vector-input `smoothstep`, scalar `dot`/`normalize`/`cross`, non-Vec3 `cross`, f16, integer variants, `Math.sin`, unimported calls, aliases or namespace calls are accepted. Unsupported builtin arity/types report `SHDR1208` on the whole original call. An invalid argument keeps its more specific diagnostic rather than causing an outer overload cascade.
+These are 97 signatures across twenty-one names. `clamp(V, S | V, S | V)` and `pow(V, S)` broadcast each scalar only at that call boundary; the target-neutral IR retains the authored scalar argument. The generators emit explicit `vecN` / `vecN<f32>` splats for both targets. Apart from these two vector-first families, `mix`'s scalar factor and `step`'s scalar edge, no implicit call-site broadcasts, mixed dimensions, boolean-mask `mix`, vector-edge/scalar-input `step`, scalar-edge/vector-input `smoothstep`, scalar `dot`/`normalize`/`cross`, non-Vec3 `cross`, f16, integer variants, `Math.sin`, unimported calls, aliases or namespace calls are accepted. Unsupported builtin arity/types report `SHDR1208` on the whole original call. An invalid argument keeps its more specific diagnostic rather than causing an outer overload cascade.
 
-`clamp(coord.xyz, 0, 1)` and `pow(coord.xyz, 2)` are intentionally not Shdr signatures: write `clamp(coord.xyz, vec3(0), vec3(1))` and `pow(coord.xyz, vec3(2))` instead. GLSL accepts scalar vector bounds for `clamp`, but WGSL does not; neither target natively accepts the mixed `pow` form. A later [scope review](plans/notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3) can add tested broadcast semantics without making all mixed types implicit.
+`clamp(coord.xyz, 0, 1)`, `clamp(coord.xyz, 0, vec3(1))`, `clamp(coord.xyz, vec3(0), 1)`, and `pow(coord.xyz, 2)` are accepted. Explicit `vec3(...)` forms remain useful when a scalar base or a vector argument is intended. GLSL accepts only some of these mixed forms natively and WGSL requires same-shape arguments; Shdr therefore emits explicit target splats without adding backend-specific calls to the target-neutral IR. `clamp(scalar, vector, vector)`, `pow(scalar, vector)`, mixed vector dimensions, and unrelated implicit broadcasts remain unsupported. The delivered boundary and excluded candidates are tracked in the [follow-up notes](plans/notes.md#mixed-scalarvector-clamp-and-pow-signatures-after-pr-3).
 
 For ordinary finite inputs, `step(edge, x)` is `0` when `x < edge` and `1` otherwise, **including at equality**; vector forms act component-wise. `mix(a, b, factor)` interpolates component-wise and does not clamp the factor. WGSL receives an explicit vector splat for `step(S, Vn)`; this is one target-neutral Shdr operation, not an added WGSL overload. Avoid NaNs and threshold-adjacent bit-exact expectations between GPUs.
 
