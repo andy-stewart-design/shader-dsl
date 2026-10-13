@@ -9,6 +9,10 @@ const body = `({ uniforms }) => vec4(uniforms.color.x, uniforms.color.y, uniform
 const imports = `import { createFragmentShader, defineUniforms, vec4 } from "shdr";\n`;
 const inline = `${imports}export default ${declaration}.createFragmentShader(${body});`;
 const named = `${imports}const uniforms = ${declaration};\nexport default createFragmentShader(${body}, { uniforms });`;
+const textureDeclaration = `defineUniforms((u) => ({ photo: u.texture2D("/photo.png"), remote: u.texture2D("https://cdn.example/photo.png"), gain: u.f32(0.5) }))`;
+const textureBody = `({ uniforms }) => vec4(uniforms.gain, uniforms.gain, uniforms.gain, 1)`;
+const textureInline = `${imports}export default ${textureDeclaration}.createFragmentShader(${textureBody});`;
+const textureNamed = `${imports}const uniforms = ${textureDeclaration};\nexport default createFragmentShader(${textureBody}, { uniforms });`;
 
 function compile(source: string) {
   const compiled = compileFragmentArtifact(source);
@@ -42,6 +46,101 @@ describe("custom uniform compilation", () => {
     if (lowered.ok) {
       expect(lowered.ir.customUniforms).toEqual(artifact.custom?.declarations);
       expect(JSON.stringify(lowered.ir)).not.toMatch(/glsl|wgsl|binding|group/);
+    }
+  });
+
+  it("retains texture declarations as separate JSON resource metadata", () => {
+    const artifact = compile(textureInline);
+    expect(compile(textureNamed)).toEqual(artifact);
+    const imported = compileFragmentArtifact({
+      entry: "/work/entry.shdr.ts",
+      files: {
+        "/work/entry.shdr.ts": `${imports}import { uniforms } from "./schema.shdr.ts";\nexport default createFragmentShader(${textureBody}, { uniforms });`,
+        "/work/schema.shdr.ts": `import { defineUniforms } from "shdr";\nexport const uniforms = ${textureDeclaration};`,
+      },
+    });
+    expect(imported).toEqual({ ok: true, artifact, diagnostics: [] });
+    expect(artifact.custom).toEqual({
+      declarations: [{ name: "gain", type: "f32", default: 0.5 }],
+      referenced: { glsl: ["gain"], wgsl: ["gain"] },
+    });
+    expect(artifact.resources).toEqual({
+      textures: [
+        {
+          name: "photo",
+          type: "texture2D",
+          url: "/photo.png",
+          urlKind: "root-absolute",
+        },
+        {
+          name: "remote",
+          type: "texture2D",
+          url: "https://cdn.example/photo.png",
+          urlKind: "https",
+        },
+      ],
+    });
+    expect(artifact.glsl).not.toContain("photo");
+    expect(artifact.wgsl).not.toContain("remote");
+    expect(JSON.parse(JSON.stringify(artifact))).toEqual(artifact);
+    const lowered = lowerFragment(textureInline);
+    expect(lowered.ok).toBe(true);
+    if (lowered.ok) {
+      expect(lowered.ir.customUniforms).toEqual([
+        { name: "gain", type: "f32", default: 0.5 },
+      ]);
+      expect(lowered.ir.textures).toEqual(artifact.resources?.textures);
+    }
+  });
+
+  it("rejects malformed, dynamic, duplicate, and reserved texture declarations", () => {
+    const cases = [
+      [textureInline.replace('"/photo.png"', "window.photo"), "window.photo"],
+      [textureInline.replace('"/photo.png"', '"photo.png"'), '"photo.png"'],
+      [
+        textureInline.replace('"/photo.png"', '"http://cdn.example/a.png"'),
+        '"http://cdn.example/a.png"',
+      ],
+      [
+        textureInline.replace('"/photo.png"', '"//cdn.example/a.png"'),
+        '"//cdn.example/a.png"',
+      ],
+      [
+        textureInline.replace("photo: u.texture2D", "gain: u.texture2D"),
+        "gain",
+      ],
+      [
+        textureInline.replace("photo: u.texture2D", "time: u.texture2D"),
+        "time",
+      ],
+      [
+        textureInline.replace('u.texture2D("/photo.png")', "u.texture2D(1)"),
+        "1",
+      ],
+    ] as const;
+    for (const [source, token] of cases) {
+      const result = compileFragmentArtifact(source);
+      expect(result.ok, token).toBe(false);
+      if (result.ok) continue;
+      expect(result.diagnostics[0]?.code).toBe("SHDR1210");
+      const range = result.diagnostics[0]!.range;
+      expect(source.slice(range.start, range.start + range.length)).toContain(
+        token,
+      );
+    }
+  });
+
+  it("rejects a texture declaration used as a numeric expression", () => {
+    const result = compileFragmentArtifact(
+      textureInline.replace(
+        "uniforms.gain, uniforms.gain, uniforms.gain",
+        "uniforms.photo, uniforms.gain, uniforms.gain",
+      ),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.diagnostics[0]?.code).toBe("SHDR1203");
+      expect(result.diagnostics[0]?.message).toContain('"photo"');
     }
   });
 

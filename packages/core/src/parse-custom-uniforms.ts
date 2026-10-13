@@ -10,11 +10,15 @@ import { isFiniteF32 } from "./finite-f32.js";
 import type { TextRange } from "./source-range.js";
 import type {
   ShaderCustomUniformDeclaration,
+  ShaderTextureDeclaration,
+  ShaderTextureUrlKind,
   ShaderCustomUniformType,
 } from "shdr";
 
+export type ParsedUniformDeclaration =
+  ShaderCustomUniformDeclaration | ShaderTextureDeclaration;
 export interface ParsedCustomUniforms {
-  readonly declarations: readonly ShaderCustomUniformDeclaration[];
+  readonly declarations: readonly ParsedUniformDeclaration[];
   readonly declarationRange: TextRange;
 }
 export type ParseCustomUniformsResult =
@@ -68,7 +72,7 @@ export function parseCustomUniforms(
     );
 
   const builder = argument.params[0].name;
-  const entries: ShaderCustomUniformDeclaration[] = [];
+  const entries: ParsedUniformDeclaration[] = [];
   const seen = new Set<string>();
   for (const field of body.properties) {
     if (
@@ -100,10 +104,31 @@ export function parseCustomUniforms(
         field.key,
       );
     seen.add(name);
+    if (field.value.callee.property.name === "texture2D") {
+      if (field.value.arguments.length !== 1) {
+        return invalid("u.texture2D requires one literal URL.", field.value);
+      }
+      const argument = field.value.arguments[0]!;
+      if (argument.type !== "StringLiteral")
+        return invalid("Texture URLs must be string literals.", argument);
+      const urlKind = textureUrlKind(argument.value);
+      if (!urlKind)
+        return invalid(
+          "Texture URLs must be root-absolute paths or external HTTPS URLs.",
+          argument,
+        );
+      entries.push({
+        name,
+        type: "texture2D",
+        url: argument.value,
+        urlKind,
+      });
+      continue;
+    }
     const entry = TYPES.get(field.value.callee.property.name);
     if (!entry)
       return invalid(
-        "Only u.f32, u.vec2, u.vec3 and u.vec4 are supported.",
+        "Only u.f32, u.vec2, u.vec3, u.vec4 and u.texture2D are supported.",
         field.value.callee.property,
       );
     const [type, length] = entry;
@@ -167,6 +192,18 @@ function literal(node: Expression): number | undefined {
   )
     return -node.argument.value;
   return undefined;
+}
+
+function textureUrlKind(value: string): ShaderTextureUrlKind | undefined {
+  if (/^\/(?!\/)[^\s\u0000-\u001f]*$/.test(value)) return "root-absolute";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname)
+      ? "https"
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function invalid(message: string, node: Node): ParseCustomUniformsResult {

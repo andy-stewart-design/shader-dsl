@@ -137,6 +137,9 @@ export function compileFragmentArtifact(
             },
           }
         : {}),
+      ...(lowered.ir.textures?.length
+        ? { resources: { textures: lowered.ir.textures } }
+        : {}),
     } as DynamicCompiledFragmentArtifact,
     diagnostics: [],
   };

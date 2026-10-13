@@ -2,6 +2,8 @@ import type {
   CompiledFragmentArtifact,
   ShaderCustomUniformDeclaration,
   ShaderCustomUniformType,
+  ShaderTextureDeclaration,
+  ShaderTextureUrlKind,
   UniformValue,
 } from "shdr";
 import { ShdrRuntimeError, type RendererBackend } from "./errors.js";
@@ -20,6 +22,9 @@ export interface CustomSchema extends CustomMetadata {
   >;
 }
 export type UniformValues = ReadonlyMap<string, DynamicUniformValue>;
+export interface ResourceSchema {
+  readonly textures: readonly ShaderTextureDeclaration[];
+}
 
 const reserved = new Set([
   "resolution",
@@ -150,6 +155,58 @@ function copyDeclaration(
         `Unsupported validated uniform type: ${type satisfies never}`,
       );
   }
+}
+
+function textureUrlKind(value: string): ShaderTextureUrlKind | undefined {
+  if (/^\/(?!\/)[^\s\u0000-\u001f]*$/.test(value)) return "root-absolute";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname)
+      ? "https"
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Validate resource metadata without loading or decoding any image. */
+export function readResourceMetadata(
+  value: CompiledFragmentArtifact,
+  backend: RendererBackend,
+): ResourceSchema | undefined {
+  if (value.resources === undefined) return undefined;
+  const resources: unknown = value.resources;
+  if (!resources || typeof resources !== "object")
+    fail(backend, "artifact", "Invalid texture resource metadata.");
+  const textures = (resources as { readonly textures?: unknown }).textures;
+  if (!Array.isArray(textures))
+    fail(backend, "artifact", "Invalid texture resource metadata.");
+  const names = new Set<string>();
+  const copied: ShaderTextureDeclaration[] = [];
+  for (const texture of textures) {
+    if (
+      !texture ||
+      typeof texture !== "object" ||
+      typeof texture.name !== "string" ||
+      !identifier.test(texture.name) ||
+      reserved.has(texture.name) ||
+      names.has(texture.name) ||
+      texture.type !== "texture2D" ||
+      typeof texture.url !== "string"
+    )
+      fail(backend, "artifact", "Invalid texture resource declaration.");
+    const kind = textureUrlKind(texture.url);
+    if (!kind || texture.urlKind !== kind)
+      fail(backend, "artifact", "Invalid texture resource URL metadata.");
+    names.add(texture.name);
+    copied.push({
+      name: texture.name,
+      type: "texture2D",
+      url: texture.url,
+      urlKind: kind,
+    });
+  }
+  return { textures: copied };
 }
 
 /** Validate and copy *all* metadata before candidate GPU allocation. */

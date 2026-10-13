@@ -104,17 +104,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Add literal-only `u.texture2D(url)` to the existing chained/named/imported schema forms, with reserved/duplicate name and malformed URL diagnostics at authored ranges; do not execute authored code or fetch in parsing.
-- [ ] Keep resource-valued declarations distinct from numeric UBO/storage and `HostUniforms` patches, while preserving complete deterministic schema metadata for unused fields and old numeric-only artifacts.
-- [ ] Add required metadata validation at the artifact boundary (including malformed/duplicate names, URL kind and reference consistency); do not infer bindings by parsing GLSL/WGSL.
-- [ ] Add typed/rejected cases for texture-as-number, numeric value as texture, texture key in `setUniforms`/`resetUniforms`, and old numeric update behavior. Confirm runtime can accept an artifact with an unused declared texture without attempting a fetch.
+- [x] Add literal-only `u.texture2D(url)` to the existing chained/named/imported schema forms, with reserved/duplicate name and malformed URL diagnostics at authored ranges; do not execute authored code or fetch in parsing.
+- [x] Keep resource-valued declarations distinct from numeric UBO/storage and `HostUniforms` patches, while preserving complete deterministic schema metadata for unused fields and old numeric-only artifacts.
+- [x] Add required metadata validation at the artifact boundary (including malformed/duplicate names, URL kind and reference consistency); do not infer bindings by parsing GLSL/WGSL.
+- [x] Add typed/rejected cases for texture-as-number, numeric value as texture, texture key in `setUniforms`/`resetUniforms`, and old numeric update behavior. Confirm runtime can accept an artifact with an unused declared texture without attempting a fetch.
 
 Verification:
 
 - Automated: existing `pnpm --filter shdr test`, `pnpm --filter @shdr/core test`, `pnpm --filter @shdr/runtime check`, plus focused new schema/metadata tests in those suites. Assert JSON-only declarations, no network activity for unused resources, old artifact compatibility, and type/rejection parity.
 - Manual: Not needed for this static declaration/unused-resource scope; image rendering remains unverified.
 
-- [ ] **Completion gate:** Declaration-only schema and old consumers build/check; invalid declaration, forbidden host patch and malformed artifact cases fail at the right boundary without changing old shader behavior.
+- [x] **Completion gate:** Declaration-only schema and old consumers build/check; invalid declaration, forbidden host patch and malformed artifact cases fail at the right boundary without changing old shader behavior.
 
 ### Step 1.2 — Sampling IR, two generators, mapped editor and CLI
 

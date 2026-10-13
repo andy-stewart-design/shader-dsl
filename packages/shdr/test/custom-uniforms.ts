@@ -6,6 +6,9 @@ import type {
   TypedCompiledFragmentArtifact,
   UniformDeclaration,
   ShaderCustomUniformDeclaration,
+  Texture2D,
+  TextureUniformDeclaration,
+  HostUniforms,
 } from "../src/index.js";
 
 type Equal<A, B> =
@@ -19,6 +22,15 @@ const vectorDeclaration: UniformDeclaration = {
   type: "vec3",
   default: [1, 2, 3],
 };
+const textureDeclaration: TextureUniformDeclaration = {
+  type: "texture2D",
+  url: "/photo.png",
+};
+const dynamicTextureUrl: string = "/photo.png";
+const dynamicTexture = defineUniforms((u) => ({
+  // @ts-expect-error Texture declarations require a string literal URL.
+  photo: u.texture2D(dynamicTextureUrl),
+}));
 const namedDeclaration: ShaderCustomUniformDeclaration = {
   name: "color",
   type: "vec2",
@@ -41,6 +53,7 @@ const wrongLength: ShaderCustomUniformDeclaration = {
 void [
   scalarDeclaration,
   vectorDeclaration,
+  textureDeclaration,
   namedDeclaration,
   wrongScalar,
   wrongNamed,
@@ -60,6 +73,25 @@ function inspectDeclaration(declaration: ShaderCustomUniformDeclaration) {
   }
 }
 void inspectDeclaration;
+
+const withTexture = defineUniforms((u) => ({
+  photo: u.texture2D("/photo.png"),
+  remote: u.texture2D("https://cdn.example/photo.png"),
+  gain: u.f32(0.5),
+}));
+const textureShader = withTexture.createFragmentShader(({ uniforms }) => {
+  type _Photo = Expect<Equal<typeof uniforms.photo, Texture2D>>;
+  type _Remote = Expect<Equal<typeof uniforms.remote, Texture2D>>;
+  type _Gain = Expect<Equal<typeof uniforms.gain, Expr<F32>>>;
+  // @ts-expect-error Texture handles are not numeric expressions.
+  return vec4(uniforms.photo, uniforms.gain, uniforms.gain, 1);
+});
+type _TextureHost = Expect<
+  Equal<keyof HostUniforms<typeof withTexture.schema>, "gain">
+>;
+// @ts-expect-error Texture declarations are not numeric host uniform values.
+const textureHost: HostUniforms<typeof withTexture.schema> = { photo: 1 };
+void [textureShader, textureHost];
 
 const inline = defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),

@@ -1,6 +1,7 @@
 import type {
   ShaderDefaultUniform,
   ShaderCustomUniformDeclaration,
+  ShaderTextureDeclaration,
 } from "shdr";
 import type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 import type {
@@ -160,6 +161,7 @@ export interface ShaderModule {
   readonly stage: ShaderStage;
   readonly statements: readonly ShaderStatement[];
   readonly customUniforms?: readonly ShaderCustomUniformDeclaration[];
+  readonly textures?: readonly ShaderTextureDeclaration[];
   /** Reachable functions, in dependency-safe order. Absent for legacy shaders. */
   readonly functions?: readonly ShaderFunction[];
   readonly range: TextRange;
