@@ -71,16 +71,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Use a disposable Vite project with `public/photo.png` and inspect dev/root, non-root absolute `base`, and relative `base: "./"` built deployments; distinguish Vite-processed imports from URLs stored in Shdr artifact JSON.
-- [ ] Determine a Vite-only, base-aware asset URL representation that still produces a JSON data artifact at runtime and does not modify `@shdr/core` or bundle the compiler into the static consumer.
-- [ ] Decide how a standalone `compileFragmentArtifact` preserves `/photo.png` while Vite applies its deployment base; explicitly flag any unsupported Vite base mode as a **spec decision**, not a silent implementation exception.
+- [x] Use a disposable Vite project with `public/photo.png` and inspect dev/root, non-root absolute `base`, and relative `base: "./"` built deployments; distinguish Vite-processed imports from URLs stored in Shdr artifact JSON.
+- [x] Determine a Vite-only, base-aware asset URL representation that still produces a JSON data artifact at runtime and does not modify `@shdr/core` or bundle the compiler into the static consumer.
+- [x] Decide how a standalone `compileFragmentArtifact` preserves `/photo.png` while Vite applies its deployment base; explicitly flag any unsupported Vite base mode as a **spec decision**, not a silent implementation exception.
 
 Verification:
 
 - Automated: proposed `pnpm --dir packages/vite exec vitest run --config ../../vitest.config.ts --root . test/texture-base-feasibility.test.ts`; inspect actual dev/build asset URLs and requests in disposable base configurations (not the completed Shdr feature).
 - Manual: if a relative base depends on browser page URL, serve the built disposable app from a nested path and inspect the requested resource URL. No claim of Vite plugin integration yet.
 
-- [ ] **Completion gate:** A concrete, testable Vite strategy covers the spec's public-path behavior; if not, stop for spec review.
+- [x] **Completion gate:** A concrete, testable Vite strategy covers the spec's public-path behavior; if not, stop for spec review.
 
 - [ ] **Phase exit gate:** Review both probe outcomes, any spec adjustments, a focused baseline, and feasible GPU binding/color + Vite URL strategies before Phase 1. Target tests do not certify Shdr authoring or renderer behavior.
 
