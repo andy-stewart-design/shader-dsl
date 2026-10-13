@@ -46,9 +46,9 @@ Expected files:
 
 Tasks:
 
-- [ ] Record a focused pre-change baseline from current type/core/runtime/browser tests and note existing failures separately.
-- [ ] Probe a browser-decoded non-square sRGB PNG with quadrant colors and semi-transparent pixels on raw WebGL 2 and WebGPU; check top-left UV, off-center fractional interpolation, out-of-range clamp, straight-alpha channel values and presented output rather than only shader validation.
-- [ ] Check browser decode/copy options and GPU resource limits for multiple named fixed-linear, clamp-to-edge, no-mipmap images; compare a one-texture and a two-texture sample to detect binding collisions.
+- [x] Record a focused pre-change baseline from current type/core/runtime/browser tests and note existing failures separately.
+- [x] Probe a browser-decoded non-square sRGB PNG with quadrant colors and semi-transparent pixels on raw WebGL 2 and WebGPU; check top-left UV, off-center fractional interpolation, out-of-range clamp, straight-alpha channel values and presented output rather than only shader validation.
+- [x] Check browser decode/copy options and GPU resource limits for multiple named fixed-linear, clamp-to-edge, no-mipmap images; compare a one-texture and a two-texture sample to detect binding collisions.
 - [ ] If normalized encoded RGB/straight-alpha or the agreed UV policy cannot be obtained on both targets, record the observed conflict and **stop** for spec review before changing user-visible semantics.
 
 Verification:
@@ -56,7 +56,7 @@ Verification:
 - Automated: proposed `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/texture-target-feasibility.test.ts`; assert real target creation and observed pixels/channels (including non-center and semi-transparent), not just compilation. Baseline: existing focused `pnpm --filter @shdr/core test` and `pnpm --filter @shdr/runtime test` (the latter runs real browser suites); record actual results, no assumed green state.
 - Manual: with a working Playwright Chromium/WebGPU setup, inspect any failed channel/origin case and compare browser-decoded source values; record whether a portable upload policy exists. No manual GPU claim from a mocked browser.
 
-- [ ] **Completion gate:** Real raw targets exhibit a feasible implementation of R2/R7 with testable channel/alpha tolerances and sufficient binding layout; if not, stop and review the spec.
+- [x] **Completion gate:** Real raw targets exhibit a feasible implementation of R2/R7 with testable channel/alpha tolerances and sufficient binding layout; if not, stop and review the spec.
 
 ### Step 0.2 — Vite public URLs and deployment bases
 
