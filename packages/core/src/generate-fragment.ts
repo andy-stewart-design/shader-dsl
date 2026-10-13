@@ -9,6 +9,7 @@ export interface GeneratedFragment {
   readonly code: string;
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
   readonly referencedCustomUniforms: readonly string[];
+  readonly referencedTextures: readonly string[];
 }
 
 /** Generates one target from an existing target-neutral typed IR module. */

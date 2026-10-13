@@ -42,14 +42,16 @@ export function generateGlslFragmentOutput(
 
   const custom = module.customUniforms ?? [];
   const customNames = custom.map((item) => item.name);
+  const textures = module.textures ?? [];
+  const textureNames = textures.map((item) => item.name);
   const localNames = planShaderLocalNames(module);
   const statements = module.statements.map((statement) =>
-    generateStatement(statement, customNames, localNames),
+    generateStatement(statement, customNames, textureNames, localNames),
   );
   const functions = (module.functions ?? []).map((helper) => {
     const names = planShaderLocalNames(helper);
     const body = helper.statements.map((statement) =>
-      generateStatement(statement, [], names, true),
+      generateStatement(statement, [], [], names, true),
     );
     const parameters = helper.parameters
       .map(
@@ -61,6 +63,7 @@ export function generateGlslFragmentOutput(
   });
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
+  const referencedTextures = new Set<string>();
   let usesFragmentPosition = false;
 
   for (const statement of statements) {
@@ -70,6 +73,8 @@ export function generateGlslFragmentOutput(
     }
     for (const name of statement.expression.referencedCustomUniforms ?? [])
       referencedCustom.add(name);
+    for (const name of statement.expression.referencedTextures ?? [])
+      referencedTextures.add(name);
   }
 
   const sections = ["#version 300 es\nprecision highp float;"];
@@ -91,6 +96,19 @@ export function generateGlslFragmentOutput(
       : [],
   );
   if (customDeclarations.length) sections.push(customDeclarations.join("\n"));
+  const usedTextures = textures.filter((item) =>
+    referencedTextures.has(item.name),
+  );
+  if (usedTextures.length) {
+    sections.push(
+      usedTextures
+        .map(
+          (item) =>
+            `uniform sampler2D shdr_texture_${textureNames.indexOf(item.name)};`,
+        )
+        .join("\n"),
+    );
+  }
 
   sections.push("out vec4 shdr_fragment_color;");
   sections.push(...functions);
@@ -113,12 +131,14 @@ export function generateGlslFragmentOutput(
     code: `${sections.join("\n\n")}\n`,
     referencedUniforms: usedUniforms,
     referencedCustomUniforms: usedCustom,
+    referencedTextures: usedTextures.map((item) => item.name),
   };
 }
 
 function generateStatement(
   statement: ShaderStatement,
   customUniforms: readonly string[],
+  textures: readonly string[],
   localNames: ShaderLocalNames,
   helperReturn = false,
 ): GeneratedStatement {
@@ -127,6 +147,7 @@ function generateStatement(
       const expression = generateGlslExpression(statement.initializer, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        textures,
         localNames,
       });
       return {
@@ -139,6 +160,7 @@ function generateStatement(
       const expression = generateGlslExpression(statement.expression, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        textures,
         localNames,
       });
       return {

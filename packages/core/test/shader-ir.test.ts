@@ -223,6 +223,7 @@ function collectExpressions(shader: ShaderModule): readonly ShaderExpression[] {
       case "builtin-input":
       case "default-uniform":
       case "custom-uniform":
+      case "texture":
       case "local-reference":
         return;
       case "swizzle":

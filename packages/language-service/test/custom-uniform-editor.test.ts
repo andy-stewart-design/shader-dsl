@@ -59,6 +59,37 @@ describe("custom uniforms in TypeScript 7", () => {
     },
   );
 
+  it("maps texture handles and sample calls through the virtual editor source", () => {
+    const fileName = join(projectDirectory, "sampled-texture.shdr.ts");
+    const source = readFileSync(fileName, "utf8");
+    const virtual = createVirtualSource(source, fileName);
+    expect(virtual.ok, JSON.stringify(virtual.diagnostics)).toBe(true);
+    if (!virtual.ok) return;
+    const adapter = new TypeScript7CheckerAdapter({
+      cwd: projectDirectory,
+      projectFileName: "tsconfig.json",
+    });
+    try {
+      const checked = adapter.checkVirtualSource(
+        fileName,
+        virtual.virtualSource,
+      );
+      try {
+        expect(checked.semanticDiagnostics).toEqual([]);
+        expect(
+          checked.getQuickInfoAtOriginalPosition(
+            source.indexOf("uniforms.photo") + "uniforms.".length,
+          ),
+        ).toMatchObject({ name: "photo", display: "Texture2D" });
+        expect(compileFragmentArtifact(source).ok).toBe(true);
+      } finally {
+        checked.dispose();
+      }
+    } finally {
+      adapter.dispose();
+    }
+  });
+
   it("reports the same source range for dynamic defaults in core and editor", () => {
     const fileName = join(projectDirectory, "named-custom-uniforms.shdr.ts");
     const source = readFileSync(fileName, "utf8").replace(

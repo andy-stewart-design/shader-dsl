@@ -35,6 +35,10 @@ export type ShaderCallTarget =
       readonly kind: "shader-function";
       readonly name: string;
       readonly functionId: number;
+    }
+  | {
+      readonly kind: "texture-sample";
+      readonly textureName: string;
     };
 
 export type ShaderVectorComponent = 0 | 1 | 2 | 3;
@@ -79,6 +83,14 @@ export interface ShaderCustomUniformExpression extends ShaderExpressionBase {
   readonly name: string;
 }
 
+export interface ShaderTextureExpression {
+  readonly kind: "texture";
+  /** Resource expressions are intentionally not numeric ShaderValueTypes. */
+  readonly type: never;
+  readonly range: TextRange;
+  readonly name: string;
+}
+
 export interface ShaderLocalReferenceExpression extends ShaderExpressionBase {
   readonly kind: "local-reference";
   readonly name: string;
@@ -115,6 +127,7 @@ export type ShaderExpression =
   | ShaderBuiltinInputExpression
   | ShaderDefaultUniformExpression
   | ShaderCustomUniformExpression
+  | ShaderTextureExpression
   | ShaderLocalReferenceExpression
   | ShaderSwizzleExpression
   | ShaderBinaryExpression

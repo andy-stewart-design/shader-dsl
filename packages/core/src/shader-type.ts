@@ -13,4 +13,8 @@ export interface ShaderVectorType {
   readonly size: ShaderVectorSize;
 }
 
+export interface ShaderTextureType {
+  readonly kind: "texture2D";
+}
+
 export type ShaderValueType = ShaderScalarType | ShaderVectorType;

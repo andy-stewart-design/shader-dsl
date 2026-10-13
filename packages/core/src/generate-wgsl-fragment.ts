@@ -48,14 +48,16 @@ export function generateWgslFragmentOutput(
 
   const custom = module.customUniforms ?? [];
   const customNames = custom.map((item) => item.name);
+  const textures = module.textures ?? [];
+  const textureNames = textures.map((item) => item.name);
   const localNames = planShaderLocalNames(module);
   const statements = module.statements.map((statement) =>
-    generateStatement(statement, customNames, localNames),
+    generateStatement(statement, customNames, textureNames, localNames),
   );
   const functions = (module.functions ?? []).map((helper) => {
     const names = planShaderLocalNames(helper);
     const body = helper.statements.map((statement) =>
-      generateStatement(statement, [], names),
+      generateStatement(statement, [], [], names),
     );
     const parameters = helper.parameters
       .map(
@@ -70,6 +72,7 @@ export function generateWgslFragmentOutput(
   });
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
+  const referencedTextures = new Set<string>();
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
   const guardedBuiltinSignatures = new Set<WgslGuardedSignature>();
   let usesFragmentPosition = false;
@@ -91,6 +94,8 @@ export function generateWgslFragmentOutput(
     }
     for (const name of statement.expression.referencedCustomUniforms ?? [])
       referencedCustom.add(name);
+    for (const name of statement.expression.referencedTextures ?? [])
+      referencedTextures.add(name);
   }
 
   const sections: string[] = [];
@@ -113,6 +118,20 @@ export function generateWgslFragmentOutput(
       .join("\n");
     sections.push(
       `struct ShdrCustomUniforms {\n${members}\n}\n@group(1) @binding(0) var<uniform> shdr_custom: ShdrCustomUniforms;`,
+    );
+  }
+
+  const usedTextures = textures.filter((item) =>
+    referencedTextures.has(item.name),
+  );
+  if (usedTextures.length) {
+    sections.push(
+      usedTextures
+        .map((item) => {
+          const index = textureNames.indexOf(item.name);
+          return `@group(2) @binding(${index * 2}) var shdr_texture_${index}: texture_2d<f32>;\n@group(2) @binding(${index * 2 + 1}) var shdr_sampler_${index}: sampler;`;
+        })
+        .join("\n"),
     );
   }
 
@@ -140,12 +159,14 @@ export function generateWgslFragmentOutput(
     code: `${sections.join("\n\n")}\n`,
     referencedUniforms: usedUniforms,
     referencedCustomUniforms: usedCustom,
+    referencedTextures: usedTextures.map((item) => item.name),
   };
 }
 
 function generateStatement(
   statement: ShaderStatement,
   customUniforms: readonly string[],
+  textures: readonly string[],
   localNames: ShaderLocalNames,
 ): GeneratedStatement {
   switch (statement.kind) {
@@ -153,6 +174,7 @@ function generateStatement(
       const expression = generateWgslExpression(statement.initializer, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        textures,
         localNames,
       });
       return {
@@ -165,6 +187,7 @@ function generateStatement(
       const expression = generateWgslExpression(statement.expression, {
         fragmentPositionName: FRAGMENT_POSITION_NAME,
         customUniforms,
+        textures,
         localNames,
       });
       return {

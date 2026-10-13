@@ -1,4 +1,9 @@
-import { createFragmentShader, defineUniforms, vec4 } from "../src/index.js";
+import {
+  createFragmentShader,
+  defineUniforms,
+  sample,
+  vec4,
+} from "../src/index.js";
 import type {
   Expr,
   F32,
@@ -9,6 +14,8 @@ import type {
   Texture2D,
   TextureUniformDeclaration,
   HostUniforms,
+  Vec2,
+  Vec4,
 } from "../src/index.js";
 
 type Equal<A, B> =
@@ -91,7 +98,18 @@ type _TextureHost = Expect<
 >;
 // @ts-expect-error Texture declarations are not numeric host uniform values.
 const textureHost: HostUniforms<typeof withTexture.schema> = { photo: 1 };
-void [textureShader, textureHost];
+const sampledShader = withTexture.createFragmentShader(({ uniforms }) => {
+  type _Uv = Expect<Equal<typeof uniforms.resolution, Expr<Vec2<F32>>>>;
+  const color = sample(uniforms.photo, uniforms.resolution);
+  type _Sample = Expect<Equal<typeof color, Expr<Vec4<F32>>>>;
+  // @ts-expect-error Sampling requires a texture handle as its first argument.
+  sample(uniforms.gain, uniforms.resolution);
+  // @ts-expect-error Sampling requires a Vec2<F32> UV.
+  sample(uniforms.photo, uniforms.gain);
+  void (0 as unknown as _Uv);
+  return color;
+});
+void [textureShader, sampledShader, textureHost];
 
 const inline = defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),

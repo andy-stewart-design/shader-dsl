@@ -130,17 +130,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Support only direct-imported `sample(texture, uv)` in fragment callbacks; reject wrong arity/type, unknown/unimported callee, helper texture parameters/returns/captures, and use of texture handles as numeric expressions, with exact authored spans.
-- [ ] Add a resource-specific typed IR form or equivalent so a texture handle cannot silently become a numeric `ShaderExpression`; preserve f32 UV grouping and `Expr<Vec4<F32>>` result. Track active texture names for both targets without changing automatic/numeric bindings.
-- [ ] Generate GLSL ES 3.00 and WGSL sampling/binding declarations with deterministic collision-safe names and a backend-consistent top-left convention, fixed linear/clamp semantics, and resource metadata. Do not introduce authored-JS execution or runtime callback objects.
-- [ ] Pair public types/virtual TS mapping with core and CLI fixtures: fragment + same-file/imported schema, helper-computed UV/color, wrong UV/arity/capture, unsaved edits, ordinary `.ts` isolation and source-file ranges. Test actual WebGL shader/link and WGSL module/pipeline compilation against generated code using the Phase 0 raw target harness.
+- [x] Support only direct-imported `sample(texture, uv)` in fragment callbacks; reject wrong arity/type, unknown/unimported callee, helper texture parameters/returns/captures, and use of texture handles as numeric expressions, with exact authored spans.
+- [x] Add a resource-specific typed IR form or equivalent so a texture handle cannot silently become a numeric `ShaderExpression`; preserve f32 UV grouping and `Expr<Vec4<F32>>` result. Track active texture names for both targets without changing automatic/numeric bindings.
+- [x] Generate GLSL ES 3.00 and WGSL sampling/binding declarations with deterministic collision-safe names and a backend-consistent top-left convention, fixed linear/clamp semantics, and resource metadata. Do not introduce authored-JS execution or runtime callback objects.
+- [x] Pair public types/virtual TS mapping with core and CLI fixtures: fragment + same-file/imported schema, helper-computed UV/color, wrong UV/arity/capture, unsaved edits, ordinary `.ts` isolation and source-file ranges. Test actual WebGL shader/link and WGSL module/pipeline compilation against generated code using the Phase 0 raw target harness.
 
 Verification:
 
 - Automated: `pnpm --filter shdr test`, `pnpm --filter @shdr/core test`, `pnpm --filter @shdr/language-service test`, `pnpm --filter @shdr/cli test`, and `pnpm --filter @shdr/lsp test` after rebuilding affected packages as needed. New focused tests must assert complete metadata, source ranges and real target compilation, not just snapshots or fabricated type hovers.
 - Manual: Not needed for compilation proof; source-located real VS Code acceptance is included at Step 3.3. **No pixel claim** at this step.
 
-- [ ] **Completion gate:** Compiler/type/editor/CLI/target-compilation checks pass for every new shape and meaningful negatives while old shaders still compile; sampled rendering remains unverified under the atomic 1.2–2.3 gate.
+- [x] **Completion gate:** Compiler/type/editor/CLI/target-compilation checks pass for every new shape and meaningful negatives while old shaders still compile; sampled rendering remains unverified under the atomic 1.2–2.3 gate.
 
 - [ ] **Phase exit gate:** `pnpm build`, focused Phase 1 public/core/editor/CLI/LSP checks, and real target compilation pass without regressions; sample shaders are not yet a supported runtime feature. Review before proceeding.
 

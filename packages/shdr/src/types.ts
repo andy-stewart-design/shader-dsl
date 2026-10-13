@@ -168,6 +168,10 @@ export interface ShaderTextureDeclaration {
   readonly url: string;
   readonly urlKind: ShaderTextureUrlKind;
 }
+export interface ShaderTextureBinding {
+  readonly name: string;
+  readonly binding: number;
+}
 
 /** JSON-serializable, immutable-by-contract output of one Shdr compilation. */
 export interface CompiledFragmentArtifact {
@@ -186,5 +190,13 @@ export interface CompiledFragmentArtifact {
   };
   readonly resources?: {
     readonly textures: readonly ShaderTextureDeclaration[];
+    readonly referenced?: {
+      readonly glsl: readonly string[];
+      readonly wgsl: readonly string[];
+    };
+    readonly bindings?: {
+      readonly glsl: readonly ShaderTextureBinding[];
+      readonly wgsl: readonly ShaderTextureBinding[];
+    };
   };
 }

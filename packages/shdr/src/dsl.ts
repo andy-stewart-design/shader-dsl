@@ -13,7 +13,15 @@ import type {
   TypedCompiledFragmentArtifact,
   ShaderFunction,
   ShaderType,
+  Texture2D,
 } from "./types.js";
+
+export function sample(
+  _texture: Texture2D,
+  _uv: Expr<Vec2<F32>>,
+): Expr<Vec4<F32>> {
+  return shaderSourceWasNotTransformed("sample");
+}
 
 export function defineShaderFunction<
   Args extends readonly Expr<ShaderType>[],

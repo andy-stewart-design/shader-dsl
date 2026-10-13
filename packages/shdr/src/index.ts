@@ -1,6 +1,7 @@
 export {
   createFragmentShader,
   defineUniforms,
+  sample,
   defineShaderFunction,
   vec2,
   vec3,
@@ -49,6 +50,7 @@ export type {
   TypedCompiledFragmentArtifact,
   ShaderType,
   ShaderFunction,
+  ShaderTextureBinding,
   ShaderTextureDeclaration,
   ShaderTextureUrlKind,
   Texture2D,

@@ -2,6 +2,7 @@ import type {
   CompiledFragmentArtifact,
   ShaderCustomUniformDeclaration,
   ShaderCustomUniformType,
+  ShaderTextureBinding,
   ShaderTextureDeclaration,
   ShaderTextureUrlKind,
   UniformValue,
@@ -24,6 +25,8 @@ export interface CustomSchema extends CustomMetadata {
 export type UniformValues = ReadonlyMap<string, DynamicUniformValue>;
 export interface ResourceSchema {
   readonly textures: readonly ShaderTextureDeclaration[];
+  readonly referenced?: readonly string[];
+  readonly bindings?: readonly ShaderTextureBinding[];
 }
 
 const reserved = new Set([
@@ -206,7 +209,70 @@ export function readResourceMetadata(
       urlKind: kind,
     });
   }
-  return { textures: copied };
+  const referencedMetadata = (
+    resources as {
+      readonly referenced?: unknown;
+    }
+  ).referenced;
+  const bindingsMetadata = (
+    resources as {
+      readonly bindings?: unknown;
+    }
+  ).bindings;
+  if ((referencedMetadata === undefined) !== (bindingsMetadata === undefined))
+    fail(backend, "artifact", "Incomplete texture binding metadata.");
+  if (referencedMetadata === undefined) return { textures: copied };
+  if (
+    !referencedMetadata ||
+    typeof referencedMetadata !== "object" ||
+    !Array.isArray((referencedMetadata as { glsl?: unknown }).glsl) ||
+    !Array.isArray((referencedMetadata as { wgsl?: unknown }).wgsl) ||
+    !bindingsMetadata ||
+    typeof bindingsMetadata !== "object" ||
+    !Array.isArray((bindingsMetadata as { glsl?: unknown }).glsl) ||
+    !Array.isArray((bindingsMetadata as { wgsl?: unknown }).wgsl)
+  )
+    fail(backend, "artifact", "Invalid texture binding metadata.");
+  const target = backend === "webgl" ? "glsl" : "wgsl";
+  const referenced = (referencedMetadata as Record<string, unknown>)[target];
+  const bindings = (bindingsMetadata as Record<string, unknown>)[target];
+  if (!Array.isArray(referenced) || !Array.isArray(bindings))
+    fail(backend, "artifact", "Invalid texture binding metadata.");
+  const referencedNames = new Set<string>();
+  for (const name of referenced) {
+    if (
+      typeof name !== "string" ||
+      referencedNames.has(name) ||
+      !names.has(name)
+    )
+      fail(backend, "artifact", "Invalid texture reference metadata.");
+    referencedNames.add(name);
+  }
+  if (bindings.length !== referenced.length)
+    fail(backend, "artifact", "Invalid texture binding metadata.");
+  const copiedBindings: ShaderTextureBinding[] = [];
+  const bindingNames = new Set<string>();
+  for (let index = 0; index < bindings.length; index++) {
+    const binding = bindings[index];
+    if (
+      !binding ||
+      typeof binding !== "object" ||
+      typeof binding.name !== "string" ||
+      binding.name !== referenced[index] ||
+      bindingNames.has(binding.name) ||
+      !referencedNames.has(binding.name) ||
+      !Number.isInteger(binding.binding) ||
+      binding.binding < 0
+    )
+      fail(backend, "artifact", "Invalid texture binding metadata.");
+    bindingNames.add(binding.name);
+    copiedBindings.push({ name: binding.name, binding: binding.binding });
+  }
+  return {
+    textures: copied,
+    referenced: [...referencedNames],
+    bindings: copiedBindings,
+  };
 }
 
 /** Validate and copy *all* metadata before candidate GPU allocation. */

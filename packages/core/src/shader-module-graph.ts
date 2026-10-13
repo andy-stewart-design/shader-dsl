@@ -28,10 +28,7 @@ import type {
   ShaderCallExpressionSyntax,
 } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
-import type {
-  ShaderCustomUniformDeclaration,
-  ShaderTextureDeclaration,
-} from "shdr";
+import type { ShaderTextureDeclaration } from "shdr";
 
 export interface ShaderVirtualGraphInput {
   readonly entry: string;
@@ -481,17 +478,21 @@ function lowerShaderGraphInternal(
     root.fragment.customUniforms?.declarations ??
     importedSchema?.declarations ??
     [];
-  const customUniforms = declarations.filter(
-    (item): item is ShaderCustomUniformDeclaration => item.type !== "texture2D",
-  );
   const textures = declarations.filter(
     (item): item is ShaderTextureDeclaration => item.type === "texture2D",
   );
   const fragment = lowerShaderSyntax(
     root.fragment.callback.syntax,
     importedCallables,
-    customUniforms,
-    { functions: rootFunctions },
+    declarations,
+    {
+      functions: rootFunctions,
+      sampleCallables: new Set(
+        root.fragment.shaderCallableImports
+          .filter((item) => item.importedName === "sample")
+          .map((item) => item.localName),
+      ),
+    },
   );
   if (!fragment.ok) {
     return graphFailure(

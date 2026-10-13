@@ -94,6 +94,53 @@ describe("texture artifact metadata", () => {
     );
   });
 
+  it("validates referenced texture bindings for each backend", () => {
+    const artifact = {
+      ...withTextures([
+        {
+          name: "photo",
+          type: "texture2D",
+          url: "/photo.png",
+          urlKind: "root-absolute",
+        },
+      ]),
+      resources: {
+        textures: [
+          {
+            name: "photo",
+            type: "texture2D",
+            url: "/photo.png",
+            urlKind: "root-absolute",
+          },
+        ],
+        referenced: { glsl: ["photo"], wgsl: ["photo"] },
+        bindings: {
+          glsl: [{ name: "photo", binding: 0 }],
+          wgsl: [{ name: "photo", binding: 0 }],
+        },
+      },
+    } satisfies CompiledFragmentArtifact;
+    expect(readResourceMetadata(artifact, "webgl")).toEqual({
+      textures: artifact.resources.textures,
+      referenced: ["photo"],
+      bindings: [{ name: "photo", binding: 0 }],
+    });
+    expect(() =>
+      readResourceMetadata(
+        {
+          ...artifact,
+          resources: {
+            ...artifact.resources,
+            referenced: { glsl: ["missing"], wgsl: ["missing"] },
+          },
+        },
+        "webgl",
+      ),
+    ).toThrow(
+      expect.objectContaining<Partial<ShdrRuntimeError>>({ kind: "artifact" }),
+    );
+  });
+
   it("keeps texture names outside numeric uniform updates", () => {
     const state = new UniformState("webgl");
     state.commit(undefined, new Map());

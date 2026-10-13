@@ -19,6 +19,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 
 export interface GenerateWgslExpressionOptions {
   readonly customUniforms?: readonly string[];
+  readonly textures?: readonly string[];
   readonly localNames?: ShaderLocalNames;
   readonly fragmentPositionName?: string;
 }
@@ -32,6 +33,7 @@ export interface GeneratedWgslExpression {
   readonly code: string;
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
   readonly referencedCustomUniforms?: readonly string[];
+  readonly referencedTextures?: readonly string[];
   readonly usesFragmentPosition: boolean;
   /** Module-level helpers needed to prevent WGSL const-edge shader-creation errors. */
   readonly smoothstepShapes: readonly WgslSmoothstepShape[];
@@ -42,6 +44,7 @@ export interface GeneratedWgslExpression {
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
   readonly referencedCustomUniforms: Set<string>;
+  readonly referencedTextures: Set<string>;
   readonly smoothstepShapes: Set<WgslSmoothstepShape>;
   readonly guardedBuiltinSignatures: Set<WgslGuardedSignature>;
   usesFragmentPosition: boolean;
@@ -55,6 +58,7 @@ export function generateWgslExpression(
   const state: GenerationState = {
     referencedUniforms: new Set(),
     referencedCustomUniforms: new Set(),
+    referencedTextures: new Set(),
     smoothstepShapes: new Set(),
     guardedBuiltinSignatures: new Set(),
     usesFragmentPosition: false,
@@ -70,6 +74,13 @@ export function generateWgslExpression(
       ? {
           referencedCustomUniforms: options.customUniforms.filter((name) =>
             state.referencedCustomUniforms.has(name),
+          ),
+        }
+      : {}),
+    ...(options.textures
+      ? {
+          referencedTextures: options.textures.filter((name) =>
+            state.referencedTextures.has(name),
           ),
         }
       : {}),
@@ -111,6 +122,13 @@ function emitExpression(
       if (index < 0)
         throw new Error(`Missing custom uniform ${expression.name}.`);
       return `shdr_custom.shdr_custom_${index}`;
+    }
+
+    case "texture": {
+      state.referencedTextures.add(expression.name);
+      const index = options.textures?.indexOf(expression.name) ?? -1;
+      if (index < 0) throw new Error(`Missing texture ${expression.name}.`);
+      return `shdr_texture_${index}`;
     }
 
     case "local-reference":
@@ -164,6 +182,17 @@ function emitExpression(
     }
 
     case "call": {
+      const args = expression.arguments.map((argument) =>
+        emitExpression(argument, options, state),
+      );
+      if (expression.target.kind === "texture-sample") {
+        state.referencedTextures.add(expression.target.textureName);
+        const index =
+          options.textures?.indexOf(expression.target.textureName) ?? -1;
+        if (index < 0)
+          throw new Error(`Missing texture ${expression.target.textureName}.`);
+        return `textureSample(shdr_texture_${index}, shdr_sampler_${index}, ${args[0]})`;
+      }
       let name = callTargetName(expression.target);
       if (
         expression.target.kind === "builtin-function" &&
@@ -172,7 +201,11 @@ function emitExpression(
         const shape: WgslSmoothstepShape =
           expression.type.kind === "scalar"
             ? "f32"
-            : `vec${expression.type.size}`;
+            : expression.type.kind === "vector"
+              ? `vec${expression.type.size}`
+              : (() => {
+                  throw new Error("Texture handles cannot be builtin results.");
+                })();
         state.smoothstepShapes.add(shape);
         name = `shdr_internal_smoothstep_${shape}`;
       }
@@ -186,14 +219,15 @@ function emitExpression(
         const shape: WgslSmoothstepShape =
           expression.type.kind === "scalar"
             ? "f32"
-            : `vec${expression.type.size}`;
+            : expression.type.kind === "vector"
+              ? `vec${expression.type.size}`
+              : (() => {
+                  throw new Error("Texture handles cannot be builtin results.");
+                })();
         const signature: WgslGuardedSignature = `${expression.target.name}_${shape}`;
         state.guardedBuiltinSignatures.add(signature);
         name = `shdr_internal_safe_${signature}`;
       }
-      const args = expression.arguments.map((argument) =>
-        emitExpression(argument, options, state),
-      );
       if (
         expression.target.kind === "builtin-function" &&
         expression.type.kind === "vector"
@@ -275,6 +309,8 @@ function callTargetName(target: ShaderCallTarget): string {
         case "vec4":
           return "vec4<f32>";
       }
+    case "texture-sample":
+      throw new Error("Texture samples require texture-aware emission.");
     case "builtin-function":
       switch (target.name) {
         case "sin":

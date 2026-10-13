@@ -65,7 +65,11 @@ function calculateShaderComponents(
     }
     case "call": {
       // No interprocedural constant/domain propagation in V1.
-      if (expression.target.kind === "shader-function") return unknown();
+      if (
+        expression.target.kind === "shader-function" ||
+        expression.target.kind === "texture-sample"
+      )
+        return unknown();
       const args = expression.arguments.map((arg) =>
         evaluateShaderComponents(arg, locals, cache),
       );
@@ -153,6 +157,7 @@ function calculateShaderComponents(
     case "builtin-input":
     case "default-uniform":
     case "custom-uniform":
+    case "texture":
       return unknown();
     default:
       return assertNever(expression);
@@ -220,8 +225,14 @@ export function identicalConstantExpressions(
         a.target.kind === "shader-function" ||
         b.target.kind === "shader-function" ||
         a.target.kind !== b.target.kind ||
-        a.target.name !== b.target.name ||
         a.arguments.length !== b.arguments.length
+      )
+        return false;
+      if (
+        (a.target.kind === "texture-sample" &&
+          a.target.textureName !== (b.target as typeof a.target).textureName) ||
+        (a.target.kind !== "texture-sample" &&
+          a.target.name !== (b.target as typeof a.target).name)
       )
         return false;
       for (let index = 0; index < a.arguments.length; index++)

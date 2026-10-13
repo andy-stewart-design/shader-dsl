@@ -336,6 +336,18 @@ export const bad = defineShaderFunction((x: Expr<F32>) => sqrt(-1));`,
     });
   });
 
+  it("checks direct texture sampling through the executable", async () => {
+    await withProject(async (cwd) => {
+      await fixture(cwd, "sample-valid.shdr.ts");
+      const result = invoke(cwd, "check", "sample-valid.shdr.ts");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe(
+        "Checked 1 shader file: no Shdr diagnostics.\n",
+      );
+      expect(result.stderr).toBe("");
+    });
+  });
+
   it("checks mix/step signatures and source-mapped boundary failures through the executable", async () => {
     await withProject(async (cwd) => {
       await fixture(cwd, "mix-step-valid.shdr.ts");

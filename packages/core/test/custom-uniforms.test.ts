@@ -13,6 +13,12 @@ const textureDeclaration = `defineUniforms((u) => ({ photo: u.texture2D("/photo.
 const textureBody = `({ uniforms }) => vec4(uniforms.gain, uniforms.gain, uniforms.gain, 1)`;
 const textureInline = `${imports}export default ${textureDeclaration}.createFragmentShader(${textureBody});`;
 const textureNamed = `${imports}const uniforms = ${textureDeclaration};\nexport default createFragmentShader(${textureBody}, { uniforms });`;
+const sampled = `import { defineUniforms, sample } from "shdr";
+export default defineUniforms((u) => ({ photo: u.texture2D("/photo.png"), gain: u.f32(0.5) }))
+.createFragmentShader(({ coord, uniforms }) => {
+  const photo = uniforms.photo;
+  return sample(photo, coord.xy / uniforms.resolution);
+});`;
 
 function compile(source: string) {
   const compiled = compileFragmentArtifact(source);
@@ -79,6 +85,8 @@ describe("custom uniform compilation", () => {
           urlKind: "https",
         },
       ],
+      referenced: { glsl: [], wgsl: [] },
+      bindings: { glsl: [], wgsl: [] },
     });
     expect(artifact.glsl).not.toContain("photo");
     expect(artifact.wgsl).not.toContain("remote");
@@ -90,6 +98,92 @@ describe("custom uniform compilation", () => {
         { name: "gain", type: "f32", default: 0.5 },
       ]);
       expect(lowered.ir.textures).toEqual(artifact.resources?.textures);
+    }
+  });
+
+  it("lowers direct sample calls with target-specific resource metadata", () => {
+    const artifact = compile(sampled);
+    const imported = compileFragmentArtifact({
+      entry: "/work/entry.shdr.ts",
+      files: {
+        "/work/entry.shdr.ts": `import { createFragmentShader, sample } from "shdr";
+import { uniforms } from "./schema.shdr.ts";
+export default createFragmentShader(({ coord, uniforms }) => sample(uniforms.photo, coord.xy / uniforms.resolution), { uniforms });`,
+        "/work/schema.shdr.ts": `import { defineUniforms } from "shdr";
+export const uniforms = defineUniforms((u) => ({ photo: u.texture2D("/photo.png") }));`,
+      },
+    });
+    expect(imported.ok).toBe(true);
+    if (imported.ok) {
+      expect(imported.artifact.resources).toEqual(artifact.resources);
+      expect(imported.artifact.glsl).toContain("texture(shdr_texture_0,");
+    }
+    expect(artifact.resources).toEqual({
+      textures: [
+        {
+          name: "photo",
+          type: "texture2D",
+          url: "/photo.png",
+          urlKind: "root-absolute",
+        },
+      ],
+      referenced: { glsl: ["photo"], wgsl: ["photo"] },
+      bindings: {
+        glsl: [{ name: "photo", binding: 0 }],
+        wgsl: [{ name: "photo", binding: 0 }],
+      },
+    });
+    expect(artifact.glsl).toContain("uniform sampler2D shdr_texture_0;");
+    expect(artifact.glsl).toContain("texture(shdr_texture_0,");
+    expect(artifact.wgsl).toContain(
+      "@group(2) @binding(0) var shdr_texture_0: texture_2d<f32>;",
+    );
+    expect(artifact.wgsl).toContain(
+      "textureSample(shdr_texture_0, shdr_sampler_0,",
+    );
+  });
+
+  it("allows helpers to compute UVs but rejects texture captures", () => {
+    const helper = `import { defineShaderFunction, defineUniforms, sample } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+const uv = defineShaderFunction((value: Expr<Vec2<F32>>) => value / 2);
+export default defineUniforms((u) => ({ photo: u.texture2D("/photo.png") }))
+.createFragmentShader(({ coord, uniforms }) => sample(uniforms.photo, uv(coord.xy)));`;
+    const artifact = compile(helper);
+    expect(artifact.resources?.referenced).toEqual({
+      glsl: ["photo"],
+      wgsl: ["photo"],
+    });
+    const captured = helper.replace(
+      "(value: Expr<Vec2<F32>>) => value / 2",
+      "(value: Expr<Vec2<F32>>) => sample(uniforms.photo, value)",
+    );
+    const result = compileFragmentArtifact(captured);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.diagnostics[0]?.code).toBe("SHDR1108");
+  });
+
+  it("rejects invalid sample calls at authored ranges", () => {
+    const cases = [
+      [sampled.replace("sample(photo,", "sample(photo, coord.xy, "), "sample"],
+      [
+        sampled.replace("coord.xy / uniforms.resolution", "uniforms.gain"),
+        "uniforms.gain",
+      ],
+      [sampled.replace("sample(photo,", "sample(uniforms.missing,"), "missing"],
+      [sampled.replace("defineUniforms, sample", "defineUniforms"), "sample"],
+    ] as const;
+    for (const [source, token] of cases) {
+      const result = compileFragmentArtifact(source);
+      expect(result.ok, token).toBe(false);
+      if (result.ok) continue;
+      expect(
+        source.slice(
+          result.diagnostics[0]!.range.start,
+          result.diagnostics[0]!.range.start +
+            result.diagnostics[0]!.range.length,
+        ),
+      ).toContain(token);
     }
   });
 
@@ -234,6 +328,7 @@ export default defineUniforms((u) => ({ s: u.f32(-0), v2: u.vec2(-2, 0.1), v3: u
   it("browser-compiles both generated targets and finite numeric boundary literals", async () => {
     const artifacts = [
       compile(inline),
+      compile(sampled),
       compile(`import { createFragmentShader, vec4 } from "shdr";
 export default createFragmentShader(({ coord, uniforms }) => vec4(3.4028234663852886e38, 1e-50, 0, 1));`),
     ];

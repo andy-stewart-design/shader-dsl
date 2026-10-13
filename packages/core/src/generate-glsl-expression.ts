@@ -19,6 +19,7 @@ const DEFAULT_UNIFORM_ORDER: readonly ShaderDefaultUniform[] = [
 
 export interface GenerateGlslExpressionOptions {
   readonly customUniforms?: readonly string[];
+  readonly textures?: readonly string[];
   readonly localNames?: ShaderLocalNames;
   /**
    * Name of a module-level value containing canonical fragment position.
@@ -32,12 +33,14 @@ export interface GeneratedGlslExpression {
   /** Explicit and backend-implicit uniform dependencies in stable order. */
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
   readonly referencedCustomUniforms?: readonly string[];
+  readonly referencedTextures?: readonly string[];
   readonly usesFragmentPosition: boolean;
 }
 
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
   readonly referencedCustomUniforms: Set<string>;
+  readonly referencedTextures: Set<string>;
   usesFragmentPosition: boolean;
 }
 
@@ -49,6 +52,7 @@ export function generateGlslExpression(
   const state: GenerationState = {
     referencedUniforms: new Set(),
     referencedCustomUniforms: new Set(),
+    referencedTextures: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -62,6 +66,13 @@ export function generateGlslExpression(
       ? {
           referencedCustomUniforms: options.customUniforms.filter((name) =>
             state.referencedCustomUniforms.has(name),
+          ),
+        }
+      : {}),
+    ...(options.textures
+      ? {
+          referencedTextures: options.textures.filter((name) =>
+            state.referencedTextures.has(name),
           ),
         }
       : {}),
@@ -103,6 +114,13 @@ function emitExpression(
       return `shdr_custom_${index}`;
     }
 
+    case "texture": {
+      state.referencedTextures.add(expression.name);
+      const index = options.textures?.indexOf(expression.name) ?? -1;
+      if (index < 0) throw new Error(`Missing texture ${expression.name}.`);
+      return `shdr_texture_${index}`;
+    }
+
     case "local-reference":
       return emittedShaderLocalName(expression.symbolId, options.localNames);
 
@@ -141,6 +159,14 @@ function emitExpression(
       const args = expression.arguments.map((argument) =>
         emitExpression(argument, options, state),
       );
+      if (expression.target.kind === "texture-sample") {
+        state.referencedTextures.add(expression.target.textureName);
+        const index =
+          options.textures?.indexOf(expression.target.textureName) ?? -1;
+        if (index < 0)
+          throw new Error(`Missing texture ${expression.target.textureName}.`);
+        return `texture(shdr_texture_${index}, ${args[0]})`;
+      }
       if (
         expression.target.kind === "builtin-function" &&
         expression.type.kind === "vector"
@@ -213,6 +239,8 @@ function callTargetName(target: ShaderCallTarget): string {
       return shaderFunctionName(target.functionId);
     case "constructor":
       return target.name;
+    case "texture-sample":
+      throw new Error("Texture samples require texture-aware emission.");
     case "builtin-function":
       switch (target.name) {
         case "sin":
