@@ -157,6 +157,7 @@ export class WebGlRenderer extends CanvasRenderer {
       textures = await loadTextureResources(resources, "webgl", {
         signal: loadController.signal,
         maxTextures: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+        maxTextureDimension: gl.getParameter(gl.MAX_TEXTURE_SIZE),
       });
       if (!this.current(generation)) return { status: "superseded" };
       candidate = this.makeProgram(

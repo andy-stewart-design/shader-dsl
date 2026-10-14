@@ -13,6 +13,8 @@ export interface TextureResourceDependencies {
 export interface TextureResourceLoadOptions {
   readonly signal?: AbortSignal;
   readonly maxTextures?: number;
+  readonly maxSamplers?: number;
+  readonly maxTextureDimension?: number;
   readonly dependencies?: TextureResourceDependencies;
 }
 
@@ -96,9 +98,13 @@ export async function loadTextureResources(
   const referenced = schema?.referenced ?? [];
   const maxTextures = options.maxTextures;
   if (
-    maxTextures !== undefined &&
-    (referenced.length > maxTextures ||
-      schema?.bindings?.some(({ binding }) => binding >= maxTextures))
+    (maxTextures !== undefined &&
+      (referenced.length > maxTextures ||
+        schema?.bindings?.some(({ binding }) => binding >= maxTextures))) ||
+    (options.maxSamplers !== undefined &&
+      schema?.bindings?.some(
+        ({ binding }) => binding + 1 >= options.maxSamplers!,
+      ))
   )
     throw new ShdrRuntimeError(
       backend,
@@ -159,6 +165,16 @@ export async function loadTextureResources(
       }
       try {
         checkAborted(options.signal, backend);
+        if (
+          options.maxTextureDimension !== undefined &&
+          (image.width > options.maxTextureDimension ||
+            image.height > options.maxTextureDimension)
+        )
+          throw new ShdrRuntimeError(
+            backend,
+            "artifact",
+            `Texture ${JSON.stringify(name)} exceeds the ${backend} dimension limit of ${options.maxTextureDimension}.`,
+          );
       } catch (error) {
         close(image);
         throw error;

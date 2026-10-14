@@ -51,6 +51,8 @@ const defaults = [
 interface Resources {
   readonly pipeline: GPURenderPipeline;
   readonly textures: LoadedTextureResources;
+  readonly gpuTextures: ReadonlyMap<string, GPUTexture>;
+  readonly textureBindGroup?: GPUBindGroup;
   readonly buffers: ReadonlyMap<ShaderDefaultUniform, GPUBuffer>;
   readonly bindGroup?: GPUBindGroup;
   readonly custom?: CustomSchema;
@@ -62,6 +64,7 @@ interface Resources {
   readonly warnings: readonly string[];
 }
 function destroy(resource: Resources): void {
+  for (const texture of resource.gpuTextures.values()) texture.destroy();
   resource.textures.dispose();
   for (const buffer of resource.buffers.values()) buffer.destroy();
   resource.customBuffer?.destroy();
@@ -357,8 +360,15 @@ export class WebGpuRenderer extends CanvasRenderer {
       textures = await loadTextureResources(resources, "webgpu", {
         signal: controller.signal,
         maxTextures: this.device.limits.maxSampledTexturesPerShaderStage,
+        maxSamplers: this.device.limits.maxSamplersPerShaderStage,
+        maxTextureDimension: this.device.limits.maxTextureDimension2D,
       });
-      const prepared = await this.prepareGpu(artifact, custom, textures);
+      const prepared = await this.prepareGpu(
+        artifact,
+        custom,
+        resources,
+        textures,
+      );
       owned = true;
       return prepared;
     } finally {
@@ -370,6 +380,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   private async prepareGpu(
     artifact: CompiledFragmentArtifact,
     custom: CustomSchema | undefined,
+    resources: ReturnType<typeof readResourceMetadata>,
     textures: LoadedTextureResources,
   ): Promise<Resources> {
     const active = defaults.filter(({ name }) =>
@@ -430,8 +441,55 @@ export class WebGpuRenderer extends CanvasRenderer {
               : 16;
     }
     const customSize = Math.max(16, Math.ceil(offset / 16) * 16);
+    const gpuTextures = new Map<string, GPUTexture>();
+    let textureBindGroup: GPUBindGroup | undefined;
     try {
       await this.scoped("shader", () => {
+        for (const binding of resources?.bindings ?? []) {
+          const loaded = textures.textures.get(binding.name);
+          if (!loaded)
+            throw new ShdrRuntimeError(
+              "webgpu",
+              "artifact",
+              `WGSL texture metadata does not match active binding ${JSON.stringify(binding.name)}.`,
+            );
+          const texture = this.device.createTexture({
+            size: [loaded.image.width, loaded.image.height, 1],
+            format: "rgba8unorm",
+            usage:
+              GPUTextureUsage.COPY_DST |
+              GPUTextureUsage.TEXTURE_BINDING |
+              GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          gpuTextures.set(binding.name, texture);
+          this.device.queue.copyExternalImageToTexture(
+            { source: loaded.image, flipY: false },
+            {
+              texture,
+              colorSpace: "srgb",
+              premultipliedAlpha: false,
+            },
+            [loaded.image.width, loaded.image.height],
+          );
+        }
+        if (gpuTextures.size) {
+          const sampler = this.device.createSampler({
+            minFilter: "linear",
+            magFilter: "linear",
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge",
+          });
+          textureBindGroup = this.device.createBindGroup({
+            layout: pipeline!.getBindGroupLayout(2),
+            entries: (resources?.bindings ?? []).flatMap((binding) => [
+              {
+                binding: binding.binding,
+                resource: gpuTextures.get(binding.name)!.createView(),
+              },
+              { binding: binding.binding + 1, resource: sampler },
+            ]),
+          });
+        }
         for (const uniform of active)
           buffers.set(
             uniform.name,
@@ -460,6 +518,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         }
       });
     } catch (error) {
+      for (const texture of gpuTextures.values()) texture.destroy();
       for (const buffer of buffers.values()) buffer.destroy();
       customBuffer?.destroy();
       throw error;
@@ -467,6 +526,8 @@ export class WebGpuRenderer extends CanvasRenderer {
     return {
       pipeline: pipeline!,
       textures,
+      gpuTextures,
+      textureBindGroup,
       buffers,
       bindGroup,
       custom,
@@ -555,6 +616,8 @@ export class WebGpuRenderer extends CanvasRenderer {
     if (resources.bindGroup) pass.setBindGroup(0, resources.bindGroup);
     if (resources.customBindGroup)
       pass.setBindGroup(1, resources.customBindGroup);
+    if (resources.textureBindGroup)
+      pass.setBindGroup(2, resources.textureBindGroup);
     pass.draw(3);
     pass.end();
     this.device.queue.submit([encoder.finish()]);

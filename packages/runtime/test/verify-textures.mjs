@@ -126,9 +126,13 @@ const cors = oneTexture(
   "sample(uniforms.photo, vec2(0, 0))",
 );
 const slow = oneTexture("/slow.png", "sample(uniforms.photo, vec2(0, 0))");
+const gpuSlow = oneTexture(
+  "/gpu-slow.png",
+  "sample(uniforms.photo, vec2(0, 0))",
+);
 
-async function screenshotPixel(page) {
-  const bytes = await page.locator("#canvas").screenshot();
+async function screenshotPixel(page, id = "canvas") {
+  const bytes = await page.locator(`#${id}`).screenshot();
   return page.evaluate(
     async (encoded) => {
       const image = await createImageBitmap(
@@ -182,6 +186,14 @@ async function expectRendered(page, expected, label, tolerance = 2) {
     tolerance,
   );
 }
+async function expectPresented(page, id, expected, label, tolerance = 2) {
+  expectPixel(
+    await screenshotPixel(page, id),
+    expected,
+    `${label} presented`,
+    tolerance,
+  );
+}
 
 const server = await createServer({
   root,
@@ -200,6 +212,7 @@ try {
     args: [
       "--enable-webgl",
       "--enable-unsafe-swiftshader",
+      "--enable-unsafe-webgpu",
       "--use-angle=swiftshader",
     ],
   });
@@ -342,6 +355,22 @@ try {
       body: png(IMAGE_A),
     });
   });
+  let releaseGpuSlow;
+  let gpuSlowRequestedResolve;
+  const gpuSlowRequested = new Promise((resolve) => {
+    gpuSlowRequestedResolve = resolve;
+  });
+  await page.route("**/gpu-slow.png", async (route) => {
+    gpuSlowRequestedResolve();
+    await new Promise((resolve) => {
+      releaseGpuSlow = resolve;
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: png(IMAGE_A),
+    });
+  });
   const stale = page.evaluate(
     (artifact) => window.renderer.setShader(artifact),
     slow,
@@ -395,8 +424,154 @@ try {
   await page.waitForFunction(() =>
     window.textureErrors.some((error) => error.kind === "lost"),
   );
+
+  const webgpuAvailable = await page.evaluate(async (artifact) => {
+    if (!navigator.gpu) return false;
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    window.createWebGpuRendererForTextureTest = createWebGpuRenderer;
+    const canvas = document.createElement("canvas");
+    canvas.id = "gpu-canvas";
+    canvas.width = 4;
+    canvas.height = 2;
+    canvas.style.width = "4px";
+    canvas.style.height = "2px";
+    document.body.append(canvas);
+    window.gpuRenderer = await createWebGpuRenderer(canvas, artifact, {
+      animate: false,
+    });
+    return true;
+  }, topLeft);
+  assert.equal(webgpuAvailable, true);
+  const webgpuCreationFailure = await page.evaluate(async (artifact) => {
+    const canvas = document.createElement("canvas");
+    document.body.append(canvas);
+    try {
+      await window.createWebGpuRendererForTextureTest(canvas, artifact, {
+        animate: false,
+      });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, kind: error.kind, message: error.message };
+    }
+  }, missing);
+  assert.equal(webgpuCreationFailure.ok, false);
+  assert.equal(webgpuCreationFailure.kind, "resource");
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [255, 0, 0, 255],
+    "WebGPU top-left",
+  );
+  await page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    fractional,
+  );
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [128, 64, 32, 255],
+    "WebGPU fractional",
+    3,
+  );
+  await page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    clamped,
+  );
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [255, 255, 0, 255],
+    "WebGPU clamped",
+  );
+  await page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    alpha,
+  );
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [128, 0, 0, 255],
+    "WebGPU alpha",
+    3,
+  );
+  const gpuFetches = photoFetches;
+  await page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    gain,
+  );
+  await page.evaluate(() => {
+    window.gpuRenderer.setUniforms({ gain: 0.5 });
+    return window.gpuRenderer.draw();
+  });
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [128, 0, 0, 255],
+    "WebGPU numeric",
+    3,
+  );
+  assert.equal(photoFetches, gpuFetches + 1);
+  await page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    two,
+  );
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [255, 22, 0, 255],
+    "WebGPU two textures",
+  );
+
+  const gpuFailureBefore = await screenshotPixel(page, "gpu-canvas");
+  const gpuFailure = await page.evaluate(async (artifact) => {
+    try {
+      await window.gpuRenderer.setShader(artifact);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, kind: error.kind, message: error.message };
+    }
+  }, missing);
+  assert.equal(gpuFailure.ok, false);
+  assert.equal(gpuFailure.kind, "resource");
+  expectPixel(
+    await screenshotPixel(page, "gpu-canvas"),
+    gpuFailureBefore,
+    "WebGPU failed replacement",
+    0,
+  );
+
+  const gpuStale = page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    gpuSlow,
+  );
+  await gpuSlowRequested;
+  const gpuLatest = page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    second,
+  );
+  releaseGpuSlow();
+  assert.deepEqual(await gpuStale, { status: "superseded" });
+  assert.deepEqual(await gpuLatest, {
+    status: "installed",
+    boundUniforms: [],
+    warnings: [],
+  });
+  await expectPresented(
+    page,
+    "gpu-canvas",
+    [11, 22, 33, 255],
+    "WebGPU superseding replacement",
+  );
+  const gpuDisposed = page.evaluate(
+    (artifact) => window.gpuRenderer.setShader(artifact),
+    gpuSlow,
+  );
+  await gpuSlowRequested;
+  await page.evaluate(() => window.gpuRenderer.dispose());
+  releaseGpuSlow();
+  assert.deepEqual(await gpuDisposed, { status: "superseded" });
   console.log(
-    "Verified WebGL texture upload, UV/filter/clamp/alpha pixels, numeric isolation, failed replacement, supersession, disposal and context loss.",
+    "Verified WebGL and presented WebGPU texture upload, UV/filter/clamp/alpha pixels, multiple textures, numeric isolation, failed replacement, supersession, disposal and context loss.",
   );
 } finally {
   await browser?.close();

@@ -211,18 +211,18 @@ Expected files:
 
 Tasks:
 
-- [ ] Upload textures and bind an explicit texture+fixed sampler for each active declaration without shifting automatic group 0 or numeric group 1; destroy all candidate/installed GPU textures on replacement/disposal/loss.
-- [ ] Keep WGSL error scopes and preflight within the existing serialized render path, with generation checks around every awaited load/upload; prove failed candidate and stale uploads do not clear or overwrite the current presentation/status.
-- [ ] Extend the browser suite for real **presented** WebGPU non-center/fractional/out-of-range samples, multiple textures, alpha/channel agreement with WebGL under Phase 0 tolerances, plus creation/failure/race/disposal and numeric uniform preservation.
+- [x] Upload textures and bind an explicit texture+fixed sampler for each active declaration without shifting automatic group 0 or numeric group 1; destroy all candidate/installed GPU textures on replacement/disposal/loss.
+- [x] Keep WGSL error scopes and preflight within the existing serialized render path, with generation checks around every awaited load/upload; prove failed candidate and stale uploads do not clear or overwrite the current presentation/status.
+- [x] Extend the browser suite for real **presented** WebGPU non-center/fractional/out-of-range samples, multiple textures, alpha/channel agreement with WebGL under Phase 0 tolerances, plus creation/failure/race/disposal and numeric uniform preservation.
 
 Verification:
 
 - Automated: run `node test/verify-textures.mjs` from `packages/runtime` (proposed script from Step 2.2, extended here), plus `pnpm --filter @shdr/runtime test` once wired. Assert visibly presented WebGPU pixels, not just WGSL compilation; error/draw cases must check last-installed behavior and no late commit.
 - Manual: confirm the real browser exposes WebGPU with an adapter; if unavailable, mark **Blocked**, not Passed from WebGL pixels alone.
 
-- [ ] **Completion gate:** Both independent browser renderers pass color/UV/alpha and atomic resource lifecycle checks; all of AC3 and renderer portions of AC6–AC8 are supported by real browser verification recorded outside this plan.
+- [x] **Completion gate:** Both independent browser renderers pass color/UV/alpha and atomic resource lifecycle checks; all of AC3 and renderer portions of AC6–AC8 are supported by real browser verification recorded outside this plan.
 
-- [ ] **Phase exit gate:** `pnpm --filter @shdr/runtime check` and the newly wired `pnpm --filter @shdr/runtime test` pass, alongside unchanged old numeric/default runtime cases and static renderer imports. Review the atomic 1.2–2.3 feature slice before exposing it through consumer apps.
+- [x] **Phase exit gate:** `pnpm --filter @shdr/runtime check` and the newly wired `pnpm --filter @shdr/runtime test` pass, alongside unchanged old numeric/default runtime cases and static renderer imports. Review the atomic 1.2–2.3 feature slice before exposing it through consumer apps.
 
 ## Phase 3 — Vite, REPL and acceptance
 

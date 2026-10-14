@@ -9,9 +9,9 @@
 
 ## Verification
 
-- `cd packages/runtime && node test/verify-textures.mjs`: passed.
+- `cd packages/runtime && node test/verify-textures.mjs`: passed; its WebGL portion verifies the following behavior.
 - `pnpm --filter @shdr/runtime check`: passed.
-- `pnpm --filter @shdr/runtime test`: passed all existing browser suites plus the new WebGL texture suite.
-- The real Chromium WebGL 2 suite verifies presented screenshot pixels and `readPixels` for top-left orientation, fractional linear filtering, out-of-range clamp, straight-alpha channel behavior, two textures, numeric updates, failed fetch/decode replacement, rapid supersession, disposal, and context loss.
+- `pnpm --filter @shdr/runtime test`: passed all existing browser suites plus the combined texture suite.
+- The real Chromium WebGL 2 portion verifies presented screenshot pixels and `readPixels` for top-left orientation, fractional linear filtering, out-of-range clamp, straight-alpha channel behavior, two textures, numeric updates, failed fetch/decode replacement, rapid supersession, disposal, and context loss.
 
 Presented WebGPU and cross-backend parity remain gated by Step 2.3.
