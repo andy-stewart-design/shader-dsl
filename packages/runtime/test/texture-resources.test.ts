@@ -128,7 +128,8 @@ describe("texture resource loading", () => {
       {
         maxTextures: 16,
         maxSamplers: 16,
-        maxBindingSlots: 1000,
+        maxTextureBindingSlots: 1000,
+        maxSamplerBindingSlots: 1000,
         dependencies: dependencies(fetch, async () => image()),
       },
     );
@@ -139,16 +140,18 @@ describe("texture resource loading", () => {
       loadTextureResources(manyTexturesSchema(9), "webgpu", {
         maxTextures: 16,
         maxSamplers: 16,
-        maxBindingSlots: 17,
+        maxTextureBindingSlots: 1000,
+        maxSamplerBindingSlots: 17,
         dependencies: dependencies(vi.fn(), async () => image()),
       }),
-    ).rejects.toThrow("binding-slot limit");
+    ).rejects.toThrow("sampler binding-slot limit");
 
     await expect(
       loadTextureResources(manyTexturesSchema(9), "webgpu", {
         maxTextures: 8,
         maxSamplers: 16,
-        maxBindingSlots: 1000,
+        maxTextureBindingSlots: 1000,
+        maxSamplerBindingSlots: 1000,
         dependencies: dependencies(vi.fn(), async () => image()),
       }),
     ).rejects.toThrow("sampled-texture limit");
@@ -157,7 +160,8 @@ describe("texture resource loading", () => {
       loadTextureResources(manyTexturesSchema(9), "webgpu", {
         maxTextures: 16,
         maxSamplers: 8,
-        maxBindingSlots: 1000,
+        maxTextureBindingSlots: 1000,
+        maxSamplerBindingSlots: 1000,
         dependencies: dependencies(vi.fn(), async () => image()),
       }),
     ).rejects.toThrow("sampler limit");

@@ -14,8 +14,10 @@ export interface TextureResourceLoadOptions {
   readonly signal?: AbortSignal;
   readonly maxTextures?: number;
   readonly maxSamplers?: number;
-  /** Maximum exclusive WGSL binding slot; texture and sampler pairs consume two slots. */
-  readonly maxBindingSlots?: number;
+  /** Maximum exclusive texture binding slot. */
+  readonly maxTextureBindingSlots?: number;
+  /** Maximum exclusive sampler binding slot (WGSL uses texture binding + 1). */
+  readonly maxSamplerBindingSlots?: number;
   readonly maxTextureDimension?: number;
   readonly dependencies?: TextureResourceDependencies;
 }
@@ -115,15 +117,26 @@ export async function loadTextureResources(
       `Texture resources exceed the ${backend} sampler limit of ${options.maxSamplers}.`,
     );
   if (
-    options.maxBindingSlots !== undefined &&
+    options.maxTextureBindingSlots !== undefined &&
     schema?.bindings?.some(
-      ({ binding }) => binding + 1 >= options.maxBindingSlots!,
+      ({ binding }) => binding >= options.maxTextureBindingSlots!,
     )
   )
     throw new ShdrRuntimeError(
       backend,
       "artifact",
-      `Texture resources exceed the ${backend} binding-slot limit of ${options.maxBindingSlots}.`,
+      `Texture resources exceed the ${backend} texture binding-slot limit of ${options.maxTextureBindingSlots}.`,
+    );
+  if (
+    options.maxSamplerBindingSlots !== undefined &&
+    schema?.bindings?.some(
+      ({ binding }) => binding + 1 >= options.maxSamplerBindingSlots!,
+    )
+  )
+    throw new ShdrRuntimeError(
+      backend,
+      "artifact",
+      `Texture resources exceed the ${backend} sampler binding-slot limit of ${options.maxSamplerBindingSlots}.`,
     );
 
   const declarations = new Map(
