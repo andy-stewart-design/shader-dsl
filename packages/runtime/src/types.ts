@@ -8,6 +8,11 @@ import type {
 import type { UniformPatch } from "./uniforms.js";
 import type { ShdrRuntimeError } from "./errors.js";
 
+type NumericUniformName<S extends UniformSchema> = {
+  [K in keyof S]-?: S[K] extends import("shdr").UniformDeclaration ? K : never;
+}[keyof S] &
+  string;
+
 export interface RendererOptions {
   readonly animate?: boolean;
   readonly onError?: (error: ShdrRuntimeError) => void;
@@ -21,7 +26,9 @@ type CheckedStaticUniforms<
   S extends UniformSchema,
   V extends Partial<HostUniforms<S>>,
 > = V & {
-  readonly [K in keyof V]-?: K extends keyof S ? HostUniforms<S>[K] : never;
+  readonly [K in keyof V]-?: K extends keyof HostUniforms<S>
+    ? HostUniforms<S>[K]
+    : never;
 };
 
 export type StaticRendererOptions<
@@ -76,5 +83,5 @@ export interface StaticRenderer<S extends UniformSchema> extends Pick<
   setUniforms<const V extends Partial<HostUniforms<S>>>(
     values: CheckedStaticUniforms<S, V>,
   ): void;
-  resetUniforms(...names: readonly (keyof S & string)[]): void;
+  resetUniforms(...names: readonly NumericUniformName<S>[]): void;
 }

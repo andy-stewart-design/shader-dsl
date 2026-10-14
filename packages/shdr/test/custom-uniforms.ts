@@ -1,4 +1,9 @@
-import { createFragmentShader, defineUniforms, vec4 } from "../src/index.js";
+import {
+  createFragmentShader,
+  defineUniforms,
+  sample,
+  vec4,
+} from "../src/index.js";
 import type {
   Expr,
   F32,
@@ -6,6 +11,11 @@ import type {
   TypedCompiledFragmentArtifact,
   UniformDeclaration,
   ShaderCustomUniformDeclaration,
+  Texture2D,
+  TextureUniformDeclaration,
+  HostUniforms,
+  Vec2,
+  Vec4,
 } from "../src/index.js";
 
 type Equal<A, B> =
@@ -19,6 +29,15 @@ const vectorDeclaration: UniformDeclaration = {
   type: "vec3",
   default: [1, 2, 3],
 };
+const textureDeclaration: TextureUniformDeclaration = {
+  type: "texture2D",
+  url: "/photo.png",
+};
+const dynamicTextureUrl: string = "/photo.png";
+const dynamicTexture = defineUniforms((u) => ({
+  // @ts-expect-error Texture declarations require a string literal URL.
+  photo: u.texture2D(dynamicTextureUrl),
+}));
 const namedDeclaration: ShaderCustomUniformDeclaration = {
   name: "color",
   type: "vec2",
@@ -41,6 +60,7 @@ const wrongLength: ShaderCustomUniformDeclaration = {
 void [
   scalarDeclaration,
   vectorDeclaration,
+  textureDeclaration,
   namedDeclaration,
   wrongScalar,
   wrongNamed,
@@ -60,6 +80,36 @@ function inspectDeclaration(declaration: ShaderCustomUniformDeclaration) {
   }
 }
 void inspectDeclaration;
+
+const withTexture = defineUniforms((u) => ({
+  photo: u.texture2D("/photo.png"),
+  remote: u.texture2D("https://cdn.example/photo.png"),
+  gain: u.f32(0.5),
+}));
+const textureShader = withTexture.createFragmentShader(({ uniforms }) => {
+  type _Photo = Expect<Equal<typeof uniforms.photo, Texture2D>>;
+  type _Remote = Expect<Equal<typeof uniforms.remote, Texture2D>>;
+  type _Gain = Expect<Equal<typeof uniforms.gain, Expr<F32>>>;
+  // @ts-expect-error Texture handles are not numeric expressions.
+  return vec4(uniforms.photo, uniforms.gain, uniforms.gain, 1);
+});
+type _TextureHost = Expect<
+  Equal<keyof HostUniforms<typeof withTexture.schema>, "gain">
+>;
+// @ts-expect-error Texture declarations are not numeric host uniform values.
+const textureHost: HostUniforms<typeof withTexture.schema> = { photo: 1 };
+const sampledShader = withTexture.createFragmentShader(({ uniforms }) => {
+  type _Uv = Expect<Equal<typeof uniforms.resolution, Expr<Vec2<F32>>>>;
+  const color = sample(uniforms.photo, uniforms.resolution);
+  type _Sample = Expect<Equal<typeof color, Expr<Vec4<F32>>>>;
+  // @ts-expect-error Sampling requires a texture handle as its first argument.
+  sample(uniforms.gain, uniforms.resolution);
+  // @ts-expect-error Sampling requires a Vec2<F32> UV.
+  sample(uniforms.photo, uniforms.gain);
+  void (0 as unknown as _Uv);
+  return color;
+});
+void [textureShader, sampledShader, textureHost];
 
 const inline = defineUniforms((u) => ({
   color: u.vec3(0, 0, 1),

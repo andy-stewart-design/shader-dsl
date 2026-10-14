@@ -10,7 +10,11 @@ import type {
   ShaderInstallOptions,
   ShaderInstallResult,
 } from "./types.js";
-import { UniformState, type UniformPatch } from "./uniforms.js";
+import {
+  readResourceMetadata,
+  UniformState,
+  type UniformPatch,
+} from "./uniforms.js";
 
 export interface InternalRendererOptions extends RendererOptions {
   readonly uniforms?: UniformPatch;
@@ -65,6 +69,7 @@ export function checkArtifact(
       "artifact",
       "Expected a dual-target Shdr artifact.",
     );
+  readResourceMetadata(value, backend);
   for (const target of ["glsl", "wgsl"] as const) {
     const entries = value.defaults[target];
     if (

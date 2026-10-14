@@ -23,6 +23,7 @@ import type {
 import type {
   ShaderCustomUniformDeclaration,
   ShaderCustomUniformType,
+  ShaderTextureDeclaration,
 } from "shdr";
 import type {
   ShaderBinaryExpressionSyntax,
@@ -54,6 +55,7 @@ const VEC4_F32_TYPE: ShaderVectorType = {
   scalar: "f32",
   size: 4,
 };
+const TEXTURE_2D_TYPE = { kind: "texture2D" } as const;
 const CONTEXT_BINDING_NAMES = new Set(["coord", "uniforms"]);
 
 export interface LowerShaderSyntaxSuccess {
@@ -81,8 +83,12 @@ interface LoweringContext {
   readonly futureNames: ReadonlySet<string>;
   readonly constantLocals: Map<ShaderLocalSymbolId, ShaderKnownComponents>;
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
-  readonly customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>;
+  readonly customUniforms: ReadonlyMap<
+    string,
+    ShaderCustomUniformDeclaration | ShaderTextureDeclaration
+  >;
   readonly contextBindings: ReadonlySet<string>;
+  readonly sampleCallables: ReadonlySet<string>;
   readonly contextName?: string;
   readonly importedCallables: ReadonlySet<string>;
   readonly functions: ReadonlyMap<string, ShaderFunction>;
@@ -94,6 +100,7 @@ type LowerExpressionResult =
 
 export interface LowerShaderSyntaxOptions {
   readonly functions?: ReadonlyMap<string, ShaderFunction>;
+  readonly sampleCallables?: ReadonlySet<string>;
 }
 
 interface LowerShaderBodyOptions extends LowerShaderSyntaxOptions {
@@ -113,7 +120,9 @@ type LowerShaderBodyResult =
 export function lowerShaderSyntax(
   syntax: ShaderCallbackSyntax,
   importedCallables: ReadonlySet<string> = new Set(),
-  customUniforms: readonly ShaderCustomUniformDeclaration[] = [],
+  customUniforms: readonly (
+    ShaderCustomUniformDeclaration | ShaderTextureDeclaration
+  )[] = [],
   options: LowerShaderSyntaxOptions = {},
 ): LowerShaderSyntaxResult {
   const body = lowerShaderBody(
@@ -137,7 +146,14 @@ export function lowerShaderSyntax(
     module: {
       kind: "shader-module",
       stage: "fragment",
-      ...(customUniforms.length ? { customUniforms } : {}),
+      ...(customUniforms.some((item) => item.type !== "texture2D")
+        ? {
+            customUniforms: customUniforms.filter(
+              (item): item is ShaderCustomUniformDeclaration =>
+                item.type !== "texture2D",
+            ),
+          }
+        : {}),
       statements: body.statements,
       range: syntax.range,
     },
@@ -149,7 +165,9 @@ export function lowerShaderSyntax(
 export function lowerShaderBody(
   syntax: ShaderCallbackSyntax,
   importedCallables: ReadonlySet<string>,
-  customUniforms: readonly ShaderCustomUniformDeclaration[],
+  customUniforms: readonly (
+    ShaderCustomUniformDeclaration | ShaderTextureDeclaration
+  )[],
   options: LowerShaderBodyOptions,
 ): LowerShaderBodyResult {
   const locals = new Map<string, LocalBinding>(
@@ -200,6 +218,7 @@ export function lowerShaderBody(
       ...(options.parameters ? {} : { contextName: syntax.contextName }),
       importedCallables,
       functions,
+      sampleCallables: options.sampleCallables ?? new Set(),
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
 
@@ -211,6 +230,14 @@ export function lowerShaderBody(
     );
     localInitializers.set(symbolId, initializer.expression);
     futureNames.delete(declaration.name);
+    if (textureNameOf(initializer.expression, localInitializers)) {
+      locals.set(declaration.name, {
+        name: declaration.name,
+        symbolId,
+        type: TEXTURE_2D_TYPE as unknown as ShaderValueType,
+      });
+      continue;
+    }
     locals.set(declaration.name, {
       name: declaration.name,
       symbolId,
@@ -236,6 +263,7 @@ export function lowerShaderBody(
     ...(options.parameters ? {} : { contextName: syntax.contextName }),
     importedCallables,
     functions,
+    sampleCallables: options.sampleCallables ?? new Set(),
   });
   if (!returned.ok) return failure(returned.diagnostic);
   return {
@@ -407,6 +435,47 @@ function lowerCallExpression(
   context: LoweringContext,
 ): LowerExpressionResult {
   const name = syntax.calleeName;
+  if (name === "sample" && context.sampleCallables.has(name)) {
+    if (syntax.arguments.length !== 2) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidBuiltin,
+        `sample requires exactly two arguments; received ${syntax.arguments.length}.`,
+        syntax.range,
+      );
+    }
+    const texture = lowerExpression(syntax.arguments[0]!, context);
+    if (!texture.ok) return texture;
+    const uv = lowerExpression(syntax.arguments[1]!, context);
+    if (!uv.ok) return uv;
+    const textureName = textureNameOf(
+      texture.expression,
+      context.localInitializers,
+    );
+    if (!textureName) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidBuiltin,
+        "sample requires a declared texture handle as its first argument.",
+        syntax.arguments[0]!.range,
+      );
+    }
+    if (!isVec2(uv.expression.type)) {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidBuiltin,
+        `sample requires an Expr<Vec2<F32>> UV; received ${formatExpressionType(uv.expression.type)}.`,
+        syntax.arguments[1]!.range,
+      );
+    }
+    return {
+      ok: true,
+      expression: {
+        kind: "call",
+        target: { kind: "texture-sample", textureName },
+        arguments: [uv.expression],
+        type: VEC4_F32_TYPE,
+        range: syntax.range,
+      },
+    };
+  }
   if (
     name !== "vec2" &&
     name !== "vec3" &&
@@ -537,6 +606,14 @@ function lowerCallExpression(
     );
   }
   if (!isConstructorArguments(name, args)) {
+    const texture = args.find((argument) => argument.kind === "texture");
+    if (texture?.kind === "texture") {
+      return expressionFailure(
+        ShaderDiagnosticCode.InvalidUniform,
+        `Texture uniform ${JSON.stringify(texture.name)} cannot be used as a numeric expression.`,
+        texture.range,
+      );
+    }
     const argumentTypes = args
       .map((argument) => formatExpressionType(argument.type))
       .join(", ");
@@ -676,6 +753,7 @@ function hasKnownNonFiniteSubexpression(
       case "builtin-input":
       case "default-uniform":
       case "custom-uniform":
+      case "texture":
         break;
       default:
         assertNever(expression);
@@ -741,6 +819,10 @@ function isConstructorArguments(
     w !== undefined &&
     isF32(w.type)
   );
+}
+
+function isVec2(type: ShaderValueType): boolean {
+  return type.kind === "vector" && type.scalar === "f32" && type.size === 2;
 }
 
 function isVec4(type: ShaderValueType): boolean {
@@ -832,6 +914,18 @@ function formatExpressionType(type: ShaderValueType): string {
   return `Expr<${formatShaderType(type)}>`;
 }
 
+function textureNameOf(
+  expression: ShaderExpression,
+  localInitializers: ReadonlyMap<ShaderLocalSymbolId, ShaderExpression>,
+): string | undefined {
+  if (expression.kind === "texture") return expression.name;
+  if (expression.kind !== "local-reference") return undefined;
+  const initializer = localInitializers.get(expression.symbolId);
+  return initializer
+    ? textureNameOf(initializer, localInitializers)
+    : undefined;
+}
+
 function lowerSwizzle(
   syntax: ShaderPropertyAccessSyntax,
   context: LoweringContext,
@@ -920,12 +1014,17 @@ function swizzleType(components: ShaderSwizzleComponents): ShaderValueType {
 }
 
 function formatShaderType(type: ShaderValueType): string {
-  return type.kind === "scalar" ? "F32" : `Vec${type.size}<F32>`;
+  if (type.kind === "scalar") return "F32";
+  if (type.kind === "vector") return `Vec${type.size}<F32>`;
+  return "Texture2D";
 }
 
 function lowerDefaultUniform(
   syntax: ShaderPropertyAccessSyntax,
-  customUniforms: ReadonlyMap<string, ShaderCustomUniformDeclaration>,
+  customUniforms: ReadonlyMap<
+    string,
+    ShaderCustomUniformDeclaration | ShaderTextureDeclaration
+  >,
 ): LowerExpressionResult {
   let uniform: ShaderDefaultUniform;
   let type: ShaderValueType;
@@ -945,6 +1044,16 @@ function lowerDefaultUniform(
       break;
     default: {
       const custom = customUniforms.get(syntax.propertyName);
+      if (custom?.type === "texture2D")
+        return {
+          ok: true,
+          expression: {
+            kind: "texture",
+            name: custom.name,
+            type: TEXTURE_2D_TYPE as never,
+            range: syntax.range,
+          },
+        };
       if (custom)
         return {
           ok: true,

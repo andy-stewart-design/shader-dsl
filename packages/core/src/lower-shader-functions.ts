@@ -141,6 +141,7 @@ export function reachableShaderFunctions(
       case "local-reference":
       case "default-uniform":
       case "custom-uniform":
+      case "texture":
         break;
       default:
         assertNever(expression);

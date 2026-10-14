@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
+import { deflateSync } from "node:zlib";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
 const root = fileURLToPath(new URL("./", import.meta.url));
+const texturePng = makePng([
+  [
+    [255, 0, 0, 255],
+    [0, 255, 0, 255],
+  ],
+]);
 const server = await createServer({
   root,
   logLevel: "silent",
@@ -30,9 +37,54 @@ try {
   });
   const page = await browser.newPage();
   const browserErrors = [];
+  const corsErrors = [];
+  const textureRequests = [];
+  page.on("request", (request) => {
+    if (request.url().startsWith("https://repl-texture.test/"))
+      textureRequests.push(request.url());
+    assert.ok(
+      !request.url().endsWith(".shdr.ts"),
+      `REPL requested authored shader module: ${request.url()}`,
+    );
+  });
+  await page.route("https://repl-texture.test/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/ok.png") {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/png",
+        headers: { "access-control-allow-origin": "*" },
+        body: texturePng,
+      });
+      return;
+    }
+    if (pathname === "/denied.png") {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/png",
+        headers: { "access-control-allow-origin": "https://wrong.test" },
+        body: texturePng,
+      });
+      return;
+    }
+    if (pathname === "/missing.png") {
+      await route.fulfill({ status: 404, body: "missing" });
+      return;
+    }
+    await route.abort();
+  });
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") browserErrors.push(message.text());
+    if (message.type() !== "error") return;
+    if (
+      message.text().includes("repl-texture.test/denied.png") ||
+      message.text().includes("repl-texture.test/missing.png") ||
+      message.text().includes("CORS policy") ||
+      message.text().includes("ERR_FAILED") ||
+      message.text().includes("status of 404")
+    )
+      corsErrors.push(message.text());
+    else browserErrors.push(message.text());
   });
 
   await page.goto(`http://127.0.0.1:${address.port}`, { waitUntil: "load" });
@@ -383,6 +435,125 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await compileSource(page, editor, originalSource);
   await waitForValidation(page, "glsl-es-300", "success");
 
+  const textureSource = (
+    url,
+  ) => `import { defineUniforms, sample, vec2 } from "shdr";
+export default defineUniforms((u) => ({ photo: u.texture2D(${JSON.stringify(url)}) }))
+  .createFragmentShader(({ uniforms }) =>
+    sample(uniforms.photo, vec2(0, 0)),
+  );
+`;
+  const initialTextureRequestCount = textureRequests.length;
+  await compileSource(
+    page,
+    editor,
+    textureSource("https://repl-texture.test/ok.png"),
+  );
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.equal(
+    textureRequests.length - initialTextureRequestCount,
+    2,
+    "Both previews must load the accepted HTTPS texture independently.",
+  );
+  for (const [backend, pixel] of [
+    ["WebGL", (await readWebGlPixels(page, [[0.5, 0.5]]))[0]],
+    ["WebGPU", (await readWebGpuPixels(page, [[0.5, 0.5]]))[0]],
+  ]) {
+    assertChannel(`${backend} texture red`, pixel[0], 255, 3);
+    assertChannel(`${backend} texture green`, pixel[1], 0, 3);
+    assertChannel(`${backend} texture blue`, pixel[2], 0, 3);
+    assertChannel(`${backend} texture alpha`, pixel[3], 255, 1);
+  }
+  const texturePixels = await readWebGlPixels(page, [[0.5, 0.5]]);
+  const gpuTexturePixels = await readWebGpuPixels(page, [[0.5, 0.5]]);
+  await compileSource(
+    page,
+    editor,
+    textureSource("https://repl-texture.test/denied.png"),
+  );
+  await waitForValidation(page, "glsl-es-300", "error");
+  await waitForValidation(page, "wgsl", "error");
+  assert.match(
+    await page
+      .locator('[data-validation-target="glsl-es-300"] .render-message')
+      .textContent(),
+    /Texture (fetch|resource) failed/i,
+  );
+  assert.deepEqual(
+    await readWebGlPixels(page, [[0.5, 0.5]]),
+    texturePixels,
+    "A denied texture must preserve the last successful WebGL frame.",
+  );
+  assert.deepEqual(
+    await readWebGpuPixels(page, [[0.5, 0.5]]),
+    gpuTexturePixels,
+    "A denied texture must preserve the last successful WebGPU frame.",
+  );
+  await compileSource(
+    page,
+    editor,
+    textureSource("https://repl-texture.test/missing.png"),
+  );
+  await waitForValidation(page, "glsl-es-300", "error");
+  await waitForValidation(page, "wgsl", "error");
+  assert.match(
+    await page
+      .locator('[data-validation-target="glsl-es-300"] .render-message')
+      .textContent(),
+    /Texture fetch failed/i,
+  );
+  assert.deepEqual(
+    await readWebGlPixels(page, [[0.5, 0.5]]),
+    texturePixels,
+    "A missing texture must preserve the last successful WebGL frame.",
+  );
+
+  const rootTextureRequestCount = textureRequests.length;
+  await compileSource(page, editor, textureSource("/local.png"));
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(
+    await diagnostics.textContent(),
+    /REPL texture URL policy error/i,
+  );
+  assert.equal(
+    textureRequests.length,
+    rootTextureRequestCount,
+    "Root-relative REPL texture URLs must be rejected before fetch.",
+  );
+  for (const forbidden of [
+    textureSource("http://repl-texture.test/insecure.png"),
+    textureSource("//repl-texture.test/protocol-relative.png"),
+  ]) {
+    const requestCount = textureRequests.length;
+    await compileSource(page, editor, forbidden);
+    await waitForValidation(page, "glsl-es-300", "blocked");
+    await waitForValidation(page, "wgsl", "blocked");
+    assert.match(await diagnostics.textContent(), /SHDR1210/);
+    assert.equal(
+      textureRequests.length,
+      requestCount,
+      "Unsupported REPL texture URLs must be rejected before fetch.",
+    );
+  }
+  const dynamicTextureSource = `import { defineUniforms, sample, vec2 } from "shdr";
+const url = "https://repl-texture.test/dynamic.png";
+export default defineUniforms((u) => ({ photo: u.texture2D(url) }))
+  .createFragmentShader(({ uniforms }) =>
+    sample(uniforms.photo, vec2(0, 0)),
+  );`;
+  const dynamicRequestCount = textureRequests.length;
+  await compileSource(page, editor, dynamicTextureSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /literal URL|literal/i);
+  assert.equal(
+    textureRequests.length,
+    dynamicRequestCount,
+    "Dynamic REPL texture URLs must be rejected before fetch.",
+  );
+
   const implicitResolutionSource = `import { createFragmentShader, vec4 } from "shdr";
 
 export default createFragmentShader(({ coord, uniforms }) => {
@@ -635,6 +806,10 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await verifyUnavailableFallbacks(browser, address.port);
   await verifyBackendFailureAndRaces(browser, address.port);
 
+  assert.ok(
+    corsErrors.length >= 2,
+    "The denied texture must produce visible browser CORS errors.",
+  );
   if (browserErrors.length > 0) {
     throw new Error(`Browser reported errors:\n${browserErrors.join("\n")}`);
   }
@@ -1228,6 +1403,56 @@ async function readCanvasMetrics(page, target = "glsl-es-300") {
       pixelRatio: window.devicePixelRatio,
     };
   }, target);
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++)
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const typeBytes = new TextEncoder().encode(type);
+  const result = new Uint8Array(12 + data.length);
+  const view = new DataView(result.buffer);
+  view.setUint32(0, data.length);
+  result.set(typeBytes, 4);
+  result.set(data, 8);
+  view.setUint32(8 + data.length, crc32(result.subarray(4, 8 + data.length)));
+  return result;
+}
+function makePng(rows) {
+  const raw = new Uint8Array(rows.length * (1 + rows[0].length * 4));
+  let offset = 0;
+  for (const row of rows) {
+    raw[offset++] = 0;
+    for (const pixel of row) for (const value of pixel) raw[offset++] = value;
+  }
+  const header = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = new Uint8Array(13);
+  const view = new DataView(ihdr.buffer);
+  view.setUint32(0, rows[0].length);
+  view.setUint32(4, rows.length);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const parts = [
+    header,
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(raw)),
+    pngChunk("IEND", new Uint8Array()),
+  ];
+  const bytes = new Uint8Array(
+    parts.reduce((size, part) => size + part.length, 0),
+  );
+  let output = 0;
+  for (const part of parts) {
+    bytes.set(part, output);
+    output += part.length;
+  }
+  return Buffer.from(bytes);
 }
 
 function shaderColor(color) {

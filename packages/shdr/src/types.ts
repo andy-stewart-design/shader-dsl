@@ -78,6 +78,13 @@ export interface DefaultUniforms {
 }
 
 export type ShaderCustomUniformType = "f32" | "vec2" | "vec3" | "vec4";
+export interface Texture2D {
+  readonly [shaderType]: "texture2D";
+}
+export interface TextureUniformDeclaration {
+  readonly type: "texture2D";
+  readonly url: string;
+}
 export type UniformValue<T extends ShaderCustomUniformType> = T extends "f32"
   ? number
   : T extends "vec2"
@@ -90,7 +97,9 @@ export type UniformDeclaration<
 > = {
   [K in T]: { readonly type: K; readonly default: UniformValue<K> };
 }[T];
-export type UniformSchema = Readonly<Record<string, UniformDeclaration>>;
+export type UniformSchema = Readonly<
+  Record<string, UniformDeclaration | TextureUniformDeclaration>
+>;
 type UniformTypeOf<D extends UniformDeclaration> = D["type"];
 type ShaderValue<T extends ShaderCustomUniformType> = T extends "f32"
   ? F32
@@ -99,17 +108,30 @@ type ShaderValue<T extends ShaderCustomUniformType> = T extends "f32"
     : T extends "vec3"
       ? Vec3<F32>
       : Vec4<F32>;
+type UniformExpressionOf<D> = D extends TextureUniformDeclaration
+  ? Texture2D
+  : D extends UniformDeclaration
+    ? Expr<ShaderValue<UniformTypeOf<D>>>
+    : never;
+type NumericUniformKeys<S extends UniformSchema> = keyof {
+  [K in keyof S as S[K] extends UniformDeclaration ? K : never]: S[K];
+};
 export type UniformExpressions<S extends UniformSchema> = {
-  readonly [K in keyof S]: Expr<ShaderValue<UniformTypeOf<S[K]>>>;
+  readonly [K in keyof S]: UniformExpressionOf<S[K]>;
 };
 export type HostUniforms<S extends UniformSchema> = {
-  readonly [K in keyof S]: UniformValue<UniformTypeOf<S[K]>>;
+  readonly [K in NumericUniformKeys<S>]: S[K] extends UniformDeclaration
+    ? UniformValue<UniformTypeOf<S[K]>>
+    : never;
 };
 export interface UniformBuilder {
   f32(value: number): UniformDeclaration<"f32">;
   vec2(x: number, y: number): UniformDeclaration<"vec2">;
   vec3(x: number, y: number, z: number): UniformDeclaration<"vec3">;
   vec4(x: number, y: number, z: number, w: number): UniformDeclaration<"vec4">;
+  texture2D<const U extends string>(
+    url: U & (string extends U ? never : unknown),
+  ): TextureUniformDeclaration & { readonly url: U };
 }
 export interface FragmentContext<
   S extends UniformSchema = Record<never, never>,
@@ -139,6 +161,17 @@ export interface UniformDefinition<S extends UniformSchema> {
 export type ShaderCustomUniformDeclaration = UniformDeclaration & {
   readonly name: string;
 };
+export type ShaderTextureUrlKind = "root-absolute" | "https" | "relative";
+export interface ShaderTextureDeclaration {
+  readonly name: string;
+  readonly type: "texture2D";
+  readonly url: string;
+  readonly urlKind: ShaderTextureUrlKind;
+}
+export interface ShaderTextureBinding {
+  readonly name: string;
+  readonly binding: number;
+}
 
 /** JSON-serializable, immutable-by-contract output of one Shdr compilation. */
 export interface CompiledFragmentArtifact {
@@ -153,6 +186,17 @@ export interface CompiledFragmentArtifact {
     readonly referenced: {
       readonly glsl: readonly string[];
       readonly wgsl: readonly string[];
+    };
+  };
+  readonly resources?: {
+    readonly textures: readonly ShaderTextureDeclaration[];
+    readonly referenced?: {
+      readonly glsl: readonly string[];
+      readonly wgsl: readonly string[];
+    };
+    readonly bindings?: {
+      readonly glsl: readonly ShaderTextureBinding[];
+      readonly wgsl: readonly ShaderTextureBinding[];
     };
   };
 }

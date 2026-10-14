@@ -43,7 +43,9 @@ export function builtinResultType(
     other !== undefined &&
     first.kind === other.kind &&
     (first.kind === "scalar" ||
-      (other.kind === "vector" && first.size === other.size));
+      (first.kind === "vector" &&
+        other.kind === "vector" &&
+        first.size === other.size));
   switch (SHADER_BUILTINS[name]) {
     case "unary-same":
       return args.length === 1 ? first : undefined;

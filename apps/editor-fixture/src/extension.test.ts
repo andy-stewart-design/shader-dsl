@@ -192,6 +192,61 @@ export async function run(): Promise<void> {
   await replaceText(math, wrongDot, validDot);
   await waitForDiagnostics(mathUri, (diagnostics) => diagnostics.length === 0);
 
+  const textureUri = vscode.Uri.joinPath(workspace.uri, "texture.shdr.ts");
+  const texture = await vscode.workspace.openTextDocument(textureUri);
+  assert.equal(texture.languageId, "shdr-typescript");
+  await vscode.window.showTextDocument(texture);
+  await waitForDiagnostics(
+    textureUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(
+    texture,
+    "uniforms.photo",
+    /TextureUniformDeclaration/,
+  );
+  const validTextureUrl = "/photo.png";
+  const invalidTextureUrl = "http://repl-texture.test/photo.png";
+  await replaceText(texture, validTextureUrl, invalidTextureUrl);
+  const textureUrlErrors = await waitForDiagnostics(textureUri, (diagnostics) =>
+    diagnostics.some((diagnostic) => diagnostic.code === "SHDR1210"),
+  );
+  const textureUrlError = textureUrlErrors.find(
+    (diagnostic) => diagnostic.code === "SHDR1210",
+  );
+  assert(textureUrlError);
+  assert.equal(
+    texture.getText(textureUrlError.range),
+    JSON.stringify(invalidTextureUrl),
+  );
+  assert.doesNotMatch(textureUrlError.message, /__shdr_internal/);
+  await replaceText(texture, invalidTextureUrl, validTextureUrl);
+  await waitForDiagnostics(
+    textureUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  const validTextureSample =
+    "sample(uniforms.photo, coord.xy / uniforms.resolution)";
+  const invalidTextureSample = "sample(uniforms.photo, uniforms.time)";
+  await replaceText(texture, validTextureSample, invalidTextureSample);
+  const textureSampleErrors = await waitForDiagnostics(
+    textureUri,
+    (diagnostics) =>
+      diagnostics.some((diagnostic) => diagnostic.code === "SHDR1208"),
+  );
+  const textureSampleError = textureSampleErrors.find(
+    (diagnostic) => diagnostic.code === "SHDR1208",
+  );
+  assert(textureSampleError);
+  assert.equal(texture.getText(textureSampleError.range), "uniforms.time");
+  for (const diagnostic of textureSampleErrors)
+    assert.doesNotMatch(diagnostic.message, /__shdr_internal/);
+  await replaceText(texture, invalidTextureSample, validTextureSample);
+  await waitForDiagnostics(
+    textureUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   const geometryUri = vscode.Uri.joinPath(
     workspace.uri,
     "geometry-math.shdr.ts",
@@ -307,7 +362,7 @@ export async function run(): Promise<void> {
   await replaceText(pr3, invalidDomain, validDomain);
   await waitForDiagnostics(pr3Uri, (diagnostics) => diagnostics.length === 0);
   const validPow = "pow(positive, vec3(2))";
-  const invalidPow = "pow(positive, 2)";
+  const invalidPow = "pow(positive, vec2(2))";
   await replaceText(pr3, validPow, invalidPow);
   const pr3Shape = await waitForDiagnostics(
     pr3Uri,

@@ -3,6 +3,7 @@ export type RuntimeErrorKind =
   | "unavailable"
   | "surface"
   | "artifact"
+  | "resource"
   | "uniform"
   | "shader"
   | "draw"

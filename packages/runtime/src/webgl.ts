@@ -8,10 +8,16 @@ import type {
 } from "shdr";
 import {
   readCustomMetadata,
+  readResourceMetadata,
   type CustomSchema,
+  type ResourceSchema,
   type UniformValues,
 } from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
+import {
+  loadTextureResources,
+  type LoadedTextureResources,
+} from "./texture-resources.js";
 import {
   aborted,
   CanvasRenderer,
@@ -47,11 +53,15 @@ interface Program {
   readonly boundUniforms: readonly ShaderDefaultUniform[];
   readonly custom?: CustomSchema;
   readonly customLocations: readonly (WebGLUniformLocation | null)[];
+  readonly textures: LoadedTextureResources;
+  readonly textureObjects: ReadonlyMap<string, WebGLTexture>;
+  readonly textureBindings: readonly { name: string; binding: number }[];
 }
 
 export class WebGlRenderer extends CanvasRenderer {
   private program?: Program;
   private readonly vao: WebGLVertexArrayObject;
+  private pendingTextureLoad?: AbortController;
   private constructor(
     canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
@@ -123,7 +133,9 @@ export class WebGlRenderer extends CanvasRenderer {
   }
   private contextLost = (event: Event): void => {
     event.preventDefault();
+    this.pendingTextureLoad?.abort();
     this.terminal("WebGL context lost; recreate the renderer on a new canvas.");
+    this.program?.textures.dispose();
     this.program = undefined;
   };
   async setShader(
@@ -131,16 +143,30 @@ export class WebGlRenderer extends CanvasRenderer {
     options: ShaderInstallOptions = {},
   ): Promise<ShaderInstallResult> {
     this.assertUsable();
+    this.pendingTextureLoad?.abort();
+    const loadController = new AbortController();
+    this.pendingTextureLoad = loadController;
     const generation = ++this.generation;
-    checkArtifact(artifact, "webgl");
-    const custom = readCustomMetadata(artifact, "webgl");
     const gl = this.gl;
     let candidate: Program | undefined;
+    let textures: LoadedTextureResources | undefined;
     try {
+      checkArtifact(artifact, "webgl");
+      const custom = readCustomMetadata(artifact, "webgl");
+      const resources = readResourceMetadata(artifact, "webgl");
+      textures = await loadTextureResources(resources, "webgl", {
+        signal: loadController.signal,
+        maxTextures: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+        maxTextureBindingSlots: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+        maxTextureDimension: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+      });
+      if (!this.current(generation)) return { status: "superseded" };
       candidate = this.makeProgram(
         artifact.glsl,
         artifact.defaults.glsl,
         custom,
+        textures,
+        resources,
       );
       if (!this.current(generation)) return { status: "superseded" };
       const requestedEpoch =
@@ -222,7 +248,10 @@ export class WebGlRenderer extends CanvasRenderer {
       if (!this.current(generation)) return { status: "superseded" };
       throw runtimeError("webgl", "shader", error);
     } finally {
+      if (this.pendingTextureLoad === loadController)
+        this.pendingTextureLoad = undefined;
       if (candidate) this.deleteProgram(candidate);
+      else textures?.dispose();
     }
   }
   protected async performDraw(timestamp: number): Promise<void> {
@@ -241,6 +270,13 @@ export class WebGlRenderer extends CanvasRenderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(resource.program);
     gl.bindVertexArray(this.vao);
+    for (const binding of resource.textureBindings) {
+      gl.activeTexture(gl.TEXTURE0 + binding.binding);
+      gl.bindTexture(
+        gl.TEXTURE_2D,
+        resource.textureObjects.get(binding.name) ?? null,
+      );
+    }
     if (resource.uniforms.resolution)
       gl.uniform2f(
         resource.uniforms.resolution,
@@ -294,6 +330,8 @@ export class WebGlRenderer extends CanvasRenderer {
     source: string,
     declared: readonly ShaderDefaultUniform[],
     custom: CustomSchema | undefined,
+    textures: LoadedTextureResources,
+    resources: ResourceSchema | undefined,
   ): Program {
     const gl = this.gl;
     const compile = (kind: number, text: string): WebGLShader => {
@@ -311,6 +349,7 @@ export class WebGlRenderer extends CanvasRenderer {
     const vertex = compile(gl.VERTEX_SHADER, VERTEX);
     let fragment: WebGLShader | undefined;
     let program: WebGLProgram | undefined;
+    const textureObjects = new Map<string, WebGLTexture>();
     try {
       fragment = compile(gl.FRAGMENT_SHADER, source);
       program = gl.createProgram() ?? undefined;
@@ -320,6 +359,7 @@ export class WebGlRenderer extends CanvasRenderer {
       gl.linkProgram(program);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS))
         throw new Error(`WebGL link failed: ${gl.getProgramInfoLog(program)}`);
+      gl.useProgram(program);
       const uniforms = {
         resolution: gl.getUniformLocation(program, "u_resolution"),
         mouse: gl.getUniformLocation(program, "u_mouse"),
@@ -353,6 +393,49 @@ export class WebGlRenderer extends CanvasRenderer {
           "artifact",
           "GLSL custom uniform metadata does not match active bindings.",
         );
+      const textureBindings = resources?.bindings ?? [];
+      const textureDeclarations = resources?.textures ?? [];
+      for (const binding of textureBindings) {
+        const loaded = textures.textures.get(binding.name);
+        const index = textureDeclarations.findIndex(
+          ({ name }) => name === binding.name,
+        );
+        const location = gl.getUniformLocation(
+          program,
+          `shdr_texture_${index}`,
+        );
+        if (!loaded || index < 0 || !location)
+          throw new ShdrRuntimeError(
+            "webgl",
+            "artifact",
+            `GLSL texture metadata does not match active binding ${JSON.stringify(binding.name)}.`,
+          );
+        const texture = gl.createTexture();
+        if (!texture)
+          throw new Error("Could not create a WebGL texture resource.");
+        textureObjects.set(binding.name, texture);
+        gl.activeTexture(gl.TEXTURE0 + binding.binding);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA8,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          loaded.image,
+        );
+        if (gl.getError() !== gl.NO_ERROR)
+          throw new Error(
+            `WebGL texture upload failed for ${JSON.stringify(binding.name)}.`,
+          );
+        gl.uniform1i(location, binding.binding);
+      }
       return {
         program,
         vertex,
@@ -361,8 +444,12 @@ export class WebGlRenderer extends CanvasRenderer {
         boundUniforms,
         custom,
         customLocations,
+        textures,
+        textureObjects,
+        textureBindings: [...textureBindings],
       };
     } catch (error) {
+      for (const texture of textureObjects.values()) gl.deleteTexture(texture);
       if (program) gl.deleteProgram(program);
       if (fragment) gl.deleteShader(fragment);
       gl.deleteShader(vertex);
@@ -370,11 +457,16 @@ export class WebGlRenderer extends CanvasRenderer {
     }
   }
   private deleteProgram(resource: Program): void {
+    for (const texture of resource.textureObjects.values())
+      this.gl.deleteTexture(texture);
+    resource.textures.dispose();
     this.gl.deleteProgram(resource.program);
     this.gl.deleteShader(resource.vertex);
     this.gl.deleteShader(resource.fragment);
   }
   protected cleanup(): void {
+    this.pendingTextureLoad?.abort();
+    this.pendingTextureLoad = undefined;
     this.canvas.removeEventListener("webglcontextlost", this.contextLost);
     if (this.program && !this.lost) this.deleteProgram(this.program);
     this.program = undefined;

@@ -1,4 +1,8 @@
-import type { CompiledFragmentArtifact, UniformDeclaration } from "shdr";
+import type {
+  CompiledFragmentArtifact,
+  HostUniforms,
+  UniformDeclaration,
+} from "shdr";
 import { createFragmentShader, defineUniforms, vec4 } from "shdr";
 import { compileFragmentArtifact } from "@shdr/core/browser";
 import { createWebGlRenderer } from "@shdr/runtime/webgl";
@@ -32,6 +36,17 @@ const extra = defineUniforms((u) => ({
 })).createFragmentShader(({ uniforms }) =>
   vec4(uniforms.color.x, uniforms.dpi, uniforms.spin, uniforms.dpi),
 );
+const texturedSchema = defineUniforms((u) => ({
+  photo: u.texture2D("/photo.png"),
+  dpi: u.f32(1),
+}));
+const textured = texturedSchema.createFragmentShader(({ uniforms }) =>
+  vec4(uniforms.dpi, uniforms.dpi, uniforms.dpi, uniforms.dpi),
+);
+// @ts-expect-error Texture fields are excluded from numeric host keys.
+const badTextureHost: keyof HostUniforms<typeof texturedSchema.schema> =
+  "photo";
+void badTextureHost;
 
 async function staticHost(): Promise<void> {
   const empty = await createWebGlRenderer(canvas, noCustom);
@@ -48,6 +63,16 @@ async function staticHost(): Promise<void> {
     // Overloaded functions cannot be called through a union; exercise each below.
     void create;
   }
+  const texturedRenderer = await createWebGlRenderer(canvas, textured, {
+    animate: false,
+    uniforms: { dpi: 1 },
+  });
+  // @ts-expect-error Texture declarations are not numeric host patches.
+  texturedRenderer.setUniforms({ photo: 1 });
+  // @ts-expect-error Texture declarations cannot be reset as numeric uniforms.
+  texturedRenderer.resetUniforms("photo");
+  texturedRenderer.setUniforms({ dpi: 0.5 });
+  texturedRenderer.dispose();
   const gl = await createWebGlRenderer(canvas, shader, {
     animate: false,
     uniforms: { color: [0, 1, 0], dpi: 1 },

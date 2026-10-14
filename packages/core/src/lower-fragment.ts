@@ -1,4 +1,5 @@
 import type { ShaderDiagnostic } from "./diagnostics.js";
+import type { ShaderTextureDeclaration } from "shdr";
 import { lowerShaderSyntax } from "./lower-shader-syntax.js";
 import {
   parseShaderFile,
@@ -45,11 +46,22 @@ export function lowerParsedFragment(
     importedCallables,
   );
   if (!helpers.ok) return helpers;
+  const declarations = parsed.info.customUniforms?.declarations ?? [];
+  const textures = declarations.filter(
+    (item): item is ShaderTextureDeclaration => item.type === "texture2D",
+  );
   const lowered = lowerShaderSyntax(
     parsed.info.callback.syntax,
     new Set([...importedCallables, ...helpers.functions.keys()]),
-    parsed.info.customUniforms?.declarations,
-    { functions: helpers.functions },
+    declarations,
+    {
+      functions: helpers.functions,
+      sampleCallables: new Set(
+        parsed.info.shaderCallableImports
+          .filter((item) => item.importedName === "sample")
+          .map((item) => item.localName),
+      ),
+    },
   );
   if (!lowered.ok) {
     return { ok: false, diagnostics: lowered.diagnostics };
@@ -61,7 +73,10 @@ export function lowerParsedFragment(
   );
   return {
     ok: true,
-    ir: functions.length ? { ...lowered.module, functions } : lowered.module,
+    ir: {
+      ...(functions.length ? { ...lowered.module, functions } : lowered.module),
+      ...(textures.length ? { textures } : {}),
+    },
     diagnostics: [],
   };
 }

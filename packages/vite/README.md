@@ -2,6 +2,17 @@
 
 Pre-transform `.shdr.ts` modules into one static GLSL ES 3.00 + WGSL [compiled artifact](../shdr/README.md); it never evaluates the authored module to obtain custom-uniform defaults. Configure `plugins: [shdr()]` from `@shdr/vite` in Vite. For a complete dual-backend host with [inline](../../apps/vite-basic/src/custom-demo-inline.shdr.ts) and [named](../../apps/vite-basic/src/custom-demo-named.shdr.ts) custom-uniform shaders, see the [Vite fixture](../../apps/vite-basic/README.md#custom-uniform-demo).
 
+Still-image texture resources use the same static artifact path:
+
+```ts
+import shader from "./photo.shdr.ts";
+import { createWebGlRenderer } from "@shdr/runtime/webgl";
+
+const renderer = await createWebGlRenderer(canvas, shader);
+```
+
+Use `u.texture2D("/photo.png")` with `sample(uniforms.photo, uv)` for a Vite public asset. The plugin rewrites only root-absolute artifact resource URLs according to Vite's configured `base`; external HTTPS URLs and standalone compiler artifacts are unchanged. Runtime sampling uses fixed linear filtering, clamp-to-edge addressing, no mipmaps and top-left image orientation. The plugin emits JSON artifact data and does not fetch images or add the compiler/parser to the browser bundle.
+
 ```ts
 import shader from "./custom-demo-inline.shdr.ts";
 import { createWebGlRenderer } from "@shdr/runtime/webgl";

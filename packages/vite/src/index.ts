@@ -12,6 +12,7 @@ export const vitePackageName: VitePackage = "@shdr/vite";
 /** Creates the pre-transform that compiles `.shdr.ts` modules to dual-target artifacts. */
 export function shdr(): Plugin {
   let projectRoot = process.cwd();
+  let deploymentBase = "/";
   const entryDependencies = new Map<string, ReadonlySet<string>>();
   const dependencyEntries = new Map<string, Set<string>>();
 
@@ -20,6 +21,7 @@ export function shdr(): Plugin {
     enforce: "pre",
     configResolved(config: ResolvedConfig) {
       projectRoot = config.root;
+      deploymentBase = config.base;
     },
     async transform(source, id) {
       const fileName = stripViteQuery(id);
@@ -90,8 +92,12 @@ export function shdr(): Plugin {
         });
       }
 
+      const artifact = adaptArtifactResourceUrls(
+        compiled.artifact,
+        deploymentBase,
+      );
       return {
-        code: `export default ${JSON.stringify(compiled.artifact)};\n`,
+        code: `export default ${JSON.stringify(artifact)};\n`,
         map: null,
       };
     },
@@ -140,6 +146,41 @@ async function canonicalFileName(fileName: string): Promise<string> {
 }
 
 export default shdr;
+
+function adaptArtifactResourceUrls<
+  T extends {
+    readonly resources?: {
+      readonly textures: readonly { readonly url: string }[];
+    };
+  },
+>(artifact: T, base: string): T {
+  const resources = artifact.resources;
+  if (!resources?.textures.length || base === "/") return artifact;
+  return {
+    ...artifact,
+    resources: {
+      ...resources,
+      textures: resources.textures.map((texture) => {
+        const url = adaptResourceUrl(texture.url, base);
+        return {
+          ...texture,
+          url,
+          ...(url.startsWith("./") ? { urlKind: "relative" } : {}),
+        };
+      }),
+    },
+  } as T;
+}
+
+function adaptResourceUrl(url: string, base: string): string {
+  if (!/^\/(?!\/)/.test(url)) return url;
+  if (base === "./" || base === ".") return `.${url}`;
+  if (base.startsWith("/")) {
+    const prefix = base.endsWith("/") ? base : `${base}/`;
+    return `${prefix}${url.slice(1)}`;
+  }
+  return url;
+}
 
 function stripViteQuery(id: string): string {
   const suffixStart = id.search(/[?#]/);

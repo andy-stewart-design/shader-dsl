@@ -39,6 +39,19 @@ const plainResult =
 export default createFragmentShader(({ uniforms }) => vec4(0.1, 0.2, 0.3, 1));`);
 assert.equal(plainResult.ok, true);
 const plain = plainResult.artifact;
+const unusedTexture = {
+  ...plain,
+  resources: {
+    textures: [
+      {
+        name: "photo",
+        type: "texture2D",
+        url: "/photo.png",
+        urlKind: "root-absolute",
+      },
+    ],
+  },
+};
 const server = await createServer({
   root,
   configFile: false,
@@ -127,6 +140,38 @@ try {
     [0.4, 0.7, 0.6, 1],
     "creation overrides first frame (vec3/f32 packed)",
   );
+  const unusedTextureFetches = await page.evaluate(
+    async ({ unusedTexture }) => {
+      const originalFetch = window.fetch;
+      let fetches = 0;
+      window.fetch = (...args) => {
+        fetches++;
+        return originalFetch(...args);
+      };
+      const canvases = ["unused-gl", "unused-gpu"].map((id) => {
+        const canvas = document.createElement("canvas");
+        canvas.id = id;
+        canvas.style.cssText = "width:8px;height:8px";
+        document.body.append(canvas);
+        return canvas;
+      });
+      try {
+        const { createWebGlRenderer } = await import("/src/webgl.ts");
+        const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+        const renderers = await Promise.all([
+          createWebGlRenderer(canvases[0], unusedTexture, { animate: false }),
+          createWebGpuRenderer(canvases[1], unusedTexture, { animate: false }),
+        ]);
+        for (const renderer of renderers) renderer.dispose();
+      } finally {
+        window.fetch = originalFetch;
+        for (const canvas of canvases) canvas.remove();
+      }
+      return fetches;
+    },
+    { unusedTexture },
+  );
+  assert.equal(unusedTextureFetches, 0);
   const results = await page.evaluate(
     async ({ initial, changed, subset, incompatible }) => {
       const both = async (fn) => Promise.all(window.renderers.map(fn));

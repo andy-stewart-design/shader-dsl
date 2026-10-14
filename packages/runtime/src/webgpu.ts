@@ -9,11 +9,16 @@ import type {
 } from "shdr";
 import {
   readCustomMetadata,
+  readResourceMetadata,
   type CustomSchema,
   type DynamicUniformValue,
   type UniformValues,
 } from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
+import {
+  loadTextureResources,
+  type LoadedTextureResources,
+} from "./texture-resources.js";
 import {
   aborted,
   CanvasRenderer,
@@ -45,6 +50,9 @@ const defaults = [
 ] as const;
 interface Resources {
   readonly pipeline: GPURenderPipeline;
+  readonly textures: LoadedTextureResources;
+  readonly gpuTextures: ReadonlyMap<string, GPUTexture>;
+  readonly textureBindGroup?: GPUBindGroup;
   readonly buffers: ReadonlyMap<ShaderDefaultUniform, GPUBuffer>;
   readonly bindGroup?: GPUBindGroup;
   readonly custom?: CustomSchema;
@@ -56,6 +64,8 @@ interface Resources {
   readonly warnings: readonly string[];
 }
 function destroy(resource: Resources): void {
+  for (const texture of resource.gpuTextures.values()) texture.destroy();
+  resource.textures.dispose();
   for (const buffer of resource.buffers.values()) buffer.destroy();
   resource.customBuffer?.destroy();
 }
@@ -66,6 +76,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   private readonly context: GPUCanvasContext;
   private readonly format: GPUTextureFormat;
   private readonly device: GPUDevice;
+  private pendingTextureLoad?: AbortController;
   // Error scopes belong to the device, not a Promise. Serialize every scoped
   // preparation and draw, including RAF/manual draws and replacement installs.
   private serial: Promise<void> = Promise.resolve();
@@ -85,6 +96,7 @@ export class WebGpuRenderer extends CanvasRenderer {
     device.addEventListener("uncapturederror", this.uncaptured);
     void device.lost.then((info) => {
       if (this.disposed || this.lost) return;
+      this.pendingTextureLoad?.abort();
       this.terminal(`WebGPU device lost: ${info.message || info.reason}`);
       if (this.resources) destroy(this.resources);
       this.resources = undefined;
@@ -227,11 +239,13 @@ export class WebGpuRenderer extends CanvasRenderer {
   ): Promise<ShaderInstallResult> {
     try {
       this.assertUsable();
+      this.pendingTextureLoad?.abort();
       const generation = ++this.generation;
       checkArtifact(artifact, "webgpu");
       const custom = readCustomMetadata(artifact, "webgpu");
+      const resources = readResourceMetadata(artifact, "webgpu");
       return this.enqueue(() =>
-        this.install(artifact, custom, generation, options),
+        this.install(artifact, custom, resources, generation, options),
       );
     } catch (error) {
       return Promise.reject(error);
@@ -240,13 +254,14 @@ export class WebGpuRenderer extends CanvasRenderer {
   private async install(
     artifact: CompiledFragmentArtifact,
     custom: CustomSchema | undefined,
+    resources: ReturnType<typeof readResourceMetadata>,
     generation: number,
     options: ShaderInstallOptions,
   ): Promise<ShaderInstallResult> {
     if (!this.current(generation)) return { status: "superseded" };
     let candidate: Resources | undefined;
     try {
-      candidate = await this.prepare(artifact, custom);
+      candidate = await this.prepare(artifact, custom, resources);
       if (!this.current(generation)) return { status: "superseded" };
       this.size();
       const requestedEpoch =
@@ -335,6 +350,40 @@ export class WebGpuRenderer extends CanvasRenderer {
   private async prepare(
     artifact: CompiledFragmentArtifact,
     custom: CustomSchema | undefined,
+    resources: ReturnType<typeof readResourceMetadata>,
+  ): Promise<Resources> {
+    const controller = new AbortController();
+    this.pendingTextureLoad = controller;
+    let textures: LoadedTextureResources | undefined;
+    let owned = false;
+    try {
+      textures = await loadTextureResources(resources, "webgpu", {
+        signal: controller.signal,
+        maxTextures: this.device.limits.maxSampledTexturesPerShaderStage,
+        maxSamplers: this.device.limits.maxSamplersPerShaderStage,
+        maxTextureBindingSlots: this.device.limits.maxBindingsPerBindGroup,
+        maxSamplerBindingSlots: this.device.limits.maxBindingsPerBindGroup,
+        maxTextureDimension: this.device.limits.maxTextureDimension2D,
+      });
+      const prepared = await this.prepareGpu(
+        artifact,
+        custom,
+        resources,
+        textures,
+      );
+      owned = true;
+      return prepared;
+    } finally {
+      if (this.pendingTextureLoad === controller)
+        this.pendingTextureLoad = undefined;
+      if (!owned) textures?.dispose();
+    }
+  }
+  private async prepareGpu(
+    artifact: CompiledFragmentArtifact,
+    custom: CustomSchema | undefined,
+    resources: ReturnType<typeof readResourceMetadata>,
+    textures: LoadedTextureResources,
   ): Promise<Resources> {
     const active = defaults.filter(({ name }) =>
       artifact.defaults.wgsl.includes(name),
@@ -394,8 +443,55 @@ export class WebGpuRenderer extends CanvasRenderer {
               : 16;
     }
     const customSize = Math.max(16, Math.ceil(offset / 16) * 16);
+    const gpuTextures = new Map<string, GPUTexture>();
+    let textureBindGroup: GPUBindGroup | undefined;
     try {
       await this.scoped("shader", () => {
+        for (const binding of resources?.bindings ?? []) {
+          const loaded = textures.textures.get(binding.name);
+          if (!loaded)
+            throw new ShdrRuntimeError(
+              "webgpu",
+              "artifact",
+              `WGSL texture metadata does not match active binding ${JSON.stringify(binding.name)}.`,
+            );
+          const texture = this.device.createTexture({
+            size: [loaded.image.width, loaded.image.height, 1],
+            format: "rgba8unorm",
+            usage:
+              GPUTextureUsage.COPY_DST |
+              GPUTextureUsage.TEXTURE_BINDING |
+              GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          gpuTextures.set(binding.name, texture);
+          this.device.queue.copyExternalImageToTexture(
+            { source: loaded.image, flipY: false },
+            {
+              texture,
+              colorSpace: "srgb",
+              premultipliedAlpha: false,
+            },
+            [loaded.image.width, loaded.image.height],
+          );
+        }
+        if (gpuTextures.size) {
+          const sampler = this.device.createSampler({
+            minFilter: "linear",
+            magFilter: "linear",
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge",
+          });
+          textureBindGroup = this.device.createBindGroup({
+            layout: pipeline!.getBindGroupLayout(2),
+            entries: (resources?.bindings ?? []).flatMap((binding) => [
+              {
+                binding: binding.binding,
+                resource: gpuTextures.get(binding.name)!.createView(),
+              },
+              { binding: binding.binding + 1, resource: sampler },
+            ]),
+          });
+        }
         for (const uniform of active)
           buffers.set(
             uniform.name,
@@ -424,12 +520,16 @@ export class WebGpuRenderer extends CanvasRenderer {
         }
       });
     } catch (error) {
+      for (const texture of gpuTextures.values()) texture.destroy();
       for (const buffer of buffers.values()) buffer.destroy();
       customBuffer?.destroy();
       throw error;
     }
     return {
       pipeline: pipeline!,
+      textures,
+      gpuTextures,
+      textureBindGroup,
       buffers,
       bindGroup,
       custom,
@@ -518,11 +618,15 @@ export class WebGpuRenderer extends CanvasRenderer {
     if (resources.bindGroup) pass.setBindGroup(0, resources.bindGroup);
     if (resources.customBindGroup)
       pass.setBindGroup(1, resources.customBindGroup);
+    if (resources.textureBindGroup)
+      pass.setBindGroup(2, resources.textureBindGroup);
     pass.draw(3);
     pass.end();
     this.device.queue.submit([encoder.finish()]);
   }
   protected cleanup(): void {
+    this.pendingTextureLoad?.abort();
+    this.pendingTextureLoad = undefined;
     this.device.removeEventListener("uncapturederror", this.uncaptured);
     if (this.resources) destroy(this.resources);
     this.resources = undefined;

@@ -137,6 +137,32 @@ export function compileFragmentArtifact(
             },
           }
         : {}),
+      ...(lowered.ir.textures?.length
+        ? {
+            resources: {
+              textures: lowered.ir.textures,
+              referenced: {
+                glsl: glsl.referencedTextures,
+                wgsl: wgsl.referencedTextures,
+              },
+              bindings: {
+                glsl: glsl.referencedTextures.map((name) => ({
+                  name,
+                  binding: lowered.ir.textures!.findIndex(
+                    (texture) => texture.name === name,
+                  ),
+                })),
+                wgsl: wgsl.referencedTextures.map((name) => ({
+                  name,
+                  binding:
+                    lowered.ir.textures!.findIndex(
+                      (texture) => texture.name === name,
+                    ) * 2,
+                })),
+              },
+            },
+          }
+        : {}),
     } as DynamicCompiledFragmentArtifact,
     diagnostics: [],
   };

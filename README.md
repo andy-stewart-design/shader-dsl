@@ -117,6 +117,20 @@ The production check confirms that generated GLSL and WGSL—but not the parser/
 
 Generated shaders keep safe authored local names in both targets (for example `inputMouse.x * gain`), but use deterministic `shdr_local_<symbolId>` names for keywords, builtins, and generated-name collisions. Output omits redundant parentheses without reassociating f32 expressions: `a + (b + c)` remains grouped. This changes only the generated shader text, not source diagnostics, uniforms, or artifact metadata. See the [readable-output fixture](apps/vite-basic/src/readable-output.shdr.ts) for a two-target example with a fallback name.
 
+## Textures and sampling
+
+Declare a still-image texture with a literal URL and sample it with normalized, top-left-origin UV coordinates:
+
+```ts
+import { defineUniforms, sample, vec2 } from "shdr";
+
+export default defineUniforms((u) => ({
+  photo: u.texture2D("/photo.png"),
+})).createFragmentShader(({ uniforms }) => sample(uniforms.photo, vec2(0, 0)));
+```
+
+Static Vite artifacts may use root-absolute public URLs (rewritten for the configured Vite base) or external HTTPS URLs. The browser REPL intentionally accepts only literal external HTTPS texture URLs and reports policy, fetch/decode/CORS and backend-availability failures separately. Runtime sampling uses fixed linear filtering, clamp-to-edge addressing, no mipmaps, top-left image orientation, and preserves the last successful frame when a replacement resource fails. Texture declarations are still-image resources only; video, mipmaps, picker uploads, sampler configuration and host-side swaps are not part of this contract.
+
 ## Multi-target browser REPL
 
 The REPL deliberately imports the opt-in browser compiler from `@shdr/core/browser`. It lowers once and produces the same dual-target artifact as Vite, displays shared source diagnostics, and installs that artifact through both workspace renderers on separate WebGL 2 and WebGPU canvases where available. Invalid edits preserve the last successful render on each valid canvas.
@@ -225,7 +239,7 @@ The PR 3 math builtins have **dynamic input preconditions**. `sqrt` needs nonneg
 
 `smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. `distance` is equivalent to `length(x - y)` for ordinary finite values, but avoid exact equality or overflow guarantees. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
 
-Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, textures, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
+Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Texture access is limited to the declared `u.texture2D("literal-url")` resource and `sample(texture, vec2-expression)` forms. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
 
 ### Diagnostic examples
 
@@ -262,7 +276,7 @@ GLSL converts Y with `u_resolution.y - gl_FragCoord.y`; using `coord` therefore 
 - **Standalone `tsc` does not understand shader operators.** Do not run ordinary `tsc --noEmit` over `.shdr.ts`; `tsc` never receives the editor virtual source or Vite transform. Use `shdr check` for shader semantics and ordinary `tsc` for ordinary modules.
 - The VS Code adapter uses TypeScript 7's unstable synchronous API, performs synchronous extension-host work, and currently assumes one workspace root and one `tsconfig.json`. The private stdio LSP now selects a config per shader and has protocol tests across projects, but still checks synchronously. Its **Zed dev launcher** works only within this checkout's repository root and `apps/editor-fixture` worktrees; distribution and other projects remain unverified.
 - The accepted source boundary is intentionally strict, and source maps are feasibility-grade.
-- The Vite adapter emits both targets in one artifact. The Vite fixture and REPL use the same workspace-only browser runtime. It owns dedicated opaque canvases; transparent compositing, textures/samplers, other custom resources, and npm publishing require separate review.
+- The Vite adapter emits both targets in one artifact. The Vite fixture and REPL use the same workspace-only browser runtime and dedicated opaque canvases. Transparent compositing, video/mipmap resources, custom sampler configuration, other host resources and npm publishing require separate review.
 - Babel Parser is intentionally included in the browser compiler. The complete REPL JavaScript measured 618,142 bytes minified and 168,464 bytes gzip at POC closeout; that historical measurement is not a current bundle-size claim.
 
 These are current implementation limits, not silent compatibility claims.
