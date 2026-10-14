@@ -162,6 +162,7 @@ function copyDeclaration(
 
 function textureUrlKind(value: string): ShaderTextureUrlKind | undefined {
   if (/^\/(?!\/)[^\s\u0000-\u001f]*$/.test(value)) return "root-absolute";
+  if (/^\.\/[^\s\u0000-\u001f]*$/.test(value)) return "relative";
   try {
     const url = new URL(value);
     return url.protocol === "https:" && Boolean(url.hostname)

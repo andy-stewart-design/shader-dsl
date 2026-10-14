@@ -161,7 +161,7 @@ export interface UniformDefinition<S extends UniformSchema> {
 export type ShaderCustomUniformDeclaration = UniformDeclaration & {
   readonly name: string;
 };
-export type ShaderTextureUrlKind = "root-absolute" | "https";
+export type ShaderTextureUrlKind = "root-absolute" | "https" | "relative";
 export interface ShaderTextureDeclaration {
   readonly name: string;
   readonly type: "texture2D";

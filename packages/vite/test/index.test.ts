@@ -66,6 +66,40 @@ describe("@shdr/vite package", () => {
     if (compiled.ok) expect(generated).toEqual(compiled.artifact);
   });
 
+  it.each([
+    ["/", "/photo.png"],
+    ["/nested/", "/nested/photo.png"],
+    ["./", "./photo.png"],
+  ] as const)(
+    "adapts public texture URLs for base %s",
+    async (base, expected) => {
+      const source = textureSource("/photo.png");
+      const plugin = shdr();
+      configure(plugin, process.cwd(), base);
+      const result = await transform(plugin, source, "/src/texture.shdr.ts");
+      const artifact = parseArtifact(result);
+      expect(artifact.resources?.textures[0]?.url).toBe(expected);
+      const standalone = compileFragmentArtifact(source);
+      expect(standalone.ok).toBe(true);
+      if (standalone.ok)
+        expect(standalone.artifact.resources?.textures[0]?.url).toBe(
+          "/photo.png",
+        );
+    },
+  );
+
+  it("preserves HTTPS texture URLs when applying a Vite base", async () => {
+    const source = textureSource("https://cdn.example/photo.png");
+    const plugin = shdr();
+    configure(plugin, process.cwd(), "/nested/");
+    const artifact = parseArtifact(
+      await transform(plugin, source, "/src/texture.shdr.ts"),
+    );
+    expect(artifact.resources?.textures[0]?.url).toBe(
+      "https://cdn.example/photo.png",
+    );
+  });
+
   it("pre-transforms ceil, distance and cross to generated GLSL", async () => {
     const source = readFileSync(
       new URL(
@@ -361,11 +395,11 @@ async function transform(
   ])) as TransformResult | null;
 }
 
-function configure(plugin: Plugin, root: string): void {
+function configure(plugin: Plugin, root: string, base = "/"): void {
   const hook = plugin.configResolved;
   if (!hook) throw new Error("Expected the plugin to expose configResolved().");
   const handler = typeof hook === "function" ? hook : hook.handler;
-  Reflect.apply(handler, plugin, [{ root }]);
+  Reflect.apply(handler, plugin, [{ root, base }]);
 }
 
 function parseArtifact(result: TransformResult | null): {
@@ -374,10 +408,21 @@ function parseArtifact(result: TransformResult | null): {
   readonly custom?: {
     readonly declarations: readonly unknown[];
   };
+  readonly resources?: {
+    readonly textures: readonly { readonly url: string }[];
+  };
 } {
   expect(result).not.toBeNull();
   if (!result) throw new Error("Expected a transformed artifact.");
   return JSON.parse(result.code.slice("export default ".length, -";\n".length));
+}
+
+function textureSource(url: string): string {
+  return `import { defineUniforms, sample, vec2 } from "shdr";
+
+export default defineUniforms((u) => ({ photo: u.texture2D(${JSON.stringify(url)}) }))
+  .createFragmentShader(({ uniforms }) => sample(uniforms.photo, vec2(0, 0)));
+`;
 }
 
 function targetSource(): string {
