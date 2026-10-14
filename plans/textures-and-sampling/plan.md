@@ -290,9 +290,9 @@ Expected files:
 
 Tasks:
 
-- [ ] Reconcile accepted language and runtime docs with `u.texture2D`, `sample`, Vite public/base vs REPL HTTPS URLs, static/binding metadata, top-left UV, fixed linear/clamp/no-mips, alpha, failure semantics and deferred updates/picker.
-- [ ] Exercise a texture shader and invalid sample/URL in the real VS Code fixture; verify source-located diagnostic/hover, ordinary `.ts` isolation and no generated helper cascades. Do not require the separate proposed VS Code-to-LSP migration to land.
-- [ ] Audit spec AC1–AC8 against owning gates, inspect the final diff for stray compiler imports and regressions, and run workspace build/check/tests with real browser suites. Document skipped/blocked checks and any accepted deviations outside this plan; leave affected gates unchecked.
+- [x] Reconcile accepted language and runtime docs with `u.texture2D`, `sample`, Vite public/base vs REPL HTTPS URLs, static/binding metadata, top-left UV, fixed linear/clamp/no-mips, alpha, failure semantics and deferred updates/picker.
+- [x] Exercise a texture shader and invalid sample/URL in the real VS Code fixture; verify source-located diagnostic/hover, ordinary `.ts` isolation and no generated helper cascades. Do not require the separate proposed VS Code-to-LSP migration to land.
+- [x] Audit spec AC1–AC8 against owning gates, inspect the final diff for stray compiler imports and regressions, and run workspace build/check/tests with real browser suites. Document skipped/blocked checks and any accepted deviations outside this plan; leave affected gates unchecked.
 
 Verification:
 

@@ -17,6 +17,20 @@ An equivalent named form declares `const uniforms = defineUniforms((u) => ({ ...
 
 A Vite-imported authored shader retains `TypedCompiledFragmentArtifact<S>` at the TypeScript boundary, with `S` inferred from its declarations; it is the same JSON artifact as `CompiledFragmentArtifact`, plus a **type-only** invariant schema identity. The browser compiler returns a schema-erased `DynamicCompiledFragmentArtifact` because arbitrary source can change at runtime. No type brands or authored JavaScript are serialized into the artifact. See the [runtime host API](../runtime/README.md) for creation overrides, `setUniforms`, resets, replacement and WebGL/WebGPU layout. Ordinary standalone `tsc` does not understand shader operators inside authored callbacks; use `shdr check` for shader semantics and the TypeScript 7 editor adapter for mapped hovers/diagnostics.
 
+## Textures and sampling
+
+Declare still-image textures with `u.texture2D("...")` and sample them with `sample(texture, uv)`. The URL is a literal artifact resource: root-absolute URLs are intended for Vite public assets, while external HTTPS URLs are available to hosts such as the REPL. The core artifact records URL metadata and target-specific texture/sampler bindings; it does not fetch images or impose the REPL's HTTPS-only policy.
+
+```ts
+import { defineUniforms, sample, vec2 } from "shdr";
+
+export default defineUniforms((u) => ({
+  photo: u.texture2D("/photo.png"),
+})).createFragmentShader(({ uniforms }) => sample(uniforms.photo, vec2(0, 0)));
+```
+
+Sampling is normalized and top-left-origin. Runtime hosts use fixed linear filtering, clamp-to-edge addressing, no mipmaps, and preserve the previous installed shader when a replacement image cannot be fetched or decoded. Texture resources are still images; video, picker uploads and custom samplers are outside this contract.
+
 ## Reusable helpers and schemas
 
 Use a top-level `const` initialized with `defineShaderFunction` for a compile-only helper. Parameters must be explicit `Expr<F32>` or `Expr<Vec2/3/4<F32>>` types; returns may be inferred or annotated. Helpers cannot capture uniforms, `coord`, module values or host JavaScript. Exported helpers and `defineUniforms` declarations may live in helper-only `.shdr.ts` files or beside a default fragment. Import them directly by name from relative paths or configured TypeScript `paths` aliases, and explicitly link an imported schema with `{ uniforms }`.
