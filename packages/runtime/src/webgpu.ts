@@ -361,6 +361,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         signal: controller.signal,
         maxTextures: this.device.limits.maxSampledTexturesPerShaderStage,
         maxSamplers: this.device.limits.maxSamplersPerShaderStage,
+        maxBindingSlots: this.device.limits.maxBindingsPerBindGroup,
         maxTextureDimension: this.device.limits.maxTextureDimension2D,
       });
       const prepared = await this.prepareGpu(

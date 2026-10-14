@@ -26,6 +26,23 @@ function schema(referenced: readonly string[]): ResourceSchema {
   };
 }
 
+function manyTexturesSchema(count: number): ResourceSchema {
+  const textures = Array.from({ length: count }, (_, index) => ({
+    name: `photo${index}`,
+    type: "texture2D" as const,
+    url: `/photo${index}.png`,
+    urlKind: "root-absolute" as const,
+  }));
+  return {
+    textures,
+    referenced: textures.map(({ name }) => name),
+    bindings: textures.map(({ name }, index) => ({
+      name,
+      binding: index * 2,
+    })),
+  };
+}
+
 function image(): ImageBitmap & { readonly close: ReturnType<typeof vi.fn> } {
   return { close: vi.fn() } as unknown as ImageBitmap & {
     readonly close: ReturnType<typeof vi.fn>;
@@ -99,6 +116,52 @@ describe("texture resource loading", () => {
       "message",
       expect.stringContaining("decode"),
     );
+  });
+
+  it("checks resource counts independently from binding-slot ranges", async () => {
+    const fetch = vi.fn<TextureResourceDependencies["fetch"]>(
+      async () => new Response(new Blob(["image"]), { status: 200 }),
+    );
+    const resources = await loadTextureResources(
+      manyTexturesSchema(9),
+      "webgpu",
+      {
+        maxTextures: 16,
+        maxSamplers: 16,
+        maxBindingSlots: 1000,
+        dependencies: dependencies(fetch, async () => image()),
+      },
+    );
+    expect([...resources.textures]).toHaveLength(9);
+    expect(fetch).toHaveBeenCalledTimes(9);
+
+    await expect(
+      loadTextureResources(manyTexturesSchema(9), "webgpu", {
+        maxTextures: 16,
+        maxSamplers: 16,
+        maxBindingSlots: 17,
+        dependencies: dependencies(vi.fn(), async () => image()),
+      }),
+    ).rejects.toThrow("binding-slot limit");
+
+    await expect(
+      loadTextureResources(manyTexturesSchema(9), "webgpu", {
+        maxTextures: 8,
+        maxSamplers: 16,
+        maxBindingSlots: 1000,
+        dependencies: dependencies(vi.fn(), async () => image()),
+      }),
+    ).rejects.toThrow("sampled-texture limit");
+
+    await expect(
+      loadTextureResources(manyTexturesSchema(9), "webgpu", {
+        maxTextures: 16,
+        maxSamplers: 8,
+        maxBindingSlots: 1000,
+        dependencies: dependencies(vi.fn(), async () => image()),
+      }),
+    ).rejects.toThrow("sampler limit");
+    resources.dispose();
   });
 
   it("checks the backend texture limit before fetching", async () => {

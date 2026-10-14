@@ -82,7 +82,7 @@ Verification:
 
 - [x] **Completion gate:** A concrete, testable Vite strategy covers the spec's public-path behavior; if not, stop for spec review.
 
-- [ ] **Phase exit gate:** Review both probe outcomes, any spec adjustments, a focused baseline, and feasible GPU binding/color + Vite URL strategies before Phase 1. Target tests do not certify Shdr authoring or renderer behavior.
+- [x] **Phase exit gate:** Review both probe outcomes, any spec adjustments, a focused baseline, and feasible GPU binding/color + Vite URL strategies before Phase 1. Target tests do not certify Shdr authoring or renderer behavior.
 
 ## Phase 1 — Public language, artifact and editor
 
@@ -142,7 +142,7 @@ Verification:
 
 - [x] **Completion gate:** Compiler/type/editor/CLI/target-compilation checks pass for every new shape and meaningful negatives while old shaders still compile; sampled rendering remains unverified under the atomic 1.2–2.3 gate.
 
-- [ ] **Phase exit gate:** `pnpm build`, focused Phase 1 public/core/editor/CLI/LSP checks, and real target compilation pass without regressions; sample shaders are not yet a supported runtime feature. Review before proceeding.
+- [x] **Phase exit gate:** `pnpm build`, focused Phase 1 public/core/editor/CLI/LSP checks, and real target compilation pass without regressions; sample shaders are not yet a supported runtime feature. Review before proceeding.
 
 ## Phase 2 — Browser renderer resources and image pixels
 
