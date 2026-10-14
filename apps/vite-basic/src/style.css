@@ -34,6 +34,11 @@ canvas {
   background: #000;
 }
 
+#texture-canvas {
+  width: min(80vw, 400px);
+  height: min(120vw, 600px);
+}
+
 #math-canvas,
 #composed-canvas,
 #composed-gpu-canvas,

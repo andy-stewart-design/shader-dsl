@@ -19,5 +19,6 @@ Date: 2026-10-14
 - `pnpm ci:check` passed, including the Shdr CLI check of 32 authored shader files.
 - Prettier check and `git diff --check` passed.
 - The final diff audit found no new compiler/parser imports in static browser entries and no unsupported resource-scope widening.
+- After the isolated `vite-basic` texture example was re-established, the Step 3.1 dev/nested/relative-base browser evidence passed and the full workspace gates were rerun.
 
-The Step 3.3 audit is complete, but the broad completion and phase-exit gates remain unchecked because the separately owned Step 3.1 Vite public-asset real-browser gate was intentionally reverted with the `vite-basic` example and still needs to be re-established or explicitly left blocked.
+The Step 3.3 completion and phase-exit gates are now complete.

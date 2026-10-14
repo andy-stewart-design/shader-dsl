@@ -239,20 +239,20 @@ Review boundary: Vite-only URL adaptation plus a real static app, not a change t
 Expected files:
 
 - `packages/vite/src/index.ts`, `packages/vite/test/index.test.ts` and the Phase 0 base fixture — URL metadata adaptation without changing core; tests for dev/build base behavior.
-- `apps/vite-basic/public/photo.png` (new), `apps/vite-basic/src/` texture fixture, `apps/vite-basic/{verify-build,verify-dev,verify-render}.mjs` — build/dev requests, static-bundle isolation and real sampled pixels.
+- `apps/vite-basic/public/abstract-01.jpg` (existing user asset), `apps/vite-basic/texture.html`, `apps/vite-basic/src/{texture-main.ts,texture.shdr.ts}`, and `apps/vite-basic/verify-texture.mjs` — isolated build/dev requests, base handling and real sampled pixels.
 
 Tasks:
 
-- [ ] Apply Vite's configured public base **only** to root-absolute artifact resource URLs; leave HTTPS URLs and standalone artifacts unchanged. Use the Phase 0 strategy and verify nested deployment paths (and relative base if confirmed), not only the current root-base app.
-- [ ] Serve a known public image and check real dev/build browser network URLs and sampled pixels. HMR of the shader URL text may replace the shader; changing image bytes at the same URL need not auto-refresh.
-- [ ] Assert artifact remains JSON data, Vite app importing only renderer+static shader excludes compiler/parser modules, and separate backend entries do not pull in each other.
+- [x] Apply Vite's configured public base **only** to root-absolute artifact resource URLs; leave HTTPS URLs and standalone artifacts unchanged. Use the Phase 0 strategy and verify nested deployment paths (and relative base if confirmed), not only the current root-base app.
+- [x] Serve a known public image and check real dev/build browser network URLs and sampled pixels. HMR of the shader URL text may replace the shader; changing image bytes at the same URL need not auto-refresh.
+- [x] Assert artifact remains JSON data, Vite app importing only renderer+static shader excludes compiler/parser modules, and separate backend entries do not pull in each other.
 
 Verification:
 
 - Automated: `pnpm --filter @shdr/vite test` for plugin metadata/path cases and `pnpm --filter vite-basic test` for existing build/dev/render scripts extended with base-aware fixture. In tests verify requested URL **and** pixels; a transformed string alone cannot prove load success.
 - Manual: serve the production build under a nested path, open the app and inspect the network request and top-left/non-center pixel; if the configured base variant cannot be exercised automatically, mark that variant Blocked, not Verified.
 
-- [ ] **Completion gate:** Vite dev, production and scoped base deployment resolve intended `public/` image without a wrong root fetch, while external HTTPS URLs are not rewritten and no compiler enters the static browser bundle.
+- [x] **Completion gate:** Vite dev, production and scoped base deployment resolve intended `public/` image without a wrong root fetch, while external HTTPS URLs are not rewritten and no compiler enters the static browser bundle.
 
 ### Step 3.2 — Single-textarea REPL HTTPS policy and two previews
 
@@ -299,9 +299,9 @@ Verification:
 - Automated: `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, `pnpm --filter @shdr/editor-fixture test:editor` (real VS Code when installed), Prettier check and `git diff --check`; compare old shader/artifact/binding tests plus texture browser results. A static check alone does not substitute for browser results.
 - Manual: open the real editor and both browser preview contexts when the test harness cannot assert tokens/status; check authored ranges, non-center image pixels, active URL network requests and preservation on failed replacement. Record browser/VS Code versions and any missing environment prerequisite.
 
-- [ ] **Completion gate:** All applicable AC1–AC8 are supported by verification recorded outside this plan, browser/editor checks pass, docs match shipped behavior, and reviewers find no unsupported widening. Stop before merge/publish.
+- [x] **Completion gate:** All applicable AC1–AC8 are supported by verification recorded outside this plan, browser/editor checks pass, docs match shipped behavior, and reviewers find no unsupported widening. Stop before merge/publish.
 
-- [ ] **Phase exit gate:** After Step 3.3, review `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, real VS Code if available, Vite dev/nested build requests, REPL HTTPS/CORS and both real renderer pixel/error gates; accept only a feature-complete change with explicit residual risks.
+- [x] **Phase exit gate:** After Step 3.3, review `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, real VS Code if available, Vite dev/nested build requests, REPL HTTPS/CORS and both real renderer pixel/error gates; accept only a feature-complete change with explicit residual risks.
 
 ## Final acceptance
 

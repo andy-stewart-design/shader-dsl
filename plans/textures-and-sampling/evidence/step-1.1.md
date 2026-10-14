@@ -11,7 +11,7 @@ Date: 2026-10-13
 - Same-file chained/named schemas and imported schemas produce the same artifact. Unused texture declarations do not alter generated GLSL/WGSL or create numeric bindings.
 - Runtime validates resource metadata at the artifact boundary without fetching or decoding unused textures. The browser uniform suite creates renderers with an unused texture declaration and observes zero fetches.
 
-The user-provided `apps/vite-basic/public/abstract-01.jpg` remains unrelated user work and was not modified or consumed by this declaration-only step.
+The user-provided `apps/vite-basic/public/abstract-01.jpg` remains unmodified; the isolated Vite texture example now consumes it as its public image asset.
 
 ## Verification
 
