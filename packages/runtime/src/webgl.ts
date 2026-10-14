@@ -8,10 +8,15 @@ import type {
 } from "shdr";
 import {
   readCustomMetadata,
+  readResourceMetadata,
   type CustomSchema,
   type UniformValues,
 } from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
+import {
+  loadTextureResources,
+  type LoadedTextureResources,
+} from "./texture-resources.js";
 import {
   aborted,
   CanvasRenderer,
@@ -47,11 +52,13 @@ interface Program {
   readonly boundUniforms: readonly ShaderDefaultUniform[];
   readonly custom?: CustomSchema;
   readonly customLocations: readonly (WebGLUniformLocation | null)[];
+  readonly textures: LoadedTextureResources;
 }
 
 export class WebGlRenderer extends CanvasRenderer {
   private program?: Program;
   private readonly vao: WebGLVertexArrayObject;
+  private pendingTextureLoad?: AbortController;
   private constructor(
     canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
@@ -123,7 +130,9 @@ export class WebGlRenderer extends CanvasRenderer {
   }
   private contextLost = (event: Event): void => {
     event.preventDefault();
+    this.pendingTextureLoad?.abort();
     this.terminal("WebGL context lost; recreate the renderer on a new canvas.");
+    this.program?.textures.dispose();
     this.program = undefined;
   };
   async setShader(
@@ -131,16 +140,27 @@ export class WebGlRenderer extends CanvasRenderer {
     options: ShaderInstallOptions = {},
   ): Promise<ShaderInstallResult> {
     this.assertUsable();
+    this.pendingTextureLoad?.abort();
+    const loadController = new AbortController();
+    this.pendingTextureLoad = loadController;
     const generation = ++this.generation;
-    checkArtifact(artifact, "webgl");
-    const custom = readCustomMetadata(artifact, "webgl");
     const gl = this.gl;
     let candidate: Program | undefined;
+    let textures: LoadedTextureResources | undefined;
     try {
+      checkArtifact(artifact, "webgl");
+      const custom = readCustomMetadata(artifact, "webgl");
+      const resources = readResourceMetadata(artifact, "webgl");
+      textures = await loadTextureResources(resources, "webgl", {
+        signal: loadController.signal,
+        maxTextures: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+      });
+      if (!this.current(generation)) return { status: "superseded" };
       candidate = this.makeProgram(
         artifact.glsl,
         artifact.defaults.glsl,
         custom,
+        textures,
       );
       if (!this.current(generation)) return { status: "superseded" };
       const requestedEpoch =
@@ -222,7 +242,10 @@ export class WebGlRenderer extends CanvasRenderer {
       if (!this.current(generation)) return { status: "superseded" };
       throw runtimeError("webgl", "shader", error);
     } finally {
+      if (this.pendingTextureLoad === loadController)
+        this.pendingTextureLoad = undefined;
       if (candidate) this.deleteProgram(candidate);
+      else textures?.dispose();
     }
   }
   protected async performDraw(timestamp: number): Promise<void> {
@@ -294,6 +317,7 @@ export class WebGlRenderer extends CanvasRenderer {
     source: string,
     declared: readonly ShaderDefaultUniform[],
     custom: CustomSchema | undefined,
+    textures: LoadedTextureResources,
   ): Program {
     const gl = this.gl;
     const compile = (kind: number, text: string): WebGLShader => {
@@ -361,6 +385,7 @@ export class WebGlRenderer extends CanvasRenderer {
         boundUniforms,
         custom,
         customLocations,
+        textures,
       };
     } catch (error) {
       if (program) gl.deleteProgram(program);
@@ -370,11 +395,14 @@ export class WebGlRenderer extends CanvasRenderer {
     }
   }
   private deleteProgram(resource: Program): void {
+    resource.textures.dispose();
     this.gl.deleteProgram(resource.program);
     this.gl.deleteShader(resource.vertex);
     this.gl.deleteShader(resource.fragment);
   }
   protected cleanup(): void {
+    this.pendingTextureLoad?.abort();
+    this.pendingTextureLoad = undefined;
     this.canvas.removeEventListener("webglcontextlost", this.contextLost);
     if (this.program && !this.lost) this.deleteProgram(this.program);
     this.program = undefined;

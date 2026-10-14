@@ -163,17 +163,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Validate referenced resource metadata/URL and backend limits before allocating; load only referenced images, with a no-fetch rule for unused declarations. Distinguish an invalid artifact from fetch/CORS/decode errors via observable runtime errors.
-- [ ] Implement one candidate-local async fetch/decode lifetime with generation checks/abort where possible; a superseded or disposed candidate cannot commit, draw, mutate error status or leak a decoded bitmap.
-- [ ] Keep fetching/decoding in browser runtime only, without modifying compiled GLSL/WGSL or causing renderer entry points to import the compiler/other backend.
-- [ ] Add deterministic deferred-fetch/failed-decode/supersession/disposal tests with injected dependencies; explicitly leave real GPU ownership and presented pixels to Steps 2.2–2.3.
+- [x] Validate referenced resource metadata/URL and backend limits before allocating; load only referenced images, with a no-fetch rule for unused declarations. Distinguish an invalid artifact from fetch/CORS/decode errors via observable runtime errors.
+- [x] Implement one candidate-local async fetch/decode lifetime with generation checks/abort where possible; a superseded or disposed candidate cannot commit, draw, mutate error status or leak a decoded bitmap.
+- [x] Keep fetching/decoding in browser runtime only, without modifying compiled GLSL/WGSL or causing renderer entry points to import the compiler/other backend.
+- [x] Add deterministic deferred-fetch/failed-decode/supersession/disposal tests with injected dependencies; explicitly leave real GPU ownership and presented pixels to Steps 2.2–2.3.
 
 Verification:
 
 - Automated: proposed `pnpm --dir packages/runtime exec vitest run --config ../../vitest.config.ts --root . test/texture-resources.test.ts` after adding this focused Vitest test; `pnpm --filter @shdr/runtime check`. Assert no stale commit/error and no fetch on unused metadata. Mocked fetch does **not** prove browser CORS or upload.
 - Manual: Not needed for the mocked preparation boundary; later steps verify actual browser APIs.
 
-- [ ] **Completion gate:** Candidate loading is generation-safe and resource failure is classified correctly under deterministic tests; no rendering claim.
+- [x] **Completion gate:** Candidate loading is generation-safe and resource failure is classified correctly under deterministic tests; no rendering claim.
 
 ### Step 2.2 — WebGL sampled first frame and replacement
 
