@@ -188,16 +188,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Upload browser-decoded images with fixed linear/clamp/no-mipmap settings, bind only active samplers to stable texture units, and keep the existing WebGL preflight framebuffer **separate** from sampled resources. Check incomplete textures, limit exceedance and GL errors rather than drawing black.
-- [ ] Finish loading/binding **before** candidate preflight and first presented draw; retain old program/textures on failed candidate and free candidate resources on success, failure, supersession, disposal or context loss.
-- [ ] In a real Chromium WebGL 2 test, observe top-left, fractional, clamp, sRGB and straight-alpha sample values and numeric uniform updates without a texture refetch. Force missing/corrupt/CORS image, rapid replacement and disposal/loss conditions; assert no bad candidate takes over.
+- [x] Upload browser-decoded images with fixed linear/clamp/no-mipmap settings, bind only active samplers to stable texture units, and keep the existing WebGL preflight framebuffer **separate** from sampled resources. Check incomplete textures, limit exceedance and GL errors rather than drawing black.
+- [x] Finish loading/binding **before** candidate preflight and first presented draw; retain old program/textures on failed candidate and free candidate resources on success, failure, supersession, disposal or context loss.
+- [x] In a real Chromium WebGL 2 test, observe top-left, fractional, clamp, sRGB and straight-alpha sample values and numeric uniform updates without a texture refetch. Force missing/corrupt/CORS image, rapid replacement and disposal/loss conditions; assert no bad candidate takes over.
 
 Verification:
 
 - Automated: from `packages/runtime`, run the **proposed** `node test/verify-textures.mjs` after adding it; then `pnpm --filter @shdr/runtime test` once the package script includes it. Assert actual WebGL readPixels (including non-center texels), resource errors and prior-shader preservation.
 - Manual: If browser renderer availability or pixel behavior differs, inspect real browser errors and sampled pixels in Chromium with a local served image; record any contract mismatch before Step 2.3.
 
-- [ ] **Completion gate:** Real WebGL first-frame and failed-replacement behavior matches spec; no claim about WebGPU or Vite yet.
+- [x] **Completion gate:** Real WebGL first-frame and failed-replacement behavior matches spec; no claim about WebGPU or Vite yet.
 
 ### Step 2.3 — Presented WebGPU parity, lifetime and combined browser gate
 

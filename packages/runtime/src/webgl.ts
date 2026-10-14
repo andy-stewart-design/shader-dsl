@@ -10,6 +10,7 @@ import {
   readCustomMetadata,
   readResourceMetadata,
   type CustomSchema,
+  type ResourceSchema,
   type UniformValues,
 } from "./uniforms.js";
 import { ShdrRuntimeError, runtimeError } from "./errors.js";
@@ -53,6 +54,8 @@ interface Program {
   readonly custom?: CustomSchema;
   readonly customLocations: readonly (WebGLUniformLocation | null)[];
   readonly textures: LoadedTextureResources;
+  readonly textureObjects: ReadonlyMap<string, WebGLTexture>;
+  readonly textureBindings: readonly { name: string; binding: number }[];
 }
 
 export class WebGlRenderer extends CanvasRenderer {
@@ -161,6 +164,7 @@ export class WebGlRenderer extends CanvasRenderer {
         artifact.defaults.glsl,
         custom,
         textures,
+        resources,
       );
       if (!this.current(generation)) return { status: "superseded" };
       const requestedEpoch =
@@ -264,6 +268,13 @@ export class WebGlRenderer extends CanvasRenderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(resource.program);
     gl.bindVertexArray(this.vao);
+    for (const binding of resource.textureBindings) {
+      gl.activeTexture(gl.TEXTURE0 + binding.binding);
+      gl.bindTexture(
+        gl.TEXTURE_2D,
+        resource.textureObjects.get(binding.name) ?? null,
+      );
+    }
     if (resource.uniforms.resolution)
       gl.uniform2f(
         resource.uniforms.resolution,
@@ -318,6 +329,7 @@ export class WebGlRenderer extends CanvasRenderer {
     declared: readonly ShaderDefaultUniform[],
     custom: CustomSchema | undefined,
     textures: LoadedTextureResources,
+    resources: ResourceSchema | undefined,
   ): Program {
     const gl = this.gl;
     const compile = (kind: number, text: string): WebGLShader => {
@@ -335,6 +347,7 @@ export class WebGlRenderer extends CanvasRenderer {
     const vertex = compile(gl.VERTEX_SHADER, VERTEX);
     let fragment: WebGLShader | undefined;
     let program: WebGLProgram | undefined;
+    const textureObjects = new Map<string, WebGLTexture>();
     try {
       fragment = compile(gl.FRAGMENT_SHADER, source);
       program = gl.createProgram() ?? undefined;
@@ -344,6 +357,7 @@ export class WebGlRenderer extends CanvasRenderer {
       gl.linkProgram(program);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS))
         throw new Error(`WebGL link failed: ${gl.getProgramInfoLog(program)}`);
+      gl.useProgram(program);
       const uniforms = {
         resolution: gl.getUniformLocation(program, "u_resolution"),
         mouse: gl.getUniformLocation(program, "u_mouse"),
@@ -377,6 +391,49 @@ export class WebGlRenderer extends CanvasRenderer {
           "artifact",
           "GLSL custom uniform metadata does not match active bindings.",
         );
+      const textureBindings = resources?.bindings ?? [];
+      const textureDeclarations = resources?.textures ?? [];
+      for (const binding of textureBindings) {
+        const loaded = textures.textures.get(binding.name);
+        const index = textureDeclarations.findIndex(
+          ({ name }) => name === binding.name,
+        );
+        const location = gl.getUniformLocation(
+          program,
+          `shdr_texture_${index}`,
+        );
+        if (!loaded || index < 0 || !location)
+          throw new ShdrRuntimeError(
+            "webgl",
+            "artifact",
+            `GLSL texture metadata does not match active binding ${JSON.stringify(binding.name)}.`,
+          );
+        const texture = gl.createTexture();
+        if (!texture)
+          throw new Error("Could not create a WebGL texture resource.");
+        textureObjects.set(binding.name, texture);
+        gl.activeTexture(gl.TEXTURE0 + binding.binding);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA8,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          loaded.image,
+        );
+        if (gl.getError() !== gl.NO_ERROR)
+          throw new Error(
+            `WebGL texture upload failed for ${JSON.stringify(binding.name)}.`,
+          );
+        gl.uniform1i(location, binding.binding);
+      }
       return {
         program,
         vertex,
@@ -386,8 +443,11 @@ export class WebGlRenderer extends CanvasRenderer {
         custom,
         customLocations,
         textures,
+        textureObjects,
+        textureBindings: [...textureBindings],
       };
     } catch (error) {
+      for (const texture of textureObjects.values()) gl.deleteTexture(texture);
       if (program) gl.deleteProgram(program);
       if (fragment) gl.deleteShader(fragment);
       gl.deleteShader(vertex);
@@ -395,6 +455,8 @@ export class WebGlRenderer extends CanvasRenderer {
     }
   }
   private deleteProgram(resource: Program): void {
+    for (const texture of resource.textureObjects.values())
+      this.gl.deleteTexture(texture);
     resource.textures.dispose();
     this.gl.deleteProgram(resource.program);
     this.gl.deleteShader(resource.vertex);

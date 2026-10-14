@@ -4,7 +4,10 @@ import type { ResourceSchema } from "./uniforms.js";
 
 export interface TextureResourceDependencies {
   readonly fetch: typeof fetch;
-  readonly decode: (blob: Blob) => Promise<ImageBitmap>;
+  readonly decode: (
+    blob: Blob,
+    options?: ImageBitmapOptions,
+  ) => Promise<ImageBitmap>;
 }
 
 export interface TextureResourceLoadOptions {
@@ -26,7 +29,7 @@ export interface LoadedTextureResources {
 
 const browserDependencies: TextureResourceDependencies = {
   fetch: (...args) => globalThis.fetch(...args),
-  decode: (blob) => globalThis.createImageBitmap(blob),
+  decode: (blob, options) => globalThis.createImageBitmap(blob, options ?? {}),
 };
 
 function checkAborted(
@@ -91,14 +94,16 @@ export async function loadTextureResources(
   options: TextureResourceLoadOptions = {},
 ): Promise<LoadedTextureResources> {
   const referenced = schema?.referenced ?? [];
+  const maxTextures = options.maxTextures;
   if (
-    options.maxTextures !== undefined &&
-    referenced.length > options.maxTextures
+    maxTextures !== undefined &&
+    (referenced.length > maxTextures ||
+      schema?.bindings?.some(({ binding }) => binding >= maxTextures))
   )
     throw new ShdrRuntimeError(
       backend,
       "artifact",
-      `Texture resource count ${referenced.length} exceeds the ${backend} limit of ${options.maxTextures}.`,
+      `Texture resources exceed the ${backend} binding limit of ${options.maxTextures}.`,
     );
 
   const declarations = new Map(
@@ -144,7 +149,10 @@ export async function loadTextureResources(
       checkAborted(options.signal, backend);
       let image: ImageBitmap;
       try {
-        image = await dependencies.decode(blob);
+        image = await dependencies.decode(blob, {
+          colorSpaceConversion: "none",
+          premultiplyAlpha: "none",
+        });
       } catch (error) {
         checkAborted(options.signal, backend);
         throw resourceFailure(backend, name, declaration.url, "decode", error);
