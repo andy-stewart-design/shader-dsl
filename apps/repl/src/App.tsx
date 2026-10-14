@@ -2,6 +2,7 @@ import { useState } from "react";
 import { compileFragmentArtifact } from "@shdr/core/browser";
 import {
   useShaderPreviews,
+  validateReplTextureUrls,
   type ValidationState,
 } from "./use-shader-previews.ts";
 import type { ShaderDiagnostic, ShaderTarget, TextRange } from "@shdr/core";
@@ -34,6 +35,7 @@ interface CompilationSuccess {
   readonly durationMs: number;
   readonly diagnostics: readonly [];
   readonly artifact: CompiledFragmentArtifact;
+  readonly policyError?: string;
 }
 
 interface CompilationFailure {
@@ -77,10 +79,18 @@ function App() {
 
   const compile = () => {
     const next = compileBothTargets(source);
-    setCompilation(next);
     setCompiledSource(source);
-    if (next.ok) renderOutputs(next.artifact);
-    else block();
+    if (!next.ok) {
+      setCompilation(next);
+      block();
+      return;
+    }
+    const policyError = validateReplTextureUrls(next.artifact);
+    const accepted = policyError ? { ...next, policyError } : next;
+    setCompilation(accepted);
+    if (policyError)
+      block(`Blocked by REPL texture URL policy: ${policyError}`);
+    else renderOutputs(next.artifact);
   };
 
   const selected = TARGETS.find(({ target }) => target === selectedTarget);
@@ -141,10 +151,14 @@ function App() {
               <h2 id="diagnostics-title">Diagnostics</h2>
             </div>
             <Status
-              state={compilation.ok ? "success" : "error"}
+              state={
+                compilation.ok && !compilation.policyError ? "success" : "error"
+              }
               label={
                 compilation.ok
-                  ? "No errors"
+                  ? compilation.policyError
+                    ? "REPL policy error"
+                    : "No errors"
                   : `${compilation.diagnostics.length} error${compilation.diagnostics.length === 1 ? "" : "s"}`
               }
             />
@@ -155,7 +169,13 @@ function App() {
               <strong>{formatDuration(compilation.durationMs)}</strong>
             </p>
             {compilation.ok ? (
-              <p className="empty-state">No shared compiler diagnostics.</p>
+              compilation.policyError ? (
+                <p className="empty-state">
+                  REPL texture URL policy error: {compilation.policyError}
+                </p>
+              ) : (
+                <p className="empty-state">No shared compiler diagnostics.</p>
+              )
             ) : (
               <ol>
                 {compilation.diagnostics.map((diagnostic, index) => {

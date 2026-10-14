@@ -266,16 +266,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Accept only literal externally hosted HTTPS texture URLs for REPL shader resources and reject root-relative, protocol-relative, `http:`, dynamic and non-network forms **before fetch**, without imposing REPL-only restrictions on core/Vite.
-- [ ] Compile from the existing single textarea, install in both independent preview canvases, and distinguish source diagnostics, REPL URL policy errors, image fetch/decode/CORS errors, and WebGPU unavailability. Preserve last successful shader when a new image load fails.
-- [ ] Test with a locally controlled HTTPS/CORS-enabled fixture and denied/missing-image responses; do not rely on a flaky public remote service. A deliberately blocked CORS case must produce a visible error, never a fake success.
+- [x] Accept only literal externally hosted HTTPS texture URLs for REPL shader resources and reject root-relative, protocol-relative, `http:`, dynamic and non-network forms **before fetch**, without imposing REPL-only restrictions on core/Vite.
+- [x] Compile from the existing single textarea, install in both independent preview canvases, and distinguish source diagnostics, REPL URL policy errors, image fetch/decode/CORS errors, and WebGPU unavailability. Preserve last successful shader when a new image load fails.
+- [x] Test with a locally controlled HTTPS/CORS-enabled fixture and denied/missing-image responses; do not rely on a flaky public remote service. A deliberately blocked CORS case must produce a visible error, never a fake success.
 
 Verification:
 
 - Automated: `pnpm --filter repl test` runs `apps/repl/verify-browser.mjs` after adding texture cases, with a deterministic HTTPS fixture or test-controlled request interception that still exercises browser CORS/policy; assert no `.shdr.ts` import request and correct independent canvas statuses. Distinguish intercepted/mock URL-policy checks from a **real** cross-origin CORS browser case.
 - Manual: in Chromium with real WebGPU enabled, paste an HTTPS image shader, compile, inspect both previews and a denied CORS URL. If HTTPS fixture/cert or CORS network preconditions are unavailable, mark the external-load proof Blocked rather than asserting it from intercepted requests alone.
 
-- [ ] **Completion gate:** Externally hosted HTTPS loads in both previews; invalid/CORS failures are visible before any forbidden fetch or stale status, with no added picker and no source-module request.
+- [x] **Completion gate:** Externally hosted HTTPS loads in both previews; invalid/CORS failures are visible before any forbidden fetch or stale status, with no added picker and no source-module request.
 
 ### Step 3.3 — Language docs, editor UI and full regression review
 

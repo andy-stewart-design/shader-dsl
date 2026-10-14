@@ -52,13 +52,32 @@ const PENDING: TargetValidations = {
   "glsl-es-300": { state: "pending", message: PREVIEWS["glsl-es-300"].pending },
   wgsl: { state: "pending", message: PREVIEWS.wgsl.pending },
 };
-const BLOCKED: TargetValidations = {
-  "glsl-es-300": {
-    state: "blocked",
-    message: "Blocked by shared source diagnostics.",
-  },
-  wgsl: { state: "blocked", message: "Blocked by shared source diagnostics." },
-};
+function blocked(message: string): TargetValidations {
+  return {
+    "glsl-es-300": { state: "blocked", message },
+    wgsl: { state: "blocked", message },
+  };
+}
+
+export function validateReplTextureUrls(
+  artifact: CompiledFragmentArtifact,
+): string | undefined {
+  for (const texture of artifact.resources?.textures ?? []) {
+    let url: URL;
+    try {
+      url = new URL(texture.url);
+    } catch {
+      return `Texture ${JSON.stringify(texture.name)} must use a literal HTTPS URL.`;
+    }
+    if (
+      texture.urlKind !== "https" ||
+      url.protocol !== "https:" ||
+      !url.hostname
+    )
+      return `Texture ${JSON.stringify(texture.name)} must use a literal HTTPS URL; REPL texture URLs cannot be root-relative, protocol-relative, HTTP, dynamic, or local forms.`;
+  }
+  return undefined;
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -266,13 +285,16 @@ export function useShaderPreviews(initialArtifact: CompiledFragmentArtifact) {
     }
   }, [report]);
 
-  const block = useCallback(() => {
-    run.current++;
-    latest.current = null;
-    for (const target of TARGETS)
-      renderers.current[target]?.cancelPendingShader();
-    setValidations(BLOCKED);
-  }, []);
+  const block = useCallback(
+    (message = "Blocked by shared source diagnostics.") => {
+      run.current++;
+      latest.current = null;
+      for (const target of TARGETS)
+        renderers.current[target]?.cancelPendingShader();
+      setValidations(blocked(message));
+    },
+    [],
+  );
   const updateMouse = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
       const rect = event.currentTarget.getBoundingClientRect();
