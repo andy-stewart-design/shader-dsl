@@ -17,7 +17,8 @@ const sampled = `import { defineUniforms, sample } from "shdr";
 export default defineUniforms((u) => ({ photo: u.texture2D("/photo.png"), gain: u.f32(0.5) }))
 .createFragmentShader(({ coord, uniforms }) => {
   const photo = uniforms.photo;
-  return sample(photo, coord.xy / uniforms.resolution);
+  const second = photo;
+  return sample(second, coord.xy / uniforms.resolution);
 });`;
 
 function compile(source: string) {
@@ -165,12 +166,18 @@ export default defineUniforms((u) => ({ photo: u.texture2D("/photo.png") }))
 
   it("rejects invalid sample calls at authored ranges", () => {
     const cases = [
-      [sampled.replace("sample(photo,", "sample(photo, coord.xy, "), "sample"],
+      [
+        sampled.replace("sample(second,", "sample(second, coord.xy, "),
+        "sample",
+      ],
       [
         sampled.replace("coord.xy / uniforms.resolution", "uniforms.gain"),
         "uniforms.gain",
       ],
-      [sampled.replace("sample(photo,", "sample(uniforms.missing,"), "missing"],
+      [
+        sampled.replace("sample(second,", "sample(uniforms.missing,"),
+        "missing",
+      ],
       [sampled.replace("defineUniforms, sample", "defineUniforms"), "sample"],
     ] as const;
     for (const [source, token] of cases) {
@@ -362,14 +369,70 @@ export default createFragmentShader(({ coord, uniforms }) => vec4(3.402823466385
             const glslError = gl.getShaderParameter(shader, gl.COMPILE_STATUS)
               ? null
               : gl.getShaderInfoLog(shader);
+            let glslLinkError = null;
+            if (!glslError) {
+              const vertex = gl.createShader(gl.VERTEX_SHADER)!;
+              gl.shaderSource(
+                vertex,
+                `#version 300 es
+                void main() {
+                  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+                  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+                }`,
+              );
+              gl.compileShader(vertex);
+              if (!gl.getShaderParameter(vertex, gl.COMPILE_STATUS)) {
+                glslLinkError = gl.getShaderInfoLog(vertex);
+              } else {
+                const program = gl.createProgram()!;
+                gl.attachShader(program, vertex);
+                gl.attachShader(program, shader);
+                gl.linkProgram(program);
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+                  glslLinkError = gl.getProgramInfoLog(program);
+                gl.deleteProgram(program);
+              }
+              gl.deleteShader(vertex);
+            }
             gl.deleteShader(shader);
             const module = device.createShaderModule({ code: wgsl });
             const info = await module.getCompilationInfo();
+            const wgslErrors = info.messages
+              .filter((message) => message.type === "error")
+              .map((message) => message.message);
+            let wgslPipelineError = null;
+            if (!wgslErrors.length) {
+              try {
+                await device.createRenderPipelineAsync({
+                  layout: "auto",
+                  vertex: {
+                    module: device.createShaderModule({
+                      code: `@vertex
+                      fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
+                        let vertices = array<vec2<f32>, 3>(vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0));
+                        return vec4<f32>(vertices[index], 0.0, 1.0);
+                      }`,
+                    }),
+                    entryPoint: "main",
+                  },
+                  fragment: {
+                    module,
+                    entryPoint: "shdr_fragment_main",
+                    targets: [
+                      { format: navigator.gpu.getPreferredCanvasFormat() },
+                    ],
+                  },
+                  primitive: { topology: "triangle-list" },
+                });
+              } catch (error) {
+                wgslPipelineError = String(error);
+              }
+            }
             results.push({
               glslError,
-              wgslErrors: info.messages
-                .filter((message) => message.type === "error")
-                .map((message) => message.message),
+              glslLinkError,
+              wgslErrors,
+              wgslPipelineError,
             });
           }
           return results;
@@ -378,7 +441,12 @@ export default createFragmentShader(({ coord, uniforms }) => vec4(3.402823466385
         }
       }, artifacts);
       expect(result).toEqual(
-        artifacts.map(() => ({ glslError: null, wgslErrors: [] })),
+        artifacts.map(() => ({
+          glslError: null,
+          glslLinkError: null,
+          wgslErrors: [],
+          wgslPipelineError: null,
+        })),
       );
     } finally {
       await browser.close();

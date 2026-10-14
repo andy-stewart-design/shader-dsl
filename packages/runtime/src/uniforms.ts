@@ -252,6 +252,7 @@ export function readResourceMetadata(
     fail(backend, "artifact", "Invalid texture binding metadata.");
   const copiedBindings: ShaderTextureBinding[] = [];
   const bindingNames = new Set<string>();
+  const bindingNumbers = new Set<number>();
   for (let index = 0; index < bindings.length; index++) {
     const binding = bindings[index];
     if (
@@ -262,10 +263,14 @@ export function readResourceMetadata(
       bindingNames.has(binding.name) ||
       !referencedNames.has(binding.name) ||
       !Number.isInteger(binding.binding) ||
-      binding.binding < 0
+      binding.binding < 0 ||
+      bindingNumbers.has(binding.binding) ||
+      (target === "wgsl" && bindingNumbers.has(binding.binding + 1))
     )
       fail(backend, "artifact", "Invalid texture binding metadata.");
     bindingNames.add(binding.name);
+    bindingNumbers.add(binding.binding);
+    if (target === "wgsl") bindingNumbers.add(binding.binding + 1);
     copiedBindings.push({ name: binding.name, binding: binding.binding });
   }
   return {

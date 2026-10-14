@@ -90,6 +90,58 @@ describe("custom uniforms in TypeScript 7", () => {
     }
   });
 
+  it("routes invalid texture samples for imported schemas and unsaved edits", () => {
+    const fileName = join(projectDirectory, "sampled-texture-imported.shdr.ts");
+    const source = readFileSync(fileName, "utf8");
+    const adapter = new TypeScript7EditorAdapter({
+      cwd: projectDirectory,
+      projectFileName: "tsconfig.json",
+    });
+    try {
+      const valid = adapter.updateDocument({
+        fileName,
+        source,
+        version: 1,
+        projectVersion: 1,
+      });
+      expect(valid.diagnostics).toEqual([]);
+
+      const invalidSource = source.replace(
+        "sample(uniforms.photo, coord.xy / uniforms.resolution)",
+        "sample(uniforms.photo)",
+      );
+      const invalid = adapter.updateDocument({
+        fileName,
+        source: invalidSource,
+        version: 2,
+        projectVersion: 1,
+      });
+      const callStart = invalidSource.indexOf("sample(uniforms.photo)");
+      expect(invalid.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: "shdr",
+            code: "SHDR1208",
+            range: {
+              start: callStart,
+              length: "sample(uniforms.photo)".length,
+            },
+          }),
+        ]),
+      );
+
+      const restored = adapter.updateDocument({
+        fileName,
+        source,
+        version: 3,
+        projectVersion: 1,
+      });
+      expect(restored.diagnostics).toEqual([]);
+    } finally {
+      adapter.dispose();
+    }
+  });
+
   it("reports the same source range for dynamic defaults in core and editor", () => {
     const fileName = join(projectDirectory, "named-custom-uniforms.shdr.ts");
     const source = readFileSync(fileName, "utf8").replace(

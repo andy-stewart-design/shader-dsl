@@ -139,6 +139,61 @@ describe("texture artifact metadata", () => {
     ).toThrow(
       expect.objectContaining<Partial<ShdrRuntimeError>>({ kind: "artifact" }),
     );
+    const twoTextureResources = {
+      textures: [
+        ...artifact.resources.textures,
+        {
+          name: "other",
+          type: "texture2D" as const,
+          url: "/other.png",
+          urlKind: "root-absolute" as const,
+        },
+      ],
+      referenced: {
+        glsl: ["photo", "other"],
+        wgsl: ["photo", "other"],
+      },
+      bindings: {
+        glsl: [
+          { name: "photo", binding: 0 },
+          { name: "other", binding: 1 },
+        ],
+        wgsl: [
+          { name: "photo", binding: 0 },
+          { name: "other", binding: 2 },
+        ],
+      },
+    };
+    expect(
+      readResourceMetadata(
+        { ...artifact, resources: twoTextureResources },
+        "webgpu",
+      ),
+    ).toEqual({
+      textures: twoTextureResources.textures,
+      referenced: ["photo", "other"],
+      bindings: twoTextureResources.bindings.wgsl,
+    });
+    expect(() =>
+      readResourceMetadata(
+        {
+          ...artifact,
+          resources: {
+            ...twoTextureResources,
+            bindings: {
+              ...twoTextureResources.bindings,
+              glsl: [
+                { name: "photo", binding: 0 },
+                { name: "other", binding: 0 },
+              ],
+            },
+          },
+        },
+        "webgl",
+      ),
+    ).toThrow(
+      expect.objectContaining<Partial<ShdrRuntimeError>>({ kind: "artifact" }),
+    );
   });
 
   it("keeps texture names outside numeric uniform updates", () => {

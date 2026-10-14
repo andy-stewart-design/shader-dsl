@@ -230,7 +230,7 @@ export function lowerShaderBody(
     );
     localInitializers.set(symbolId, initializer.expression);
     futureNames.delete(declaration.name);
-    if (initializer.expression.kind === "texture") {
+    if (textureNameOf(initializer.expression, localInitializers)) {
       locals.set(declaration.name, {
         name: declaration.name,
         symbolId,
@@ -447,7 +447,10 @@ function lowerCallExpression(
     if (!texture.ok) return texture;
     const uv = lowerExpression(syntax.arguments[1]!, context);
     if (!uv.ok) return uv;
-    const textureName = textureNameOf(texture.expression, context);
+    const textureName = textureNameOf(
+      texture.expression,
+      context.localInitializers,
+    );
     if (!textureName) {
       return expressionFailure(
         ShaderDiagnosticCode.InvalidBuiltin,
@@ -913,12 +916,14 @@ function formatExpressionType(type: ShaderValueType): string {
 
 function textureNameOf(
   expression: ShaderExpression,
-  context: LoweringContext,
+  localInitializers: ReadonlyMap<ShaderLocalSymbolId, ShaderExpression>,
 ): string | undefined {
   if (expression.kind === "texture") return expression.name;
   if (expression.kind !== "local-reference") return undefined;
-  const initializer = context.localInitializers.get(expression.symbolId);
-  return initializer ? textureNameOf(initializer, context) : undefined;
+  const initializer = localInitializers.get(expression.symbolId);
+  return initializer
+    ? textureNameOf(initializer, localInitializers)
+    : undefined;
 }
 
 function lowerSwizzle(
