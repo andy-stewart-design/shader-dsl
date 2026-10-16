@@ -32,7 +32,7 @@ No editor, CLI, Vite, or presented-pixel acceptance is claimed by this step. Tho
 - Focused Step 1.2 suite — 6 files, 99 tests passed.
 - Full core suite — 51 files, 481 tests passed.
 
-The target gate used Chromium with WebGL 2 and WebGPU enabled through the existing SwiftShader flags. This verifies generated shader-module/compiler acceptance, not presented-pixel parity. Later editor/CLI/Vite/pixel gates remain pending.
+The target gate used Chromium with WebGL 2 and WebGPU enabled through the existing SwiftShader flags. This verifies generated shader-module/compiler acceptance, not presented-pixel parity. Editor/CLI/Vite/pixel gates were completed in Phases 2–3; their results are recorded separately.
 
 ## Step 1.3 — Binary `atan` under the resolved native contract
 

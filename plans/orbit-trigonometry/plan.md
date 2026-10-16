@@ -2,10 +2,10 @@
 
 ## Status and governing source
 
-- Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Phase 3 in progress**. Phases 1–2 and Step 3.1 are verified; final documentation/audit remains.
-- Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
-- Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
+- Governing spec: [spec.md](spec.md), **implemented and verified** after the binary `atan` comparison decision.
+- Delivery state: **Phase 3 complete**. Phases 1–2, rendered parity, documentation, and the broad regression audit are verified.
+- Acceptance/release boundary: No implementation gates remain; no publication or deployment is included.
+- Blockers: None. Binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain limits are bounded by the resolved portable contract.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step completion gates and phase exit gate are satisfied. Task checkboxes do not prove a gate passed. `Verified` means the scoped gate and required implementation review passed, not user approval or release. In supervised execution, record manual approvals in extension state rather than duplicating them in task checkboxes.
 
@@ -126,7 +126,7 @@ Verification:
 Completion gate: The report and spec agree on an evidence-informed contract. Any user-significant tradeoff is resolved before marking this step Verified. If unresolved or a target is unavailable, keep this gate blocked and do not start Phase 1.
 Evidence: [atan-comparison.md](evidence/atan-comparison.md).
 
-Phase exit gate: After Step 0.3's checks, rerun the two proposed Phase 0 core tests together plus the focused baseline core suites and `pnpm --filter @shdr/core check`. Review the evidence against the spec: all 31 shapes have a viable strategy; no backend-only acceptance conflict is hidden; numeric/axis decisions and tolerances are explicit; the spec is Ready for planning before activating production semantics. Assess this gate before advancing or requesting supervised approval. Supporting evidence belongs in the Phase 0/atan notes, not duplicated transcripts here.
+Phase exit gate: After Step 0.3's checks, rerun the two proposed Phase 0 core tests together plus the focused baseline core suites and `pnpm --filter @shdr/core check`. Review the evidence against the spec: all 31 shapes have a viable strategy; no backend-only acceptance conflict is hidden; numeric/axis decisions and tolerances are explicit; the spec was Ready for planning before activating production semantics; production semantics are now active and verified. Assess this gate before advancing or requesting supervised approval. Supporting evidence belongs in the Phase 0/atan notes, not duplicated transcripts here.
 Evidence: Passed with 6 files / 78 tests; see [phase-0.md](evidence/phase-0.md) and [atan-comparison.md](evidence/atan-comparison.md).
 
 ## Phase 1 — Complete public/core/backend builtin slices
@@ -337,7 +337,7 @@ Evidence: Verified; see [rendered-parity.md](evidence/rendered-parity.md).
 
 ### Step 3.2 — Publish the accurate language contract and audit acceptance
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1–R9; AC1–AC9 (final integration/documentation audit, not replacement for owning scoped proofs).
 Depends on: Step 3.1.
 Review boundary: Documentation, final regression verification, and evidence reconciliation only; no new language scope.
@@ -350,10 +350,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Document six names, 31 signatures, import conventions, signed floor-based `mod`, both `atan` arities, finalized axes/limits, f32 domain diagnostics and dynamic caller preconditions. Recompute any aggregate signature counts from current code rather than blindly relying on historical totals.
-- [ ] Update PR 7 roadmap status to match the evidenced delivery and remaining acceptance work; do not mark it delivered while required gates are blocked. Explicitly preserve `tan`, `%`, matrices, general broadcasting, reference-port fidelity, and unrelated extensions as outside this delivery.
-- [ ] Audit every spec AC against the owning gate below, including source ranges, partial-known lanes, helpers, static consumer exclusion, editable-source recovery, and presented WebGPU evidence. No missing proof is filled by a checklist claim.
-- [ ] Run the broad checks below, record baseline-versus-regression distinctions, and resolve failures or document explicit accepted deviations. A missing browser/editor capability is not silently passed.
+- [x] Document six names, 31 signatures, import conventions, signed floor-based `mod`, both `atan` arities, finalized axes/limits, f32 domain diagnostics and dynamic caller preconditions. Aggregate counts were recomputed against the current signature matrix.
+- [x] Update PR 7 roadmap status to match the evidenced delivery and remaining acceptance work; `tan`, `%`, matrices, general broadcasting, reference-port fidelity, and unrelated extensions remain outside this delivery.
+- [x] Audit every spec AC against the owning gate below, including source ranges, partial-known lanes, helpers, static consumer exclusion, editable-source recovery, and presented WebGPU evidence. The completion note records the reconciliation without replacing scoped proof.
+- [x] Run the broad checks below, distinguish baseline limitations from regressions, and resolve failures. Chromium, WebGL 2, and presented WebGPU were available; no required capability was skipped.
 
 Verification:
 
@@ -361,27 +361,27 @@ Verification:
 - Mathematical browser gates remain those from Step 3.1; bundle isolation remains Step 2.2. Broad tests must not replace their explicit results.
 - Manual: Review the final diff and AC mapping against the resolved spec and exclusions. Confirm that unrelated worktree changes are untouched, evidence does not claim cross-hardware identity, and delivery status is not marked complete while required gates are blocked.
 
-Completion gate: All required scoped and broad gates pass and implementation review is complete; documentation describes the shipped contract accurately. If a gate is waived, record `Accepted deviation`, its scope/owner when known and follow-up, not `Verified` for the missing proof.
-Evidence: Not run.
+Completion gate: All required scoped and broad gates pass and implementation review is complete; documentation describes the shipped contract accurately. No gate was waived.
+Evidence: [completion.md](evidence/completion.md)..
 
-Phase exit gate: After Step 3.2's checks, perform the final acceptance review using the table below and the owning evidence entries. Require the resolved spec, all step gates, rendered evidence, tooling composition and broad compatibility gates together before declaring implementation verified. No release/publication authorization is implied.
-Evidence: Not run.
+Phase exit gate: The final acceptance review reconciled the resolved spec, all step gates, rendered evidence, tooling composition, and broad compatibility gates. Implementation is verified; no release/publication authorization is implied.
+Evidence: [completion.md](evidence/completion.md)..
 
 ## Final acceptance
 
 This table maps proof ownership; it is not a second progress checklist. Follow each owning step's evidence entry for results.
 
-| Spec acceptance ID | Owning step / gate                        | Verification and expected result                                                                                                                                   | Evidence / status                                                                                                                                        |
-| ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AC1                | Steps 1.1–1.3; Step 2.1; Phase 1 exit     | Exactly 31 public/core/generated shapes with concrete editor results, including representative local/imported helpers.                                             | [Phase 1](#phase-1--complete-publiccorebackend-builtin-slices) and [Step 2.1](#step-21--verify-typescript-7editor-and-cli-parity) evidence entries       |
-| AC2                | Steps 1.1–1.3 and 2.1                     | Rejected shape/arity/import forms retain specific original-source diagnostics and no permissive overload.                                                          | Owning step evidence entries                                                                                                                             |
-| AC3                | Steps 0.2, 1.1 and 2.1                    | Valid f32 endpoints compile; known invalid/partial-lane cases reject at the authored call, consistently with editor/core.                                          | Owning step evidence entries                                                                                                                             |
-| AC4                | Steps 0.2, 1.2 and 3.1                    | Signed floor-based results, divisor broadcasting and zero-divisor checks; generated numeric and rendered parity.                                                   | [Step 1.2](#step-12--add-floor-based-mod-and-divisor-broadcasting) and [Step 3.1](#step-31--pin-generated-webglpresented-webgpu-parity) evidence entries |
-| AC5                | Step 0.3; conformance in Step 1.3         | Native/guarded comparison and reviewed decision become the implemented axis/domain contract.                                                                       | [Step 0.3](#step-03--compare-binary-atan-candidates-and-settle-the-contract) evidence entry/report                                                       |
-| AC6                | Step 3.1                                  | Actual generated WebGL and presented WebGPU finite outputs meet mathematical expectations/tolerances, including conversions, quadrants, selected axes and updates. | Step 3.1 evidence entry                                                                                                                                  |
-| AC7                | Steps 0.2, 1.1–1.3 and 2.1                | Local domain rejection, unknown-helper preconditions and no WGSL-only constant-evaluation rejection under the shared policy.                                       | Owning core/editor evidence entries and Phase 1 exit                                                                                                     |
-| AC8                | Steps 2.1–2.2; Phase 2 exit               | Editor/CLI/Vite/browser agree; invalid edits preserve both previous valid previews and corrections recover.                                                        | [Phase 2](#phase-2--shared-tooling-and-consumer-integration) evidence entries                                                                            |
-| AC9                | Steps 1.1–1.3, 2.2, 3.1–3.2; Phase 3 exit | Existing metadata, bindings, grouping, names and old forms remain correct; static consumers exclude compiler; documentation and broad checks match delivery.       | Owning compatibility/bundle/runtime evidence and final review                                                                                            |
+| Spec acceptance ID | Owning step / gate                        | Verification and expected result                                                                                                                                   | Evidence / status                                                                                                                                                   |
+| ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1                | Steps 1.1–1.3; Step 2.1; Phase 1 exit     | Exactly 31 public/core/generated shapes with concrete editor results, including representative local/imported helpers.                                             | Verified — [Phase 1](#phase-1--complete-publiccorebackend-builtin-slices) and [Step 2.1](#step-21--verify-typescript-7editor-and-cli-parity) evidence entries       |
+| AC2                | Steps 1.1–1.3 and 2.1                     | Rejected shape/arity/import forms retain specific original-source diagnostics and no permissive overload.                                                          | Verified — owning step evidence entries                                                                                                                             |
+| AC3                | Steps 0.2, 1.1 and 2.1                    | Valid f32 endpoints compile; known invalid/partial-lane cases reject at the authored call, consistently with editor/core.                                          | Verified — owning step evidence entries                                                                                                                             |
+| AC4                | Steps 0.2, 1.2 and 3.1                    | Signed floor-based results, divisor broadcasting and zero-divisor checks; generated numeric and rendered parity.                                                   | Verified — [Step 1.2](#step-12--add-floor-based-mod-and-divisor-broadcasting) and [Step 3.1](#step-31--pin-generated-webglpresented-webgpu-parity) evidence entries |
+| AC5                | Step 0.3; conformance in Step 1.3         | Native/guarded comparison and reviewed decision become the implemented axis/domain contract.                                                                       | Verified — [Step 0.3](#step-03--compare-binary-atan-candidates-and-settle-the-contract) evidence entry/report                                                       |
+| AC6                | Step 3.1                                  | Actual generated WebGL and presented WebGPU finite outputs meet mathematical expectations/tolerances, including conversions, quadrants, selected axes and updates. | Verified — Step 3.1 evidence entry                                                                                                                                  |
+| AC7                | Steps 0.2, 1.1–1.3 and 2.1                | Local domain rejection, unknown-helper preconditions and no WGSL-only constant-evaluation rejection under the shared policy.                                       | Verified — owning core/editor evidence entries and Phase 1 exit                                                                                                     |
+| AC8                | Steps 2.1–2.2; Phase 2 exit               | Editor/CLI/Vite/browser agree; invalid edits preserve both previous valid previews and corrections recover.                                                        | Verified — [Phase 2](#phase-2--shared-tooling-and-consumer-integration) evidence entries                                                                            |
+| AC9                | Steps 1.1–1.3, 2.2, 3.1–3.2; Phase 3 exit | Existing metadata, bindings, grouping, names and old forms remain correct; static consumers exclude compiler; documentation and broad checks match delivery.       | Verified — owning compatibility/bundle/runtime evidence and final review                                                                                            |
 
 ## Rollback and recovery
 
@@ -393,7 +393,7 @@ This table maps proof ownership; it is not a second progress checklist. Follow e
 
 ## Deferred checks and accepted deviations
 
-- **Accepted deviations: None.** No checks have been executed or waived.
+- **Accepted deviations: None.** All required checks were executed; no gate was waived.
 - Binary `atan` uses native forwarding under the resolved portable-domain restrictions recorded in the spec and Step 0.3 evidence. This does not promise fallback pixels for origin, signed-zero-sensitive axes, or very small inputs.
 - Full orbiting-circles fidelity, `tan`, unrelated signatures, matrices/captures, authored branching, interprocedural proofs and runtime API changes remain outside this plan per the spec.
 - A real VS Code/Zed UI session, broad hardware-GPU matrix and performance benchmark are not required acceptance gates for this slice. The required TypeScript 7 adapter, Chromium WebGL and presented WebGPU gates remain mandatory; lack of those capabilities must be recorded as Blocked, not recast as deferred optional coverage.

@@ -37,6 +37,18 @@ Use a top-level `const` initialized with `defineShaderFunction` for a compile-on
 
 Neither the compiler nor Vite executes authored modules or callbacks. Named exports are compile-time graph inputs; a Vite module's runtime value is its default compiled artifact. The browser REPL accepts local helpers in its one textarea, but has no file map or fetch path: an external `.shdr.ts` import reports `SHDR1300` and leaves the last successful render installed.
 
+## Orbit/trigonometry builtins
+
+The public package exposes exactly 31 orbit/trigonometry signatures across six direct imports:
+
+| Builtin                              | Accepted operands → result                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `asin`, `acos`, `radians`, `degrees` | `(Expr<F32>) → Expr<F32>`, `(Expr<VecN<F32>>) → Expr<VecN<F32>>`                                      |
+| `atan`                               | The same unary forms plus `(S, S) → S` and `(VecN<F32>, VecN<F32>) → VecN<F32>`; the pair is `(y, x)` |
+| `mod`                                | `(S, S) → S`, `(VecN<F32>, VecN<F32>) → VecN<F32>`, and `(VecN<F32>, S) → VecN<F32>`                  |
+
+Here `N` is 2, 3, or 4 and `S` is `Expr<F32>`. There is no scalar-first vector broadcasting, mixed vector dimension support, or public `atan2` alias. `asin`/`acos` require inputs in `[-1, 1]`; binary `atan` uses native GLSL `atan(y, x)` and WGSL `atan2(y, x)`; and `mod` uses `x - y * floor(x / y)` with nonzero divisors. Known violations produce source-located `SHDR1209`; dynamic values remain caller preconditions. Exact origin, signed-zero-sensitive binary-`atan` axes, and very small inputs have no portable value guarantee.
+
 ## Mixed-shape `clamp` and `pow`
 
 For one fixed vector shape `V` (`Vec2`, `Vec3`, or `Vec4`), `clamp(V, S | V, S | V)` and `pow(V, S)` are supported in addition to the same-shape scalar/vector forms. Each scalar bound or exponent broadcasts only at that call boundary; use explicit `vecN(...)` when a scalar base must become a vector. Scalar-first `clamp`, vector exponents with a scalar base, mixed vector dimensions, and general implicit broadcasting remain unsupported. Both GLSL ES and WGSL artifacts receive explicit target-native vector splats, while the serialized target-neutral expression keeps the authored scalar arguments.

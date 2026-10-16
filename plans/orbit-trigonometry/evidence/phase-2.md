@@ -33,4 +33,4 @@ Diagnostics remained mapped to original authored calls without generated-helper 
 - `pnpm --filter repl test` — passed: WebGL/WebGPU validation, invalid-edit retention, and recovery.
 - Phase 2 exit suites also passed: language service 17 files / 98 tests and CLI 2 files / 26 tests.
 
-The browser runs used Chromium with SwiftShader WebGL and enabled WebGPU. This verifies static/compiler/runtime integration and edit recovery; numerical rendered-parity acceptance remains Phase 3.
+The browser runs used Chromium with SwiftShader WebGL and enabled WebGPU. This verified static/compiler/runtime integration and edit recovery; numerical rendered-parity acceptance was completed in Phase 3.1.
