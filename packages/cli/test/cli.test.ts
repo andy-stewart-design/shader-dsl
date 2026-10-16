@@ -336,6 +336,71 @@ export const bad = defineShaderFunction((x: Expr<F32>) => sqrt(-1));`,
     });
   });
 
+  it("checks all orbit signatures and imported helper parity through the executable", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src/lib"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { noEmit: true },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      await writeFile(
+        join(cwd, "src/lib/orbit.shdr.ts"),
+        `import { atan, defineShaderFunction, mod } from "shdr";
+import type { Expr, F32, Vec3 } from "shdr";
+export const orbit = defineShaderFunction((y: Expr<Vec3<F32>>, x: Expr<Vec3<F32>>) => mod(atan(y, x), 2));
+`,
+      );
+      const valid = `import { acos, asin, atan, createFragmentShader, degrees, mod, radians, vec2, vec3, vec4 } from "shdr";
+import { orbit } from "./lib/orbit.shdr.ts";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const s = uniforms.time;
+  const v2 = coord.xy;
+  const v3 = coord.xyz;
+  const v4 = coord;
+  const a0 = asin(s); const a1 = asin(v2); const a2 = asin(v3); const a3 = asin(v4);
+  const b0 = acos(s); const b1 = acos(v2); const b2 = acos(v3); const b3 = acos(v4);
+  const c0 = atan(s); const c1 = atan(v2); const c2 = atan(v3); const c3 = atan(v4);
+  const d0 = atan(s, s); const d1 = atan(v2, v2); const d2 = atan(v3, v3); const d3 = atan(v4, v4);
+  const e0 = radians(s); const e1 = radians(v2); const e2 = radians(v3); const e3 = radians(v4);
+  const f0 = degrees(s); const f1 = degrees(v2); const f2 = degrees(v3); const f3 = degrees(v4);
+  const g0 = mod(s, s); const g1 = mod(v2, v2); const g2 = mod(v2, s);
+  const g3 = mod(v3, v3); const g4 = mod(v3, s); const g5 = mod(v4, v4); const g6 = mod(v4, s);
+  const h = orbit(v3, v3);
+  return vec4(a0 + b0 + c0 + d0 + e0 + f0 + g0 + g2.x + h.x, a1.x + b1.x + c1.x + d1.x + e1.x + f1.x + g1.x + g3.x, a2.x + b2.x + c2.x + d2.x + e2.x + f2.x + g4.x + h.y, a3.x + b3.x + c3.x + d3.x + e3.x + f3.x + g5.x + g6.x);
+});
+`;
+      const validFile = join(cwd, "src/scene.shdr.ts");
+      await writeFile(validFile, valid);
+      const accepted = invoke(cwd, "check");
+      expect(accepted.status).toBe(0);
+      expect(accepted.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+      expect(accepted.stderr).toBe("");
+
+      for (const expression of ["atan(v2, s)", "atan(3e38 + 3e38)"]) {
+        const source = valid.replace(
+          "  const h = orbit(v3, v3);",
+          `  const h = ${expression};`,
+        );
+        await writeFile(validFile, source);
+        const lowered = lowerFragment(source);
+        expect(lowered.ok, expression).toBe(false);
+        if (lowered.ok) continue;
+        const diagnostic = lowered.diagnostics[0]!;
+        const result = invoke(cwd, "check", "src/scene.shdr.ts");
+        expect(result.status, expression).toBe(1);
+        expect(result.stdout, expression).toBe(
+          `src/scene.shdr.ts:${source.slice(0, diagnostic.range.start).split("\n").length}:${source.slice(0, diagnostic.range.start).split("\n").at(-1)!.length + 1}: ${diagnostic.code}: ${diagnostic.message}\n`,
+        );
+        expect(result.stdout).not.toContain("shdr_internal_");
+      }
+    });
+  });
+
   it("checks direct texture sampling through the executable", async () => {
     await withProject(async (cwd) => {
       await fixture(cwd, "sample-valid.shdr.ts");

@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Phase 1 verified**. Steps 0.1–0.3 and Steps 1.1–1.3 are verified; editor/app and rendered-parity phases remain.
+- Delivery state: **Phase 2 in progress**. Phase 1 and Step 2.1 are verified; static/app and rendered-parity phases remain.
 - Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
 - Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
 
@@ -238,7 +238,7 @@ Review boundary: Existing tooling paths and focused fixtures; no editor transpor
 
 ### Step 2.1 — Verify TypeScript 7/editor and CLI parity
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R5, R7, R8; AC1/AC2/AC3/AC7 (editor/CLI portions), AC8 (editor/CLI portions; app paths remain Step 2.2).
 Depends on: Phase 1 exit.
 Review boundary: Mapped diagnostics, hovers, unsaved edits, and the built CLI in isolated temporary projects.
@@ -251,10 +251,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Exercise all 31 editor call/result shapes plus representative local/imported helper definitions and call sites. Check concrete QuickInfo rather than accepting a widened union or generic fallback.
-- [ ] Compare core and mapped editor diagnostics for wrong shapes, invalid domains, f32 endpoints, partially known lanes and the finalized binary domain. Assert original authored file/range and absence of generated-helper cascades.
-- [ ] Edit valid source to invalid and back, including a helper document, and assert hovers/diagnostics refresh. Preserve ordinary `.ts` diagnostic ownership using the existing routing tests.
-- [ ] Add CLI checks for valid fragment/helper graphs and invalid signature/domain calls, using its existing temporary-project fixture pattern. Verify built executable exit codes and original file/line attribution, then remove only the test-owned temporary directories.
+- [x] Exercise all 31 editor call/result shapes plus representative local/imported helper definitions and call sites. Check concrete QuickInfo rather than accepting a widened union or generic fallback.
+- [x] Compare core and mapped editor diagnostics for wrong shapes, invalid domains, f32 endpoints, partially known lanes and the finalized binary domain. Assert original authored file/range and absence of generated-helper cascades.
+- [x] Edit valid source to invalid and back, including a helper document, and assert hovers/diagnostics refresh. Preserve ordinary `.ts` diagnostic ownership using the existing routing tests.
+- [x] Add CLI checks for valid fragment/helper graphs and invalid signature/domain calls, using its existing temporary-project fixture pattern. Verify built executable exit codes and original file/line attribution, then remove only the test-owned temporary directories.
 
 Verification:
 
@@ -263,7 +263,7 @@ Verification:
 - Manual: Not required for the adapter/CLI scope when those gates pass. Actual VS Code/Zed UI acceptance is not established by an adapter test and is not a required transport project here.
 
 Completion gate: Core, TypeScript 7 editor and CLI agree on the new boundary, original locations, and edit refresh; ordinary TypeScript remains unaffected.
-Evidence: Not run.
+Evidence: Verified; see [phase-2.md](evidence/phase-2.md).
 
 ### Step 2.2 — Exercise static Vite and browser/REPL paths
 
