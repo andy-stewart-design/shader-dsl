@@ -134,6 +134,7 @@ describe("orbit math", () => {
     ["asin(2)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["acos(vec2(s, -2))", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["asin(3e38 + 3e38)", ShaderDiagnosticCode.InvalidBuiltinDomain],
+    ["degrees(3e38)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["atan(3e38 + 3e38)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["mod(v2, 0)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["mod(v2, -0)", ShaderDiagnosticCode.InvalidBuiltinDomain],
@@ -167,6 +168,31 @@ describe("orbit math", () => {
         }),
       ],
     });
+  });
+
+  it("parameterizes accepted nested domain-sensitive calls for WGSL", () => {
+    const input = `import { acos, asin, createFragmentShader, cos, degrees, sin, vec4 } from "shdr";
+export default createFragmentShader(({ uniforms }) => {
+  const a = asin(cos(1) + 1);
+  const b = acos(sin(1) + 1);
+  const c = degrees(uniforms.time + 3e38);
+  return vec4(a, b, c, 1);
+});`;
+    const glsl = compileFragment(input, { target: "glsl-es-300" });
+    const wgsl = compileFragment(input, { target: "wgsl" });
+    successful(glsl);
+    successful(wgsl);
+    expect(wgsl.code).toContain("fn shdr_internal_safe_asin_f32");
+    expect(wgsl.code).toContain("fn shdr_internal_safe_acos_f32");
+    expect(wgsl.code).toContain("fn shdr_internal_safe_degrees_f32");
+    expect(wgsl.code).toContain(
+      "shdr_internal_safe_asin_f32(cos(1.0f) + 1.0f)",
+    );
+    expect(wgsl.code).toContain(
+      "shdr_internal_safe_acos_f32(sin(1.0f) + 1.0f)",
+    );
+    expect(glsl.code).toContain("asin(cos(1.0) + 1.0)");
+    expect(glsl.code).toContain("acos(sin(1.0) + 1.0)");
   });
 
   it("keeps dynamic helper parameters as caller preconditions", () => {

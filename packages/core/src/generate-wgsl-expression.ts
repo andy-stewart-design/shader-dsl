@@ -25,7 +25,8 @@ export interface GenerateWgslExpressionOptions {
 }
 
 export type WgslSmoothstepShape = "f32" | "vec2" | "vec3" | "vec4";
-export type WgslGuardedBuiltin = "sqrt" | "exp" | "clamp" | "pow";
+export type WgslGuardedBuiltin =
+  "asin" | "acos" | "degrees" | "sqrt" | "exp" | "clamp" | "pow";
 export type WgslGuardedSignature =
   `${WgslGuardedBuiltin}_${WgslSmoothstepShape}`;
 
@@ -244,7 +245,10 @@ function emitExpression(
       }
       if (
         expression.target.kind === "builtin-function" &&
-        (expression.target.name === "sqrt" ||
+        (expression.target.name === "asin" ||
+          expression.target.name === "acos" ||
+          expression.target.name === "degrees" ||
+          expression.target.name === "sqrt" ||
           expression.target.name === "exp" ||
           expression.target.name === "clamp" ||
           expression.target.name === "pow")

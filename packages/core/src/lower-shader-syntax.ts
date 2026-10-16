@@ -677,6 +677,15 @@ function invalidBuiltinDomain(
   )
     return `${name} requires inputs in the range [-1, 1] in every component.`;
   if (
+    name === "degrees" &&
+    first?.some(
+      (value) => value !== undefined && Math.abs(value) > MAX_F32 / 57,
+    )
+  )
+    // 180 / pi is greater than 57; this conservative bound only rejects
+    // values whose degree conversion is clearly outside finite f32 range.
+    return "degrees has a known result outside the finite f32 range.";
+  if (
     name === "sqrt" &&
     first?.some((value) => value !== undefined && value < 0)
   )

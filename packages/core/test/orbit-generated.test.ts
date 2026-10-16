@@ -7,6 +7,8 @@ const shapes: readonly Shape[] = ["s", "v2", "v3", "v4"];
 const names = ["asin", "acos", "atan", "radians", "degrees"] as const;
 const imports = [
   ...names,
+  "sin",
+  "cos",
   "mod",
   "createFragmentShader",
   "vec2",
@@ -37,6 +39,21 @@ it("compiles all orbit unary and mod shapes in real GLSL and WGSL compilers", as
         shape,
       })),
     ),
+    {
+      name: "asin(cos(1) + 1)",
+      call: "asin(cos(1) + 1)",
+      shape: "s" as const,
+    },
+    {
+      name: "acos(sin(1) + 1)",
+      call: "acos(sin(1) + 1)",
+      shape: "s" as const,
+    },
+    {
+      name: "degrees(dynamic + 3e38)",
+      call: "degrees(s + 3e38)",
+      shape: "s" as const,
+    },
     { name: "atan(S,S)", call: "atan(s, s)", shape: "s" as const },
     { name: "atan(V2,V2)", call: "atan(v2, v2)", shape: "v2" as const },
     { name: "atan(V3,V3)", call: "atan(v3, v3)", shape: "v3" as const },
@@ -63,6 +80,12 @@ it("compiles all orbit unary and mod shapes in real GLSL and WGSL compilers", as
       expect(wgsl.code).toContain("atan2(");
     if (name.startsWith("mod"))
       expect(wgsl.code).toContain("fn shdr_internal_mod_");
+    if (
+      name.startsWith("asin(") ||
+      name.startsWith("acos(") ||
+      name.startsWith("degrees(")
+    )
+      expect(wgsl.code).toContain("fn shdr_internal_safe_");
     return { glsl: glsl.code, wgsl: wgsl.code };
   });
 

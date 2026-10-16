@@ -13,7 +13,7 @@ All required Phase 3.2 commands passed:
 - `pnpm build` — 11 Turbo build tasks passed; Vite and REPL bundle-isolation checks passed.
 - `pnpm check` — 17 check tasks passed.
 - `pnpm ci:check` — check passed and the built CLI checked 34 shader files with no diagnostics.
-- `pnpm test` — 17 test tasks passed: core 51 files / 489 tests, language service 17 / 98, CLI 2 / 26, LSP 3 / 17, plus runtime, Vite, REPL, and editor-fixture browser suites. The orbit verifier passed with WebGL and presented WebGPU parity.
+- `pnpm test` — the broad suite passed before this audit correction; the focused rerun afterward passed core 51 files / 491 tests and the complete runtime suite. Language service 17 / 98, CLI 2 / 26, LSP 3 / 17, plus Vite, REPL, and editor-fixture browser suites remain covered by the broad run. The orbit verifier passed with WebGL and presented WebGPU parity.
 - `pnpm exec prettier --check "**/*.{ts,tsx,md}"` — all files passed.
 - `git diff --check` — passed.
 
@@ -24,10 +24,16 @@ The build emitted only the existing TypeScript 7 experimental-API warnings and t
 - **AC1–AC3:** Phase 1 and Phase 2 evidence establish the exact 31-shape public/core/generated matrix, concrete TypeScript 7 hovers, helper coverage, rejected shape/arity forms, source ranges, endpoint handling, partial-known lanes, and `SHDR1209` domain diagnostics.
 - **AC4:** Phase 0/Phase 1 evidence and the rendered verifier cover signed floor-based `mod`, vector/scalar divisor broadcasting, non-uniform lanes, exact multiples, and known zero-divisor rejection.
 - **AC5:** [atan-comparison.md](atan-comparison.md) records the native-versus-guarded comparison and the selected native contract; Step 1.3 conformance tests preserve `(y, x)` and map GLSL `atan(y, x)` to WGSL `atan2(y, x)`.
-- **AC6:** [rendered-parity.md](rendered-parity.md) records independent host references, WebGL readback, presented WebGPU screenshots, dynamic uniform updates, and the explicit 8-channel-value tolerance. Degenerate origin/signed-zero-sensitive cases are not claimed portable.
+- **AC6:** [rendered-parity.md](rendered-parity.md) records independent host references, WebGL readback, presented WebGPU screenshots, dynamic uniform updates, and the explicit 8-channel-value tolerance. Dedicated Vec4 RGB/W cases prevent opaque alpha from hiding disconnected results. Degenerate origin/signed-zero-sensitive cases are not claimed portable.
 - **AC7:** Core/editor evidence covers local known non-finite/domain failures, unknown helper parameters as caller preconditions, and both target compilation without WGSL-only eager-constant rejection.
 - **AC8:** [phase-2.md](phase-2.md) covers editor/CLI/Vite/REPL parity, invalid-edit previous-frame retention, recovery, and static artifact/compiler isolation.
 - **AC9:** The broad build/test audit confirms existing metadata, bindings, grouping, names, old forms, bundle boundaries, runtime updates, and documentation remain compatible. No reference-port fidelity or cross-hardware identity claim was added.
+
+## Audit corrections
+
+- WGSL now parameterizes scalar and vector `asin`, `acos`, and `degrees` calls. Clearly overflowing constant degree conversions report `SHDR1209`; accepted nested expressions remain caller preconditions without clamping.
+- The rendered verifier now routes unary, binary-`atan`, and both Vec4 `mod` forms through RGB, including separate W observations; the runtime suite was rerun.
+- The binary-`atan` visual spike now uses centered signed coordinates spanning both axes and the branch cut; hue captures were regenerated with `SHDR_ORBIT_ATAN_CAPTURE=1`.
 
 ## Remaining scope
 

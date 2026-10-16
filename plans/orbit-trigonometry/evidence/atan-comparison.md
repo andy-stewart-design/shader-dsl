@@ -13,7 +13,7 @@
 - Test: `packages/core/test/orbit-atan-comparison.test.ts`.
 - Verification: `pnpm --filter @shdr/core check`; `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root . test/orbit-atan-comparison.test.ts` — passed.
 
-The probe transports dynamic f32 inputs as bit patterns, including positive and negative zero. GLSL numeric results use lossless float-bit encoding and WebGL readback. WGSL numeric results use the same encoding rendered to an `rgba8unorm` offscreen target and copied back. Separate native and guarded angle/hue fields were drawn to WebGL canvases and presented WebGPU canvases; hue samples were captured from both canvases.
+The probe transports dynamic f32 inputs as bit patterns, including positive and negative zero. GLSL numeric results use lossless float-bit encoding and WebGL readback. WGSL numeric results use the same encoding rendered to an `rgba8unorm` offscreen target and copied back. Separate native and guarded angle/hue fields were drawn to WebGL canvases and presented WebGPU canvases; hue samples were captured from both canvases. The hue fields use centered coordinates, `(position - size / 2) / (size / 2)`, so the 64×64 visual spike spans positive and negative X/Y values and crosses both axes and the negative-X branch cut.
 
 Persistent visual artifacts can be regenerated with:
 
@@ -68,7 +68,7 @@ The native signed-zero results were identical between the tested GLSL and WGSL i
 
 ### Presented hue comparison
 
-Native and guarded angle-to-hue fields were sampled at representative points across quadrants, near axes, and the branch cut. Native-versus-guarded samples matched exactly within each backend (at most 0 channel difference in the recorded samples). The expected `-π`/`π` angle representation jump did not create a visible hue seam because the hue encoding is periodic. WebGL and presented WebGPU hue fields were sampled separately; their differing screen-coordinate orientation is unrelated to the candidate comparison.
+Native and guarded angle-to-hue fields were sampled at representative points across quadrants, near axes, and the branch cut. The regenerated centered-coordinate captures show the intended full signed domain rather than the previously one-sided field. Native-versus-guarded samples matched exactly within each backend (at most 0 channel difference in the recorded samples). The expected `-π`/`π` angle representation jump did not create a visible hue seam because the hue encoding is periodic. WebGL and presented WebGPU hue fields were sampled separately; their differing screen-coordinate orientation is unrelated to the candidate comparison.
 
 ## Decision
 

@@ -30,6 +30,20 @@ export default createFragmentShader(() => {
 });`;
 }
 
+function vector4Source(name, input, encode, channel) {
+  const encoded = (expression) => encode.replaceAll("VALUE", `(${expression})`);
+  const vector = `${name}(vec4(${input.vector4.join(", ")}))`;
+  const values =
+    channel === "rgb"
+      ? ["x", "y", "z"].map((component) => encoded(`result.${component}`))
+      : ["w", "w", "w"].map((component) => encoded(`result.${component}`));
+  return `import { ${name}, createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(() => {
+  const result = ${vector};
+  return vec4(${values.join(", ")}, 1);
+});`;
+}
+
 const inverseInput = {
   scalar: "0.5",
   vector2: [-1, 0.5],
@@ -92,6 +106,120 @@ const unaryCases = [
     expected: [0.625, 0.25, 0.5, 0.625],
   },
 ];
+const vector4Cases = [
+  {
+    name: "asin Vec4 RGB",
+    source: vector4Source(
+      "asin",
+      inverseInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "rgb",
+    ),
+    expected: [
+      0.5 + (Math.asin(-0.5) / PI) * 0.5,
+      0.5,
+      0.5 + (Math.asin(0.5) / PI) * 0.5,
+    ],
+  },
+  {
+    name: "asin Vec4 W",
+    source: vector4Source(
+      "asin",
+      inverseInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "w",
+    ),
+    expected: [0.75, 0.75, 0.75],
+  },
+  {
+    name: "acos Vec4 RGB",
+    source: vector4Source(
+      "acos",
+      inverseInput,
+      "VALUE / 3.141592653589793",
+      "rgb",
+    ),
+    expected: [Math.acos(-0.5) / PI, 0.5, Math.acos(0.5) / PI],
+  },
+  {
+    name: "acos Vec4 W",
+    source: vector4Source(
+      "acos",
+      inverseInput,
+      "VALUE / 3.141592653589793",
+      "w",
+    ),
+    expected: [0, 0, 0],
+  },
+  {
+    name: "atan Vec4 RGB",
+    source: vector4Source(
+      "atan",
+      inverseInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "rgb",
+    ),
+    expected: [
+      0.5 + (Math.atan(-0.5) / PI) * 0.5,
+      0.5,
+      0.5 + (Math.atan(0.5) / PI) * 0.5,
+    ],
+  },
+  {
+    name: "atan Vec4 W",
+    source: vector4Source(
+      "atan",
+      inverseInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "w",
+    ),
+    expected: [
+      0.5 + (Math.atan(1) / PI) * 0.5,
+      0.5 + (Math.atan(1) / PI) * 0.5,
+      0.5 + (Math.atan(1) / PI) * 0.5,
+    ],
+  },
+  {
+    name: "radians Vec4 RGB",
+    source: vector4Source(
+      "radians",
+      radiansInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "rgb",
+    ),
+    expected: [0.25, 0.5, 0.75],
+  },
+  {
+    name: "radians Vec4 W",
+    source: vector4Source(
+      "radians",
+      radiansInput,
+      "0.5 + VALUE / 3.141592653589793 * 0.5",
+      "w",
+    ),
+    expected: [0.625, 0.625, 0.625],
+  },
+  {
+    name: "degrees Vec4 RGB",
+    source: vector4Source(
+      "degrees",
+      degreesInput,
+      "0.5 + VALUE / 180.0 * 0.5",
+      "rgb",
+    ),
+    expected: [0.25, 0.5, 0.75],
+  },
+  {
+    name: "degrees Vec4 W",
+    source: vector4Source(
+      "degrees",
+      degreesInput,
+      "0.5 + VALUE / 180.0 * 0.5",
+      "w",
+    ),
+    expected: [0.625, 0.625, 0.625],
+  },
+];
 
 const binarySource = `import { atan, createFragmentShader, vec2, vec3, vec4 } from "shdr";
 export default createFragmentShader(() => {
@@ -111,6 +239,47 @@ const binaryCase = {
   source: binarySource,
   expected: [0.625, 0.625, 0.375, 0.125],
 };
+
+function binaryVector4Source(name, left, right, encode, channel) {
+  const encoded = (expression) => encode.replaceAll("VALUE", `(${expression})`);
+  const rightExpression = Array.isArray(right)
+    ? `vec4(${right.join(", ")})`
+    : right;
+  const values =
+    channel === "rgb"
+      ? ["x", "y", "z"].map((component) => encoded(`result.${component}`))
+      : ["w", "w", "w"].map((component) => encoded(`result.${component}`));
+  return `import { ${name}, createFragmentShader, vec4 } from "shdr";
+export default createFragmentShader(() => {
+  const result = ${name}(vec4(${left.join(", ")}), ${rightExpression});
+  return vec4(${values.join(", ")}, 1);
+});`;
+}
+
+const binaryVector4Cases = [
+  {
+    name: "atan binary Vec4 RGB",
+    source: binaryVector4Source(
+      "atan",
+      [1, 1, -1, -1],
+      [1, -1, -1, 1],
+      "0.5 + VALUE / 6.283185307179586",
+      "rgb",
+    ),
+    expected: [0.625, 0.875, 0.125],
+  },
+  {
+    name: "atan binary Vec4 W",
+    source: binaryVector4Source(
+      "atan",
+      [1, 1, -1, -1],
+      [1, -1, -1, 1],
+      "0.5 + VALUE / 6.283185307179586",
+      "w",
+    ),
+    expected: [0.375, 0.375, 0.375],
+  },
+];
 
 const axisSource = `import { atan, createFragmentShader, vec4 } from "shdr";
 export default createFragmentShader(() => {
@@ -151,6 +320,53 @@ const modCase = {
   expected: [0.625, 0.625, 0.375, 0.375],
 };
 
+const modVector4Cases = [
+  {
+    name: "mod Vec4/Vec4 RGB",
+    source: binaryVector4Source(
+      "mod",
+      [-1.5, 1.5, -1.5, 1.5],
+      [1, -1, -1, 1],
+      "0.5 + VALUE * 0.25",
+      "rgb",
+    ),
+    expected: [0.625, 0.375, 0.375],
+  },
+  {
+    name: "mod Vec4/Vec4 W",
+    source: binaryVector4Source(
+      "mod",
+      [-1.5, 1.5, -1.5, 1.5],
+      [1, -1, -1, 1],
+      "0.5 + VALUE * 0.25",
+      "w",
+    ),
+    expected: [0.625, 0.625, 0.625],
+  },
+  {
+    name: "mod Vec4/scalar RGB",
+    source: binaryVector4Source(
+      "mod",
+      [-1.5, 1.5, -1.5, 1.5],
+      "-1",
+      "0.5 + VALUE * 0.25",
+      "rgb",
+    ),
+    expected: [0.375, 0.375, 0.375],
+  },
+  {
+    name: "mod Vec4/scalar W",
+    source: binaryVector4Source(
+      "mod",
+      [-1.5, 1.5, -1.5, 1.5],
+      "-1",
+      "0.5 + VALUE * 0.25",
+      "w",
+    ),
+    expected: [0.375, 0.375, 0.375],
+  },
+];
+
 const dynamicSource = `import { createFragmentShader, defineUniforms, mod, vec2, vec4 } from "shdr";
 export default defineUniforms((u) => ({ phase: u.f32(-0.25) })).createFragmentShader(({ uniforms }) => {
   const value = mod(vec2(uniforms.phase, -uniforms.phase), 1);
@@ -159,9 +375,18 @@ export default defineUniforms((u) => ({ phase: u.f32(-0.25) })).createFragmentSh
 const dynamicArtifact = compile(dynamicSource);
 const artifacts = [
   ...unaryCases.map((item) => ({ ...item, artifact: compile(item.source) })),
+  ...vector4Cases.map((item) => ({ ...item, artifact: compile(item.source) })),
   { ...binaryCase, artifact: compile(binaryCase.source) },
+  ...binaryVector4Cases.map((item) => ({
+    ...item,
+    artifact: compile(item.source),
+  })),
   { ...axisCase, artifact: compile(axisCase.source) },
   { ...modCase, artifact: compile(modCase.source) },
+  ...modVector4Cases.map((item) => ({
+    ...item,
+    artifact: compile(item.source),
+  })),
 ];
 
 const server = await createServer({

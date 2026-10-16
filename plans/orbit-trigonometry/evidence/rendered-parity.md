@@ -12,7 +12,7 @@ Cases cover:
 - Signed vector/vector and vector/scalar `mod`, including negative divisors and all result dimensions.
 - Known angle conversions and a dynamic custom-uniform update from `phase = -0.25` to `phase = 0.25`.
 
-Each shader writes normalized values to all four channels. Four samples are checked at `(2,4)`, `(8,13)`, `(19,23)`, and `(29,30)` on deterministic 32×32 canvases. Host `Math` references provide expected values; WebGL and presented WebGPU each must be within 8 8-bit channel values of the reference and each other. Exact degenerate axes, signed-zero-sensitive cases, and origin are not asserted as portable values.
+Each shader writes normalized values to all four channels. Dedicated unary, binary-`atan`, and both Vec4 `mod` RGB/W cases route vector components through RGB (with W repeated in RGB), so opaque alpha cannot hide a disconnected Vec4 result. Four samples are checked at `(2,4)`, `(8,13)`, `(19,23)`, and `(29,30)` on deterministic 32×32 canvases. Host `Math` references provide expected values; WebGL and presented WebGPU each must be within 8 8-bit channel values of the reference and each other. Exact degenerate axes, signed-zero-sensitive cases, and origin are not asserted as portable values.
 
 ## Environment and result
 

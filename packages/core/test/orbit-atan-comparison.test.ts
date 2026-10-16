@@ -161,7 +161,7 @@ precision highp float;
 out vec4 color;
 ${candidate === "guarded" ? guardedGlsl : ""}
 void main() {
-  vec2 p = gl_FragCoord.xy / ${HUE_SIZE.toFixed(1)} - 1.0;
+  vec2 p = (gl_FragCoord.xy - vec2(${(HUE_SIZE / 2).toFixed(1)})) / ${(HUE_SIZE / 2).toFixed(1)};
   float angle = ${expression};
   color = vec4(0.5 + 0.5 * cos(angle + vec3(0.0, 2.0943951, 4.1887902)), 1.0);
 }`;
@@ -173,7 +173,7 @@ function hueWgsl(candidate: "native" | "guarded"): string {
   return `${candidate === "guarded" ? guardedWgsl : ""}
 @fragment
 fn fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-  let p = position.xy / ${HUE_SIZE.toFixed(1)} - vec2<f32>(1.0);
+  let p = (position.xy - vec2<f32>(${(HUE_SIZE / 2).toFixed(1)})) / ${(HUE_SIZE / 2).toFixed(1)};
   let angle = ${expression};
   return vec4<f32>(0.5 + 0.5 * cos(angle + vec3<f32>(0.0, 2.0943951, 4.1887902)), 1.0);
 }`;
