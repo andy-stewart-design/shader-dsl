@@ -2,7 +2,7 @@
 
 ## Status
 
-**Blocked pending contract decision.** The raw comparison is complete on the configured Chromium/SwiftShader path, but the signed-zero divergence creates a user-significant choice between native forwarding and an explicit axis policy. The governing spec remains Draft; no production emitter decision has been made.
+**Decision recorded: native forwarding.** The raw comparison is complete on the configured Chromium/SwiftShader path. The visible fields did not justify custom generated axis branches; the WebGL/WebGPU orientation difference is a coordinate convention, not an `atan` candidate difference. Signed-zero-sensitive axes, origin, and very small-input precision remain outside the portable value guarantee.
 
 ## Environment and method
 
@@ -70,10 +70,6 @@ The native signed-zero results were identical between the tested GLSL and WGSL i
 
 Native and guarded angle-to-hue fields were sampled at representative points across quadrants, near axes, and the branch cut. Native-versus-guarded samples matched exactly within each backend (at most 0 channel difference in the recorded samples). The expected `-π`/`π` angle representation jump did not create a visible hue seam because the hue encoding is periodic. WebGL and presented WebGPU hue fields were sampled separately; their differing screen-coordinate orientation is unrelated to the candidate comparison.
 
-## Decision options
+## Decision
 
-1. **Native forwarding:** keep the one-call native mappings. This has minimal generated code and matched the tested ordinary values and non-signed axes, but cannot promise the explicit signed-zero policy portably. The source contract would need to restrict or leave unspecified zero-axis/signed-zero behavior, and origin/small-input behavior would remain caller preconditions.
-2. **Explicit axis handling (recommended):** use the guarded candidate lane-wise. This gives the documented zero-axis behavior independent of native signed-zero quirks and preserves ordinary quadrant behavior in the probe. It adds branches/helper code and may have a runtime cost that this spike did not benchmark; static code size is not a performance measurement. Origin remains outside the guaranteed portable domain, and conservative ordinary-finite/small-input limits still need to be stated.
-3. **Restricted portable domain:** forward natively while diagnosing or excluding zero axes, signed-zero-sensitive inputs, origin, and any selected small-input region. This minimizes generated code but narrows accepted source/runtime behavior.
-
-The recommended default is **explicit axis handling**, subject to user approval of the generated-code/possible-cost tradeoff. No option is activated until that choice, the origin policy, and the useful small-input boundary are confirmed.
+**Native forwarding is selected.** GLSL emits `atan(y, x)` and WGSL emits `atan2(y, x)` without a custom helper. This preserves the observed ordinary output while avoiding generated branches for a difference that is only visible for exact signed-zero degenerates. The origin, signed-zero-sensitive axis pairs, and very small-input precision remain caller preconditions without a portable value guarantee.

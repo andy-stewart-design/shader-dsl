@@ -95,6 +95,12 @@ function calculateShaderComponents(
         case "sin":
         case "tanh":
           return first.map((value) => exact(value, 0, 0));
+        case "asin":
+        case "acos":
+        case "atan":
+        case "radians":
+        case "degrees":
+          return unknown();
         case "cos":
         case "exp":
           return first.map((value) => exact(value, 0, 1));

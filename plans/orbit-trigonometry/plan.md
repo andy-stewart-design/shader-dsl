@@ -96,7 +96,7 @@ Evidence: [phase-0.md](evidence/phase-0.md).
 
 ### Step 0.3 — Compare binary `atan` candidates and settle the contract
 
-Status: Blocked — user decision required
+Status: Verified
 Requirements / acceptance: R3, R9; AC5 (complete comparison/decision), AC6 (raw candidate evidence only; authored-output acceptance remains Step 3.1).
 Depends on: Steps 0.1 and 0.2.
 Review boundary: Native-versus-guarded numerical and visible comparison, followed by an explicit contract decision; no production emitter choice before that decision.
@@ -115,7 +115,7 @@ Tasks:
 - [x] Obtain numeric fragment-stage results beyond coarse screenshot colors, for example verified float-target readback or lossless float-bit encoding into byte outputs. Record capability requirements and measurement limitations; compute-only output cannot establish fragment-stage behavior.
 - [x] Render native and guarded angle/hue fields side by side on both targets, including a **presented WebGPU** canvas capture. Compare directions modulo a full turn at the branch cut; distinguish an intentional angle representation jump from a visible hue seam.
 - [x] Separate guarantees in the applicable language specifications from observations, and document generated-code complexity. Investigate performance only if evidence warrants it; shader size is not a measured execution cost.
-- [x] Recommend native forwarding, explicit handling, or a restricted domain. Record axes/signed-zero/branch-cut behavior, origin policy/diagnostics, small-input limits, and tolerance rationale in the report and defer activation pending user decision.
+- [x] Recommend native forwarding, explicit handling, or a restricted domain. Record axes/signed-zero/branch-cut behavior, origin policy/diagnostics, small-input limits, and tolerance rationale in the report; native forwarding was selected with degenerate edge values outside the portable guarantee.
 
 Verification:
 
@@ -127,7 +127,7 @@ Completion gate: The report and spec agree on an evidence-informed contract. Any
 Evidence: [atan-comparison.md](evidence/atan-comparison.md).
 
 Phase exit gate: After Step 0.3's checks, rerun the two proposed Phase 0 core tests together plus the focused baseline core suites and `pnpm --filter @shdr/core check`. Review the evidence against the spec: all 31 shapes have a viable strategy; no backend-only acceptance conflict is hidden; numeric/axis decisions and tolerances are explicit; the spec is Ready for planning before activating production semantics. Assess this gate before advancing or requesting supervised approval. Supporting evidence belongs in the Phase 0/atan notes, not duplicated transcripts here.
-Evidence: Not run.
+Evidence: Passed with 6 files / 78 tests; see [phase-0.md](evidence/phase-0.md) and [atan-comparison.md](evidence/atan-comparison.md).
 
 ## Phase 1 — Complete public/core/backend builtin slices
 
@@ -137,7 +137,7 @@ Review boundary: Public authoring, core semantics and generated targets; dedicat
 
 ### Step 1.1 — Add unary inverse trig and angle conversions end to end
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R2, R5, R6, R8; AC1/AC2/AC3/AC7 (public/core/generated unary portions), AC9 (compatibility portion). Tooling and presented pixels remain Phases 2–3.
 Depends on: Phase 0 exit.
 Review boundary: Twenty unary signatures: `asin`, `acos`, unary `atan`, `radians`, and `degrees`.
@@ -151,11 +151,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Add only concrete S/V2/V3/V4 overloads for these five names and compile-only runtime markers. Preserve rejected names/forms and existing exports.
-- [ ] Extend core vocabulary and every exhaustive consumer together. Keep unary `atan`'s signature rule extensible for the later agreed binary arity without admitting that arity prematurely.
-- [ ] Enforce `asin`/`acos` bounds after f32 rounding, known non-finite compound arguments, and any conservative overflow policy justified in Phase 0. Keep unknown lanes unknown and helper parameters dynamic; avoid JS transcendental approximation as proof.
-- [ ] Emit both targets and the parameterized helpers established by Phase 0 where needed. Aggregate helper requirements from reusable functions as well as entry statements, deduplicate declarations, and preserve grouping/names.
-- [ ] Add public result-type/negative tests, runtime-marker assertions, original-call diagnostic cases, endpoint and partially known vector cases, nested/helper use, and actual generated-target compilation for all twenty shapes.
+- [x] Add only concrete S/V2/V3/V4 overloads for these five names and compile-only runtime markers. Preserve rejected names/forms and existing exports.
+- [x] Extend core vocabulary and every exhaustive consumer together. Keep unary `atan`'s signature rule extensible for the later agreed binary arity without admitting that arity prematurely.
+- [x] Enforce `asin`/`acos` bounds after f32 rounding, known non-finite compound arguments, and any conservative overflow policy justified in Phase 0. Keep unknown lanes unknown and helper parameters dynamic; avoid JS transcendental approximation as proof.
+- [x] Emit both targets and the parameterized helpers established by Phase 0 where needed. Aggregate helper requirements from reusable functions as well as entry statements, deduplicate declarations, and preserve grouping/names.
+- [x] Add public result-type/negative tests, runtime-marker assertions, original-call diagnostic cases, endpoint and partially known vector cases, nested/helper use, and actual generated-target compilation for all twenty shapes.
 
 Verification:
 
@@ -164,7 +164,7 @@ Verification:
 - Manual: Review the twenty-signature matrix and non-goals against the spec. Mathematical expectations may use host reference calculations with tolerances, not an assertion of bit-identical target constants.
 
 Completion gate: Twenty new unary signatures and their invalid forms agree across public/core/generated targets; touched code builds and old supported behavior stays usable. This does not yet claim editor/CLI or presented-pixel acceptance.
-Evidence: Not run.
+Evidence: [phase-1.md](evidence/phase-1.md).
 
 ### Step 1.2 — Add floor-based `mod` and divisor broadcasting
 
@@ -394,6 +394,6 @@ This table maps proof ownership; it is not a second progress checklist. Follow e
 ## Deferred checks and accepted deviations
 
 - **Accepted deviations: None.** No checks have been executed or waived.
-- Binary `atan`'s axis/domain decision is intentionally deferred only until Step 0.3 and blocks Phase 1. This is not permission to ship unspecified behavior.
+- Binary `atan` uses native forwarding under the resolved portable-domain restrictions recorded in the spec and Step 0.3 evidence. This does not promise fallback pixels for origin, signed-zero-sensitive axes, or very small inputs.
 - Full orbiting-circles fidelity, `tan`, unrelated signatures, matrices/captures, authored branching, interprocedural proofs and runtime API changes remain outside this plan per the spec.
 - A real VS Code/Zed UI session, broad hardware-GPU matrix and performance benchmark are not required acceptance gates for this slice. The required TypeScript 7 adapter, Chromium WebGL and presented WebGPU gates remain mandatory; lack of those capabilities must be recorded as Blocked, not recast as deferred optional coverage.

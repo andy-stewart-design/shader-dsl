@@ -2,8 +2,8 @@
 
 ## Status
 
-- Readiness: **Draft**. Scope and signature families are agreed; the binary `atan` axis contract remains deliberately unresolved. This is a proposed behavioral contract, not an implemented feature.
-- Blocking decisions: The comparison spike must inform a decision on binary `atan` zero-axis behavior and its portable input domain before that behavior can be finalized. This does not block planning or conducting the spike.
+- Readiness: **Ready for implementation**. Scope and signature families are agreed; native forwarding has been selected for binary `atan` after the comparison spike. This is a proposed behavioral contract, not an implemented feature.
+- Blocking decisions: None for the binary `atan` candidate. Exact signed-zero-sensitive axes, origin, and very small-input precision remain outside the portable value guarantee rather than being normalized by a custom helper.
 - Source: The PR 7 interview in this conversation and [the language-extension roadmap](../language-exntesion.md#pr-7--orbittrigonometry-semantics-not-implemented). The [current accepted language](../../README.md#accepted-shader-language) and [completed mixed-shape math contract](../_completed/mixed-shape-clamp-pow/plan.md) establish compatibility constraints.
 
 ## Problem and intended outcome
@@ -78,7 +78,7 @@ A scalar divisor in vector `mod` remains scalar in target-neutral call IR. Backe
 - `acos(x)` returns the inverse cosine in radians, in `[0, π]`. Each input must be in `[-1, 1]`, including the endpoints.
 - Unary `atan(x)` returns the inverse tangent in radians, in `[-π/2, π/2]`. It does not preserve the quadrant information of a separate `(y, x)` pair.
 - `radians(d)` converts degrees to radians, mathematically `d * π / 180`; `degrees(r)` converts radians to degrees, mathematically `r * 180 / π`. These equations define the conversion, not an exact constant spelling, evaluation grouping mandate, or bit-exact round-trip guarantee. Inputs/results remain subject to f32 range limits.
-- Binary `atan(y, x)` returns a quadrant-aware angle in `[-π, π]` for its finalized portable domain. Native target mapping is GLSL `atan(y, x)` and WGSL `atan2(y, x)`; mapping does not settle axis semantics. `(0, 0)` is not promised a valid portable result. Signed-zero treatment, exact non-origin axes, branch-cut endpoint behavior, and small-input restrictions remain subject to the spike decision.
+- Binary `atan(y, x)` returns a quadrant-aware angle in `[-π, π]` for ordinary finite, nondegenerate inputs. **Native forwarding is selected:** GLSL uses `atan(y, x)` and WGSL uses `atan2(y, x)`. No custom axis helper or target-independent signed-zero normalization is emitted. `(0, 0)`, signed-zero-sensitive axis pairs, and very small inputs are caller preconditions without a portable value guarantee; no fallback value is invented. Ordinary non-signed axis observations and branch-cut directions remain target observations rather than claims of universal bit identity.
 - `mod(x, y)` requires a nonzero divisor in every lane. For ordinary representable inputs, examples are `mod(-1.5, 1) = 0.5`, `mod(1.5, -1) = -0.5`, and `mod(-1.5, -1) = -0.5`. A known zero divisor is invalid even when its dividend is unknown. No unconditional range or accuracy promise is made for numerically extreme inputs whose floor-based intermediates overflow or lose substantial precision.
 
 Known non-finite compound arguments follow the existing domain-sensitive math policy. A source expression that rounds to a valid f32 endpoint is checked as that endpoint, not as its original JavaScript double. Unknown runtime inputs are not normalized or clamped. Generated internal guards, if chosen, do not admit authored branching or make invalid dynamic values valid.
@@ -87,7 +87,7 @@ Helper parameters remain dynamic for domain analysis. A directly written `asin(2
 
 ### Binary `atan` comparison contract
 
-Compare native forwarding with an explicit-axis-handling candidate on both targets before choosing the public axis contract. The guarded candidate is exploratory, not already the required implementation. Candidate behavior includes `±π/2` on the vertical axis, zero on the positive horizontal axis, and `π` on the negative horizontal axis without distinguishing signed zero.
+The comparison spike selected native forwarding rather than an explicit-axis-handling candidate. The guarded candidate remains evidence only; it is not part of the implementation contract. Native GLSL `atan(y, x)` and WGSL `atan2(y, x)` preserve authored argument order and agree for the ordinary finite cases covered by the probe. Exact signed-zero-sensitive axes, origin, and very small-input precision are outside the portable value guarantee.
 
 The comparison must expose:
 
@@ -97,7 +97,7 @@ The comparison must expose:
 - Generated-code complexity and any observed reasons to investigate performance. A performance benchmark is not a prerequisite unless the evidence warrants it.
 - Native specification guarantees separately from observed behavior, with the tested GPU/browser environment identified.
 
-The resulting decision must select and document native forwarding, explicit handling, or a restricted portable domain, including signed-zero/axis behavior and source-domain diagnostics where applicable. If the evidence reveals a meaningful tradeoff requiring user preference, return that decision to the user rather than treating a candidate as approved. All vector lanes must follow the selected scalar contract. No unconditional axis guarantee is accepted merely because both tested backends happened to agree.
+The resulting decision is native forwarding with the restricted portable value domain documented above. All vector lanes follow the same native scalar mapping. No unconditional signed-zero, origin, or small-input axis guarantee is accepted merely because both tested backends happened to agree on the observed software path.
 
 ### Failure and existing application state
 
@@ -134,7 +134,7 @@ These are proposed verification obligations, not results already obtained.
 
 ## Risks and open decisions
 
-- **Blocking final contract/acceptance:** binary `atan` axes, signed zero, branch-cut endpoint behavior, and the useful small-input portability boundary await the agreed comparison. The specification remains Draft until the material domain/axis decision is recorded; planning can schedule this decision gate first.
+- **Resolved contract tradeoff:** native forwarding avoids custom generated branches and matches the visible ordinary output; exact signed-zero-sensitive axes, origin, and very small-input precision are intentionally outside the portable value guarantee. The comparison evidence records the observed edge behavior without promoting it to cross-target identity.
 - **Feasibility gate:** WGSL eager constant evaluation and floor-based `mod` expansion may expose target-specific creation failures. Validate before committing to emission details; any conflict with the shared accepted-input policy requires an explicit contract review, not backend divergence.
 - **Non-blocking precision risk:** very small divisors, large quotients/products, subnormals, and transcendental variation can defeat naive global range/accuracy assertions. Document evidenced limits and use nondegenerate pinned inputs; do not silently restrict ordinary negative operands or promise all finite inputs yield finite results.
 - **Non-blocking evidence risk:** 8-bit rendered pixels alone can hide small angle errors. Pair the visible spike with numeric observations and distinguish tolerances from observed precision. Exact probe mechanics and thresholds belong in the implementation plan.

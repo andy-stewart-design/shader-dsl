@@ -9,10 +9,14 @@ export {
 } from "./dsl.js";
 export {
   abs,
+  acos,
+  asin,
+  atan,
   ceil,
   clamp,
   cos,
   cross,
+  degrees,
   distance,
   dot,
   exp,
@@ -23,6 +27,7 @@ export {
   min,
   mix,
   normalize,
+  radians,
   pow,
   sin,
   sqrt,

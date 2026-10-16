@@ -647,6 +647,10 @@ function invalidBuiltinDomain(
   context: LoweringContext,
 ): string | undefined {
   if (
+    name !== "asin" &&
+    name !== "acos" &&
+    name !== "radians" &&
+    name !== "degrees" &&
     name !== "sqrt" &&
     name !== "exp" &&
     name !== "tanh" &&
@@ -660,6 +664,11 @@ function invalidBuiltinDomain(
   if (hasKnownNonFiniteSubexpression(args, context))
     return `${name} has a known non-finite f32 argument.`;
   const [first, second, third] = values;
+  if (
+    (name === "asin" || name === "acos") &&
+    first?.some((value) => value !== undefined && (value < -1 || value > 1))
+  )
+    return `${name} requires inputs in the range [-1, 1] in every component.`;
   if (
     name === "sqrt" &&
     first?.some((value) => value !== undefined && value < 0)
