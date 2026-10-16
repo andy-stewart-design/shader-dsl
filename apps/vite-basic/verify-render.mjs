@@ -92,6 +92,45 @@ try {
   assertPixel("bottom row", samples.bottom, [128, 255, 0, 255], 3);
 
   await page.locator('#math-canvas[data-render-status="success"]').waitFor();
+  await page.locator('#orbit-canvas[data-render-status="success"]').waitFor();
+  await page
+    .locator('#orbit-gpu-canvas[data-render-status="success"]')
+    .waitFor();
+  const orbitSamples = await page.evaluate(() => {
+    const target = document.querySelector("#orbit-canvas");
+    if (!(target instanceof HTMLCanvasElement))
+      throw new Error("Orbit shader canvas is unavailable.");
+    const gl = target.getContext("webgl2");
+    if (!gl) throw new Error("Orbit shader WebGL 2 context is unavailable.");
+    const pixel = new Uint8Array(4);
+    gl.finish();
+    gl.readPixels(64, 64, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    return { pixel: [...pixel], error: gl.getError() };
+  });
+  if (orbitSamples.error !== 0 || orbitSamples.pixel[3] !== 255)
+    throw new Error(
+      `Orbit shader WebGL readback failed: ${orbitSamples.pixel}`,
+    );
+  const orbitGpuScreenshot = await page
+    .locator("#orbit-gpu-canvas")
+    .screenshot();
+  const orbitGpuPixel = await page.evaluate(
+    async (png) => {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(png)], { type: "image/png" }),
+      );
+      const target = document.createElement("canvas");
+      target.width = image.width;
+      target.height = image.height;
+      const context = target.getContext("2d");
+      if (!context) throw new Error("No orbit WebGPU screenshot context.");
+      context.drawImage(image, 0, 0);
+      return [...context.getImageData(64, 64, 1, 1).data];
+    },
+    [...orbitGpuScreenshot],
+  );
+  if (orbitGpuPixel[3] !== 255)
+    throw new Error(`Orbit shader WebGPU readback failed: ${orbitGpuPixel}`);
   const mathSamples = await page.evaluate(() => {
     const mathCanvas = document.querySelector("#math-canvas");
     if (!(mathCanvas instanceof HTMLCanvasElement)) {

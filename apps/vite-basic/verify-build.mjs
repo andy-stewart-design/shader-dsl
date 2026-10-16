@@ -24,6 +24,8 @@ assertIncludes(bundle, "shdr_custom_0");
 assertIncludes(bundle, "@group(1) @binding(0)");
 assertIncludes(bundle, "normalize(");
 assertIncludes(bundle, "fract(");
+assertIncludes(bundle, "atan2(");
+assertIncludes(bundle, "shdr_internal_mod_");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
 assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "const waves = sin(uv * 2) + cos(uv * 3)");
@@ -44,6 +46,8 @@ const sources = (
 if (!sources.some((source) => source.endsWith("/src/main.ts"))) {
   throw new Error("Production source maps omitted the app's module graph.");
 }
+if (!sources.some((source) => source.endsWith("/src/orbit-math.shdr.ts")))
+  throw new Error("Static build omitted the orbit-math shader.");
 for (const form of ["inline", "named"]) {
   if (
     !sources.some((source) =>
@@ -105,9 +109,12 @@ try {
     )
   ).flat();
   assertIncludes(oneCode, "#version 300 es");
+  assertIncludes(oneCode, "atan(");
+  assertIncludes(oneCode, "shdr_internal_mod_");
   assertExcludes(oneCode, "createFragmentShader");
   if (
     !oneSources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||
+    !oneSources.some((source) => source.endsWith("/src/orbit-math.shdr.ts")) ||
     oneSources.some((source) =>
       /runtime\/dist\/webgpu\.mjs|packages\/core\/|@babel[+/]parser|browser-compiler-smoke/.test(
         source,

@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Phase 2 in progress**. Phase 1 and Step 2.1 are verified; static/app and rendered-parity phases remain.
+- Delivery state: **Phase 2 verified**. Phase 1 and Steps 2.1–2.2 are verified; rendered-parity and final documentation remain.
 - Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
 - Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
 
@@ -267,7 +267,7 @@ Evidence: Verified; see [phase-2.md](evidence/phase-2.md).
 
 ### Step 2.2 — Exercise static Vite and browser/REPL paths
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R6, R7, R8, R9; AC8 (app paths), AC9 (static artifact boundary). Detailed numerical rendered acceptance remains Step 3.1.
 Depends on: Step 2.1.
 Review boundary: A focused orbit-math example and existing integration verifiers, not a new reference port or REPL interface.
@@ -280,10 +280,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Add a bounded finite shader with named angle conversions, inverse trig and signed wrapping; ensure every new name's result contributes to observable output rather than a dead import. Keep its dynamic values inside the finalized domain.
-- [ ] Import/use the artifact in the existing Vite fixture and WebGL-only consumer. Extend dev/production assertions so shader strings are present while authored markers/compiler modules remain absent; inspect bundle/source-map ownership, not just missing text fragments.
-- [ ] Exercise browser compilation through the existing single-textarea REPL with in-text helpers. Confirm both previews render, then introduce a signature/domain error and confirm original-source feedback plus retention of **both** previous frames; correct it and verify recovery.
-- [ ] Keep any dev verification edits temporary and restore original fixture contents in `finally`, matching the existing script's restoration pattern. Do not change runtime bindings, lifecycle, or host inputs to accommodate the fixture.
+- [x] Add a bounded finite `orbit-math.shdr.ts` shader with observable inverse trig, both `atan` arities, angle conversions, and signed floor-based wrapping. Dynamic values stay inside the finalized domain.
+- [x] Import/use the artifact in the existing Vite fixture and WebGL-only consumer. Extend dev/production assertions for `atan2`, modulo helpers, source-map ownership, and compiler/runtime bundle isolation.
+- [x] Exercise browser compilation through the existing single-textarea REPL with an in-text binary-`atan` helper. Both previews render; an invalid mixed-shape edit blocks both targets while retaining both previous frames, then the valid source recovers.
+- [x] Keep dev verification edits temporary and restore original fixture contents in `finally`; no runtime bindings, lifecycle, or host inputs changed.
 
 Verification:
 
@@ -293,10 +293,10 @@ Verification:
 - Manual: Not needed if browser verifiers exercise these flows; missing WebGPU may preserve a valid product fallback but still blocks the required two-target acceptance gate.
 
 Completion gate: New builtin use is exercised in actual static and dynamic consumer paths, including failure recovery and compiler exclusion; fixture source restoration leaves no accidental worktree edits.
-Evidence: Not run.
+Evidence: Verified; see [phase-2.md](evidence/phase-2.md).
 
 Phase exit gate: After Step 2.2's checks, rebuild changed dependencies, run `pnpm --filter @shdr/language-service test`, `pnpm --filter @shdr/cli test`, `pnpm --filter vite-basic test`, and `pnpm --filter repl test` subject to the browser-install constraint above. Confirm adapter, executable, static artifacts, browser compiler, and previous-frame retention compose without divergent rules. These existing scripts include builds/hooks as declared in their package manifests. Assess before Phase 3 or supervised approval.
-Evidence: Not run.
+Evidence: Verified; see [phase-2.md](evidence/phase-2.md).
 
 ## Phase 3 — Rendered acceptance and completion
 

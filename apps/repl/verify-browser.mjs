@@ -261,6 +261,54 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await compileSource(page, editor, mathSource);
   await waitForValidation(page, "glsl-es-300", "success");
   await waitForValidation(page, "wgsl", "success");
+  const orbitSource = `import { acos, asin, atan, createFragmentShader, defineShaderFunction, degrees, fract, mod, radians, vec2, vec3, vec4 } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+const angle = defineShaderFunction((y: Expr<Vec2<F32>>, x: Expr<Vec2<F32>>) => atan(y, x));
+export default createFragmentShader(({ coord, uniforms }) => {
+  const uv = coord.xy / uniforms.resolution;
+  const v2 = uv;
+  const v3 = vec3(v2, 0);
+  const v4 = vec4(v3, 1);
+  const s = v2.x;
+  const axis = vec2(1);
+  const binary = angle(v2, axis);
+  const unary = atan(v2);
+  const inverse = asin(v2) + acos(v2);
+  const converted = degrees(radians(v3));
+  const wrapped = mod(v4, -1.5);
+  return vec4(
+    0.5 + inverse.x * 0.1 + binary.x * 0.05 + unary.x * 0.05,
+    converted.x * 0.01,
+    fract(0.5 + wrapped.x * 0.1 + degrees(radians(s)) * 0.01),
+    1,
+  );
+});`;
+  await compileSource(page, editor, orbitSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  const orbitGlPixel = await readCenterPixel(page);
+  const orbitGpuPixel = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  const invalidOrbitSource = orbitSource.replace(
+    "angle(v2, axis)",
+    "atan(v2, s)",
+  );
+  await compileSource(page, editor, invalidOrbitSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1208/);
+  assert.equal(
+    await wgslValidation.getAttribute("data-validation-state"),
+    "blocked",
+  );
+  assert.deepEqual(await readCenterPixel(page), orbitGlPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    orbitGpuPixel,
+  );
+  await compileSource(page, editor, mathSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+
   const invalidMathSource = await readFile(
     new URL(
       "../editor-fixture/test/fixtures/invalid-math.shdr.ts",

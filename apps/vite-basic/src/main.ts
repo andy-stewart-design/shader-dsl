@@ -8,6 +8,7 @@ import fragmentShader from "./gradient.shdr.ts";
 import alternateFragmentShader from "./gradient-alt.shdr.ts";
 import expandedShader from "./expanded.shdr.ts";
 import mathBuiltinsShader from "./math-builtins.shdr.ts";
+import orbitMathShader from "./orbit-math.shdr.ts";
 import mixedShapeMathShader from "./mixed-shape-math.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
 import pr3MathShader from "./pr3-math.shdr.ts";
@@ -27,6 +28,7 @@ const shader: CompiledFragmentArtifact = fragmentShader;
 const alternateShader: CompiledFragmentArtifact = alternateFragmentShader;
 const expanded: CompiledFragmentArtifact = expandedShader;
 const math: CompiledFragmentArtifact = mathBuiltinsShader;
+const orbitMath: CompiledFragmentArtifact = orbitMathShader;
 const mixedShapeMath: CompiledFragmentArtifact = mixedShapeMathShader;
 const cells: CompiledFragmentArtifact = cellsShader;
 const pr3Math: CompiledFragmentArtifact = pr3MathShader;
@@ -66,6 +68,10 @@ if (
   !cells.wgsl.includes("step(") ||
   !pr3Math.glsl.includes("pow(") ||
   !pr3Math.wgsl.includes("shdr_internal_safe_pow_vec3") ||
+  !orbitMath.glsl.includes("atan(") ||
+  !orbitMath.wgsl.includes("atan2(") ||
+  !orbitMath.glsl.includes("shdr_internal_mod_") ||
+  !orbitMath.wgsl.includes("shdr_internal_mod_") ||
   !mixedShapeMath.glsl.includes("vec2(") ||
   !mixedShapeMath.wgsl.includes("vec2<f32>(") ||
   !mixedShapeMath.wgsl.includes("shdr_internal_safe_pow_vec4") ||
@@ -96,6 +102,10 @@ app.innerHTML = `
     <h2>Math builtins</h2>
     <canvas id="math-canvas" width="128" height="128"></canvas>
     <p id="math-status" role="status">Compiling generated math shader…</p>
+    <canvas id="orbit-canvas" width="128" height="128"></canvas>
+    <p id="orbit-status" role="status">Compiling generated orbit shader…</p>
+    <canvas id="orbit-gpu-canvas" width="128" height="128"></canvas>
+    <p id="orbit-gpu-status" role="status">Starting orbit WebGPU…</p>
     <h2>Composed reusable graph</h2>
     <canvas id="composed-canvas" width="128" height="128"></canvas>
     <p id="composed-status" role="status">Compiling composed shader…</p>
@@ -133,6 +143,13 @@ const gpuStatus =
   document.querySelector<HTMLParagraphElement>("#webgpu-status");
 const mathCanvas = document.querySelector<HTMLCanvasElement>("#math-canvas");
 const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
+const orbitCanvas = document.querySelector<HTMLCanvasElement>("#orbit-canvas");
+const orbitStatus =
+  document.querySelector<HTMLParagraphElement>("#orbit-status");
+const orbitGpuCanvas =
+  document.querySelector<HTMLCanvasElement>("#orbit-gpu-canvas");
+const orbitGpuStatus =
+  document.querySelector<HTMLParagraphElement>("#orbit-gpu-status");
 const composedCanvas =
   document.querySelector<HTMLCanvasElement>("#composed-canvas");
 const composedStatus =
@@ -150,6 +167,10 @@ if (
   !gpuStatus ||
   !mathCanvas ||
   !mathStatus ||
+  !orbitCanvas ||
+  !orbitStatus ||
+  !orbitGpuCanvas ||
+  !orbitGpuStatus ||
   !composedCanvas ||
   !composedStatus ||
   !composedGpuCanvas ||
@@ -211,6 +232,29 @@ async function renderWebGpu(): Promise<void> {
         ? "unavailable"
         : "error";
     gpuStatus!.textContent =
+      error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function renderOrbitWebGpu(): Promise<void> {
+  try {
+    const renderer = await createWebGpuRenderer(orbitGpuCanvas!, orbitMath, {
+      signal: lifetime.signal,
+      animate: false,
+      onError(error) {
+        orbitGpuCanvas!.dataset.renderStatus = "error";
+        orbitGpuStatus!.textContent = error.message;
+      },
+    });
+    renderers.push(renderer);
+    orbitGpuCanvas!.dataset.renderStatus = "success";
+    orbitGpuStatus!.textContent = "Orbit WGSL rendered in WebGPU.";
+  } catch (error) {
+    orbitGpuCanvas!.dataset.renderStatus =
+      error instanceof ShdrRuntimeError && error.kind === "unavailable"
+        ? "unavailable"
+        : "error";
+    orbitGpuStatus!.textContent =
       error instanceof Error ? error.message : String(error);
   }
 }
@@ -423,8 +467,10 @@ async function renderSharedSchemaDemos(): Promise<void> {
 void Promise.allSettled([
   renderWebGl(canvas, status, shader),
   renderWebGl(mathCanvas, mathStatus, math),
+  renderWebGl(orbitCanvas, orbitStatus, orbitMath),
   renderWebGl(composedCanvas, composedStatus, composed),
   renderWebGpu(),
+  renderOrbitWebGpu(),
   renderComposedWebGpu(),
   renderCustomUniformDemos(),
   renderSharedSchemaDemos(),
