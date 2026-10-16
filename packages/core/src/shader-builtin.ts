@@ -4,12 +4,18 @@ import type { ShaderValueType } from "./shader-type.js";
 export const SHADER_BUILTINS = {
   sin: "unary-same",
   cos: "unary-same",
+  asin: "unary-same",
+  acos: "unary-same",
+  atan: "atan",
+  radians: "unary-same",
+  degrees: "unary-same",
   ceil: "unary-same",
   sqrt: "unary-same",
   exp: "unary-same",
   tanh: "unary-same",
   clamp: "clamp",
   pow: "pow",
+  mod: "mod",
   smoothstep: "ternary-same",
   mix: "ternary-interpolate",
   step: "binary-step",
@@ -51,11 +57,23 @@ export function builtinResultType(
       return args.length === 1 ? first : undefined;
     case "unary-vector":
       return args.length === 1 && first.kind === "vector" ? first : undefined;
+    case "atan":
+      return args.length === 1
+        ? first
+        : args.length === 2 && sameShape(args[1])
+          ? first
+          : undefined;
     case "unary-reduce":
       return args.length === 1 ? { kind: "scalar", scalar: "f32" } : undefined;
     case "binary-same":
       return args.length === 2 && sameShape(args[1]) ? first : undefined;
     case "pow":
+      return args.length === 2 &&
+        (sameShape(args[1]) ||
+          (first.kind === "vector" && args[1]?.kind === "scalar"))
+        ? first
+        : undefined;
+    case "mod":
       return args.length === 2 &&
         (sameShape(args[1]) ||
           (first.kind === "vector" && args[1]?.kind === "scalar"))

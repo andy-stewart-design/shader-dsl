@@ -25,6 +25,61 @@ export function sqrt(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("sqrt");
 }
 
+export function asin(x: Expr<F32>): Expr<F32>;
+export function asin(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function asin(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function asin(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function asin(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("asin");
+}
+
+export function acos(x: Expr<F32>): Expr<F32>;
+export function acos(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function acos(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function acos(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function acos(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("acos");
+}
+
+export function atan(x: Expr<F32>): Expr<F32>;
+export function atan(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function atan(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function atan(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function atan(y: Expr<F32>, x: Expr<F32>): Expr<F32>;
+export function atan(y: Expr<Vec2<F32>>, x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function atan(y: Expr<Vec3<F32>>, x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function atan(y: Expr<Vec4<F32>>, x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function atan(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("atan");
+}
+
+export function radians(x: Expr<F32>): Expr<F32>;
+export function radians(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function radians(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function radians(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function radians(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("radians");
+}
+
+export function degrees(x: Expr<F32>): Expr<F32>;
+export function degrees(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function degrees(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function degrees(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function degrees(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("degrees");
+}
+
+export function mod(x: Expr<F32>, y: Expr<F32>): Expr<F32>;
+export function mod(x: Expr<Vec2<F32>>, y: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function mod(x: Expr<Vec2<F32>>, y: Expr<F32>): Expr<Vec2<F32>>;
+export function mod(x: Expr<Vec3<F32>>, y: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function mod(x: Expr<Vec3<F32>>, y: Expr<F32>): Expr<Vec3<F32>>;
+export function mod(x: Expr<Vec4<F32>>, y: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function mod(x: Expr<Vec4<F32>>, y: Expr<F32>): Expr<Vec4<F32>>;
+export function mod(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("mod");
+}
+
 export function exp(x: Expr<F32>): Expr<F32>;
 export function exp(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function exp(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;

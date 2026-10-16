@@ -8,6 +8,7 @@ import {
   vec4,
 } from "../src/index.js";
 import { __shdr_internal_div, __shdr_internal_f32 } from "../src/internal.js";
+import { acos, asin, atan, degrees, mod, radians } from "../src/math.js";
 import type { Expr, F32, Vec4 } from "../src/types.js";
 
 const scalar = {} as Expr<F32>;
@@ -21,6 +22,30 @@ describe("shdr package", () => {
   it("does not export internal helpers from the public entry point", () => {
     expect(shdr).not.toHaveProperty("__shdr_internal_f32");
     expect(shdr).not.toHaveProperty("__shdr_internal_div");
+  });
+
+  it.each([
+    ["asin", asin],
+    ["acos", acos],
+    ["atan", atan],
+    ["radians", radians],
+    ["degrees", degrees],
+  ] as const)("keeps %s as a compile-only runtime marker", (name, builtin) => {
+    expect(() => builtin(scalar)).toThrow(
+      `shdr: ${name}() cannot run because the shader source was not transformed.`,
+    );
+  });
+
+  it("keeps binary atan as a compile-only runtime marker", () => {
+    expect(() => atan(scalar, scalar)).toThrow(
+      "shdr: atan() cannot run because the shader source was not transformed.",
+    );
+  });
+
+  it("keeps mod as a compile-only runtime marker", () => {
+    expect(() => mod(scalar, scalar)).toThrow(
+      "shdr: mod() cannot run because the shader source was not transformed.",
+    );
   });
 
   it("never invokes a defineShaderFunction callback at runtime", () => {

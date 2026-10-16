@@ -647,6 +647,12 @@ function invalidBuiltinDomain(
   context: LoweringContext,
 ): string | undefined {
   if (
+    name !== "asin" &&
+    name !== "acos" &&
+    name !== "radians" &&
+    name !== "degrees" &&
+    name !== "atan" &&
+    name !== "mod" &&
     name !== "sqrt" &&
     name !== "exp" &&
     name !== "tanh" &&
@@ -660,6 +666,25 @@ function invalidBuiltinDomain(
   if (hasKnownNonFiniteSubexpression(args, context))
     return `${name} has a known non-finite f32 argument.`;
   const [first, second, third] = values;
+  if (
+    name === "mod" &&
+    second?.some((value) => value !== undefined && value === 0)
+  )
+    return "mod requires a nonzero divisor in every component.";
+  if (
+    (name === "asin" || name === "acos") &&
+    first?.some((value) => value !== undefined && (value < -1 || value > 1))
+  )
+    return `${name} requires inputs in the range [-1, 1] in every component.`;
+  if (
+    name === "degrees" &&
+    first?.some(
+      (value) => value !== undefined && Math.abs(value) > MAX_F32 / 57,
+    )
+  )
+    // 180 / pi is greater than 57; this conservative bound only rejects
+    // values whose degree conversion is clearly outside finite f32 range.
+    return "degrees has a known result outside the finite f32 range.";
   if (
     name === "sqrt" &&
     first?.some((value) => value !== undefined && value < 0)

@@ -273,9 +273,9 @@ export default createFragmentShader(({ coord, uniforms }) => {
         token: "sin(uniforms.time)",
       },
       {
-        text: `import { atan } from "shdr";\n${source("sin(uniforms.time)")}`,
+        text: `import { banana } from "shdr";\n${source("sin(uniforms.time)")}`,
         code: ShaderDiagnosticCode.UnsupportedShdrImport,
-        token: "atan",
+        token: "banana",
       },
       {
         text: `const captured = 1;\n${source("sin(captured)")}`,
@@ -307,7 +307,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
         });
         if (
           text.includes("./ordinary.js") ||
-          text.includes("import { atan }")
+          text.includes("import { banana }")
         ) {
           expect(document.diagnostics, token).toEqual(
             expect.arrayContaining([

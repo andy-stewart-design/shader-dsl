@@ -75,6 +75,7 @@ export function generateWgslFragmentOutput(
   const referencedTextures = new Set<string>();
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
   const guardedBuiltinSignatures = new Set<WgslGuardedSignature>();
+  const modShapes = new Set<WgslSmoothstepShape>();
   let usesFragmentPosition = false;
 
   for (const statement of [
@@ -88,6 +89,9 @@ export function generateWgslFragmentOutput(
     for (const signature of statement.expression.guardedBuiltinSignatures ??
       []) {
       guardedBuiltinSignatures.add(signature);
+    }
+    for (const shape of statement.expression.modShapes ?? []) {
+      modShapes.add(shape);
     }
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
@@ -143,6 +147,9 @@ export function generateWgslFragmentOutput(
 
   for (const signature of [...guardedBuiltinSignatures].sort()) {
     sections.push(guardedBuiltinHelper(signature));
+  }
+  for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
+    if (modShapes.has(shape)) sections.push(modHelper(shape));
   }
 
   sections.push(...functions.map((helper) => helper.code));
@@ -205,6 +212,13 @@ function smoothstepHelper(shape: WgslSmoothstepShape): string {
   const type = shape === "f32" ? "f32" : `${shape}<f32>`;
   return `fn shdr_internal_smoothstep_${shape}(edge0: ${type}, edge1: ${type}, x: ${type}) -> ${type} {
   return smoothstep(edge0, edge1, x);
+}`;
+}
+
+function modHelper(shape: WgslSmoothstepShape): string {
+  const type = shape === "f32" ? "f32" : `${shape}<f32>`;
+  return `fn shdr_internal_mod_${shape}(x: ${type}, y: ${type}) -> ${type} {
+  return x - y * floor(x / y);
 }`;
 }
 

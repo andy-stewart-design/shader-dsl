@@ -64,6 +64,13 @@ try {
     alternateShaderName,
   );
   assertIncludes(initialAlternate, "shdr_fragment_main");
+  const initialOrbit = await requestShaderModule(
+    baseUrl,
+    "initial-orbit",
+    "orbit-math",
+  );
+  assertIncludes(initialOrbit, "atan2(");
+  assertIncludes(initialOrbit, "shdr_internal_mod_");
   const initialCustom = await requestShaderModule(
     baseUrl,
     "initial-custom",
@@ -114,6 +121,7 @@ try {
 
   await page.goto(baseUrl, { waitUntil: "load" });
   await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
+  await page.locator('#orbit-canvas[data-render-status="success"]').waitFor();
   const browserCompile = await page.evaluate(
     async ({ source, helper }) => {
       const { compileFragmentArtifact } =
