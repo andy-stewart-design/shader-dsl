@@ -8,9 +8,14 @@ import {
 type Shape = "s" | "v2" | "v3" | "v4";
 const shapes: readonly Shape[] = ["s", "v2", "v3", "v4"];
 const names = ["asin", "acos", "atan", "radians", "degrees"] as const;
-const imports = [...names, "createFragmentShader", "vec2", "vec3", "vec4"].join(
-  ", ",
-);
+const imports = [
+  ...names,
+  "mod",
+  "createFragmentShader",
+  "vec2",
+  "vec3",
+  "vec4",
+].join(", ");
 
 function source(call: string, shape: Shape = "s"): string {
   const result =
@@ -40,11 +45,25 @@ const examples = names.flatMap((name) =>
     call: `${name}(${shape})`,
   })),
 );
+const modExamples = [
+  { shape: "s", call: "mod(s, s)" },
+  { shape: "v2", call: "mod(v2, v2)" },
+  { shape: "v2", call: "mod(v2, s)" },
+  { shape: "v3", call: "mod(v3, v3)" },
+  { shape: "v3", call: "mod(v3, s)" },
+  { shape: "v4", call: "mod(v4, v4)" },
+  { shape: "v4", call: "mod(v4, s)" },
+] as const;
 
 describe("orbit unary math", () => {
   it("covers all twenty concrete unary signatures", () => {
     expect(examples).toHaveLength(20);
     expect(new Set(examples.map(({ call }) => call)).size).toBe(20);
+  });
+
+  it("covers all seven concrete mod signatures", () => {
+    expect(modExamples).toHaveLength(7);
+    expect(new Set(modExamples.map(({ call }) => call)).size).toBe(7);
   });
 
   for (const { name, shape, call } of examples) {
@@ -61,15 +80,37 @@ describe("orbit unary math", () => {
     });
   }
 
+  for (const { shape, call } of modExamples) {
+    it(`${call} lowers with explicit WGSL helper reachability`, () => {
+      const input = source(call, shape);
+      const glsl = compileFragment(input, { target: "glsl-es-300" });
+      const wgsl = compileFragment(input, { target: "wgsl" });
+      successful(glsl);
+      successful(wgsl);
+      expect(glsl.ir).toEqual(wgsl.ir);
+      expect(glsl.code).toContain("shdr_internal_mod_");
+      expect(wgsl.code).toContain("fn shdr_internal_mod_");
+      expect(glsl.code).toContain("return x - y * floor(x / y);");
+      expect(wgsl.code).toContain("return x - y * floor(x / y);");
+      expect(JSON.stringify(glsl.ir)).toContain('"name":"mod"');
+    });
+  }
+
   for (const [call, expected] of [
     ["asin(s, s)", ShaderDiagnosticCode.InvalidBuiltin],
     ["acos(v2, v2)", ShaderDiagnosticCode.InvalidBuiltin],
     ["atan(v2, v3)", ShaderDiagnosticCode.InvalidBuiltin],
+    ["mod(s, v2)", ShaderDiagnosticCode.InvalidBuiltin],
+    ["mod(v2, v3)", ShaderDiagnosticCode.InvalidBuiltin],
     ["radians(s, s)", ShaderDiagnosticCode.InvalidBuiltin],
     ["degrees(v2, v2)", ShaderDiagnosticCode.InvalidBuiltin],
     ["asin(2)", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["acos(vec2(s, -2))", ShaderDiagnosticCode.InvalidBuiltinDomain],
     ["asin(3e38 + 3e38)", ShaderDiagnosticCode.InvalidBuiltinDomain],
+    ["mod(v2, 0)", ShaderDiagnosticCode.InvalidBuiltinDomain],
+    ["mod(v2, -0)", ShaderDiagnosticCode.InvalidBuiltinDomain],
+    ["mod(v2, vec2(s, 0))", ShaderDiagnosticCode.InvalidBuiltinDomain],
+    ["mod(s, 3e38 + 3e38)", ShaderDiagnosticCode.InvalidBuiltinDomain],
   ] as const) {
     it(`diagnoses ${call} on the original call`, () => {
       const input = source(call);
@@ -107,5 +148,16 @@ const angle = defineShaderFunction((value: Expr<F32>) => asin(value));
 export default createFragmentShader(({ uniforms }) => vec4(angle(uniforms.time), 0, 0, 1));`;
     for (const target of ["glsl-es-300", "wgsl"] as const)
       successful(compileFragment(input, { target }));
+
+    const modInput = `import { createFragmentShader, defineShaderFunction, mod, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+const wrap = defineShaderFunction((x: Expr<F32>, y: Expr<F32>) => mod(x, y));
+export default createFragmentShader(({ uniforms }) => vec4(wrap(uniforms.time, uniforms.time), 0, 0, 1));`;
+    const modGlsl = compileFragment(modInput, { target: "glsl-es-300" });
+    const modWgsl = compileFragment(modInput, { target: "wgsl" });
+    successful(modGlsl);
+    successful(modWgsl);
+    expect(modGlsl.code.match(/shdr_internal_mod_f32\(/g)).toHaveLength(2);
+    expect(modWgsl.code.match(/fn shdr_internal_mod_f32\(/g)).toHaveLength(1);
   });
 });

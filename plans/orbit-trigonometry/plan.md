@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Planning only**. No baseline, target probe, or implementation verification has been run for this plan.
+- Delivery state: **Phase 1 in progress**. Steps 0.1–0.3 and Steps 1.1–1.2 are verified; binary `atan` remains.
 - Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
 - Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
 
@@ -168,7 +168,7 @@ Evidence: [phase-1.md](evidence/phase-1.md).
 
 ### Step 1.2 — Add floor-based `mod` and divisor broadcasting
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R4, R5, R6, R8; AC1/AC2/AC4/AC7 (public/core/generated `mod` portions), AC9 (composition portion). Rendered parity remains Step 3.1.
 Depends on: Step 1.1.
 Review boundary: Seven `mod` signatures and only their call-boundary broadcasting/helper infrastructure.
@@ -182,11 +182,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Add S/S, V/V, and V/S forms; reject S/V and mismatched dimensions without broadening unrelated rules. Retain scalar divisors in authored call IR.
-- [ ] Diagnose known zero divisors, including `-0`, a divisor rounding to zero, and known-bad lanes beside unknown ones. Apply the Phase 0 non-finite/intermediate policy conservatively; do not pretend all finite inputs have finite intermediates.
-- [ ] Implement the Phase 0-validated floor-based strategy, using parameter boundaries so emitted arguments are not repeated. Apply explicit scalar-to-vector expansion only where needed for this call.
-- [ ] If internal helpers are needed, collect requirements from entry and reusable helper bodies in **both** emitters, emit each signature once in dependency-safe order, and leave artifacts/bindings unchanged. The current GLSL helper-body path returns code without WGSL-style requirement aggregation, so include that consumer change atomically rather than fixing it later.
-- [ ] Extend shape/domain/generated tests for signed examples, non-uniform vector lanes, exact multiples, nested/helper calls and one-evaluation text structure; add regressions for existing broadcast rules and generated-name/grouping safety.
+- [x] Add S/S, V/V, and V/S forms; reject S/V and mismatched dimensions without broadening unrelated rules. Retain scalar divisors in authored call IR.
+- [x] Diagnose known zero divisors, including `-0`, a divisor rounding to zero, and known-bad lanes beside unknown ones. Apply the Phase 0 non-finite/intermediate policy conservatively; do not pretend all finite inputs have finite intermediates.
+- [x] Implement the Phase 0-validated floor-based strategy, using parameter boundaries so emitted arguments are not repeated. Apply explicit scalar-to-vector expansion only where needed for this call.
+- [x] If internal helpers are needed, collect requirements from entry and reusable helper bodies in **both** emitters, emit each signature once in dependency-safe order, and leave artifacts/bindings unchanged. The GLSL helper-body path now aggregates requirements alongside WGSL.
+- [x] Extend shape/domain/generated tests for signed examples, non-uniform vector lanes, exact multiples, nested/helper calls and one-evaluation text structure; add regressions for existing broadcast rules and generated-name/grouping safety.
 
 Verification:
 
@@ -195,7 +195,7 @@ Verification:
 - Manual: Inspect signed-result examples and floor-based lowering against the spec and Phase 0 decision; do not substitute `%` based on positive-only tests.
 
 Completion gate: All seven forms and zero-divisor failures agree through public/core/generated paths; actual target compilation succeeds and reusable-helper requirements are not dropped.
-Evidence: Not run.
+Evidence: Verified; see [phase-1.md](evidence/phase-1.md).
 
 ### Step 1.3 — Add binary `atan` under the resolved axis contract
 

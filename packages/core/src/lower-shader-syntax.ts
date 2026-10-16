@@ -651,6 +651,7 @@ function invalidBuiltinDomain(
     name !== "acos" &&
     name !== "radians" &&
     name !== "degrees" &&
+    name !== "mod" &&
     name !== "sqrt" &&
     name !== "exp" &&
     name !== "tanh" &&
@@ -664,6 +665,11 @@ function invalidBuiltinDomain(
   if (hasKnownNonFiniteSubexpression(args, context))
     return `${name} has a known non-finite f32 argument.`;
   const [first, second, third] = values;
+  if (
+    name === "mod" &&
+    second?.some((value) => value !== undefined && value === 0)
+  )
+    return "mod requires a nonzero divisor in every component.";
   if (
     (name === "asin" || name === "acos") &&
     first?.some((value) => value !== undefined && (value < -1 || value > 1))

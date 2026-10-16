@@ -17,3 +17,19 @@ All required Step 1.1 commands passed:
 - Phase 0 exit rerun: `orbit-target-feasibility`, `orbit-atan-comparison`, and the focused baseline core suites — 6 files, 78 tests passed; core check passed.
 
 No editor, CLI, Vite, or presented-pixel acceptance is claimed by this step. Those remain owned by later phases.
+
+## Step 1.2 — Floor-based `mod` and divisor broadcasting
+
+- **Status:** Verified for the public/core/generated scope.
+- **Implementation:** Added the seven concrete `mod` forms (S/S, V/V, and V/S), scalar-divisor broadcast at the target call boundary, f32-rounded known-zero divisor diagnostics, and floor-based internal helpers for GLSL and WGSL. Scalar divisors remain scalar in the target-neutral IR; helper requirements are collected from entry statements and reusable helper bodies.
+- **Coverage:** Public type assertions and runtime-marker tests cover accepted and rejected forms. Core tests cover all seven signatures, mismatched shapes, known `0`/`-0` divisors, zero lanes beside unknown lanes, known non-finite divisors, helper calls, and generated GLSL/WGSL compilation. Generated helper bodies use `x - y * floor(x / y)` and emit each required helper once per shape.
+
+### Verification
+
+- `pnpm build` — 11/11 Turbo tasks successful.
+- `pnpm --filter shdr check` and `pnpm --filter shdr test` — passed; 13 tests passed.
+- `pnpm --filter @shdr/core check` — passed, including test tsconfig.
+- Focused Step 1.2 suite — 6 files, 99 tests passed.
+- Full core suite — 51 files, 481 tests passed.
+
+The target gate used Chromium with WebGL 2 and WebGPU enabled through the existing SwiftShader flags. This verifies generated shader-module/compiler acceptance, not presented-pixel parity. Binary `atan` and later editor/CLI/Vite/pixel gates remain pending.

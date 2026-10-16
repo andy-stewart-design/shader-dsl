@@ -146,6 +146,7 @@ function calculateShaderComponents(
         case "length":
           return first.length === 1 && first[0] === 0 ? [0] : unknown();
         case "fract":
+        case "mod":
         case "min":
         case "max":
         case "mix":

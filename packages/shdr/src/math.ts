@@ -65,6 +65,17 @@ export function degrees(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("degrees");
 }
 
+export function mod(x: Expr<F32>, y: Expr<F32>): Expr<F32>;
+export function mod(x: Expr<Vec2<F32>>, y: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function mod(x: Expr<Vec2<F32>>, y: Expr<F32>): Expr<Vec2<F32>>;
+export function mod(x: Expr<Vec3<F32>>, y: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function mod(x: Expr<Vec3<F32>>, y: Expr<F32>): Expr<Vec3<F32>>;
+export function mod(x: Expr<Vec4<F32>>, y: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function mod(x: Expr<Vec4<F32>>, y: Expr<F32>): Expr<Vec4<F32>>;
+export function mod(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("mod");
+}
+
 export function exp(x: Expr<F32>): Expr<F32>;
 export function exp(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function exp(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;

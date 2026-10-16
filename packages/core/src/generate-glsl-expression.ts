@@ -28,6 +28,8 @@ export interface GenerateGlslExpressionOptions {
   readonly fragmentPositionName?: string;
 }
 
+export type GlslModShape = "f32" | "vec2" | "vec3" | "vec4";
+
 export interface GeneratedGlslExpression {
   readonly code: string;
   /** Explicit and backend-implicit uniform dependencies in stable order. */
@@ -35,12 +37,14 @@ export interface GeneratedGlslExpression {
   readonly referencedCustomUniforms?: readonly string[];
   readonly referencedTextures?: readonly string[];
   readonly usesFragmentPosition: boolean;
+  readonly modShapes?: readonly GlslModShape[];
 }
 
 interface GenerationState {
   readonly referencedUniforms: Set<ShaderDefaultUniform>;
   readonly referencedCustomUniforms: Set<string>;
   readonly referencedTextures: Set<string>;
+  readonly modShapes: Set<GlslModShape>;
   usesFragmentPosition: boolean;
 }
 
@@ -53,6 +57,7 @@ export function generateGlslExpression(
     referencedUniforms: new Set(),
     referencedCustomUniforms: new Set(),
     referencedTextures: new Set(),
+    modShapes: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -77,6 +82,13 @@ export function generateGlslExpression(
         }
       : {}),
     usesFragmentPosition: state.usesFragmentPosition,
+    ...(state.modShapes.size
+      ? {
+          modShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
+            (shape) => state.modShapes.has(shape),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -167,6 +179,22 @@ function emitExpression(
           throw new Error(`Missing texture ${expression.target.textureName}.`);
         return `texture(shdr_texture_${index}, ${args[0]})`;
       }
+      let name = callTargetName(expression.target);
+      if (
+        expression.target.kind === "builtin-function" &&
+        expression.target.name === "mod"
+      ) {
+        const shape: GlslModShape =
+          expression.type.kind === "scalar"
+            ? "f32"
+            : expression.type.kind === "vector"
+              ? `vec${expression.type.size}`
+              : (() => {
+                  throw new Error("Texture handles cannot be builtin results.");
+                })();
+        state.modShapes.add(shape);
+        name = `shdr_internal_mod_${shape}`;
+      }
       if (
         expression.target.kind === "builtin-function" &&
         expression.type.kind === "vector"
@@ -176,14 +204,16 @@ function emitExpression(
             ? [1, 2]
             : expression.target.name === "pow"
               ? [1]
-              : [];
+              : expression.target.name === "mod"
+                ? [1]
+                : [];
         const vector = `vec${expression.type.size}`;
         for (const index of scalarArguments) {
           if (expression.arguments[index]?.type.kind === "scalar")
             args[index] = `${vector}(${args[index]})`;
         }
       }
-      return `${callTargetName(expression.target)}(${args.join(", ")})`;
+      return `${name}(${args.join(", ")})`;
     }
 
     default:
@@ -256,6 +286,7 @@ function callTargetName(target: ShaderCallTarget): string {
         case "tanh":
         case "clamp":
         case "pow":
+        case "mod":
         case "distance":
         case "cross":
         case "smoothstep":

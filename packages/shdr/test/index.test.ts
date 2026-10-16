@@ -8,7 +8,7 @@ import {
   vec4,
 } from "../src/index.js";
 import { __shdr_internal_div, __shdr_internal_f32 } from "../src/internal.js";
-import { acos, asin, atan, degrees, radians } from "../src/math.js";
+import { acos, asin, atan, degrees, mod, radians } from "../src/math.js";
 import type { Expr, F32, Vec4 } from "../src/types.js";
 
 const scalar = {} as Expr<F32>;
@@ -33,6 +33,12 @@ describe("shdr package", () => {
   ] as const)("keeps %s as a compile-only runtime marker", (name, builtin) => {
     expect(() => builtin(scalar)).toThrow(
       `shdr: ${name}() cannot run because the shader source was not transformed.`,
+    );
+  });
+
+  it("keeps mod as a compile-only runtime marker", () => {
+    expect(() => mod(scalar, scalar)).toThrow(
+      "shdr: mod() cannot run because the shader source was not transformed.",
     );
   });
 

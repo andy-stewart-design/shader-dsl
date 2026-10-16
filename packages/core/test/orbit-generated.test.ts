@@ -5,9 +5,14 @@ import { compileFragment } from "../src/index.js";
 type Shape = "s" | "v2" | "v3" | "v4";
 const shapes: readonly Shape[] = ["s", "v2", "v3", "v4"];
 const names = ["asin", "acos", "atan", "radians", "degrees"] as const;
-const imports = [...names, "createFragmentShader", "vec2", "vec3", "vec4"].join(
-  ", ",
-);
+const imports = [
+  ...names,
+  "mod",
+  "createFragmentShader",
+  "vec2",
+  "vec3",
+  "vec4",
+].join(", ");
 
 function source(call: string, shape: Shape): string {
   const result =
@@ -23,21 +28,37 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });`;
 }
 
-it("compiles all twenty orbit unary shapes in real GLSL and WGSL compilers", async () => {
-  const shaders = names.flatMap((name) =>
-    shapes.map((shape) => {
-      const input = source(`${name}(${shape})`, shape);
-      const glsl = compileFragment(input, { target: "glsl-es-300" });
-      const wgsl = compileFragment(input, { target: "wgsl" });
-      expect(glsl.ok, `${name}(${shape}) GLSL`).toBe(true);
-      expect(wgsl.ok, `${name}(${shape}) WGSL`).toBe(true);
-      if (!glsl.ok || !wgsl.ok) throw new Error(`${name}(${shape})`);
-      expect(glsl.ir).toEqual(wgsl.ir);
-      expect(glsl.code).not.toContain("__shdr_internal_");
-      expect(wgsl.code).not.toContain("__shdr_internal_");
-      return { glsl: glsl.code, wgsl: wgsl.code };
-    }),
-  );
+it("compiles all orbit unary and mod shapes in real GLSL and WGSL compilers", async () => {
+  const examples = [
+    ...names.flatMap((name) =>
+      shapes.map((shape) => ({
+        name: `${name}(${shape})`,
+        call: `${name}(${shape})`,
+        shape,
+      })),
+    ),
+    { name: "mod(S,S)", call: "mod(s, s)", shape: "s" as const },
+    { name: "mod(V2,V2)", call: "mod(v2, v2)", shape: "v2" as const },
+    { name: "mod(V2,S)", call: "mod(v2, s)", shape: "v2" as const },
+    { name: "mod(V3,V3)", call: "mod(v3, v3)", shape: "v3" as const },
+    { name: "mod(V3,S)", call: "mod(v3, s)", shape: "v3" as const },
+    { name: "mod(V4,V4)", call: "mod(v4, v4)", shape: "v4" as const },
+    { name: "mod(V4,S)", call: "mod(v4, s)", shape: "v4" as const },
+  ];
+  const shaders = examples.map(({ name, call, shape }) => {
+    const input = source(call, shape);
+    const glsl = compileFragment(input, { target: "glsl-es-300" });
+    const wgsl = compileFragment(input, { target: "wgsl" });
+    expect(glsl.ok, `${name} GLSL`).toBe(true);
+    expect(wgsl.ok, `${name} WGSL`).toBe(true);
+    if (!glsl.ok || !wgsl.ok) throw new Error(name);
+    expect(glsl.ir).toEqual(wgsl.ir);
+    expect(glsl.code).not.toContain("__shdr_internal_");
+    expect(wgsl.code).not.toContain("__shdr_internal_");
+    if (name.startsWith("mod"))
+      expect(wgsl.code).toContain("fn shdr_internal_mod_");
+    return { glsl: glsl.code, wgsl: wgsl.code };
+  });
 
   const browser = await chromium.launch({
     headless: true,

@@ -15,6 +15,7 @@ export const SHADER_BUILTINS = {
   tanh: "unary-same",
   clamp: "clamp",
   pow: "pow",
+  mod: "mod",
   smoothstep: "ternary-same",
   mix: "ternary-interpolate",
   step: "binary-step",
@@ -61,6 +62,12 @@ export function builtinResultType(
     case "binary-same":
       return args.length === 2 && sameShape(args[1]) ? first : undefined;
     case "pow":
+      return args.length === 2 &&
+        (sameShape(args[1]) ||
+          (first.kind === "vector" && args[1]?.kind === "scalar"))
+        ? first
+        : undefined;
+    case "mod":
       return args.length === 2 &&
         (sameShape(args[1]) ||
           (first.kind === "vector" && args[1]?.kind === "scalar"))

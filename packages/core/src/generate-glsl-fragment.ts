@@ -1,6 +1,7 @@
 import {
   generateGlslExpression,
   type GeneratedGlslExpression,
+  type GlslModShape,
 } from "./generate-glsl-expression.js";
 import type {
   ShaderDefaultUniform,
@@ -59,14 +60,21 @@ export function generateGlslFragmentOutput(
           `${glslTypeName(parameter.type)} ${emittedShaderLocalName(parameter.symbolId, names)}`,
       )
       .join(", ");
-    return `${glslTypeName(helper.returnType)} ${shaderFunctionName(helper.functionId)}(${parameters}) {\n${body.map((statement) => statement.code).join("\n")}\n}`;
+    return {
+      code: `${glslTypeName(helper.returnType)} ${shaderFunctionName(helper.functionId)}(${parameters}) {\n${body.map((statement) => statement.code).join("\n")}\n}`,
+      statements: body,
+    };
   });
   const referencedUniforms = new Set<ShaderDefaultUniform>();
   const referencedCustom = new Set<string>();
   const referencedTextures = new Set<string>();
+  const modShapes = new Set<GlslModShape>();
   let usesFragmentPosition = false;
 
-  for (const statement of statements) {
+  for (const statement of [
+    ...statements,
+    ...functions.flatMap((helper) => helper.statements),
+  ]) {
     usesFragmentPosition ||= statement.expression.usesFragmentPosition;
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
@@ -75,6 +83,8 @@ export function generateGlslFragmentOutput(
       referencedCustom.add(name);
     for (const name of statement.expression.referencedTextures ?? [])
       referencedTextures.add(name);
+    for (const shape of statement.expression.modShapes ?? [])
+      modShapes.add(shape);
   }
 
   const sections = ["#version 300 es\nprecision highp float;"];
@@ -111,7 +121,10 @@ export function generateGlslFragmentOutput(
   }
 
   sections.push("out vec4 shdr_fragment_color;");
-  sections.push(...functions);
+  for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
+    if (modShapes.has(shape)) sections.push(modHelper(shape));
+  }
+  sections.push(...functions.map((helper) => helper.code));
 
   const body: string[] = [];
   if (usesFragmentPosition) {
@@ -174,6 +187,13 @@ function generateStatement(
     default:
       return assertNever(statement);
   }
+}
+
+function modHelper(shape: GlslModShape): string {
+  const type = shape === "f32" ? "float" : shape;
+  return `${type} shdr_internal_mod_${shape}(${type} x, ${type} y) {
+  return x - y * floor(x / y);
+}`;
 }
 
 function uniformDeclaration(uniform: ShaderDefaultUniform): string {

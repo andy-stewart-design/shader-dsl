@@ -39,6 +39,8 @@ export interface GeneratedWgslExpression {
   readonly smoothstepShapes: readonly WgslSmoothstepShape[];
   /** Parameterized WGSL calls prevent eager constant-domain/overflow failures. */
   readonly guardedBuiltinSignatures?: readonly WgslGuardedSignature[];
+  /** Internal floor-based modulo helpers required by generated calls. */
+  readonly modShapes?: readonly WgslSmoothstepShape[];
 }
 
 interface GenerationState {
@@ -47,6 +49,7 @@ interface GenerationState {
   readonly referencedTextures: Set<string>;
   readonly smoothstepShapes: Set<WgslSmoothstepShape>;
   readonly guardedBuiltinSignatures: Set<WgslGuardedSignature>;
+  readonly modShapes: Set<WgslSmoothstepShape>;
   usesFragmentPosition: boolean;
 }
 
@@ -61,6 +64,7 @@ export function generateWgslExpression(
     referencedTextures: new Set(),
     smoothstepShapes: new Set(),
     guardedBuiltinSignatures: new Set(),
+    modShapes: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -90,6 +94,13 @@ export function generateWgslExpression(
     ),
     ...(state.guardedBuiltinSignatures.size
       ? { guardedBuiltinSignatures: [...state.guardedBuiltinSignatures].sort() }
+      : {}),
+    ...(state.modShapes.size
+      ? {
+          modShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
+            (shape) => state.modShapes.has(shape),
+          ),
+        }
       : {}),
   };
 }
@@ -196,6 +207,21 @@ function emitExpression(
       let name = callTargetName(expression.target);
       if (
         expression.target.kind === "builtin-function" &&
+        expression.target.name === "mod"
+      ) {
+        const shape: WgslSmoothstepShape =
+          expression.type.kind === "scalar"
+            ? "f32"
+            : expression.type.kind === "vector"
+              ? `vec${expression.type.size}`
+              : (() => {
+                  throw new Error("Texture handles cannot be builtin results.");
+                })();
+        state.modShapes.add(shape);
+        name = `shdr_internal_mod_${shape}`;
+      }
+      if (
+        expression.target.kind === "builtin-function" &&
         expression.target.name === "smoothstep"
       ) {
         const shape: WgslSmoothstepShape =
@@ -239,7 +265,9 @@ function emitExpression(
               ? [1]
               : expression.target.name === "step"
                 ? [0]
-                : [];
+                : expression.target.name === "mod"
+                  ? [1]
+                  : [];
         const vector = `vec${expression.type.size}<f32>`;
         for (const index of scalarArguments) {
           if (expression.arguments[index]?.type.kind === "scalar")
@@ -326,6 +354,7 @@ function callTargetName(target: ShaderCallTarget): string {
         case "tanh":
         case "clamp":
         case "pow":
+        case "mod":
         case "distance":
         case "cross":
         case "smoothstep":

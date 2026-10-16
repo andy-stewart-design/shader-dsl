@@ -26,6 +26,7 @@ export {
   max,
   min,
   mix,
+  mod,
   normalize,
   radians,
   pow,
