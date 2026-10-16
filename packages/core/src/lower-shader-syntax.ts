@@ -651,6 +651,7 @@ function invalidBuiltinDomain(
     name !== "acos" &&
     name !== "radians" &&
     name !== "degrees" &&
+    name !== "atan" &&
     name !== "mod" &&
     name !== "sqrt" &&
     name !== "exp" &&

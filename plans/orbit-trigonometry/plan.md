@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Phase 1 in progress**. Steps 0.1–0.3 and Steps 1.1–1.2 are verified; binary `atan` remains.
+- Delivery state: **Phase 1 verified**. Steps 0.1–0.3 and Steps 1.1–1.3 are verified; editor/app and rendered-parity phases remain.
 - Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
 - Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
 
@@ -199,7 +199,7 @@ Evidence: Verified; see [phase-1.md](evidence/phase-1.md).
 
 ### Step 1.3 — Add binary `atan` under the resolved axis contract
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R3, R5, R6, R8; AC1/AC2/AC7 (binary/public/core/generated portions), AC5 (decision faithfully implemented), AC9 (composition portion). Final browser acceptance remains Phase 3.
 Depends on: Step 1.2 and the recorded Step 0.3 decision.
 Review boundary: Four binary same-shape signatures; no mixed-shape convenience or public `atan2` alias.
@@ -213,10 +213,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Admit unary or exactly two same-shape arguments and preserve `(y, x)` in typed IR. Verify unary mapping remains native `atan` on both targets while the binary WGSL mapping uses `atan2` or its selected wrapper.
-- [ ] Implement only the chosen axes/signed-zero/branch-cut policy, scalar and lane-wise. Add the exact locally provable invalid-call diagnostics selected in Step 0.3; do not manufacture an origin fallback or unapproved restriction.
-- [ ] Integrate selected internal helpers with both target collectors, safe names, deduplication, and user-helper ordering. Avoid evaluating a native invalid operation in an unselected expression branch if the chosen guarantee requires avoiding it.
-- [ ] Complete public/core/generated tests for all 31 signatures, negative shape/arity cases, asymmetric quadrants, finalized axis cases, nested helpers, non-finite compounds and conservative helper-parameter behavior. Validate actual generated output, not only the raw spike shaders.
+- [x] Admit unary or exactly two same-shape arguments and preserve `(y, x)` in typed IR. Unary mapping remains native `atan` on both targets; binary WGSL maps to `atan2` while GLSL forwards `atan(y, x)`.
+- [x] Implement only the chosen axes/signed-zero/branch-cut policy, scalar and lane-wise. Binary `atan` adds no invented fallback or extra restriction; exact degenerate cases remain caller preconditions as selected in Step 0.3. Known non-finite arguments use the shared domain diagnostic.
+- [x] Integrate the native target mappings without internal helpers or artifact changes; reusable helper calls preserve the same arity-sensitive mapping.
+- [x] Complete public/core/generated tests for all 31 signatures, negative shape/arity cases, helper calls, non-finite compounds and conservative dynamic-parameter behavior. Validate actual generated output and WebGL/WebGPU shader-module compilation.
 
 Verification:
 
@@ -225,10 +225,10 @@ Verification:
 - Manual: Review generated binary handling against the recorded decision; selected native/guarded behavior cannot be inferred solely from a passing ordinary quadrant case.
 
 Completion gate: All 31 forms and finalized domain rules are implemented on both targets, including nested/helper usage, without breaking unary or old math behavior.
-Evidence: Not run.
+Evidence: Verified; see [phase-1.md](evidence/phase-1.md).
 
 Phase exit gate: After Step 1.3's focused checks, run `pnpm build`, `pnpm --filter shdr check`, `pnpm --filter shdr test`, `pnpm --filter @shdr/core check`, and `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root .`. Review the shape inventory, diagnostic ranges, helper collection and raw/generated target distinction together. No editor/app or presented-pixel claim is made yet. Assess before Phase 2 or supervised approval.
-Evidence: Not run.
+Evidence: Verified; 51 core files / 489 tests passed after the Step 1.3 changes; see [phase-1.md](evidence/phase-1.md).
 
 ## Phase 2 — Shared tooling and consumer integration
 

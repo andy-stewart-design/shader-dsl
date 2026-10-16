@@ -207,6 +207,13 @@ function emitExpression(
       let name = callTargetName(expression.target);
       if (
         expression.target.kind === "builtin-function" &&
+        expression.target.name === "atan" &&
+        expression.arguments.length === 2
+      ) {
+        name = "atan2";
+      }
+      if (
+        expression.target.kind === "builtin-function" &&
         expression.target.name === "mod"
       ) {
         const shape: WgslSmoothstepShape =

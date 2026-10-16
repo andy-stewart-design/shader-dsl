@@ -36,6 +36,12 @@ describe("shdr package", () => {
     );
   });
 
+  it("keeps binary atan as a compile-only runtime marker", () => {
+    expect(() => atan(scalar, scalar)).toThrow(
+      "shdr: atan() cannot run because the shader source was not transformed.",
+    );
+  });
+
   it("keeps mod as a compile-only runtime marker", () => {
     expect(() => mod(scalar, scalar)).toThrow(
       "shdr: mod() cannot run because the shader source was not transformed.",

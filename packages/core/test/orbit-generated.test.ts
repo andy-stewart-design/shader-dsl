@@ -37,6 +37,10 @@ it("compiles all orbit unary and mod shapes in real GLSL and WGSL compilers", as
         shape,
       })),
     ),
+    { name: "atan(S,S)", call: "atan(s, s)", shape: "s" as const },
+    { name: "atan(V2,V2)", call: "atan(v2, v2)", shape: "v2" as const },
+    { name: "atan(V3,V3)", call: "atan(v3, v3)", shape: "v3" as const },
+    { name: "atan(V4,V4)", call: "atan(v4, v4)", shape: "v4" as const },
     { name: "mod(S,S)", call: "mod(s, s)", shape: "s" as const },
     { name: "mod(V2,V2)", call: "mod(v2, v2)", shape: "v2" as const },
     { name: "mod(V2,S)", call: "mod(v2, s)", shape: "v2" as const },
@@ -55,6 +59,8 @@ it("compiles all orbit unary and mod shapes in real GLSL and WGSL compilers", as
     expect(glsl.ir).toEqual(wgsl.ir);
     expect(glsl.code).not.toContain("__shdr_internal_");
     expect(wgsl.code).not.toContain("__shdr_internal_");
+    if (name.startsWith("atan(") && name.includes(","))
+      expect(wgsl.code).toContain("atan2(");
     if (name.startsWith("mod"))
       expect(wgsl.code).toContain("fn shdr_internal_mod_");
     return { glsl: glsl.code, wgsl: wgsl.code };

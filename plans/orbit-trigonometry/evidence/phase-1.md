@@ -32,4 +32,20 @@ No editor, CLI, Vite, or presented-pixel acceptance is claimed by this step. Tho
 - Focused Step 1.2 suite — 6 files, 99 tests passed.
 - Full core suite — 51 files, 481 tests passed.
 
-The target gate used Chromium with WebGL 2 and WebGPU enabled through the existing SwiftShader flags. This verifies generated shader-module/compiler acceptance, not presented-pixel parity. Binary `atan` and later editor/CLI/Vite/pixel gates remain pending.
+The target gate used Chromium with WebGL 2 and WebGPU enabled through the existing SwiftShader flags. This verifies generated shader-module/compiler acceptance, not presented-pixel parity. Later editor/CLI/Vite/pixel gates remain pending.
+
+## Step 1.3 — Binary `atan` under the resolved native contract
+
+- **Status:** Verified for the public/core/generated scope.
+- **Implementation:** Added exactly four same-shape binary overloads, preserving `(y, x)` in target-neutral IR. GLSL forwards native `atan(y, x)`; WGSL maps binary calls to native `atan2(y, x)`. Unary `atan` remains unchanged. No fallback or axis-normalizing helper was added; degenerate axis/origin cases remain caller preconditions per the Phase 0 decision.
+- **Coverage:** Public type and runtime-marker tests cover all binary result shapes and reject mixed shapes/arity. Core tests cover the four binary forms, original-call diagnostics, known non-finite arguments, reusable helper calls, IR parity, and arity-specific generated spellings. The generated-target suite compiles the complete 31-signature matrix in real GLSL and WGSL compiler paths.
+
+### Verification
+
+- `pnpm --filter shdr check` and `pnpm --filter shdr test` — passed; 14 tests passed.
+- `pnpm --filter @shdr/core check` — passed, including test tsconfig.
+- Focused orbit suite — 2 files, 54 tests passed.
+- Full core suite — 51 files, 489 tests passed.
+- `pnpm build` — passed; 11/11 Turbo tasks successful after the final binary-`atan` revision.
+
+No rendered WebGL/presented-WebGPU numerical parity, editor, CLI, Vite, or REPL acceptance is claimed by this step.

@@ -45,6 +45,10 @@ export function atan(x: Expr<F32>): Expr<F32>;
 export function atan(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function atan(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
 export function atan(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function atan(y: Expr<F32>, x: Expr<F32>): Expr<F32>;
+export function atan(y: Expr<Vec2<F32>>, x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function atan(y: Expr<Vec3<F32>>, x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function atan(y: Expr<Vec4<F32>>, x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
 export function atan(..._args: readonly unknown[]): never {
   return shaderSourceWasNotTransformed("atan");
 }

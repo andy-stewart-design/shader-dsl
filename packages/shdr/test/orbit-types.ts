@@ -34,6 +34,17 @@ const vector4Results: readonly Expr<Vec4<F32>>[] = [
   radians(vector4),
   degrees(vector4),
 ];
+const atanBinaryResults: readonly [
+  Expr<F32>,
+  Expr<Vec2<F32>>,
+  Expr<Vec3<F32>>,
+  Expr<Vec4<F32>>,
+] = [
+  atan(scalar, scalar),
+  atan(vector2, vector2),
+  atan(vector3, vector3),
+  atan(vector4, vector4),
+];
 const modResults: readonly [
   Expr<F32>,
   Expr<Vec2<F32>>,
@@ -56,6 +67,7 @@ void scalarResults;
 void vector2Results;
 void vector3Results;
 void vector4Results;
+void atanBinaryResults;
 void modResults;
 
 // @ts-expect-error Unary orbit math has exact arity.
@@ -68,6 +80,12 @@ atan(1);
 radians(vector2, vector2);
 // @ts-expect-error Unary orbit math does not accept a scalar/vector union.
 degrees(scalar as Expr<F32> | Expr<Vec2<F32>>);
+// @ts-expect-error Binary atan requires matching shapes.
+atan(scalar, vector2);
+// @ts-expect-error Binary atan rejects mixed vector dimensions.
+atan(vector2, vector3);
+// @ts-expect-error Binary atan has exact arity.
+atan(vector4, vector4, vector4);
 // @ts-expect-error Scalar-first vector mod is intentionally excluded.
 mod(scalar, vector2);
 // @ts-expect-error Mixed vector dimensions are excluded.
