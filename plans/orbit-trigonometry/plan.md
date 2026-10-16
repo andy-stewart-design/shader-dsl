@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), currently **Draft** pending the binary `atan` comparison decision.
-- Delivery state: **Phase 2 verified**. Phase 1 and Steps 2.1–2.2 are verified; rendered-parity and final documentation remain.
+- Delivery state: **Phase 3 in progress**. Phases 1–2 and Step 3.1 are verified; final documentation/audit remains.
 - Acceptance or release still pending: All implementation and acceptance gates. No publication or deployment is included.
 - Blockers: Phase 1 and all later phases are conditional on the Phase 0 exit gate resolving binary `atan` axes, signed zero, branch-cut behavior, and numerical-domain constraints. Their descriptions are bounded implementation outlines, not authorization to choose an unresolved contract.
 
@@ -306,7 +306,7 @@ Review boundary: Focused runtime evidence and documentation/regression review; n
 
 ### Step 3.1 — Pin generated WebGL/presented-WebGPU parity
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R2, R3, R4, R6, R8, R9; AC4/AC6 (generated numeric/rendered portions), AC9 (runtime composition portion).
 Depends on: Phase 2 exit.
 Review boundary: Runtime acceptance of generated artifacts, not another raw/native-only spike.
@@ -320,11 +320,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Reuse `verify-pr3-math.mjs`'s Vite-served runtime pattern with deterministic canvas sizes, `animate: false`, top-left sample mapping, WebGL readback, and **presented WebGPU canvas screenshot** sampling.
-- [ ] Cover all six names and all result dimensions with distinct lane values. Make signed `mod`, vector/scalar divisor broadcasting, unary-versus-binary `atan`, asymmetric quadrants, inverse-trig endpoints, and known angle conversions observable. Use separate/normalized channels or cases to avoid output saturation concealing errors.
-- [ ] Add selected axis/near-axis/branch-cut cases under the resolved contract and a valid dynamic-uniform update. Exclude invalid runtime inputs from portable-pixel assertions. Compare angles modulo a full turn where appropriate, while testing any guaranteed endpoint representation separately.
-- [ ] Compare outputs against independently computed mathematical expectations and each other with justified numeric/channel tolerances. Include known conversion angles, not round trips alone; host reference math is a tolerance oracle, not an interprocedural/compiler proof. Supplement coarse pixels with the Phase 0-style numeric probe where precision would otherwise be hidden.
-- [ ] Check multiple non-center samples, both default creation and updated draws, and clear backend errors. Record exact inputs/tolerances/environment and actual unavailable capabilities; no skipped target can satisfy the gate.
+- [x] Reuse `verify-pr3-math.mjs`'s Vite-served runtime pattern with deterministic 32×32 canvases, `animate: false`, top-left sample mapping, WebGL readback, and **presented WebGPU canvas screenshot** sampling.
+- [x] Cover all six names and all result dimensions with distinct lane values. Signed `mod`, vector/scalar divisor broadcasting, unary-versus-binary `atan`, asymmetric quadrants, inverse-trig endpoints, and known angle conversions are observable in separate normalized cases.
+- [x] Add near-axis and branch-cut approaches under the resolved contract and a valid custom-uniform update. Exact degenerate axes/origin are excluded from portable-value assertions.
+- [x] Compare outputs against independent host references and each other with an explicit 8-channel-value tolerance. Conversion cases use known degree/radian values rather than round trips alone.
+- [x] Check four non-center samples, initial and updated uniform draws, and backend errors. Record environment/capabilities and do not skip an unavailable required backend.
 
 Verification:
 
@@ -333,7 +333,7 @@ Verification:
 - Manual: Review the selected angle/hue captures when a seam or tolerance choice is consequential. Any tolerance increase must explain the numerical cause rather than masking swapped arguments, clamping, wrapping sign errors, or dropped vector lanes.
 
 Completion gate: Generated WebGL and presented WebGPU evidence passes under explicit tolerances for the defined input contract; numeric observations support the precision-sensitive assertions, and the new script participates in regular runtime tests.
-Evidence: Not run.
+Evidence: Verified; see [rendered-parity.md](evidence/rendered-parity.md).
 
 ### Step 3.2 — Publish the accurate language contract and audit acceptance
 
