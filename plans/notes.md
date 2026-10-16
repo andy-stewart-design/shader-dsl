@@ -21,7 +21,7 @@ The [opaque runtime v1 contract](./_completed/runtime-api/spec.md) computes shad
 
 ### Further reference-port vocabulary, when needed
 
-The [language-extension roadmap](./language-exntesion.md) describes still-unimplemented candidates such as fragment derivatives, narrowly analyzed module constants, orbit/trigonometry operations (including GLSL-style `mod`), and minimal `mat2` values. Review each against a concrete reference port before committing to its scope; named shader helpers, vector packing, and the first `mix`/`step`/`clamp`/`pow` signatures are already implemented. Reversed-`smoothstep` reference behavior is not portable GLSL fidelity; agree on a defined rewrite and pinned inputs before claiming a port matches its original. Vertex-stage authoring and varying interfaces need separate stage-specific IR, type/location and interpolation rules, and a host pipeline contract.
+The [language-extension roadmap](./language-exntesion.md) describes remaining candidates such as fragment derivatives, narrowly analyzed module constants, and minimal `mat2` values. Review each against a concrete reference port before committing to its scope. Reversed-`smoothstep` reference behavior is not portable GLSL fidelity; agree on a defined rewrite and pinned inputs before claiming a port matches its original. Vertex-stage authoring and varying interfaces need separate stage-specific IR, type/location and interpolation rules, and a host pipeline contract.
 
 ## Optional builtin signature extensions
 
