@@ -42,7 +42,7 @@ Review boundary: read-only baseline plus isolated raw-target characterization te
 
 ### Step 0.1 — Record baseline and execution prerequisites
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R5–R9; prerequisites for AC9–AC14, not acceptance of matrix behavior.
 Depends on: None.
 Review boundary: environment/baseline classification only; unrelated fixes require separately scoped review.
@@ -66,11 +66,11 @@ Verification:
 - Manual: no visual judgment required; inspect the commands' capability reports and classify unavailable browser/native-TypeScript prerequisites rather than approving them by assumption.
 
 Completion gate: all scoped baseline results are recorded with failures classified. An unexplained relevant failure or unavailable required browser blocks G0; a pre-existing failure is not automatically waived.
-Evidence: Not run.
+Evidence: `evidence/phase-0.md` (Step 0.1 result).
 
 ### Step 0.2 — Prove raw target acceptance and constructor strategy
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R2, R3, R5, R9; AC3/AC5 (raw orientation characterization) and AC11 (raw-target portion only; generated acceptance belongs to G1).
 Depends on: Step 0.1.
 Review boundary: raw GLSL/WGSL probes only, following existing `orbit-target-feasibility.test.ts` and `mixed-shape-clamp-pow-target-feasibility.test.ts` patterns; no new general-purpose browser framework.
@@ -94,10 +94,11 @@ Verification:
 - Manual: review probe-to-spec coverage and the selected strategy; this is not proof that Shdr generates it yet.
 
 Completion gate: raw feasibility and constructor single-evaluation strategy are evidenced for all sizes, with no unresolved scope-changing contradiction.
-Evidence: Not run.
+Evidence: `evidence/phase-0.md` (Step 0.2 result).
 
 **Phase exit gate G0:** after Step 0.2's checks, review the classified Step 0.1 baseline and raw coverage together. Advance only with available required capabilities, an explained baseline, and a feasible dual-target strategy for the exact spec; assess this before requesting supervised approval to advance.
-Evidence: Not run. Detailed results, when available: `evidence/phase-0.md`.
+Status: Verified — baseline, browser capabilities, raw constructor/operator compilation, and asymmetric orientation checks passed.
+Evidence: `evidence/phase-0.md`.
 
 ## Phase 1 — Public/core language and both targets
 
