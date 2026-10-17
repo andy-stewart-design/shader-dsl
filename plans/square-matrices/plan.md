@@ -54,9 +54,9 @@ Expected files:
 
 Tasks:
 
-- [ ] Record worktree state and relevant toolchain/browser versions and availability; preserve existing changes and separate pre-existing failures from this feature.
-- [ ] Refresh dependency builds with the scoped Turbo build command above. Check `shdr`, core, and language-service packages with their existing `check` scripts.
-- [ ] Run existing focused core and editor characterization suites below. Record browser availability distinctly from source/type results; do not infer a green workspace from focused coverage.
+- [x] Record worktree state and relevant toolchain/browser versions and availability; preserve existing changes and separate pre-existing failures from this feature.
+- [x] Refresh dependency builds with the scoped Turbo build command above. Check `shdr`, core, and language-service packages with their existing `check` scripts.
+- [x] Run existing focused core and editor characterization suites below. Record browser availability distinctly from source/type results; do not infer a green workspace from focused coverage.
 
 Verification:
 
@@ -82,10 +82,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Probe the 12 constructor and 21 binary signature families using explicit target types, constant inputs, and representative function-parameter/dynamic inputs at N=2/3/4.
-- [ ] Exercise matrix-valued locals and parameter/return boundaries in raw GLSL ES 3.00 and WGSL. Probe diagonal construction through a scalar parameter helper so one authored scalar occurrence need not be copied N times; check explicit coefficient/column and copy spellings rather than assuming compatibility.
-- [ ] Include asymmetric direction and noncommuting composition checks against independent small-number expectations, including the spec's 2x2 examples. Keep raw numeric orientation checks distinct from later generated/rendered acceptance.
-- [ ] Record the minimal successful lowering strategy and constant-evaluation observations. If the advertised ordinary finite cases cannot be supported within the spec, stop and surface the contradiction; do not add division/negation or alter constructors.
+- [x] Probe the 12 constructor and 21 binary signature families using explicit target types, constant inputs, and representative function-parameter/dynamic inputs at N=2/3/4.
+- [x] Exercise matrix-valued locals and parameter/return boundaries in raw GLSL ES 3.00 and WGSL. Probe diagonal construction through a scalar parameter helper so one authored scalar occurrence need not be copied N times; check explicit coefficient/column and copy spellings rather than assuming compatibility.
+- [x] Include asymmetric direction and noncommuting composition checks against independent small-number expectations, including the spec's 2x2 examples. Keep raw numeric orientation checks distinct from later generated/rendered acceptance.
+- [x] Record the minimal successful lowering strategy and constant-evaluation observations. If the advertised ordinary finite cases cannot be supported within the spec, stop and surface the contradiction; do not add division/negation or alter constructors.
 
 Verification:
 
@@ -108,7 +108,7 @@ Review boundary: language, target generation, and focused proof; no consumer UI 
 
 ### Step 1.1 — Constructors and matrix value safety
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R2, R5, R6, R8; AC1/AC2 (public/core/local-target portions), AC6 (access/builtin/unary rejection), AC10 (constructor/literal safety), AC11 (generated constructors). Helpers, editor, and pixels are owned by Steps 1.3, 2.1, and 3.1.
 Depends on: G0.
 Review boundary: four constructor families at all sizes and the atomic value-kind safety changes; matrix arithmetic remains explicitly rejected until Step 1.2. Core shape uses independent column/row counts from the outset, but rectangular source signatures and operator rules remain out of scope.
@@ -122,12 +122,12 @@ Expected files:
 
 Tasks:
 
-- [ ] Add distinct public Mat2/3/4 f32 brands, finite concrete overloads, compile-only constructors, and exports. Typecheck accepted/rejected constructor forms and absence of matrix component access; invoking a marker must throw without executing authored callbacks.
-- [ ] Add an explicit core matrix kind with separate `columns` and `rows` counts and constructor/import recognition. Source acceptance requires equal counts in `2 | 3 | 4`; preserve public Mat2/3/4 types. Compare both counts in type equality and derive target type/constructor spelling from explicit shape. Format actual matrix types in errors; update exhaustive consumers atomically rather than falling through to vector/texture defaults.
-- [ ] Implement exactly the four construction families and G0's target spellings, including single-evaluation diagonal lowering and copy handling. Keep authoring arguments target-neutral; any generated helper metadata is private, not artifact schema.
-- [ ] Audit builtin entry rules, unary handling, binary rules, vector constructors, and property handling as soon as the type union widens. Reject matrices in all existing builtins (including scalar-edge `step` and unary/reduction shortcuts), matrix unary negation, and unsupported access. Do not accidentally accept products/addition ahead of Step 1.2.
-- [ ] Derive matrix component counts from `columns * rows` without introducing a product evaluator. Add shape-unit assertions that equality checks each axis independently and component counts use both axes; unequal synthetic metadata may exercise these utilities but must not enable rectangular shader source, operator rules, or generated-target acceptance. Preserve literal diagnostics, safe unknown results, and tests against scalar-splat diagonal interpretation and old scalar/vector domain regressions.
-- [ ] Add public/core positive and negative cases for all twelve signatures with authored ranges, plus real compilation of generated constant/dynamic constructors. A fragment may keep a matrix local unused and return a Vec4 until products are added; generated typing and structure are still checked, not claimed as visible matrix math.
+- [x] Add distinct public Mat2/3/4 f32 brands, finite concrete overloads, compile-only constructors, and exports. Typecheck accepted/rejected constructor forms and absence of matrix component access; invoking a marker must throw without executing authored callbacks.
+- [x] Add an explicit core matrix kind with separate `columns` and `rows` counts and constructor/import recognition. Source acceptance requires equal counts in `2 | 3 | 4`; preserve public Mat2/3/4 types. Compare both counts in type equality and derive target type/constructor spelling from explicit shape. Format actual matrix types in errors; update exhaustive consumers atomically rather than falling through to vector/texture defaults.
+- [x] Implement exactly the four construction families and G0's target spellings, including single-evaluation diagonal lowering and copy handling. Keep authoring arguments target-neutral; any generated helper metadata is private, not artifact schema.
+- [x] Audit builtin entry rules, unary handling, binary rules, vector constructors, and property handling as soon as the type union widens. Reject matrices in all existing builtins (including scalar-edge `step` and unary/reduction shortcuts), matrix unary negation, and unsupported access. Do not accidentally accept products/addition ahead of Step 1.2.
+- [x] Derive matrix component counts from `columns * rows` without introducing a product evaluator. Add shape-unit assertions that equality checks each axis independently and component counts use both axes; unequal synthetic metadata may exercise these utilities but must not enable rectangular shader source, operator rules, or generated-target acceptance. Preserve literal diagnostics, safe unknown results, and tests against scalar-splat diagonal interpretation and old scalar/vector domain regressions.
+- [x] Add public/core positive and negative cases for all twelve signatures with authored ranges, plus real compilation of generated constant/dynamic constructors. A fragment may keep a matrix local unused and return a Vec4 until products are added; generated typing and structure are still checked, not claimed as visible matrix math.
 
 Verification:
 
@@ -136,7 +136,7 @@ Verification:
 - Manual: review every newly reachable matrix-kind branch, especially builtin fallthrough and diagonal argument occurrences. No separate UI acceptance needed here.
 
 Completion gate: core shape retains separate columns/rows with both-axis equality and shape-derived counts/emission; all accepted constructor/local forms remain square, typed, source-checked, and compilable in both real targets. Excluded forms fail at authored locations and the type-kind change leaves existing supported behavior buildable. This is not rectangular or whole-feature acceptance.
-Evidence: Not run.
+Evidence: Verified — `shdr check`/`test`, core check, 79 focused core tests, and real WebGL 2/WebGPU generated-constructor compilation passed.
 
 ### Step 1.2 — Native arithmetic and conservative product analysis
 

@@ -1,4 +1,5 @@
 import type { ShaderExpression, ShaderLocalSymbolId } from "./shader-ir.js";
+import { shaderTypeComponentCount } from "./shader-type.js";
 
 /** Undefined means one component is not provably constant; other components remain known. */
 export type ShaderKnownComponents = readonly (number | undefined)[];
@@ -22,9 +23,7 @@ function calculateShaderComponents(
   cache?: WeakMap<ShaderExpression, ShaderKnownComponents>,
 ): ShaderKnownComponents {
   const unknown = (): ShaderKnownComponents =>
-    Array(expression.type.kind === "vector" ? expression.type.size : 1).fill(
-      undefined,
-    );
+    Array(shaderTypeComponentCount(expression.type)).fill(undefined);
   switch (expression.kind) {
     case "numeric-literal":
       return [Math.fround(expression.value)];
@@ -74,10 +73,17 @@ function calculateShaderComponents(
         evaluateShaderComponents(arg, locals, cache),
       );
       const values = args.flat();
-      if (expression.target.kind === "constructor")
+      if (expression.target.kind === "constructor") {
+        if (expression.type.kind === "matrix" && values.length === 1) {
+          const result = Array(unknown().length).fill(0);
+          for (let diagonal = 0; diagonal < expression.type.columns; diagonal++)
+            result[diagonal * expression.type.rows + diagonal] = values[0];
+          return result;
+        }
         return values.length === 1
           ? Array(unknown().length).fill(values[0])
           : values;
+      }
       const first = args[0];
       if (!first) return unknown();
       // A known non-finite argument remains visible through otherwise unknown

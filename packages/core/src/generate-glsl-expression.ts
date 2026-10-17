@@ -34,6 +34,8 @@ export interface GeneratedGlslExpression {
   readonly code: string;
   /** Explicit and backend-implicit uniform dependencies in stable order. */
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
+  /** Internal diagonal helpers required to evaluate constructor arguments once. */
+  readonly matrixDiagonalSizes?: readonly (2 | 3 | 4)[];
   readonly referencedCustomUniforms?: readonly string[];
   readonly referencedTextures?: readonly string[];
   readonly usesFragmentPosition: boolean;
@@ -45,6 +47,7 @@ interface GenerationState {
   readonly referencedCustomUniforms: Set<string>;
   readonly referencedTextures: Set<string>;
   readonly modShapes: Set<GlslModShape>;
+  readonly matrixDiagonalSizes: Set<2 | 3 | 4>;
   usesFragmentPosition: boolean;
 }
 
@@ -58,6 +61,7 @@ export function generateGlslExpression(
     referencedCustomUniforms: new Set(),
     referencedTextures: new Set(),
     modShapes: new Set(),
+    matrixDiagonalSizes: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -82,6 +86,13 @@ export function generateGlslExpression(
         }
       : {}),
     usesFragmentPosition: state.usesFragmentPosition,
+    ...(state.matrixDiagonalSizes.size
+      ? {
+          matrixDiagonalSizes: ([2, 3, 4] as const).filter((size) =>
+            state.matrixDiagonalSizes.has(size),
+          ),
+        }
+      : {}),
     ...(state.modShapes.size
       ? {
           modShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
@@ -180,6 +191,16 @@ function emitExpression(
         return `texture(shdr_texture_${index}, ${args[0]})`;
       }
       let name = callTargetName(expression.target);
+      if (
+        expression.target.kind === "constructor" &&
+        expression.target.name.startsWith("mat") &&
+        expression.arguments.length === 1 &&
+        expression.arguments[0]?.type.kind === "scalar"
+      ) {
+        const size = Number(expression.target.name.slice(3)) as 2 | 3 | 4;
+        state.matrixDiagonalSizes.add(size);
+        return `shdr_internal_mat${size}(${args[0]})`;
+      }
       if (
         expression.target.kind === "builtin-function" &&
         expression.target.name === "mod"

@@ -6,6 +6,7 @@ import {
   defineShaderFunction,
   shdrPackageName,
   vec4,
+  mat2,
 } from "../src/index.js";
 import { __shdr_internal_div, __shdr_internal_f32 } from "../src/internal.js";
 import { acos, asin, atan, degrees, mod, radians } from "../src/math.js";
@@ -64,6 +65,7 @@ describe("shdr package", () => {
   it.each([
     ["createFragmentShader", () => createFragmentShader(() => vector4)],
     ["vec4", () => vec4(scalar, scalar, scalar, scalar)],
+    ["mat2", () => mat2(scalar)],
     ["__shdr_internal_f32", () => __shdr_internal_f32(1)],
     ["__shdr_internal_div", () => __shdr_internal_div(scalar, scalar)],
   ])("throws when %s reaches runtime", (apiName, invoke) => {

@@ -86,6 +86,12 @@ export type {
   ShaderValueType,
   ShaderVectorSize,
   ShaderVectorType,
+  ShaderMatrixSize,
+  ShaderMatrixType,
+} from "./shader-type.js";
+export {
+  sameShaderValueType,
+  shaderTypeComponentCount,
 } from "./shader-type.js";
 export {
   parseShaderFile,

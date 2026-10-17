@@ -44,9 +44,11 @@ export function builtinResultType(
   args: readonly ShaderValueType[],
 ): ShaderValueType | undefined {
   const first = args[0];
-  if (!first) return undefined;
+  if (!first || args.some((argument) => argument.kind === "matrix"))
+    return undefined;
   const sameShape = (other: ShaderValueType | undefined): boolean =>
     other !== undefined &&
+    other.kind !== "matrix" &&
     first.kind === other.kind &&
     (first.kind === "scalar" ||
       (first.kind === "vector" &&

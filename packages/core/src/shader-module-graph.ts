@@ -29,6 +29,7 @@ import type {
 } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
 import type { ShaderTextureDeclaration } from "shdr";
+import { sameShaderValueType } from "./shader-type.js";
 
 export interface ShaderVirtualGraphInput {
   readonly entry: string;
@@ -1016,13 +1017,10 @@ function syntaxCalls(
 }
 
 function sameShaderType(
-  left: { readonly kind: string; readonly size?: number },
-  right: { readonly kind: string; readonly size?: number },
+  left: Parameters<typeof sameShaderValueType>[0],
+  right: Parameters<typeof sameShaderValueType>[1],
 ): boolean {
-  return (
-    left.kind === right.kind &&
-    (left.kind !== "vector" || left.size === right.size)
-  );
+  return sameShaderValueType(left, right);
 }
 
 function normalizeFiles(files: ShaderVirtualGraphInput["files"]): VirtualFiles {

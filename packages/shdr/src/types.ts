@@ -17,7 +17,20 @@ export interface Vec4<T extends F32> {
   readonly [shaderType]: readonly ["vec4", T];
 }
 
-export type ShaderType = F32 | Vec2<F32> | Vec3<F32> | Vec4<F32>;
+export interface Mat2<T extends F32> {
+  readonly [shaderType]: readonly ["mat2", T];
+}
+
+export interface Mat3<T extends F32> {
+  readonly [shaderType]: readonly ["mat3", T];
+}
+
+export interface Mat4<T extends F32> {
+  readonly [shaderType]: readonly ["mat4", T];
+}
+
+export type ShaderType =
+  F32 | Vec2<F32> | Vec3<F32> | Vec4<F32> | Mat2<F32> | Mat3<F32> | Mat4<F32>;
 
 interface ExpressionBrand<T extends ShaderType> {
   readonly [expressionType]: T;

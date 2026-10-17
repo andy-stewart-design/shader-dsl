@@ -76,6 +76,7 @@ export function generateWgslFragmentOutput(
   const smoothstepShapes = new Set<WgslSmoothstepShape>();
   const guardedBuiltinSignatures = new Set<WgslGuardedSignature>();
   const modShapes = new Set<WgslSmoothstepShape>();
+  const matrixDiagonalSizes = new Set<2 | 3 | 4>();
   let usesFragmentPosition = false;
 
   for (const statement of [
@@ -92,6 +93,9 @@ export function generateWgslFragmentOutput(
     }
     for (const shape of statement.expression.modShapes ?? []) {
       modShapes.add(shape);
+    }
+    for (const size of statement.expression.matrixDiagonalSizes ?? []) {
+      matrixDiagonalSizes.add(size);
     }
     for (const uniform of statement.expression.referencedUniforms) {
       referencedUniforms.add(uniform);
@@ -151,6 +155,10 @@ export function generateWgslFragmentOutput(
   for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
     if (modShapes.has(shape)) sections.push(modHelper(shape));
   }
+  for (const size of [2, 3, 4] as const) {
+    if (matrixDiagonalSizes.has(size))
+      sections.push(matrixDiagonalHelper(size));
+  }
 
   sections.push(...functions.map((helper) => helper.code));
 
@@ -208,6 +216,15 @@ function generateStatement(
   }
 }
 
+function matrixDiagonalHelper(size: 2 | 3 | 4): string {
+  const type = `mat${size}x${size}<f32>`;
+  const vector = (column: number) =>
+    `vec${size}<f32>(${Array.from({ length: size }, (_, row) => (row === column ? "value" : "0.0f")).join(", ")})`;
+  return `fn shdr_internal_mat${size}(value: f32) -> ${type} {
+  return ${type}(${Array.from({ length: size }, (_, column) => vector(column)).join(", ")});
+}`;
+}
+
 function smoothstepHelper(shape: WgslSmoothstepShape): string {
   const type = shape === "f32" ? "f32" : `${shape}<f32>`;
   return `fn shdr_internal_smoothstep_${shape}(edge0: ${type}, edge1: ${type}, x: ${type}) -> ${type} {
@@ -261,6 +278,8 @@ function wgslTypeName(type: ShaderValueType): string {
         default:
           return assertNever(type.scalar);
       }
+    case "matrix":
+      return `mat${type.columns}x${type.rows}<f32>`;
     default:
       return assertNever(type);
   }

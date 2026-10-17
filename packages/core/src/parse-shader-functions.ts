@@ -17,6 +17,9 @@ export const SHADER_TYPE_IMPORTS = new Set([
   "Vec2",
   "Vec3",
   "Vec4",
+  "Mat2",
+  "Mat3",
+  "Mat4",
 ]);
 
 /** Recognizes source markers and concrete type syntax without evaluating them. */
@@ -210,15 +213,19 @@ function parseExpressionType(
     !isF32(value.typeArguments.params[0]!, imports)
   )
     return undefined;
+  const name = value.typeName.name;
   const size =
-    value.typeName.name === "Vec2"
+    name === "Vec2" || name === "Mat2"
       ? 2
-      : value.typeName.name === "Vec3"
+      : name === "Vec3" || name === "Mat3"
         ? 3
-        : value.typeName.name === "Vec4"
+        : name === "Vec4" || name === "Mat4"
           ? 4
           : undefined;
-  return size ? { kind: "vector", scalar: "f32", size } : undefined;
+  if (!size) return undefined;
+  return name.startsWith("Mat")
+    ? { kind: "matrix", scalar: "f32", columns: size, rows: size }
+    : { kind: "vector", scalar: "f32", size };
 }
 
 function isF32(type: TSType, imports: ReadonlySet<string>): boolean {

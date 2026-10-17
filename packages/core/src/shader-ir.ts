@@ -18,7 +18,8 @@ export type { ShaderDefaultUniform } from "shdr";
 /** Stable only within one shader module. */
 export type ShaderLocalSymbolId = number;
 
-export type ShaderConstructorName = "vec2" | "vec3" | "vec4";
+export type ShaderConstructorName =
+  "vec2" | "vec3" | "vec4" | "mat2" | "mat3" | "mat4";
 
 export type { ShaderBuiltinFunctionName } from "./shader-builtin.js";
 
