@@ -107,6 +107,10 @@ function scale(matrix, scalar) {
   return matrix.map((row) => row.map((value) => value * scalar));
 }
 
+function transpose(matrix) {
+  return matrix[0].map((_, column) => matrix.map((row) => row[column]));
+}
+
 function multiplyMatrixVector(matrix, vector) {
   return matrix.map((row) =>
     row.reduce((sum, value, index) => sum + value * vector[index], 0),
@@ -130,44 +134,61 @@ function multiplyMatrixMatrix(left, right) {
   );
 }
 
-function encoded(value) {
-  return `0.5 + (${value}) * 0.5`;
+function matrixComponents(size, vector, lane = 0) {
+  return size === 4
+    ? lane === 1
+      ? [3, 0, 1]
+      : [0, 1, 2]
+    : vector.map((_, index) => index);
 }
 
-function outputExpression(size, vector) {
-  return outputExpressionFor(size, vector, "result");
+function encodingFor(size, vector, lane = 0) {
+  const values = matrixComponents(size, vector, lane).map(
+    (index) => vector[index],
+  );
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const scale = maximum === minimum ? 0.5 : 0.8 / (maximum - minimum);
+  return { offset: 0.1 - minimum * scale, scale };
 }
 
-function outputExpressionFor(size, vector, variable, lane = 0) {
-  const components =
-    size === 4
-      ? lane === 1
-        ? [3, 0, 1]
-        : [0, 1, 2]
-      : vector.map((_, index) => index);
-  const values = components.map((index) =>
-    encoded(`${variable}.${"xyzw"[index]}`),
+function encoded(value, encoding) {
+  return `${encoding.offset} + (${value}) * ${encoding.scale}`;
+}
+
+function outputExpressionFor(size, vector, variable, lane, encoding) {
+  const values = matrixComponents(size, vector, lane).map((index) =>
+    encoded(`${variable}.${"xyzw"[index]}`, encoding),
   );
   const suffix = size === 2 ? ", 0, 1" : ", 1";
   return `vec4(${values.join(", ")}${suffix})`;
 }
 
-function matrixSource(size, matrixExpressionText, probe, lane = 0) {
+function matrixSource(
+  size,
+  matrixExpressionText,
+  probe,
+  lane = 0,
+  encoding = encodingFor(size, probe, lane),
+) {
   return `import { createFragmentShader, ${shaderImports(size)} } from "shdr";
 export default createFragmentShader(() => {
   const matrix = ${matrixExpressionText};
   const result = matrix * ${vectorExpression(size, probe)};
-  return ${outputExpressionFor(size, probe, "result", lane)};
+  return ${outputExpressionFor(size, probe, "result", lane, encoding)};
 });`;
 }
 
-function expectedPixel(vector, lane = 0) {
-  const values = vector.map((value) => 0.5 + value * 0.5);
+function expectedPixel(
+  vector,
+  lane = 0,
+  encoding = encodingFor(vector.length, vector, lane),
+) {
+  const values = matrixComponents(vector.length, vector, lane).map(
+    (index) => encoding.offset + vector[index] * encoding.scale,
+  );
   if (values.length === 2) return [...values, 0, 1];
-  if (values.length === 3) return [...values, 1];
-  return lane === 1
-    ? [values[3], values[0], values[1], 1]
-    : [values[0], values[1], values[2], 1];
+  return [...values, 1];
 }
 
 const cases = [];
@@ -253,13 +274,33 @@ for (const size of sizes) {
             : expression.startsWith(`${matrixName(size)}(1)`)
               ? probe
               : multiplyMatrixVector(current.a, probe);
+        const encoding = encodingFor(size, result, lane);
         cases.push({
           name: `${size}x${size} ${label} lane ${lane}`,
-          source: matrixSource(size, expression, probe, lane),
-          expected: expectedPixel(result, lane),
+          source: matrixSource(size, expression, probe, lane, encoding),
+          expected: expectedPixel(result, lane, encoding),
         });
       }
     }
+  }
+
+  if (size >= 3) {
+    const probe = current.probeA;
+    const result = multiplyMatrixVector(current.a, probe);
+    const lane = 0;
+    const encoding = encodingFor(size, result, lane);
+    cases.push({
+      name: `${size}x${size} deliberately transposed constructor mutation`,
+      source: matrixSource(
+        size,
+        matrixExpression(size, transpose(current.a)),
+        probe,
+        lane,
+        encoding,
+      ),
+      expected: expectedPixel(result, lane, encoding),
+      mustDiffer: true,
+    });
   }
 
   const a = matrixExpression(size, current.a);
@@ -306,6 +347,7 @@ for (const size of sizes) {
       for (const lane of size === 4 ? [0, 1] : [0]) {
         const vectorResult =
           kind === "matrix" ? multiplyMatrixVector(result, probe) : result;
+        const encoding = encodingFor(size, vectorResult, lane);
         const imports = shaderImports(size);
         cases.push({
           name: `${size}x${size} ${label}${probe ? " probe" : ""} lane ${lane}`,
@@ -313,9 +355,9 @@ for (const size of sizes) {
 export default createFragmentShader(() => {
   const result = ${expression};
   ${kind === "matrix" ? `const probe = result * ${vectorExpression(size, probe)};` : ""}
-  return ${kind === "matrix" ? outputExpressionFor(size, probe, "probe", lane) : outputExpressionFor(size, result, "result", lane)};
+  return ${kind === "matrix" ? outputExpressionFor(size, vectorResult, "probe", lane, encoding) : outputExpressionFor(size, vectorResult, "result", lane, encoding)};
 });`,
-          expected: expectedPixel(vectorResult, lane),
+          expected: expectedPixel(vectorResult, lane, encoding),
         });
       }
     }
@@ -460,7 +502,17 @@ try {
   for (const item of cases) {
     const artifact = compile(item.source);
     await install(artifact);
-    await expectPixels(item.name, item.expected);
+    if (item.mustDiffer) {
+      let detected = false;
+      try {
+        await expectPixels(item.name, item.expected);
+      } catch {
+        detected = true;
+      }
+      assert.equal(detected, true, `${item.name} was not observable`);
+    } else {
+      await expectPixels(item.name, item.expected);
+    }
   }
 
   await install(dynamicArtifact);
@@ -470,20 +522,14 @@ try {
       await renderer.draw();
     }
   });
-  await expectPixels(
-    "dynamic scalar uniform initial",
-    expectedPixel([0.2, 0.4]),
-  );
+  await expectPixels("dynamic scalar uniform initial", [0.6, 0.7, 0, 1]);
   await page.evaluate(async () => {
     for (const renderer of [window.glRenderer, window.gpuRenderer]) {
       renderer.setUniforms({ gain: 1.5 });
       await renderer.draw();
     }
   });
-  await expectPixels(
-    "dynamic scalar uniform updated",
-    expectedPixel([0.3, 0.6]),
-  );
+  await expectPixels("dynamic scalar uniform updated", [0.65, 0.8, 0, 1]);
 
   assert.deepEqual(errors, []);
   await page.evaluate(() => {
@@ -491,7 +537,7 @@ try {
     window.gpuRenderer.dispose();
   });
   console.log(
-    `Verified ${cases.length} square-matrix rendered cases, both multiplication directions, noncommuting composition, constructors, dynamic uniform updates, and WebGL/presented-WebGPU parity.`,
+    `Verified ${cases.filter((item) => !item.mustDiffer).length} square-matrix rendered cases plus ${cases.filter((item) => item.mustDiffer).length} transposition mutation guards, both multiplication directions, noncommuting composition, constructors, dynamic uniform updates, and WebGL/presented-WebGPU parity.`,
   );
 } finally {
   await browser?.close();

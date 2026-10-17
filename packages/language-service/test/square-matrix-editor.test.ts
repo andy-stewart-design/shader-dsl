@@ -180,6 +180,67 @@ describe("square matrix TypeScript 7 editor parity", () => {
     }
   });
 
+  it("routes an invalid matrix fragment return to its original expression", () => {
+    const source = `${imports}
+export default createFragmentShader(() => mat2(1));
+`;
+    const lowered = lowerFragment(source);
+    expect(lowered.ok).toBe(false);
+    if (lowered.ok) return;
+    const returned = "mat2(1)";
+    const editor = adapter();
+    try {
+      const document = update(
+        editor,
+        source,
+        1,
+        1,
+        join(cwd, "square-matrix-invalid-fragment-return.shdr.ts"),
+      );
+      expect(document.diagnostics).toEqual([
+        expect.objectContaining({
+          source: "shdr",
+          code: ShaderDiagnosticCode.InvalidReturnType,
+          range: {
+            start: source.indexOf(returned),
+            length: returned.length,
+          },
+        }),
+      ]);
+    } finally {
+      editor.dispose();
+    }
+  });
+
+  it("routes commented matrix constructors through parsed syntax", () => {
+    const source = shaderSource(
+      `  const m = mat2 /* column-major */ (1);
+  const bad = m / 2;`,
+    );
+    const lowered = lowerFragment(source);
+    expect(lowered.ok).toBe(false);
+    if (lowered.ok) return;
+    const editor = adapter();
+    try {
+      const document = update(
+        editor,
+        source,
+        1,
+        1,
+        join(cwd, "square-matrix-commented-constructor.shdr.ts"),
+      );
+      expect(document.diagnostics).toEqual([
+        expect.objectContaining({
+          source: "shdr",
+          code: ShaderDiagnosticCode.InvalidBinaryOperation,
+          range: lowered.diagnostics[0]!.range,
+        }),
+      ]);
+    } finally {
+      editor.dispose();
+    }
+  });
+
   it("routes matrix rejections to original ranges without virtual cascades", () => {
     const cases = [
       ["mat2(1, 2, 3)", ShaderDiagnosticCode.InvalidConstructor],

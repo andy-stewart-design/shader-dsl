@@ -1,8 +1,8 @@
 # Rendered square-matrix parity
 
-- Result: `verify-square-matrices.mjs` passed with 102 finite rendered cases across Mat2/Mat3/Mat4, all twelve constructor families (including zero, identity, non-unit diagonal, explicit, column, and copy cases), all twenty-one arithmetic signatures, both vector directions, and noncommuting matrix composition.
+- Result: `verify-square-matrices.mjs` passed with 102 finite rendered cases plus two deliberate Mat3/Mat4 transposed-constructor mutation guards across Mat2/Mat3/Mat4, all twelve constructor families (including zero, identity, non-unit diagonal, explicit, column, and copy cases), all twenty-one arithmetic signatures, both vector directions, and noncommuting matrix composition.
 - Targets: real WebGL 2 readback and presented WebGPU canvas screenshots in the provisioned Playwright Chromium context using SwiftShader (`--enable-unsafe-swiftshader`, `--enable-unsafe-webgpu`, `--use-angle=swiftshader`).
 - Inputs: asymmetric matrices, non-uniform vectors, two matrix probes per matrix-valued case, the specification's exact 2x2 A/v and A/B examples, and three non-center samples (`[4,4]`, `[16,8]`, `[28,24]`) on 32x32 canvases.
-- Encoding/tolerance: bounded values were encoded as `0.5 + value * 0.5`; expected 8-bit channels used a tolerance of ±8. WebGL/WebGPU channel parity was checked at every sample.
+- Encoding/tolerance: each visible result vector is independently affine-encoded into the interior `[0.1, 0.9]` range, amplifying small Mat3/Mat4 orientation differences without clipping expected values; expected 8-bit channels still use a tolerance of ±8. WebGL/WebGPU channel parity was checked at every sample. The mutation guards require the deliberately transposed Mat3 and Mat4 cases to fail that tolerance on both rendered paths.
 - Runtime update: a scalar `gain` custom uniform supplied a diagonal matrix; initial gain `1` and updated gain `1.5` both matched independent expected pixels on both backends.
 - Regression: the runtime suite, including custom-uniform and texture verifiers, passed; no matrix artifact fields or matrix runtime uploads were introduced.

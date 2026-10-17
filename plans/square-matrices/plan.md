@@ -301,7 +301,7 @@ Verification:
 - Manual: review captured evidence and independently expected values for observability and unhidden coefficients; automated evidence is sufficient without mandatory hardware-GPU access. Record software GPU use explicitly.
 
 Completion gate: all required matrix behaviors are observable and correct in WebGL and presented WebGPU, and creation/update cases preserve runtime ownership. No generated-code or module-compilation-only result substitutes for these pixels.
-Evidence: Verified — 102 rendered matrix cases and the complete runtime regression suite passed on real WebGL 2 and presented WebGPU; details in `evidence/rendered-parity.md`.
+Evidence: Verified — 102 rendered matrix cases plus deliberate Mat3/Mat4 transposition mutation guards and the complete runtime regression suite passed on real WebGL 2 and presented WebGPU; details in `evidence/rendered-parity.md`.
 
 ### Step 3.2 — Accurate language documentation and regression closure
 

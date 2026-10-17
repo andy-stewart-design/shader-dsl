@@ -255,7 +255,14 @@ export class TypeScript7EditorAdapter {
     const virtual = unchanged
       ? undefined
       : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
-    const hasMatrixConstructor = /\bmat[234]\s*\(/.test(input.source);
+    const hasMatrixConstructor =
+      parsedInfo !== undefined &&
+      [
+        ...parsedInfo.callback.syntax.declarations.map(
+          (declaration) => declaration.initializer,
+        ),
+        parsedInfo.callback.syntax.returnExpression,
+      ].some(hasMatrixConstructorCall);
     const coreDiagnostics = lowered.ok
       ? []
       : helperOnly
@@ -279,6 +286,7 @@ export class TypeScript7EditorAdapter {
                     diagnostic.code ===
                       ShaderDiagnosticCode.UnsupportedOperator ||
                     diagnostic.code === ShaderDiagnosticCode.InvalidSwizzle)) ||
+                diagnostic.code === ShaderDiagnosticCode.InvalidReturnType ||
                 diagnostic.code ===
                   ShaderDiagnosticCode.InvalidNumericLiteral ||
                 (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
@@ -466,6 +474,37 @@ function isHelperOnlySource(source: string): boolean {
     !/\bexport\s+default\b/.test(source) &&
     /\b(?:defineShaderFunction|defineUniforms)\b/.test(source)
   );
+}
+
+function hasMatrixConstructorCall(expression: ShaderExpressionSyntax): boolean {
+  if (
+    expression.kind === "call-expression" &&
+    (expression.calleeName === "mat2" ||
+      expression.calleeName === "mat3" ||
+      expression.calleeName === "mat4")
+  ) {
+    return true;
+  }
+  switch (expression.kind) {
+    case "call-expression":
+      return expression.arguments.some(hasMatrixConstructorCall);
+    case "parenthesized-expression":
+      return hasMatrixConstructorCall(expression.expression);
+    case "unary-expression":
+      return hasMatrixConstructorCall(expression.argument);
+    case "binary-expression":
+      return (
+        hasMatrixConstructorCall(expression.left) ||
+        hasMatrixConstructorCall(expression.right)
+      );
+    case "property-access":
+      return hasMatrixConstructorCall(expression.object);
+    case "numeric-literal":
+    case "identifier":
+      return false;
+    default:
+      return assertNever(expression);
+  }
 }
 
 function hasEnclosingBuiltinCall(
