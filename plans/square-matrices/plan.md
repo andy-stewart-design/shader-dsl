@@ -3,9 +3,9 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), including its explicit scope and inferred defaults A1–A5. The spec, not the historical `mat2` roadmap, governs this work.
-- Delivery state: **Planning only**. No baseline, implementation, or acceptance checks have been executed for this plan.
-- Acceptance or release still pending: All implementation and acceptance below. Publication/deployment is not part of this delivery.
-- Blockers: No known product decision blocks planning. Browser/toolchain availability and target feasibility are unverified prerequisites; failures block dependent gates rather than silently reducing scope.
+- Delivery state: **Implementation complete; final G3 closure is blocked** by the unrelated existing `vite-basic` presented-WebGPU regression recorded in `evidence/completion.md`.
+- Acceptance or release still pending: G3 must be rerun after that regression is resolved. Publication/deployment is not part of this delivery.
+- Blockers: No product decision blocks delivery. Node/pnpm and WebGL 2/WebGPU browser prerequisites are available; G3 is blocked by the existing `vite-basic` presented-WebGPU pixel regression recorded in `evidence/completion.md`.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step completion gates and phase exit gate are satisfied. Task checkboxes do not prove those gates passed. `Verified` means scoped verification and implementation review passed, not manual approval or release. In supervised execution, record approvals in extension state, not plan checkboxes. Record a waiver as `Accepted deviation`, not `Verified`.
 
@@ -305,7 +305,7 @@ Evidence: Verified — 102 rendered matrix cases and the complete runtime regres
 
 ### Step 3.2 — Accurate language documentation and regression closure
 
-Status: Pending
+Status: Blocked — documentation and scoped checks passed, but G3 remains blocked by the existing `vite-basic` presented-WebGPU regression documented in `evidence/completion.md`.
 Requirements / acceptance: R6–R9; AC14 (documentation and full compatibility), final audit of AC1–AC13 through their owning gates.
 Depends on: Step 3.1.
 Review boundary: documentation and feature-complete regression/audit; changes fixing discovered regressions must carry their own focused proof in the responsible step rather than being hidden as documentation work.
@@ -318,10 +318,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Document exact types, four constructor families and column order, seven binary families, helper use, portable numeric limits, and explicit exclusions. Distinguish `matN(s)` from a splat and `M * V` from `V * M`; show `M * -1`, not rejected unary negation.
-- [ ] Remove stale blanket matrix-rejection claims only when justified by acceptance. Explain the expanded square-size slice in the historical roadmap, preserve historical reference coefficients/fidelity caveats, and repair any affected internal links.
-- [ ] Audit the acceptance ownership table below against actual proof for all 12 constructors/21 binary signatures and excluded shapes, including size-safe annotations and conservative analysis. Resolve regressions or record explicit blockers/deviations; do not infer completion from task boxes.
-- [ ] Run G3's repository-level checks after focused proof and document failures, actual browser availability, and the scoped limits of evidence. Format only touched files; do not use the repository-wide writing formatter to modify unrelated work.
+- [x] Document exact types, four constructor families and column order, seven binary families, helper use, portable numeric limits, and explicit exclusions. Distinguish `matN(s)` from a splat and `M * V` from `V * M`; show `M * -1`, not rejected unary negation.
+- [x] Remove stale blanket matrix-rejection claims only when justified by acceptance. Explain the expanded square-size slice in the historical roadmap, preserve historical reference coefficients/fidelity caveats, and repair any affected internal links.
+- [x] Audit the acceptance ownership table below against actual proof for all 12 constructors/21 binary signatures and excluded shapes, including size-safe annotations and conservative analysis. Resolve regressions or record explicit blockers/deviations; do not infer completion from task boxes.
+- [x] Run G3's repository-level checks after focused proof and document failures, actual browser availability, and the scoped limits of evidence. Format only touched files; do not use the repository-wide writing formatter to modify unrelated work.
 
 Verification:
 
@@ -329,10 +329,10 @@ Verification:
 - Manual: compare delivered docs and examples with the spec and source; verify historical/reference fidelity is not overstated. Readiness for planning in the original spec must not be mistaken for pre-existing implementation evidence.
 
 Completion gate: docs accurately match verified behavior, acceptance has no silently skipped portion, and G3 is satisfied. If an essential regression/browser gate remains unavailable, leave completion blocked even if source changes are finished.
-Evidence: Not run.
+Evidence: Blocked — documentation, build/check/CLI checks, scoped runtime coverage, and browser capability checks passed, but root `pnpm test` is blocked by the existing `vite-basic` presented-WebGPU pixel regression; details in `evidence/completion.md`.
 
 **Phase exit gate G3:** after Step 3.2's focused documentation checks, run from the root `pnpm build`, `pnpm check`, `pnpm test`, and `pnpm ci:check`, respecting browser provisioning prerequisites and allowing enough runtime for the real suites. Expected result: all applicable workspace builds/type checks/CLI shader checks/tests succeed, including the newly wired runtime matrix verifier and existing artifact isolation checks. Review Step 3.1 pixels and all prior gate results together with the changed-file formatting/whitespace checks before declaring feature completion. Record pre-existing failures separately, but do not treat them as accepted waivers. No publish/deploy/manual approval is implied.
-Evidence: Not run. Link material final results from `evidence/completion.md` only if needed.
+Evidence: Blocked — `pnpm build`, `pnpm check`, and `pnpm ci:check` passed; `pnpm test` reached all suites but failed in the unchanged `vite-basic` presented-WebGPU expectation. See `evidence/completion.md`.
 
 ## Final acceptance
 

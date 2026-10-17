@@ -37,6 +37,14 @@ Use a top-level `const` initialized with `defineShaderFunction` for a compile-on
 
 Neither the compiler nor Vite executes authored modules or callbacks. Named exports are compile-time graph inputs; a Vite module's runtime value is its default compiled artifact. The browser REPL accepts local helpers in its one textarea, but has no file map or fetch path: an external `.shdr.ts` import reports `SHDR1300` and leaves the last successful render installed.
 
+## Square matrices
+
+The public authoring API exposes compile-only `Mat2<F32>`, `Mat3<F32>`, and `Mat4<F32>` types with direct `mat2`, `mat3`, and `mat4` constructors. Each size accepts a diagonal scalar, exactly `N*N` scalar coefficients, exactly `N` complete `vecN` columns, or a same-size matrix copy. Coefficients and columns are column-major: `mat2(1, 2, 3, 4)` represents rows `(1, 3)` and `(2, 4)`, while `mat2(1)` is identity rather than a scalar splat.
+
+For a fixed size, the supported binary families are matrix addition, matrix subtraction, matrix-times-scalar, scalar-times-matrix, matrix-times-column-vector, row-vector-times-matrix, and matrix-times-matrix. These provide 21 concrete signatures across Mat2/3/4 and preserve native multiplication direction and grouping. `M * -1` is valid. Matrix division, unary matrix negation, matrix indexing/properties, size conversion, matrix uniforms, matrix builtins, mismatched dimensions, and arbitrary constructor packing are outside the API. Helpers may take `Expr<MatN<F32>>` parameters and infer or annotate matrix returns; fragment entries still return `Expr<Vec4<F32>>`.
+
+Matrix expressions remain target-neutral and do not add artifact fields, runtime uploads, or host matrix values. Ordinary finite f32 inputs are the portable boundary; products are not reduced component-wise by constant analysis, and extreme overflow/precision behavior is not promised. See the [full accepted-language matrix section](../../README.md#square-matrices) and the [source fixture](../../apps/vite-basic/src/square-matrices.shdr.ts).
+
 ## Orbit/trigonometry builtins
 
 The public package exposes exactly 31 orbit/trigonometry signatures across six direct imports:
