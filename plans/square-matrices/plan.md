@@ -3,9 +3,9 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md), including its explicit scope and inferred defaults A1–A5. The spec, not the historical `mat2` roadmap, governs this work.
-- Delivery state: **Implementation complete; final G3 closure is blocked** by the unrelated existing `vite-basic` presented-WebGPU regression recorded in `evidence/completion.md`.
-- Acceptance or release still pending: G3 must be rerun after that regression is resolved. Publication/deployment is not part of this delivery.
-- Blockers: No product decision blocks delivery. Node/pnpm and WebGL 2/WebGPU browser prerequisites are available; G3 is blocked by the existing `vite-basic` presented-WebGPU pixel regression recorded in `evidence/completion.md`.
+- Delivery state: **Implementation and G3 acceptance complete**.
+- Acceptance or release still pending: None. Publication/deployment is not part of this delivery.
+- Blockers: None. Node/pnpm and WebGL 2/WebGPU browser prerequisites are available.
 
 Step statuses below are the authoritative execution record. A phase is complete only when its step completion gates and phase exit gate are satisfied. Task checkboxes do not prove those gates passed. `Verified` means scoped verification and implementation review passed, not manual approval or release. In supervised execution, record approvals in extension state, not plan checkboxes. Record a waiver as `Accepted deviation`, not `Verified`.
 
@@ -23,12 +23,12 @@ Step statuses below are the authoritative execution record. A phase is complete 
 
 ## Phase overview and delivery boundary
 
-| Phase | Outcome | Dependencies | Exit gate |
-| --- | --- | --- | --- |
-| 0 | Recorded baseline and feasible native-target/constructor strategy | Existing checkout/toolchain/browser prerequisites | G0: baseline classified; all intended raw target families compile |
-| 1 | Public/core matrix values, operators, helpers, and both generated targets | G0 | G1: complete language slice passes types/core/real generated-target compilation |
-| 2 | TypeScript 7 and consumer paths expose the same contract | G1 | G2: editor/CLI/Vite/browser/REPL parity and static isolation |
-| 3 | Rendered mathematical acceptance, accurate docs, and regression closure | G2 | G3: pixels, compatibility, documentation, and workspace checks |
+| Phase | Outcome                                                                   | Dependencies                                      | Exit gate                                                                       |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 0     | Recorded baseline and feasible native-target/constructor strategy         | Existing checkout/toolchain/browser prerequisites | G0: baseline classified; all intended raw target families compile               |
+| 1     | Public/core matrix values, operators, helpers, and both generated targets | G0                                                | G1: complete language slice passes types/core/real generated-target compilation |
+| 2     | TypeScript 7 and consumer paths expose the same contract                  | G1                                                | G2: editor/CLI/Vite/browser/REPL parity and static isolation                    |
+| 3     | Rendered mathematical acceptance, accurate docs, and regression closure   | G2                                                | G3: pixels, compatibility, documentation, and workspace checks                  |
 
 Delivery boundary: **one feature-complete PR/change set**, after G3. Phases/steps are review increments, not separately shippable support claims. Step 1.1 alone is constructor/local support; it is not the complete advertised feature.
 
@@ -305,7 +305,7 @@ Evidence: Verified — 102 rendered matrix cases and the complete runtime regres
 
 ### Step 3.2 — Accurate language documentation and regression closure
 
-Status: Blocked — documentation and scoped checks passed, but G3 remains blocked by the existing `vite-basic` presented-WebGPU regression documented in `evidence/completion.md`.
+Status: Verified
 Requirements / acceptance: R6–R9; AC14 (documentation and full compatibility), final audit of AC1–AC13 through their owning gates.
 Depends on: Step 3.1.
 Review boundary: documentation and feature-complete regression/audit; changes fixing discovered regressions must carry their own focused proof in the responsible step rather than being hidden as documentation work.
@@ -314,6 +314,7 @@ Expected files:
 
 - `README.md`, `packages/shdr/README.md`, `plans/language-exntesion.md`, and relevant `plans/notes.md` matrix discussion — update delivered claims and links without erasing historical rationale.
 - `plans/square-matrices/plan.md` — concise final gate outcomes/status only.
+- `apps/vite-basic/verify-render.mjs` — correct the existing composed-WebGPU screenshot sample to avoid the canvas CSS border.
 - `plans/square-matrices/evidence/completion.md` — **new if needed**, meaningful broad-check results/limitations rather than a transcript or duplicate acceptance checklist.
 
 Tasks:
@@ -329,31 +330,31 @@ Verification:
 - Manual: compare delivered docs and examples with the spec and source; verify historical/reference fidelity is not overstated. Readiness for planning in the original spec must not be mistaken for pre-existing implementation evidence.
 
 Completion gate: docs accurately match verified behavior, acceptance has no silently skipped portion, and G3 is satisfied. If an essential regression/browser gate remains unavailable, leave completion blocked even if source changes are finished.
-Evidence: Blocked — documentation, build/check/CLI checks, scoped runtime coverage, and browser capability checks passed, but root `pnpm test` is blocked by the existing `vite-basic` presented-WebGPU pixel regression; details in `evidence/completion.md`.
+Evidence: Verified — documentation, the corrected Vite presented-WebGPU sampling check, full workspace builds/checks/tests, CLI shader checks, and runtime matrix coverage passed; details in `evidence/completion.md`.
 
 **Phase exit gate G3:** after Step 3.2's focused documentation checks, run from the root `pnpm build`, `pnpm check`, `pnpm test`, and `pnpm ci:check`, respecting browser provisioning prerequisites and allowing enough runtime for the real suites. Expected result: all applicable workspace builds/type checks/CLI shader checks/tests succeed, including the newly wired runtime matrix verifier and existing artifact isolation checks. Review Step 3.1 pixels and all prior gate results together with the changed-file formatting/whitespace checks before declaring feature completion. Record pre-existing failures separately, but do not treat them as accepted waivers. No publish/deploy/manual approval is implied.
-Evidence: Blocked — `pnpm build`, `pnpm check`, and `pnpm ci:check` passed; `pnpm test` reached all suites but failed in the unchanged `vite-basic` presented-WebGPU expectation. See `evidence/completion.md`.
+Evidence: Verified — `pnpm build`, `pnpm check`, `pnpm test`, and `pnpm ci:check` passed, with 35 shader files clean and all workspace suites green. See `evidence/completion.md`.
 
 ## Final acceptance
 
 The table maps proof ownership, not a second progress checklist. Evidence/status lives in the named steps and their phase exit gates.
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result | Evidence location |
-| --- | --- | --- | --- |
-| AC1 | Steps 1.1, 1.3, 2.1; G1/G2 | Twelve constructors retain concrete square dimensions through locals/helpers/editor and real targets; core metadata/equality preserves both shape axes independently. | Owning step evidence entries. |
-| AC2 | Steps 1.1, 2.1; G1/G2 | Excluded constructor shapes fail at authored locations with no artifact or permissive public type. | Owning step evidence entries. |
-| AC3 | Steps 0.2, 1.1, 3.1; G3 | Lowering and actual pixels distinguish zero/identity/diagonal scaling and flat/column equivalence. | Step 3.1 and `evidence/rendered-parity.md` when created. |
-| AC4 | Steps 1.2, 1.3, 2.1; G1/G2 | Twenty-one concrete binary signatures agree across types/core/helpers/editor/targets. | Owning step evidence entries. |
-| AC5 | Steps 0.2, 1.2, 3.1; G3 | Independent rendered expectations reveal product direction, transpose, and composition errors. | Step 3.1 and rendered evidence. |
-| AC6 | Steps 1.1, 1.2, 2.1; G1/G2 | All matrix exclusions fail without broadening old scalar/vector rules. | Owning step evidence entries. |
-| AC7 | Steps 1.3, 2.1; G1/G2 | Local/imported helper sizes, returns, and unsaved edits remain exact and source-owned. | Owning step evidence entries. |
-| AC8 | Steps 1.3, 2.2; G1/G2 | Matrix helpers do not change fragment return, captures/recursion/mutation, or uniform declarations. | Owning step evidence entries. |
-| AC9 | Steps 1.1–1.3, 3.1; G1/G3 | Generated structure proves argument occurrence/name/grouping integrity; rendered cases prove observable semantics. | Steps 1.3/3.1 evidence. |
-| AC10 | Steps 1.1, 1.2; G1 | No fabricated componentwise product proof; literal/domain regressions remain correctly handled. | Step 1.2 evidence. |
-| AC11 | Steps 0.2, 1.1–1.3; G1 | Raw and Shdr-generated constant/dynamic families compile on both real targets. | G0/G1 and owning step evidence; `evidence/phase-0.md` when created. |
-| AC12 | Step 3.1; G3 | Both rendered paths match mathematical expectations before/after existing-uniform updates. | Step 3.1 and rendered evidence. |
-| AC13 | Steps 2.1, 2.2; G2 | CLI/static/browser/editor parity, unsaved refresh, and REPL invalid-edit recovery are observed. | G2 and owning step evidence. |
-| AC14 | Steps 1.3, 2.2, 3.1, 3.2; G3 | No runtime/schema/binding/bundle regression; full checks and accurate docs complete the feature. | G3 and owning step evidence; completion note if created. |
+| Spec acceptance ID | Owning step / gate           | Verification and expected result                                                                                                                                      | Evidence location                                                   |
+| ------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| AC1                | Steps 1.1, 1.3, 2.1; G1/G2   | Twelve constructors retain concrete square dimensions through locals/helpers/editor and real targets; core metadata/equality preserves both shape axes independently. | Owning step evidence entries.                                       |
+| AC2                | Steps 1.1, 2.1; G1/G2        | Excluded constructor shapes fail at authored locations with no artifact or permissive public type.                                                                    | Owning step evidence entries.                                       |
+| AC3                | Steps 0.2, 1.1, 3.1; G3      | Lowering and actual pixels distinguish zero/identity/diagonal scaling and flat/column equivalence.                                                                    | Step 3.1 and `evidence/rendered-parity.md` when created.            |
+| AC4                | Steps 1.2, 1.3, 2.1; G1/G2   | Twenty-one concrete binary signatures agree across types/core/helpers/editor/targets.                                                                                 | Owning step evidence entries.                                       |
+| AC5                | Steps 0.2, 1.2, 3.1; G3      | Independent rendered expectations reveal product direction, transpose, and composition errors.                                                                        | Step 3.1 and rendered evidence.                                     |
+| AC6                | Steps 1.1, 1.2, 2.1; G1/G2   | All matrix exclusions fail without broadening old scalar/vector rules.                                                                                                | Owning step evidence entries.                                       |
+| AC7                | Steps 1.3, 2.1; G1/G2        | Local/imported helper sizes, returns, and unsaved edits remain exact and source-owned.                                                                                | Owning step evidence entries.                                       |
+| AC8                | Steps 1.3, 2.2; G1/G2        | Matrix helpers do not change fragment return, captures/recursion/mutation, or uniform declarations.                                                                   | Owning step evidence entries.                                       |
+| AC9                | Steps 1.1–1.3, 3.1; G1/G3    | Generated structure proves argument occurrence/name/grouping integrity; rendered cases prove observable semantics.                                                    | Steps 1.3/3.1 evidence.                                             |
+| AC10               | Steps 1.1, 1.2; G1           | No fabricated componentwise product proof; literal/domain regressions remain correctly handled.                                                                       | Step 1.2 evidence.                                                  |
+| AC11               | Steps 0.2, 1.1–1.3; G1       | Raw and Shdr-generated constant/dynamic families compile on both real targets.                                                                                        | G0/G1 and owning step evidence; `evidence/phase-0.md` when created. |
+| AC12               | Step 3.1; G3                 | Both rendered paths match mathematical expectations before/after existing-uniform updates.                                                                            | Step 3.1 and rendered evidence.                                     |
+| AC13               | Steps 2.1, 2.2; G2           | CLI/static/browser/editor parity, unsaved refresh, and REPL invalid-edit recovery are observed.                                                                       | G2 and owning step evidence.                                        |
+| AC14               | Steps 1.3, 2.2, 3.1, 3.2; G3 | No runtime/schema/binding/bundle regression; full checks and accurate docs complete the feature.                                                                      | G3 and owning step evidence; completion note if created.            |
 
 ## Rollback and recovery
 
