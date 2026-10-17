@@ -197,7 +197,7 @@ Completion gate: valid matrix helpers and their consumers compose on both target
 Evidence: Verified — `shdr` checks/tests/build, core check, and 72 focused helper/generated/regression tests passed; local helpers compiled on real WebGL 2/WebGPU targets.
 
 **Phase exit gate G1:** after Step 1.3, rebuild `shdr`; run `pnpm --filter shdr check`, `pnpm --filter shdr test`, `pnpm --filter @shdr/core check`, and the entire core suite via `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root .`. Require complete 12-constructor/21-binary family coverage, helper/negative cases, and real generated-target acceptance in one buildable language slice. Review constant-analysis and exhaustive consumer changes together before advancing. This gate does not claim editor parity or rendered acceptance.
-Evidence: Not run. Keep concise results here; link generated-target details only if they add reproducibility value.
+Evidence: Verified — refreshed `shdr`; `shdr` checks/tests/build, core check, full core suite (510 tests), and Step 1 focused target/helper coverage passed.
 
 ## Phase 2 — Editor and consumer parity
 
@@ -207,7 +207,7 @@ Review boundary: adapters and fixtures exercise the shared language; they must n
 
 ### Step 2.1 — TypeScript 7 inference, diagnostics, and edit refresh
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R4, R6–R8; completes editor portions of AC1/AC2/AC4/AC6/AC7 and hover/refresh portion of AC13. Consumer/browser recovery remains Step 2.2.
 Depends on: G1.
 Review boundary: existing virtual-source and TypeScript 7 seams, not VS Code transport migration.
@@ -220,9 +220,9 @@ Expected files:
 
 Tasks:
 
-- [ ] Assert hovers and concrete inferred results for all 12 constructor and 21 binary signatures, with representative local/imported helper parameters and inferred/annotated returns.
-- [ ] Assert original-source rejection for constructor errors, dimension mismatches, `/`, `-M`, properties/indexing, and existing math calls given matrices; retain more-specific inner errors without virtual-helper cascades.
-- [ ] Edit valid source to invalid source and back, including unsaved changes to an imported helper's matrix annotation. Require fresh diagnostics/types, imported-file ownership, and unchanged ordinary `.ts` ownership.
+- [x] Assert hovers and concrete inferred results for all 12 constructor and 21 binary signatures, with representative local/imported helper parameters and inferred/annotated returns.
+- [x] Assert original-source rejection for constructor errors, dimension mismatches, `/`, `-M`, properties/indexing, and existing math calls given matrices; retain more-specific inner errors without virtual-helper cascades.
+- [x] Edit valid source to invalid source and back, including unsaved changes to an imported helper's matrix annotation. Require fresh diagnostics/types, imported-file ownership, and unchanged ordinary `.ts` ownership.
 
 Verification:
 
@@ -230,7 +230,7 @@ Verification:
 - Manual: no mandatory live VS Code session; real TypeScript 7 adapter coverage is the scoped gate. Do not describe it as manual extension verification.
 
 Completion gate: real TypeScript 7 accepts/rejects the same signature set as core, reports concrete matrix dimensions, and refreshes source-mapped information through unsaved edits.
-Evidence: Not run.
+Evidence: Verified — refreshed `shdr` and scoped dependencies, then passed language-service check and all 103 language-service tests, including the new 12-constructor/21-binary editor suite and unsaved imported-helper edits.
 
 ### Step 2.2 — CLI, Vite static artifacts, and browser/REPL recovery
 

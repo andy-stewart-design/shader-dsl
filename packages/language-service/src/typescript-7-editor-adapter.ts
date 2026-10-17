@@ -255,6 +255,7 @@ export class TypeScript7EditorAdapter {
     const virtual = unchanged
       ? undefined
       : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
+    const hasMatrixConstructor = /\bmat[234]\s*\(/.test(input.source);
     const coreDiagnostics = lowered.ok
       ? []
       : helperOnly
@@ -270,6 +271,14 @@ export class TypeScript7EditorAdapter {
               (diagnostic) =>
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin ||
                 diagnostic.code === ShaderDiagnosticCode.InvalidBuiltinDomain ||
+                (hasMatrixConstructor &&
+                  (diagnostic.code ===
+                    ShaderDiagnosticCode.InvalidConstructor ||
+                    diagnostic.code ===
+                      ShaderDiagnosticCode.InvalidBinaryOperation ||
+                    diagnostic.code ===
+                      ShaderDiagnosticCode.UnsupportedOperator ||
+                    diagnostic.code === ShaderDiagnosticCode.InvalidSwizzle)) ||
                 diagnostic.code ===
                   ShaderDiagnosticCode.InvalidNumericLiteral ||
                 (diagnostic.code === ShaderDiagnosticCode.DuplicateLocal &&
