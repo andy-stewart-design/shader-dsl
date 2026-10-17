@@ -274,7 +274,7 @@ Review boundary: bounded render verifier and documentation/regression closure; n
 
 ### Step 3.1 — Independent rendered matrix expectations
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R2, R3, R5, R8, R9; completes rendered portions of AC3/AC5/AC9/AC12, with runtime compatibility evidence contributing to AC14. Compiler/editor portions remain owned by earlier gates.
 Depends on: G2.
 Review boundary: reuse `packages/runtime/test/verify-orbit-math.mjs` and sibling patterns; no renderer matrix implementation or general GPU testing framework.
@@ -288,11 +288,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Render all sizes and all arithmetic families using asymmetric coefficients, non-uniform vectors, and noncommuting pairs. Include both vector multiplication directions, all constructor families, zero/identity/non-unit diagonal cases, and the spec's exact small-number 2x2 expectations.
-- [ ] Make every relevant matrix row/column observable through permitted matrix/vector products rather than adding indexing; use multiple vectors/samples/cases as needed so a wrong coefficient cannot hide in an unobserved lane.
-- [ ] Derive independent expected values using simple bounded arithmetic or explicit scalar reference formulas. Encode results into visible channels without clipping; compare both backends to expectations as well as each other. Choose and record tolerances that still expose transpose/direction/componentwise mistakes, rather than adopting a broad tolerance by habit.
-- [ ] Exercise grouping-sensitive nested composition and a nested-helper diagonal case; retain generated-source single-occurrence proof from Step 1.3 because pixels alone cannot prove evaluation count. Update an existing scalar/vector uniform supplying coefficients and draw again.
-- [ ] Use real WebGL readback and an actually presented WebGPU canvas capture with multiple non-center samples, validation-error checks, and cleanup. Wire the verifier into normal tests; report unavailable capabilities as blocked, never verified/skipped success.
+- [x] Render all sizes and all arithmetic families using asymmetric coefficients, non-uniform vectors, and noncommuting pairs. Include both vector multiplication directions, all constructor families, zero/identity/non-unit diagonal cases, and the spec's exact small-number 2x2 expectations.
+- [x] Make every relevant matrix row/column observable through permitted matrix/vector products rather than adding indexing; use multiple vectors/samples/cases as needed so a wrong coefficient cannot hide in an unobserved lane.
+- [x] Derive independent expected values using simple bounded arithmetic or explicit scalar reference formulas. Encode results into visible channels without clipping; compare both backends to expectations as well as each other. Choose and record tolerances that still expose transpose/direction/componentwise mistakes, rather than adopting a broad tolerance by habit.
+- [x] Exercise grouping-sensitive nested composition and a nested-helper diagonal case; retain generated-source single-occurrence proof from Step 1.3 because pixels alone cannot prove evaluation count. Update an existing scalar/vector uniform supplying coefficients and draw again.
+- [x] Use real WebGL readback and an actually presented WebGPU canvas capture with multiple non-center samples, validation-error checks, and cleanup. Wire the verifier into normal tests; report unavailable capabilities as blocked, never verified/skipped success.
 
 Verification:
 
@@ -301,7 +301,7 @@ Verification:
 - Manual: review captured evidence and independently expected values for observability and unhidden coefficients; automated evidence is sufficient without mandatory hardware-GPU access. Record software GPU use explicitly.
 
 Completion gate: all required matrix behaviors are observable and correct in WebGL and presented WebGPU, and creation/update cases preserve runtime ownership. No generated-code or module-compilation-only result substitutes for these pixels.
-Evidence: Not run. Supporting results, when available: `evidence/rendered-parity.md`.
+Evidence: Verified — 102 rendered matrix cases and the complete runtime regression suite passed on real WebGL 2 and presented WebGPU; details in `evidence/rendered-parity.md`.
 
 ### Step 3.2 — Accurate language documentation and regression closure
 
