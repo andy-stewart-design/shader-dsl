@@ -23,7 +23,13 @@ function calculateShaderComponents(
   cache?: WeakMap<ShaderExpression, ShaderKnownComponents>,
 ): ShaderKnownComponents {
   const unknown = (): ShaderKnownComponents =>
-    Array(shaderTypeComponentCount(expression.type)).fill(undefined);
+    Array(
+      expression.type.kind === "matrix"
+        ? shaderTypeComponentCount(expression.type)
+        : expression.type.kind === "vector"
+          ? expression.type.size
+          : 1,
+    ).fill(undefined);
   switch (expression.kind) {
     case "numeric-literal":
       return [Math.fround(expression.value)];

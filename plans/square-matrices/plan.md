@@ -170,7 +170,7 @@ Evidence: Verified — public operator fixtures, core check, 90 focused core tes
 
 ### Step 1.3 — Size-safe local and imported helper boundaries
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R4–R8; AC1 (helper copy), AC7/AC8 (public/core portions), AC9 (helper/single-evaluation portion), AC11 (generated helpers). Editor/consumer/pixel portions remain in Phases 2/3.
 Depends on: Step 1.2.
 Review boundary: extend existing helper contracts, not module capture/import semantics or a new helper system.
@@ -183,10 +183,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Admit imported Mat2/3/4 type names and exact helper annotations. Check argument and annotated-return equality by kind and both column/row counts, retaining square-only source acceptance; inferred returns remain concrete through transitive calls.
-- [ ] Cover named imported helpers with the existing virtual/project graph: matrix construction, composition, matrix parameters, annotated/inferred returns, and copies of helper results. Exercise every size, plus changed-size argument and return failures in original files.
-- [ ] Generate typed helper parameters/returns on both backends and test a diagonal constructor whose scalar comes from a nested authored helper exactly once, including collision-prone names.
-- [ ] Preserve fragment Vec4 returns, capture/recursion/import restrictions, no local type annotations, matrix-uniform rejection, and no execution of authored modules. Add failures with the existing specific codes rather than generic backend exceptions.
+- [x] Admit imported Mat2/3/4 type names and exact helper annotations. Check argument and annotated-return equality by kind and both column/row counts, retaining square-only source acceptance; inferred returns remain concrete through transitive calls.
+- [x] Cover named imported helpers with the existing virtual/project graph: matrix construction, composition, matrix parameters, annotated/inferred returns, and copies of helper results. Exercise every size, plus changed-size argument and return failures in original files.
+- [x] Generate typed helper parameters/returns on both backends and test a diagonal constructor whose scalar comes from a nested authored helper exactly once, including collision-prone names.
+- [x] Preserve fragment Vec4 returns, capture/recursion/import restrictions, no local type annotations, matrix-uniform rejection, and no execution of authored modules. Add failures with the existing specific codes rather than generic backend exceptions.
 
 Verification:
 
@@ -194,7 +194,7 @@ Verification:
 - Manual: inspect imported-file diagnostic ownership and generated single occurrences; real target compilation covers helper signatures but not final pixel claims.
 
 Completion gate: valid matrix helpers and their consumers compose on both targets; dimension mismatches and existing forbidden behaviors remain correctly rejected with no new host/schema surface.
-Evidence: Not run.
+Evidence: Verified — `shdr` checks/tests/build, core check, and 72 focused helper/generated/regression tests passed; local helpers compiled on real WebGL 2/WebGPU targets.
 
 **Phase exit gate G1:** after Step 1.3, rebuild `shdr`; run `pnpm --filter shdr check`, `pnpm --filter shdr test`, `pnpm --filter @shdr/core check`, and the entire core suite via `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root .`. Require complete 12-constructor/21-binary family coverage, helper/negative cases, and real generated-target acceptance in one buildable language slice. Review constant-analysis and exhaustive consumer changes together before advancing. This gate does not claim editor parity or rendered acceptance.
 Evidence: Not run. Keep concise results here; link generated-target details only if they add reproducibility value.
