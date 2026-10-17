@@ -309,6 +309,48 @@ export default createFragmentShader(({ coord, uniforms }) => {
   await waitForValidation(page, "glsl-es-300", "success");
   await waitForValidation(page, "wgsl", "success");
 
+  const matrixSource = `import { createFragmentShader, defineShaderFunction, mat2, vec2, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+const diagonal = defineShaderFunction((value: Expr<F32>) => mat2(value));
+export default createFragmentShader(() => {
+  const matrix = diagonal(1);
+  const transformed = matrix * vec2(0.25, 0.75);
+  return vec4(transformed, 0, 1);
+});`;
+  await compileSource(page, editor, matrixSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await assertBindings(page, "glsl-es-300", "");
+  await assertBindings(page, "wgsl", "");
+  const matrixGlPixel = (await readWebGlPixels(page, [[0.5, 0.5]]))[0];
+  const matrixGpuPixel = (await readWebGpuPixels(page, [[0.5, 0.5]]))[0];
+  assertChannel("matrix WebGL red", matrixGlPixel[0], 64, 3);
+  assertChannel("matrix WebGL green", matrixGlPixel[1], 191, 3);
+  assertChannel("matrix WebGPU red", matrixGpuPixel[0], 64, 3);
+  assertChannel("matrix WebGPU green", matrixGpuPixel[1], 191, 3);
+  const invalidMatrixSource = matrixSource.replace(
+    "matrix * vec2(0.25, 0.75)",
+    "mat2(1) / 2",
+  );
+  await compileSource(page, editor, invalidMatrixSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1205/);
+  assert.deepEqual(
+    (await readWebGlPixels(page, [[0.5, 0.5]]))[0],
+    matrixGlPixel,
+  );
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    matrixGpuPixel,
+  );
+  await compileSource(page, editor, matrixSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await compileSource(page, editor, mathSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+
   const invalidMathSource = await readFile(
     new URL(
       "../editor-fixture/test/fixtures/invalid-math.shdr.ts",

@@ -219,6 +219,77 @@ export const uniforms = defineUniforms((u) => ({ gain: u.f32(0.75) }));`,
     }
   });
 
+  it("compiles the complete matrix vocabulary through an imported Vite graph without runtime fields", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shdr-vite-matrices-"));
+    try {
+      const sourceDirectory = join(root, "src");
+      await mkdir(sourceDirectory, { recursive: true });
+      const helper = join(sourceDirectory, "matrices.shdr.ts");
+      const entry = join(sourceDirectory, "entry.shdr.ts");
+      await writeFile(
+        helper,
+        `import { defineShaderFunction, mat2, mat3, mat4 } from "shdr";
+import type { Expr, F32, Mat3 } from "shdr";
+export const diagonal2 = defineShaderFunction((value: Expr<F32>) => mat2(value));
+export const copy3 = defineShaderFunction((value: Expr<Mat3<F32>>): Expr<Mat3<F32>> => mat3(value));
+export const diagonal4 = defineShaderFunction((value: Expr<F32>) => mat4(value));
+`,
+      );
+      const source = `import { createFragmentShader, mat2, mat3, mat4, vec2, vec3, vec4 } from "shdr";
+import { copy3, diagonal2, diagonal4 } from "./matrices.shdr.ts";
+export default createFragmentShader(({ uniforms }) => {
+  const m2 = diagonal2(uniforms.time); const m3 = copy3(mat3(uniforms.time)); const m4 = diagonal4(uniforms.time);
+  const f2 = mat2(uniforms.time, uniforms.time, uniforms.time, uniforms.time); const c2 = mat2(vec2(uniforms.time), vec2(uniforms.time)); const x2 = mat2(m2);
+  const f3 = mat3(uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time); const c3 = mat3(vec3(uniforms.time), vec3(uniforms.time), vec3(uniforms.time)); const x3 = mat3(m3);
+  const f4 = mat4(uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time); const c4 = mat4(vec4(uniforms.time), vec4(uniforms.time), vec4(uniforms.time), vec4(uniforms.time)); const x4 = mat4(m4);
+  const a = m2 + f2; const b = m2 - f2; const c = m2 * uniforms.time; const d = uniforms.time * m2; const e = m2 * vec2(uniforms.time); const f = vec2(uniforms.time) * m2; const g = m2 * f2;
+  const h = m3 + f3; const i = m3 - f3; const j = m3 * uniforms.time; const k = uniforms.time * m3; const l = m3 * vec3(uniforms.time); const n = vec3(uniforms.time) * m3; const o = m3 * f3;
+  const p = m4 + f4; const q = m4 - f4; const r = m4 * uniforms.time; const s = uniforms.time * m4; const t = m4 * vec4(uniforms.time); const u = vec4(uniforms.time) * m4; const v = m4 * f4;
+  return vec4(e.x + f.x, l.x + n.x, t.x + u.x, 1);
+});
+`;
+      await writeFile(entry, source);
+      const plugin = shdr();
+      configure(plugin, root);
+      const watched: string[] = [];
+      const transformed = await transform(plugin, source, entry, watched);
+      const artifact = parseArtifact(transformed);
+      expect(watched).toContain(await realpath(helper));
+      expect(Object.keys(artifact).sort()).toEqual([
+        "defaults",
+        "glsl",
+        "wgsl",
+      ]);
+      expect(artifact.glsl).toContain("mat2");
+      expect(artifact.glsl).toContain("shdr_internal_fn_");
+      expect(artifact.wgsl).toContain("mat4x4<f32>");
+      expect(artifact.glsl).not.toContain("createFragmentShader");
+      expect(artifact.wgsl).not.toContain("defineShaderFunction");
+
+      const changed = source.replace(
+        "copy3(mat3(uniforms.time))",
+        "copy3(mat2(uniforms.time))",
+      );
+      const changedCall = "copy3(mat2(uniforms.time))";
+      const changedLocation = locationAt(changed, changed.indexOf(changedCall));
+      await writeFile(entry, changed);
+      let thrown: unknown;
+      try {
+        await transform(plugin, changed, entry);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(entry),
+        pluginCode: "SHDR1213",
+        loc: { file: await realpath(entry), ...changedLocation },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("attributes dependency faults to the dependency and rejects direct helper runtime imports", async () => {
     const root = await mkdtemp(join(tmpdir(), "shdr-vite-errors-"));
     try {

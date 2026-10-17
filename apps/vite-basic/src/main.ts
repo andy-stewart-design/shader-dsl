@@ -16,6 +16,7 @@ import readableOutputShader from "./readable-output.shdr.ts";
 import horizonBurnShader from "./references/horizon-burn.shdr.ts";
 import plasmaShader from "./references/plasma.shdr.ts";
 import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
+import squareMatricesShader from "./square-matrices.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
 import customNamed from "./custom-demo-named.shdr.ts";
@@ -36,6 +37,7 @@ const readableOutput: CompiledFragmentArtifact = readableOutputShader;
 const horizonBurn: CompiledFragmentArtifact = horizonBurnShader;
 const plasma: CompiledFragmentArtifact = plasmaShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
+const squareMatrices: CompiledFragmentArtifact = squareMatricesShader;
 const composed: CompiledFragmentArtifact = composedReusable;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
@@ -64,6 +66,9 @@ if (
   !alternateShader.glsl.includes("void main()") ||
   !vectorArithmetic.wgsl.includes("vec3<f32>(1.0f)") ||
   !vectorArithmetic.glsl.includes("vec3(") ||
+  !squareMatrices.glsl.includes("mat2") ||
+  !squareMatrices.glsl.includes("shdr_internal_fn_") ||
+  !squareMatrices.wgsl.includes("mat4x4<f32>") ||
   !cells.wgsl.includes("mix(") ||
   !cells.wgsl.includes("step(") ||
   !pr3Math.glsl.includes("pow(") ||
@@ -104,6 +109,9 @@ app.innerHTML = `
     <p id="math-status" role="status">Compiling generated math shader…</p>
     <canvas id="orbit-canvas" width="128" height="128"></canvas>
     <p id="orbit-status" role="status">Compiling generated orbit shader…</p>
+    <h2>Square matrices</h2>
+    <canvas id="square-matrices-canvas" width="128" height="128"></canvas>
+    <p id="square-matrices-status" role="status">Compiling square-matrix shader…</p>
     <canvas id="orbit-gpu-canvas" width="128" height="128"></canvas>
     <p id="orbit-gpu-status" role="status">Starting orbit WebGPU…</p>
     <h2>Composed reusable graph</h2>
@@ -146,6 +154,12 @@ const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
 const orbitCanvas = document.querySelector<HTMLCanvasElement>("#orbit-canvas");
 const orbitStatus =
   document.querySelector<HTMLParagraphElement>("#orbit-status");
+const squareMatricesCanvas = document.querySelector<HTMLCanvasElement>(
+  "#square-matrices-canvas",
+);
+const squareMatricesStatus = document.querySelector<HTMLParagraphElement>(
+  "#square-matrices-status",
+);
 const orbitGpuCanvas =
   document.querySelector<HTMLCanvasElement>("#orbit-gpu-canvas");
 const orbitGpuStatus =
@@ -169,6 +183,8 @@ if (
   !mathStatus ||
   !orbitCanvas ||
   !orbitStatus ||
+  !squareMatricesCanvas ||
+  !squareMatricesStatus ||
   !orbitGpuCanvas ||
   !orbitGpuStatus ||
   !composedCanvas ||
@@ -468,6 +484,7 @@ void Promise.allSettled([
   renderWebGl(canvas, status, shader),
   renderWebGl(mathCanvas, mathStatus, math),
   renderWebGl(orbitCanvas, orbitStatus, orbitMath),
+  renderWebGl(squareMatricesCanvas, squareMatricesStatus, squareMatrices),
   renderWebGl(composedCanvas, composedStatus, composed),
   renderWebGpu(),
   renderOrbitWebGpu(),

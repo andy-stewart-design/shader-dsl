@@ -234,7 +234,7 @@ Evidence: Verified — refreshed `shdr` and scoped dependencies, then passed lan
 
 ### Step 2.2 — CLI, Vite static artifacts, and browser/REPL recovery
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R6–R8; AC8 (integration portions), AC13 (consumer/recovery portions), AC14 (artifact/static-isolation portions). Final mathematical pixels and documentation remain in Phase 3.
 Depends on: Step 2.1.
 Review boundary: consumer fixtures and necessary integration corrections, without runtime API or renderer lifecycle changes.
@@ -248,11 +248,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Check valid local/imported matrix helpers through the CLI executable and Vite graph path; reject changed-size signatures and invalid operations at the original file/line/range, never generated source.
-- [ ] Include the complete finite constructor/operator vocabulary in consumer fixtures or generated fixture cases without building a new fixture framework. Cover browser compilation through `@shdr/core/browser` and a static Vite artifact consumer.
-- [ ] Ensure the static demo is bundled and artifact/source-map checks still exclude core/parser/DSL execution. Preserve one-backend runtime exclusion in the existing WebGL-only consumer.
-- [ ] Compile a local-helper matrix shader in the REPL; edit to invalid matrix source, assert diagnostics and the previous valid WebGL/presented-WebGPU frame persist, then correct it and observe refreshed output. Keep the existing external-import-without-graph rejection.
-- [ ] Compare artifact field/binding behavior with equivalent existing-input shaders, including custom uniform defaults/updates and textures; no matrix data/bindings or compiler-owned objects reach runtime.
+- [x] Check valid local/imported matrix helpers through the CLI executable and Vite graph path; reject changed-size signatures and invalid operations at the original file/line/range, never generated source.
+- [x] Include the complete finite constructor/operator vocabulary in consumer fixtures or generated fixture cases without building a new fixture framework. Cover browser compilation through `@shdr/core/browser` and a static Vite artifact consumer.
+- [x] Ensure the static demo is bundled and artifact/source-map checks still exclude core/parser/DSL execution. Preserve one-backend runtime exclusion in the existing WebGL-only consumer.
+- [x] Compile a local-helper matrix shader in the REPL; edit to invalid matrix source, assert diagnostics and the previous valid WebGL/presented-WebGPU frame persist, then correct it and observe refreshed output. Keep the existing external-import-without-graph rejection.
+- [x] Compare artifact field/binding behavior with equivalent existing-input shaders, including custom uniform defaults/updates and textures; no matrix data/bindings or compiler-owned objects reach runtime.
 
 Verification:
 
@@ -261,10 +261,10 @@ Verification:
 - Manual: inspect original-file diagnostics and static-consumer metadata evidence; no external service/authentication required.
 
 Completion gate: consumers agree with core/editor, invalid source does not replace the last good frame, and matrix use adds neither artifact fields nor compiler code to static consumers.
-Evidence: Not run.
+Evidence: Verified — CLI (27 tests), Vite (22 tests), core artifact/helper (22 tests), Vite static isolation, REPL build/check, and real WebGL 2/WebGPU REPL compile/edit/recovery all passed.
 
 **Phase exit gate G2:** after Step 2.2, refresh scoped builds and run the complete language-service suite, CLI suite, and Vite plugin suite using their existing `test` scripts; run `pnpm --filter vite-basic check`, `pnpm --filter vite-basic build`, `pnpm --filter repl check`, `pnpm --filter repl build`, and `pnpm --filter repl exec node verify-browser.mjs`. Require cross-path type/diagnostic/recovery agreement and unchanged artifact isolation in the composed change. No package-specific fallback or unavailable required browser gate counts as success.
-Evidence: Not run. Keep results at the owning steps/gate; create supporting notes only for material integration limitations.
+Evidence: Verified — scoped Turbo builds passed; language-service (103 tests), CLI (27 tests), Vite (22 tests), app checks/builds, and REPL browser recovery passed with WebGL 2 and WebGPU available.
 
 ## Phase 3 — Rendered acceptance and completion
 

@@ -401,6 +401,66 @@ export default createFragmentShader(({ coord, uniforms }) => {
     });
   });
 
+  it("checks the complete square-matrix vocabulary and imported helper boundaries", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src/lib"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { noEmit: true },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      await writeFile(
+        join(cwd, "src/lib/matrices.shdr.ts"),
+        `import { defineShaderFunction, mat2, mat3, mat4 } from "shdr";
+import type { Expr, F32, Mat3 } from "shdr";
+export const diagonal2 = defineShaderFunction((value: Expr<F32>) => mat2(value));
+export const copy3 = defineShaderFunction((value: Expr<Mat3<F32>>): Expr<Mat3<F32>> => mat3(value));
+export const diagonal4 = defineShaderFunction((value: Expr<F32>) => mat4(value));
+`,
+      );
+      const entry = `import { createFragmentShader, mat2, mat3, mat4, vec2, vec3, vec4 } from "shdr";
+import { copy3, diagonal2, diagonal4 } from "./lib/matrices.shdr.ts";
+export default createFragmentShader(({ uniforms }) => {
+  const m2d = diagonal2(uniforms.time);
+  const m2f = mat2(uniforms.time, uniforms.time, uniforms.time, uniforms.time);
+  const m2c = mat2(vec2(uniforms.time), vec2(uniforms.time));
+  const m2x = mat2(m2d);
+  const m3d = mat3(uniforms.time);
+  const m3f = mat3(uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time);
+  const m3c = mat3(vec3(uniforms.time), vec3(uniforms.time), vec3(uniforms.time));
+  const m3x = copy3(m3d);
+  const m4d = diagonal4(uniforms.time);
+  const m4f = mat4(uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time, uniforms.time);
+  const m4c = mat4(vec4(uniforms.time), vec4(uniforms.time), vec4(uniforms.time), vec4(uniforms.time));
+  const m4x = mat4(m4d);
+  const a2 = m2d + m2f; const b2 = m2d - m2f; const c2 = m2d * uniforms.time; const d2 = uniforms.time * m2d; const e2 = m2d * vec2(uniforms.time); const f2 = vec2(uniforms.time) * m2d; const g2 = m2d * m2f;
+  const a3 = m3d + m3f; const b3 = m3d - m3f; const c3 = m3d * uniforms.time; const d3 = uniforms.time * m3d; const e3 = m3d * vec3(uniforms.time); const f3 = vec3(uniforms.time) * m3d; const g3 = m3d * m3f;
+  const a4 = m4d + m4f; const b4 = m4d - m4f; const c4 = m4d * uniforms.time; const d4 = uniforms.time * m4d; const e4 = m4d * vec4(uniforms.time); const f4 = vec4(uniforms.time) * m4d; const g4 = m4d * m4f;
+  return vec4(e2.x + f2.x, e3.x + f3.x, e4.x + f4.x, 1);
+});
+`;
+      const entryFile = join(cwd, "src/scene.shdr.ts");
+      await writeFile(entryFile, entry);
+      const accepted = invoke(cwd, "check");
+      expect(accepted.status).toBe(0);
+      expect(accepted.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+      expect(accepted.stderr).toBe("");
+
+      const changed = entry.replace("copy3(m3d)", "copy3(m2d)");
+      await writeFile(entryFile, changed);
+      const rejected = invoke(cwd, "check", "src/scene.shdr.ts");
+      expect(rejected.status).toBe(1);
+      expect(rejected.stdout).toMatch(
+        /src\/scene\.shdr\.ts:\d+:\d+: SHDR1213: /,
+      );
+      expect(rejected.stdout).not.toContain("shdr_internal_");
+    });
+  });
+
   it("checks direct texture sampling through the executable", async () => {
     await withProject(async (cwd) => {
       await fixture(cwd, "sample-valid.shdr.ts");
