@@ -54,7 +54,11 @@ export default createFragmentShader(({ coord, uniforms }) => {
         const declaration = lower.ir.statements[2] as ShaderConstDeclaration;
         const type = declaration.initializer.type;
         expect(
-          type.kind === "scalar" ? "Expr<F32>" : `Expr<Vec${type.size}<F32>>`,
+          type.kind === "scalar"
+            ? "Expr<F32>"
+            : type.kind === "vector"
+              ? `Expr<Vec${type.size}<F32>>`
+              : `Expr<Mat${type.columns}<F32>>`,
           expression,
         ).toBe(expected);
         expect(virtual.virtualSource.code, expression).toContain(

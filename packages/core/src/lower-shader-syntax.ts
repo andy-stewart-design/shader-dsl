@@ -924,6 +924,12 @@ function isF32(type: ShaderValueType): boolean {
   return type.kind === "scalar" && type.scalar === "f32";
 }
 
+function isNumericShaderType(type: ShaderValueType): boolean {
+  return (
+    type.kind === "scalar" || type.kind === "vector" || type.kind === "matrix"
+  );
+}
+
 function lowerBinaryExpression(
   syntax: ShaderBinaryExpressionSyntax,
   context: LoweringContext,
@@ -975,6 +981,8 @@ function sameTypeResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
+  if (!isNumericShaderType(left) || !isNumericShaderType(right))
+    return undefined;
   return sameShaderValueType(left, right) ? left : undefined;
 }
 

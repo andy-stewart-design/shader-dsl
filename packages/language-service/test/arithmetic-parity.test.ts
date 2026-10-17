@@ -35,7 +35,9 @@ function resultType(
 }
 
 function display(type: ShaderValueType): string {
-  return type.kind === "scalar" ? "Expr<F32>" : `Expr<Vec${type.size}<F32>>`;
+  if (type.kind === "scalar") return "Expr<F32>";
+  if (type.kind === "vector") return `Expr<Vec${type.size}<F32>>`;
+  return `Expr<Mat${type.columns}<F32>>`;
 }
 
 it("maps an invalid outer broadcast to the full operation, not its valid inner subtraction", () => {

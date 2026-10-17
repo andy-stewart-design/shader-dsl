@@ -151,7 +151,9 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });
 
 function formatExpressionType(type: ShaderValueType): string {
-  return type.kind === "scalar" ? "Expr<F32>" : `Expr<Vec${type.size}<F32>>`;
+  if (type.kind === "scalar") return "Expr<F32>";
+  if (type.kind === "vector") return `Expr<Vec${type.size}<F32>>`;
+  return `Expr<Mat${type.columns}<F32>>`;
 }
 
 function formatOperand(operand: OperandName): string {

@@ -74,25 +74,26 @@ describe("square matrix core shape and safety", () => {
     ).toBe(true);
   });
 
-  it("rejects matrix unary, builtin, property, and mismatched constructor uses", () => {
-    expectFailure(
-      source("const m = mat2(1); return m + m;"),
-      ShaderDiagnosticCode.InvalidBinaryOperation,
+  it("accepts matrix addition and products with valid fragment returns", () => {
+    const result = lowerFragment(
+      source(`
+        const m = mat2(1);
+        const sum = m + m;
+        const scaled = m * 2;
+        const product = m * vec2(1, 2);
+        return vec4(product, 0, 1);
+      `),
     );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+  });
+
+  it("rejects matrix unary, builtin, property, and excluded uses", () => {
     expectFailure(
       source("const m = mat2(1); return -m;"),
       ShaderDiagnosticCode.UnsupportedOperator,
     );
     expectFailure(
       source("const m = mat2(1); return m / 2;"),
-      ShaderDiagnosticCode.InvalidBinaryOperation,
-    );
-    expectFailure(
-      source("const m = mat2(1); return m * 2;"),
-      ShaderDiagnosticCode.InvalidBinaryOperation,
-    );
-    expectFailure(
-      source("const m = mat2(1); return m * vec2(1, 2);"),
       ShaderDiagnosticCode.InvalidBinaryOperation,
     );
     expectFailure(
@@ -114,6 +115,23 @@ describe("square matrix core shape and safety", () => {
       source("const m = mat2(1); return vec4(mat3(m).x, 0, 0, 1);"),
       ShaderDiagnosticCode.InvalidConstructor,
     );
+  });
+
+  it("reports texture arithmetic as a source diagnostic instead of throwing", () => {
+    for (const operator of ["+", "-"] as const) {
+      const text = `import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const uniforms = defineUniforms((u) => ({ photo: u.texture2D("/photo.png") }));
+export default createFragmentShader(({ uniforms }) => {
+  const bad = uniforms.photo ${operator} uniforms.photo;
+  return vec4(1);
+}, { uniforms });`;
+      const result = lowerFragment(text);
+      expect(result.ok).toBe(false);
+      if (!result.ok)
+        expect(result.diagnostics[0]?.code).toBe(
+          ShaderDiagnosticCode.InvalidBinaryOperation,
+        );
+    }
   });
 
   it("rejects a matrix as the fragment result", () => {

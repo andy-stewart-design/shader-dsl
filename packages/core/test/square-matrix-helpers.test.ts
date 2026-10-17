@@ -25,7 +25,7 @@ function importedGraph() {
   return {
     entry: "/work/scene.shdr.ts",
     files: {
-      "/work/scene.shdr.ts": `import { createFragmentShader, mat3, vec4 } from "shdr";
+      "/work/scene.shdr.ts": `import { createFragmentShader, mat2, mat3, vec4 } from "shdr";
 import { diagonal2, diagonal3, copy3, diagonal4 } from "./matrices.shdr.ts";
 export default createFragmentShader(({ uniforms }) => {
   const matrix2 = diagonal2(uniforms.time);
@@ -34,7 +34,7 @@ export default createFragmentShader(({ uniforms }) => {
   return vec4(1);
 });`,
       "/work/matrices.shdr.ts": `import { defineShaderFunction, mat2, mat3, mat4 } from "shdr";
-import type { Expr, F32, Mat3 } from "shdr";
+import type { Expr, F32, Mat2, Mat3 } from "shdr";
 export const diagonal2 = defineShaderFunction((value: Expr<F32>) => mat2(value));
 export const diagonal3 = defineShaderFunction((value: Expr<F32>) => mat3(value));
 export const copy3 = defineShaderFunction((value: Expr<Mat3<F32>>): Expr<Mat3<F32>> => mat3(value));
@@ -142,12 +142,20 @@ describe("square matrix helper boundaries", () => {
     const changedArgument = importedGraph();
     changedArgument.files["/work/scene.shdr.ts"] = changedArgument.files[
       "/work/scene.shdr.ts"
-    ].replace("diagonal2(uniforms.time)", "diagonal2(mat3(1))");
+    ].replace("copy3(diagonal3(uniforms.time))", "copy3(mat2(1))");
     const invalidArgument = compileFragmentArtifact(changedArgument);
     expect(invalidArgument.ok).toBe(false);
     if (!invalidArgument.ok)
       expect(invalidArgument.diagnostics[0]).toMatchObject({
+        code: "SHDR1213",
         fileName: "/work/scene.shdr.ts",
+        range: {
+          start:
+            changedArgument.files["/work/scene.shdr.ts"].indexOf(
+              "copy3(mat2(1))",
+            ),
+          length: "copy3(mat2(1))".length,
+        },
       });
 
     const changedReturn = importedGraph();
@@ -161,7 +169,15 @@ describe("square matrix helper boundaries", () => {
     expect(invalidReturn.ok).toBe(false);
     if (!invalidReturn.ok)
       expect(invalidReturn.diagnostics[0]).toMatchObject({
+        code: "SHDR1207",
         fileName: "/work/matrices.shdr.ts",
+        range: {
+          start:
+            changedReturn.files["/work/matrices.shdr.ts"].lastIndexOf(
+              "mat3(value)",
+            ),
+          length: "mat3(value)".length,
+        },
       });
   });
 });
