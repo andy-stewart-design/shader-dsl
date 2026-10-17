@@ -17,6 +17,27 @@ export default createFragmentShader(({ uniforms }) => {
   const m4f = mat4(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
   const m4c = mat4(vec4(1, 2, 3, 4), vec4(5, 6, 7, 8), vec4(9, 10, 11, 12), vec4(13, 14, 15, 16));
   const m4x = mat4(m4d);
+  const m2add = m2d + m2f;
+  const m2sub = m2d - m2f;
+  const m2scale = m2d * uniforms.time;
+  const m2scaleLeft = uniforms.time * m2d;
+  const m2vector = m2d * vec2(1, 2);
+  const m2vectorLeft = vec2(1, 2) * m2d;
+  const m2compose = m2d * m2f;
+  const m3add = m3d + m3f;
+  const m3sub = m3d - m3f;
+  const m3scale = m3d * uniforms.time;
+  const m3scaleLeft = uniforms.time * m3d;
+  const m3vector = m3d * vec3(1, 2, 3);
+  const m3vectorLeft = vec3(1, 2, 3) * m3d;
+  const m3compose = m3d * m3f;
+  const m4add = m4d + m4f;
+  const m4sub = m4d - m4f;
+  const m4scale = m4d * uniforms.time;
+  const m4scaleLeft = uniforms.time * m4d;
+  const m4vector = m4d * vec4(1, 2, 3, 4);
+  const m4vectorLeft = vec4(1, 2, 3, 4) * m4d;
+  const m4compose = m4d * m4f;
   return vec4(1);
 });`;
 

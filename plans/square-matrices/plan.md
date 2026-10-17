@@ -140,7 +140,7 @@ Evidence: Verified — `shdr check`/`test`, core check, 79 focused core tests, a
 
 ### Step 1.2 — Native arithmetic and conservative product analysis
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R3, R5, R6, R8; AC4 (public/core/target portions), AC6/AC10 (operator/analysis portions), AC9 (grouping portion), AC11 (generated arithmetic). Editor and pixels remain in Steps 2.1/3.1.
 Depends on: Step 1.1.
 Review boundary: seven concrete binary families per size, with their own overload/checking/generation tests; no helper annotation expansion yet.
@@ -153,11 +153,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Separate multiplication from division result checking. Admit exactly 21 new binary signatures, preserving native matrix products and authored direction, without enabling scalar-left vector multiplication or matrix/scalar addition.
-- [ ] Add corresponding concrete internal overloads and result-shape assertions. Reject matrix division in every order and retain matrix unary/access/builtin failures from Step 1.1.
-- [ ] Emit native operators with unchanged grouping. Distinguish matrix addition from WGSL vector/scalar splatting; test mixed chains and noncommuting products without reassociation.
-- [ ] Stop matrix-involved products from entering existing componentwise constant evaluation, including vector-valued results. Use appropriately shaped unknowns unless a target-neutral proof is actually justified; test a result feeding domain-sensitive math for absence of a fabricated domain error.
-- [ ] Cover all new signature families, wrong dimensions, spec examples, existing literal overflow, partial/dynamic inputs, and constant/dynamic generated-target acceptance. Preserve existing scalar/vector analysis and diagnostic codes/ranges.
+- [x] Separate multiplication from division result checking. Admit exactly 21 new binary signatures, preserving native matrix products and authored direction, without enabling scalar-left vector multiplication or matrix/scalar addition.
+- [x] Add corresponding concrete internal overloads and result-shape assertions. Reject matrix division in every order and retain matrix unary/access/builtin failures from Step 1.1.
+- [x] Emit native operators with unchanged grouping. Distinguish matrix addition from WGSL vector/scalar splatting; test mixed chains and noncommuting products without reassociation.
+- [x] Stop matrix-involved products from entering existing componentwise constant evaluation, including vector-valued results. Use appropriately shaped unknowns unless a target-neutral proof is actually justified; test a result feeding domain-sensitive math for absence of a fabricated domain error.
+- [x] Cover all new signature families, wrong dimensions, spec examples, existing literal overflow, partial/dynamic inputs, and constant/dynamic generated-target acceptance. Preserve existing scalar/vector analysis and diagnostic codes/ranges.
 
 Verification:
 
@@ -166,7 +166,7 @@ Verification:
 - Manual: review the 21-family coverage against spec R3 and inspect asymmetric generated expressions; visible/numeric product acceptance remains explicitly owned by Step 3.1.
 
 Completion gate: all supported binary shapes agree across types/core/targets; products never masquerade as componentwise constant arithmetic, and division/negation/mixed-size exclusions remain source-owned failures.
-Evidence: Not run.
+Evidence: Verified — public operator fixtures, core check, 90 focused core tests, native grouping checks, conservative product analysis, and real dual-target generated arithmetic compilation passed.
 
 ### Step 1.3 — Size-safe local and imported helper boundaries
 

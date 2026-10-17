@@ -941,8 +941,10 @@ function lowerBinaryExpression(
       type = additionResult(left.expression.type, right.expression.type);
       break;
     case "*":
+      type = multiplicationResult(left.expression.type, right.expression.type);
+      break;
     case "/":
-      type = vectorScalarResult(left.expression.type, right.expression.type);
+      type = divisionResult(left.expression.type, right.expression.type);
       break;
     default:
       return assertNever(syntax.operator);
@@ -980,13 +982,56 @@ function additionResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
-  if (left.kind === "matrix" || right.kind === "matrix") return undefined;
+  if (left.kind === "matrix" || right.kind === "matrix") {
+    return left.kind === "matrix" &&
+      right.kind === "matrix" &&
+      sameShaderValueType(left, right)
+      ? left
+      : undefined;
+  }
   if (isF32(left) && right.kind === "vector") return right;
   if (isF32(right) && left.kind === "vector") return left;
   return sameTypeResult(left, right);
 }
 
-function vectorScalarResult(
+function multiplicationResult(
+  left: ShaderValueType,
+  right: ShaderValueType,
+): ShaderValueType | undefined {
+  if (left.kind === "matrix") {
+    if (isF32(right)) return left;
+    if (
+      right.kind === "vector" &&
+      right.size === left.columns &&
+      left.columns === left.rows
+    )
+      return right;
+    if (
+      right.kind === "matrix" &&
+      right.columns === left.columns &&
+      right.rows === left.rows
+    )
+      return left;
+    return undefined;
+  }
+  if (right.kind === "matrix") {
+    if (isF32(left)) return right;
+    if (
+      left.kind === "vector" &&
+      left.size === right.rows &&
+      right.columns === right.rows
+    )
+      return left;
+    return undefined;
+  }
+  if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
+  if (left.kind !== "vector") return undefined;
+  return isF32(right) || (right.kind === "vector" && right.size === left.size)
+    ? left
+    : undefined;
+}
+
+function divisionResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {

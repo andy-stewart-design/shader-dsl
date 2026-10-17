@@ -1,5 +1,5 @@
 import { shaderSourceWasNotTransformed } from "./runtime-error.js";
-import type { Expr, F32, Vec2, Vec3, Vec4 } from "./types.js";
+import type { Expr, F32, Mat2, Mat3, Mat4, Vec2, Vec3, Vec4 } from "./types.js";
 
 export function __shdr_internal_add(
   left: Expr<F32>,
@@ -41,6 +41,18 @@ export function __shdr_internal_add(
   left: Expr<F32>,
   right: Expr<Vec4<F32>>,
 ): Expr<Vec4<F32>>;
+export function __shdr_internal_add(
+  left: Expr<Mat2<F32>>,
+  right: Expr<Mat2<F32>>,
+): Expr<Mat2<F32>>;
+export function __shdr_internal_add(
+  left: Expr<Mat3<F32>>,
+  right: Expr<Mat3<F32>>,
+): Expr<Mat3<F32>>;
+export function __shdr_internal_add(
+  left: Expr<Mat4<F32>>,
+  right: Expr<Mat4<F32>>,
+): Expr<Mat4<F32>>;
 export function __shdr_internal_add(_left: unknown, _right: unknown): never {
   return shaderSourceWasNotTransformed("__shdr_internal_add");
 }
@@ -85,6 +97,18 @@ export function __shdr_internal_sub(
   left: Expr<F32>,
   right: Expr<Vec4<F32>>,
 ): Expr<Vec4<F32>>;
+export function __shdr_internal_sub(
+  left: Expr<Mat2<F32>>,
+  right: Expr<Mat2<F32>>,
+): Expr<Mat2<F32>>;
+export function __shdr_internal_sub(
+  left: Expr<Mat3<F32>>,
+  right: Expr<Mat3<F32>>,
+): Expr<Mat3<F32>>;
+export function __shdr_internal_sub(
+  left: Expr<Mat4<F32>>,
+  right: Expr<Mat4<F32>>,
+): Expr<Mat4<F32>>;
 export function __shdr_internal_sub(_left: unknown, _right: unknown): never {
   return shaderSourceWasNotTransformed("__shdr_internal_sub");
 }
@@ -117,6 +141,66 @@ export function __shdr_internal_mul(
   left: Expr<Vec4<F32>>,
   right: Expr<Vec4<F32>>,
 ): Expr<Vec4<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat2<F32>>,
+  right: Expr<F32>,
+): Expr<Mat2<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<F32>,
+  right: Expr<Mat2<F32>>,
+): Expr<Mat2<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat2<F32>>,
+  right: Expr<Vec2<F32>>,
+): Expr<Vec2<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Vec2<F32>>,
+  right: Expr<Mat2<F32>>,
+): Expr<Vec2<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat2<F32>>,
+  right: Expr<Mat2<F32>>,
+): Expr<Mat2<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat3<F32>>,
+  right: Expr<F32>,
+): Expr<Mat3<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<F32>,
+  right: Expr<Mat3<F32>>,
+): Expr<Mat3<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat3<F32>>,
+  right: Expr<Vec3<F32>>,
+): Expr<Vec3<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Vec3<F32>>,
+  right: Expr<Mat3<F32>>,
+): Expr<Vec3<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat3<F32>>,
+  right: Expr<Mat3<F32>>,
+): Expr<Mat3<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat4<F32>>,
+  right: Expr<F32>,
+): Expr<Mat4<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<F32>,
+  right: Expr<Mat4<F32>>,
+): Expr<Mat4<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat4<F32>>,
+  right: Expr<Vec4<F32>>,
+): Expr<Vec4<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Vec4<F32>>,
+  right: Expr<Mat4<F32>>,
+): Expr<Vec4<F32>>;
+export function __shdr_internal_mul(
+  left: Expr<Mat4<F32>>,
+  right: Expr<Mat4<F32>>,
+): Expr<Mat4<F32>>;
 export function __shdr_internal_mul(_left: unknown, _right: unknown): never {
   return shaderSourceWasNotTransformed("__shdr_internal_mul");
 }

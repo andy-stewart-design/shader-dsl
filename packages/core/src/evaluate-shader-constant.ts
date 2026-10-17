@@ -34,6 +34,12 @@ function calculateShaderComponents(
         (value) => (value === undefined ? undefined : Math.fround(-value)),
       );
     case "binary": {
+      if (
+        expression.operator === "*" &&
+        (expression.left.type.kind === "matrix" ||
+          expression.right.type.kind === "matrix")
+      )
+        return unknown();
       const left = evaluateShaderComponents(expression.left, locals, cache);
       const right = evaluateShaderComponents(expression.right, locals, cache);
       return Array.from({ length: unknown().length }, (_, index) => {
