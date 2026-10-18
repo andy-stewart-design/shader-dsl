@@ -69,6 +69,7 @@ export function generateGlslFragmentOutput(
   const referencedCustom = new Set<string>();
   const referencedTextures = new Set<string>();
   const modShapes = new Set<GlslModShape>();
+  const matrixDiagonalSizes = new Set<2 | 3 | 4>();
   let usesFragmentPosition = false;
 
   for (const statement of [
@@ -85,6 +86,8 @@ export function generateGlslFragmentOutput(
       referencedTextures.add(name);
     for (const shape of statement.expression.modShapes ?? [])
       modShapes.add(shape);
+    for (const size of statement.expression.matrixDiagonalSizes ?? [])
+      matrixDiagonalSizes.add(size);
   }
 
   const sections = ["#version 300 es\nprecision highp float;"];
@@ -123,6 +126,10 @@ export function generateGlslFragmentOutput(
   sections.push("out vec4 shdr_fragment_color;");
   for (const shape of ["f32", "vec2", "vec3", "vec4"] as const) {
     if (modShapes.has(shape)) sections.push(modHelper(shape));
+  }
+  for (const size of [2, 3, 4] as const) {
+    if (matrixDiagonalSizes.has(size))
+      sections.push(matrixDiagonalHelper(size));
   }
   sections.push(...functions.map((helper) => helper.code));
 
@@ -196,6 +203,10 @@ function modHelper(shape: GlslModShape): string {
 }`;
 }
 
+function matrixDiagonalHelper(size: 2 | 3 | 4): string {
+  return `mat${size} shdr_internal_mat${size}(float value) {\n  return mat${size}(value);\n}`;
+}
+
 function uniformDeclaration(uniform: ShaderDefaultUniform): string {
   switch (uniform) {
     case "resolution":
@@ -225,6 +236,8 @@ function glslTypeName(type: ShaderValueType): string {
         default:
           return assertNever(type.scalar);
       }
+    case "matrix":
+      return `mat${type.columns}`;
     default:
       return assertNever(type);
   }

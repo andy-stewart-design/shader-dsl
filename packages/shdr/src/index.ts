@@ -6,6 +6,9 @@ export {
   vec2,
   vec3,
   vec4,
+  mat2,
+  mat3,
+  mat4,
 } from "./dsl.js";
 export {
   abs,
@@ -64,6 +67,9 @@ export type {
   Vec2,
   Vec3,
   Vec4,
+  Mat2,
+  Mat3,
+  Mat4,
 } from "./types.js";
 
 export type ShdrPackage = "shdr";

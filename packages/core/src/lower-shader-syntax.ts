@@ -32,7 +32,9 @@ import type {
   ShaderExpressionSyntax,
   ShaderPropertyAccessSyntax,
 } from "./shader-syntax.js";
+import { sameShaderValueType } from "./shader-type.js";
 import type {
+  ShaderMatrixType,
   ShaderScalarType,
   ShaderValueType,
   ShaderVectorType,
@@ -54,6 +56,24 @@ const VEC4_F32_TYPE: ShaderVectorType = {
   kind: "vector",
   scalar: "f32",
   size: 4,
+};
+const MAT2_F32_TYPE: ShaderMatrixType = {
+  kind: "matrix",
+  scalar: "f32",
+  columns: 2,
+  rows: 2,
+};
+const MAT3_F32_TYPE: ShaderMatrixType = {
+  kind: "matrix",
+  scalar: "f32",
+  columns: 3,
+  rows: 3,
+};
+const MAT4_F32_TYPE: ShaderMatrixType = {
+  kind: "matrix",
+  scalar: "f32",
+  columns: 4,
+  rows: 4,
 };
 const TEXTURE_2D_TYPE = { kind: "texture2D" } as const;
 const CONTEXT_BINDING_NAMES = new Set(["coord", "uniforms"]);
@@ -410,6 +430,13 @@ function lowerExpression(
     case "unary-expression": {
       const argument = lowerExpression(syntax.argument, context);
       if (!argument.ok) return argument;
+      if (argument.expression.type.kind === "matrix") {
+        return expressionFailure(
+          ShaderDiagnosticCode.UnsupportedOperator,
+          "Unary matrix negation is not supported; use matrix multiplication by -1 instead.",
+          syntax.range,
+        );
+      }
       return {
         ok: true,
         expression: {
@@ -480,6 +507,9 @@ function lowerCallExpression(
     name !== "vec2" &&
     name !== "vec3" &&
     name !== "vec4" &&
+    name !== "mat2" &&
+    name !== "mat3" &&
+    name !== "mat4" &&
     (!isShaderBuiltinName(name) || !context.importedCallables.has(name)) &&
     !context.functions.has(name)
   ) {
@@ -598,7 +628,14 @@ function lowerCallExpression(
     };
   }
 
-  if (name !== "vec2" && name !== "vec3" && name !== "vec4") {
+  if (
+    name !== "vec2" &&
+    name !== "vec3" &&
+    name !== "vec4" &&
+    name !== "mat2" &&
+    name !== "mat3" &&
+    name !== "mat4"
+  ) {
     return expressionFailure(
       ShaderDiagnosticCode.UnsupportedCall,
       `Unsupported shader call ${JSON.stringify(name)}.`,
@@ -635,7 +672,13 @@ function lowerCallExpression(
           ? VEC2_F32_TYPE
           : name === "vec3"
             ? VEC3_F32_TYPE
-            : VEC4_F32_TYPE,
+            : name === "vec4"
+              ? VEC4_F32_TYPE
+              : name === "mat2"
+                ? MAT2_F32_TYPE
+                : name === "mat3"
+                  ? MAT3_F32_TYPE
+                  : MAT4_F32_TYPE,
       range: syntax.range,
     },
   };
@@ -812,10 +855,33 @@ function knownPowOverflow(base: number, exponent: number): boolean {
 }
 
 function isConstructorArguments(
-  name: "vec2" | "vec3" | "vec4",
+  name: "vec2" | "vec3" | "vec4" | "mat2" | "mat3" | "mat4",
   args: readonly ShaderExpression[],
 ): boolean {
-  const size = name === "vec2" ? 2 : name === "vec3" ? 3 : 4;
+  const size =
+    name === "vec2" || name === "mat2"
+      ? 2
+      : name === "vec3" || name === "mat3"
+        ? 3
+        : 4;
+  if (name.startsWith("mat")) {
+    if (args.length === 1) {
+      const value = args[0];
+      return (
+        value !== undefined &&
+        (isF32(value.type) ||
+          (value.type.kind === "matrix" &&
+            value.type.columns === size &&
+            value.type.rows === size))
+      );
+    }
+    if (
+      args.length === size &&
+      args.every((arg) => arg.type.kind === "vector" && arg.type.size === size)
+    )
+      return true;
+    return args.length === size * size && args.every((arg) => isF32(arg.type));
+  }
   if (args.length === 1) {
     const value = args[0];
     return (
@@ -858,6 +924,12 @@ function isF32(type: ShaderValueType): boolean {
   return type.kind === "scalar" && type.scalar === "f32";
 }
 
+function isNumericShaderType(type: ShaderValueType): boolean {
+  return (
+    type.kind === "scalar" || type.kind === "vector" || type.kind === "matrix"
+  );
+}
+
 function lowerBinaryExpression(
   syntax: ShaderBinaryExpressionSyntax,
   context: LoweringContext,
@@ -875,8 +947,10 @@ function lowerBinaryExpression(
       type = additionResult(left.expression.type, right.expression.type);
       break;
     case "*":
+      type = multiplicationResult(left.expression.type, right.expression.type);
+      break;
     case "/":
-      type = vectorScalarResult(left.expression.type, right.expression.type);
+      type = divisionResult(left.expression.type, right.expression.type);
       break;
     default:
       return assertNever(syntax.operator);
@@ -907,24 +981,65 @@ function sameTypeResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
-  if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
-  return left.kind === "vector" &&
-    right.kind === "vector" &&
-    left.size === right.size
-    ? left
-    : undefined;
+  if (!isNumericShaderType(left) || !isNumericShaderType(right))
+    return undefined;
+  return sameShaderValueType(left, right) ? left : undefined;
 }
 
 function additionResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
+  if (left.kind === "matrix" || right.kind === "matrix") {
+    return left.kind === "matrix" &&
+      right.kind === "matrix" &&
+      sameShaderValueType(left, right)
+      ? left
+      : undefined;
+  }
   if (isF32(left) && right.kind === "vector") return right;
   if (isF32(right) && left.kind === "vector") return left;
   return sameTypeResult(left, right);
 }
 
-function vectorScalarResult(
+function multiplicationResult(
+  left: ShaderValueType,
+  right: ShaderValueType,
+): ShaderValueType | undefined {
+  if (left.kind === "matrix") {
+    if (isF32(right)) return left;
+    if (
+      right.kind === "vector" &&
+      right.size === left.columns &&
+      left.columns === left.rows
+    )
+      return right;
+    if (
+      right.kind === "matrix" &&
+      right.columns === left.columns &&
+      right.rows === left.rows
+    )
+      return left;
+    return undefined;
+  }
+  if (right.kind === "matrix") {
+    if (isF32(left)) return right;
+    if (
+      left.kind === "vector" &&
+      left.size === right.rows &&
+      right.columns === right.rows
+    )
+      return left;
+    return undefined;
+  }
+  if (isF32(left)) return isF32(right) ? F32_TYPE : undefined;
+  if (left.kind !== "vector") return undefined;
+  return isF32(right) || (right.kind === "vector" && right.size === left.size)
+    ? left
+    : undefined;
+}
+
+function divisionResult(
   left: ShaderValueType,
   right: ShaderValueType,
 ): ShaderValueType | undefined {
@@ -1041,6 +1156,7 @@ function swizzleType(components: ShaderSwizzleComponents): ShaderValueType {
 function formatShaderType(type: ShaderValueType): string {
   if (type.kind === "scalar") return "F32";
   if (type.kind === "vector") return `Vec${type.size}<F32>`;
+  if (type.kind === "matrix") return `Mat${type.columns}x${type.rows}<F32>`;
   return "Texture2D";
 }
 

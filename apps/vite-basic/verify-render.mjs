@@ -181,10 +181,12 @@ try {
       5,
     );
   }
+  // Element screenshots include the canvas's 1px CSS border. Sample the
+  // interior rather than the bottom border row.
   for (const [name, y, expected] of [
     ["center", 64, composedExpected.center],
     ["top", 2, composedExpected.top],
-    ["bottom", 127, composedExpected.bottom],
+    ["bottom", 126, composedExpected.bottom],
   ]) {
     assertPixel(
       `composed ${name} presented WebGPU`,

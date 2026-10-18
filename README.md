@@ -208,6 +208,25 @@ Operations on vectors are component-wise; scalar operands in vector addition/sub
 
 Vector-plus-scalar packings place the vector first; other shapes such as `vec4(1, coord.xyz)` are not supported. Swizzles cannot be written to or computed (`coord[0]`); unavailable components such as `coord.rgb.a` are invalid.
 
+### Square matrices
+
+The language supports square f32 matrices `Mat2<F32>`, `Mat3<F32>`, and `Mat4<F32>`, constructed with the direct imports `mat2`, `mat3`, and `mat4`. Matrices are compile-only shader expressions, not host values or runtime uniforms. A matrix can be stored in a local, passed to a local or imported `defineShaderFunction` helper, or returned from a helper; the fragment still must return `Expr<Vec4<F32>>`.
+
+Each constructor has exactly four families, at each size `N`:
+
+| Family   | Form                              | Meaning                                                                                    |
+| -------- | --------------------------------- | ------------------------------------------------------------------------------------------ |
+| Diagonal | `matN(s)`                         | `s` on every diagonal entry and zero elsewhere; `matN(1)` is identity, not a scalar splat. |
+| Explicit | `matN(s0, ..., s(N*N-1))`         | `N*N` scalar coefficients in column-major order.                                           |
+| Columns  | `matN(vecN(...), ..., vecN(...))` | Exactly `N` complete columns, in order.                                                    |
+| Copy     | `matN(existingMatN)`              | A same-size matrix copy.                                                                   |
+
+For example, `mat2(1, 2, 3, 4)` has rows `(1, 3)` and `(2, 4)`. There are no size conversions, mixed scalar/vector packings, matrix indexing or component properties, and matrices cannot be declared as uniforms. Helper annotations use `Expr<Mat2<F32>>`, `Expr<Mat3<F32>>`, or `Expr<Mat4<F32>>`; inferred matrix returns retain their concrete size.
+
+For one fixed size `N`, the seven supported binary families are `M + M`, `M - M`, `M * s`, `s * M`, `M * V`, `V * M`, and `M * M`. The first two are coefficient-wise addition/subtraction; the remaining products use native linear-algebra meaning and preserve authored direction and grouping. Thus `M * V` is a column-vector product, `V * M` is a row-vector product, and `A * B` is composition in that order. These are 21 concrete signatures across the three sizes. `M * -1` is valid; matrix division, unary `-M`, mismatched sizes, matrix/vector addition, matrix builtins, and other implicit broadcasts are rejected. Ordinary finite f32 values remain subject to target precision and overflow/domain limits; matrix products are not treated as component-wise constants by analysis.
+
+The [square-matrix fixture](apps/vite-basic/src/square-matrices.shdr.ts) shows the public source boundary, and the [rendered parity verifier](packages/runtime/test/verify-square-matrices.mjs) checks all sizes, constructors, operators, both multiplication directions, and noncommuting products on WebGL 2 and presented WebGPU. This feature does not add matrix uploads or complete any historical reference shader port.
+
 ### Math builtins (f32 common subset)
 
 Let `S = Expr<F32>` and `Vn = Expr<VecN<F32>>` for `n = 2, 3, 4`. Each `Vn` within a signature has the **same** dimension; a `T` is either `S` or one `Vn` for that call. Import each function directly by its exact name from `"shdr"`:
@@ -244,7 +263,7 @@ The PR 3 math builtins have **dynamic input preconditions**. `sqrt` needs nonneg
 
 `smoothstep` accepts reversed edges, but for **portable results** requires `edge0 < edge1` in **every component**: WGSL defines reversed-edge behavior while GLSL ES 3.00 does not guarantee a result when edges are reversed. For a portable inverse scalar ramp, use `1 - smoothstep(0.2, 0.8, x)` instead of `smoothstep(0.8, 0.2, x)`. Statically established **equal** edges report `SHDR1209` on the original call; runtime equality has no guaranteed result. WGSL uses generated parameter helpers to avoid shader-creation errors from other constant-folded equal edges, **not** to define their result. `normalize` needs a nonzero vector. `distance` is equivalent to `length(x - y)` for ordinary finite values, but avoid exact equality or overflow guarantees. Avoid bit-exact cross-target claims for scalar `length` at large magnitudes, `fract` near negative integer boundaries, non-finite values, signed zero, and `min`/`max` subnormal/NaN inputs. Use ordinary finite, non-degenerate values for portable pixels.
 
-Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, matrices, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Texture access is limited to the declared `u.texture2D("literal-url")` resource and `sample(texture, vec2-expression)` forms. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
+Assignment, `let`, `var`, type annotations inside the callback, comparisons, control flow, user functions, and other JavaScript/TypeScript forms are rejected with shader diagnostics. Matrix values are supported only within the square-matrix boundary above; matrix indexing, properties, mutation, uniforms, division, unary negation, builtins, and rectangular or size-converting forms remain rejected. Texture access is limited to the declared `u.texture2D("literal-url")` resource and `sample(texture, vec2-expression)` forms. Imports cannot be aliased, and values cannot be captured from outside the callback. The compiler accepts only the explicitly listed subset even when GLSL, WGSL, or ordinary TypeScript permits more.
 
 ### Diagnostic examples
 

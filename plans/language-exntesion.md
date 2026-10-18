@@ -11,7 +11,7 @@ Status: historical discussion roadmap with current implementation status below, 
 | PR 5 — module constants             | **Not implemented**       | Shader-local constants and static custom-uniform defaults do not permit capturing module-level values inside shader functions.                                                                                                                                                                          |
 | PR 6 — reusable functions           | **Implemented**           | `defineShaderFunction` supports typed local and named imported helpers, including transitive calls; explicit arguments only, no captures, recursion, or authored-JavaScript execution.                                                                                                                  |
 | PR 7 — orbit/trigonometry           | **Implemented**           | Six builtins and 31 concrete signatures: `asin`, `acos`, unary/binary `atan`, floor-based `mod`, `radians`, and `degrees`; editor, CLI, Vite/REPL, and rendered WebGL/presented-WebGPU evidence are covered. Full reference shader 2 fidelity remains outside scope.                                    |
-| PR 8 — `mat2`                       | **Not implemented**       | No shader matrix values or matrix multiplication.                                                                                                                                                                                                                                                       |
+| PR 8 — square matrices              | **Implemented**           | Square f32 `Mat2`/`Mat3`/`Mat4` values, four constructor families, 21 native arithmetic signatures, helper/editor/consumer parity, and rendered WebGL/presented-WebGPU evidence. Matrix uniforms, indexing, builtins, rectangular shapes, and reference-port fidelity remain outside scope.             |
 | PR 9 — eight reference ports/parity | **Partially implemented** | Representative **1** (`ben-day-spotlight`), **4** (`horizon-burn`), and **7** (`plasma`) ports exist; pinned original-GLSL/WebGL/presented-WebGPU comparisons cover **4** and **7**. The eight-port review has not happened; see [reference translations](../apps/vite-basic/src/references/README.md). |
 
 ## Decisions to settle before claiming fidelity
@@ -48,7 +48,7 @@ Allow a narrowly defined, statically analyzed set of same-file numeric/vector co
 
 ### PR 6 — Reusable shader functions (implemented)
 
-Top-level `defineShaderFunction` helpers accept explicitly annotated `Expr` parameters and inferred or annotated returns; local and named imported helpers can call other helpers transitively. They take coordinates and uniforms only as explicit arguments, cannot capture module values, and cannot recurse or run as JavaScript. Original-source diagnostics and both target outputs are covered by the [completed plan](./_completed/reusable-functions/plan.md). Matrix values/returns remain outside the language.
+Top-level `defineShaderFunction` helpers accept explicitly annotated `Expr` parameters and inferred or annotated returns; local and named imported helpers can call other helpers transitively. They take coordinates and uniforms only as explicit arguments, cannot capture module values, and cannot recurse or run as JavaScript. Original-source diagnostics and both target outputs are covered by the [completed plan](./_completed/reusable-functions/plan.md). Square matrix values and returns are supported through the separate matrix contract below.
 
 ### PR 7 — Orbit/trigonometry semantics (implemented; reference fidelity remains separate)
 
@@ -56,11 +56,11 @@ Implemented six direct builtins with 31 concrete scalar/Vec2/Vec3/Vec4 signature
 
 The orbiting-circles reference still depends on matrices and has undefined reversed-edge `smoothstep` behavior, so PR 7 does not claim that reference port or fidelity. Exact origin, signed-zero-sensitive binary-`atan` axes, and very small inputs remain outside the portable value guarantee.
 
-### PR 8 — Minimal `mat2` values and multiplication (not implemented)
+### PR 8 — Square matrix values and native arithmetic (implemented)
 
-Add only the 2×2 matrix construction, local/helper values, and matrix–vector **and** vector–matrix multiplication used by **2, 5, and 6**. This is a separate type/IR/backend milestone, not an implicit extension to all matrices or GPU resources. A correct implementation should preserve **5**'s particular four coefficients, not substitute a conventional rotation matrix.
+The delivered matrix slice broadens the historical `mat2` proposal to square f32 `Mat2`, `Mat3`, and `Mat4` values. It supports diagonal, explicit column-major, complete-column, and same-size copy constructors; local and named imported helper parameters/returns; matrix addition/subtraction; scalar multiplication in both orders; matrix/vector multiplication in both directions; and native matrix composition. The accepted boundary is recorded in the [square-matrices specification](square-matrices/spec.md) and the [current language reference](../README.md#square-matrices).
 
-**Decisions before implementation:** Specify constructor element/column order, multiplication direction and types, and whether matrices may cross helper boundaries. Confirm GLSL/WGSL layout and evaluation with asymmetric matrices on real pixels. If scalar expansion is preferable for only these examples, this PR can be deferred without claiming general matrix support.
+The original reference-port motivation remains historical: unusual authored coefficients must be preserved, and a conventional rotation must not be substituted for reference shader **5**. Real WebGL 2 and presented-WebGPU rendered evidence covers the delivered matrix language, but does not claim completion or pixel fidelity for the historical reference ports. Matrix uniforms, indexing, builtins, rectangular shapes, and size conversions remain excluded.
 
 ### PR 9 — Eight reference ports and parity review (partially implemented)
 
@@ -70,4 +70,4 @@ Ports **1**, **4**, and **7** are present; **4** and **7** have pinned original-
 
 ## Remaining reference-port work
 
-The original ordering was a proposal, not a dependency graph: PR 6 landed without PRs 4–5. Ports **1, 4, and 7** exist (with the parity limits in the status table); **2, 3, 5, 6, and 8** have not been established as complete Shdr ports. Orbit math builtins are implemented, but the orbiting-circles reference still requires matrix support or an explicit scalar rewrite; derivatives and matrices remain candidates when a concrete port needs them, and module constants are optional. A shader port may use explicit splats, callback-local constants, and scalar matrix formulas to bypass optional ergonomics while retaining the same cross-target semantic review. No tranche implies textures, selection/control flow, new host resources, or a general GLSL parser.
+The original ordering was a proposal, not a dependency graph: PR 6 landed without PRs 4–5. Ports **1, 4, and 7** exist (with the parity limits in the status table); **2, 3, 5, 6, and 8** have not been established as complete Shdr ports. Orbit math builtins and square matrix values are implemented, but the orbiting-circles reference still has undefined reversed-edge `smoothstep` behavior, and the eight-port review remains separate from language support. Derivatives and module constants remain optional candidates. A shader port may use explicit splats and callback-local constants while retaining the same cross-target semantic review. No tranche implies textures, selection/control flow, new host resources, or a general GLSL parser.

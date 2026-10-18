@@ -134,6 +134,19 @@ export function routeShaderDiagnostics(
         continue;
       }
 
+      // TypeScript can map a native arithmetic diagnostic to the wrong
+      // authored occurrence when a transformed constructor contains comments.
+      // Once core owns an invalid binary operation in the shader region, these
+      // native operator diagnostics are untrustworthy cascades.
+      if (
+        core.some(
+          (error) => error.code === ShaderDiagnosticCode.InvalidBinaryOperation,
+        ) &&
+        isNativeArithmeticDiagnostic(diagnostic.code)
+      ) {
+        continue;
+      }
+
       addDiagnostic(routed, {
         ...fromTypeScriptDiagnostic(diagnostic, "typescript"),
         range: originalRange,
@@ -142,6 +155,10 @@ export function routeShaderDiagnostics(
   }
 
   return routed.sort(compareDiagnostics);
+}
+
+function isNativeArithmeticDiagnostic(code: number): boolean {
+  return code === 2362 || code === 2363 || code === 2365;
 }
 
 function fromTypeScriptDiagnostic(

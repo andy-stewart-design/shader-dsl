@@ -1,4 +1,5 @@
 import type { ShaderExpression, ShaderLocalSymbolId } from "./shader-ir.js";
+import { shaderTypeComponentCount } from "./shader-type.js";
 
 /** Undefined means one component is not provably constant; other components remain known. */
 export type ShaderKnownComponents = readonly (number | undefined)[];
@@ -22,9 +23,13 @@ function calculateShaderComponents(
   cache?: WeakMap<ShaderExpression, ShaderKnownComponents>,
 ): ShaderKnownComponents {
   const unknown = (): ShaderKnownComponents =>
-    Array(expression.type.kind === "vector" ? expression.type.size : 1).fill(
-      undefined,
-    );
+    Array(
+      expression.type.kind === "matrix"
+        ? shaderTypeComponentCount(expression.type)
+        : expression.type.kind === "vector"
+          ? expression.type.size
+          : 1,
+    ).fill(undefined);
   switch (expression.kind) {
     case "numeric-literal":
       return [Math.fround(expression.value)];
@@ -35,6 +40,12 @@ function calculateShaderComponents(
         (value) => (value === undefined ? undefined : Math.fround(-value)),
       );
     case "binary": {
+      if (
+        expression.operator === "*" &&
+        (expression.left.type.kind === "matrix" ||
+          expression.right.type.kind === "matrix")
+      )
+        return unknown();
       const left = evaluateShaderComponents(expression.left, locals, cache);
       const right = evaluateShaderComponents(expression.right, locals, cache);
       return Array.from({ length: unknown().length }, (_, index) => {
@@ -74,10 +85,17 @@ function calculateShaderComponents(
         evaluateShaderComponents(arg, locals, cache),
       );
       const values = args.flat();
-      if (expression.target.kind === "constructor")
+      if (expression.target.kind === "constructor") {
+        if (expression.type.kind === "matrix" && values.length === 1) {
+          const result = Array(unknown().length).fill(0);
+          for (let diagonal = 0; diagonal < expression.type.columns; diagonal++)
+            result[diagonal * expression.type.rows + diagonal] = values[0];
+          return result;
+        }
         return values.length === 1
           ? Array(unknown().length).fill(values[0])
           : values;
+      }
       const first = args[0];
       if (!first) return unknown();
       // A known non-finite argument remains visible through otherwise unknown

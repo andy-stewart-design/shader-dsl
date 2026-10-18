@@ -169,7 +169,9 @@ it("agrees on read swizzles, including repetition, chaining and invalid names", 
               expect(
                 type.kind === "scalar"
                   ? "Expr<F32>"
-                  : `Expr<Vec${type.size}<F32>>`,
+                  : type.kind === "vector"
+                    ? `Expr<Vec${type.size}<F32>>`
+                    : `Expr<Mat${type.columns}<F32>>`,
                 expression,
               ).toBe(expected);
             }

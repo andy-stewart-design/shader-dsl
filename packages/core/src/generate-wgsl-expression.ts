@@ -33,6 +33,8 @@ export type WgslGuardedSignature =
 export interface GeneratedWgslExpression {
   readonly code: string;
   readonly referencedUniforms: readonly ShaderDefaultUniform[];
+  /** Internal diagonal helpers required to evaluate constructor arguments once. */
+  readonly matrixDiagonalSizes?: readonly (2 | 3 | 4)[];
   readonly referencedCustomUniforms?: readonly string[];
   readonly referencedTextures?: readonly string[];
   readonly usesFragmentPosition: boolean;
@@ -51,6 +53,7 @@ interface GenerationState {
   readonly smoothstepShapes: Set<WgslSmoothstepShape>;
   readonly guardedBuiltinSignatures: Set<WgslGuardedSignature>;
   readonly modShapes: Set<WgslSmoothstepShape>;
+  readonly matrixDiagonalSizes: Set<2 | 3 | 4>;
   usesFragmentPosition: boolean;
 }
 
@@ -66,6 +69,7 @@ export function generateWgslExpression(
     smoothstepShapes: new Set(),
     guardedBuiltinSignatures: new Set(),
     modShapes: new Set(),
+    matrixDiagonalSizes: new Set(),
     usesFragmentPosition: false,
   };
   const code = emitExpression(expression, options, state);
@@ -90,6 +94,13 @@ export function generateWgslExpression(
         }
       : {}),
     usesFragmentPosition: state.usesFragmentPosition,
+    ...(state.matrixDiagonalSizes.size
+      ? {
+          matrixDiagonalSizes: ([2, 3, 4] as const).filter((size) =>
+            state.matrixDiagonalSizes.has(size),
+          ),
+        }
+      : {}),
     smoothstepShapes: (["f32", "vec2", "vec3", "vec4"] as const).filter(
       (shape) => state.smoothstepShapes.has(shape),
     ),
@@ -206,6 +217,16 @@ function emitExpression(
         return `textureSample(shdr_texture_${index}, shdr_sampler_${index}, ${args[0]})`;
       }
       let name = callTargetName(expression.target);
+      if (
+        expression.target.kind === "constructor" &&
+        expression.target.name.startsWith("mat") &&
+        expression.arguments.length === 1 &&
+        expression.arguments[0]?.type.kind === "scalar"
+      ) {
+        const size = Number(expression.target.name.slice(3)) as 2 | 3 | 4;
+        state.matrixDiagonalSizes.add(size);
+        return `shdr_internal_mat${size}(${args[0]})`;
+      }
       if (
         expression.target.kind === "builtin-function" &&
         expression.target.name === "atan" &&
@@ -347,6 +368,12 @@ function callTargetName(target: ShaderCallTarget): string {
           return "vec3<f32>";
         case "vec4":
           return "vec4<f32>";
+        case "mat2":
+          return "mat2x2<f32>";
+        case "mat3":
+          return "mat3x3<f32>";
+        case "mat4":
+          return "mat4x4<f32>";
       }
     case "texture-sample":
       throw new Error("Texture samples require texture-aware emission.");

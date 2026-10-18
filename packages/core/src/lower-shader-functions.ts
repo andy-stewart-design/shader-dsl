@@ -10,6 +10,7 @@ import type {
   ShaderExpressionSyntax,
   ShaderCallExpressionSyntax,
 } from "./shader-syntax.js";
+import { sameShaderValueType } from "./shader-type.js";
 
 /** Validates every definition once, with parameters dynamic for domain analysis. */
 export function lowerShaderFunctions(
@@ -75,10 +76,7 @@ export function lowerShaderFunctions(
     const returnType = result.returnType;
     if (
       definition.returnType &&
-      (definition.returnType.kind !== returnType.kind ||
-        (definition.returnType.kind === "vector" &&
-          (returnType.kind !== "vector" ||
-            definition.returnType.size !== returnType.size)))
+      !sameShaderValueType(definition.returnType, returnType)
     ) {
       error = {
         code: ShaderDiagnosticCode.InvalidReturnType,
