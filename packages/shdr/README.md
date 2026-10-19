@@ -37,6 +37,12 @@ Use a top-level `const` initialized with `defineShaderFunction` for a compile-on
 
 Neither the compiler nor Vite executes authored modules or callbacks. Named exports are compile-time graph inputs; a Vite module's runtime value is its default compiled artifact. The browser REPL accepts local helpers in its one textarea, but has no file map or fetch path: an external `.shdr.ts` import reports `SHDR1300` and leaves the last successful render installed.
 
+## Static module constants
+
+A same-file top-level `const` can be referenced from shader regions when it is initialized by a finite numeric literal (including unary minus), an earlier eligible alias, or a direct `vec2`/`vec3`/`vec4` constructor using those values. This is source-only lowering: ordinary TypeScript sees a `number`, while shader references see `Expr<F32>` or the matching `Expr<VecN<F32>>`. A helper resolves constants in its defining file; constants are not an importable shader dependency.
+
+Initializer arithmetic, swizzles, builtins, arbitrary calls, imports, mutable values, authored execution, and constant-derived uniform defaults are rejected. Constants add no artifact fields, bindings, runtime values, or host update path. They use the existing finite-f32 rounding/precision boundary. See the [full module-constants specification](../../plans/module-contstants/spec.md).
+
 ## Square matrices
 
 The public authoring API exposes compile-only `Mat2<F32>`, `Mat3<F32>`, and `Mat4<F32>` types with direct `mat2`, `mat3`, and `mat4` constructors. Each size accepts a diagonal scalar, exactly `N*N` scalar coefficients, exactly `N` complete `vecN` columns, or a same-size matrix copy. Coefficients and columns are column-major: `mat2(1, 2, 3, 4)` represents rows `(1, 3)` and `(2, 4)`, while `mat2(1)` is identity rather than a scalar splat.

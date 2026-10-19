@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md). The user agreed to earlier same-file scalar/vector constants with literals, supported `vec2/3/4` constructors, and aliases; **no module-initializer arithmetic**.
-- Delivery state: **Phase 1 complete; Phase 2 pending.** A completed phase is not publication approval.
+- Delivery state: **Phase 2 complete.** A completed phase is not publication approval.
 - Blocker at the Phase 0 gate: if the TypeScript 7 virtual-source path cannot give `const R = 0.1` a shader-only `Expr<F32>` interpretation without changing ordinary TypeScript or losing authored ranges, stop for contract review instead of shipping compiler-only support.
 
 **Checklist policy:** Update `plan.md` by checking tasks, step completion gates, and phase exit gates only. A task is not a passed gate; a phase cannot advance until its exit gate passes. Keep command results, environments, failures, deviations, and approvals in separate `plans/module-contstants/evidence/` notes **when needed**, not in this checklist. Leave a blocked gate unchecked. Change the plan text only for material scope/direction changes; do not add progress reports or a duplicate status table.
@@ -203,23 +203,23 @@ Review boundary: single-textarea browser path, both actual GPU outputs and docum
 Expected files:
 
 - `apps/repl/verify-browser.mjs` (extend for local constants and forbidden external import; `App.tsx` only if existing display needs adjustment).
-- `packages/runtime/test/verify-module-constants.mjs` (new if focused browser harness needed), `packages/runtime/package.json` (wire only if added); `apps/vite-basic/src/` (reuse the fixture from Step 2.2).
+- `packages/runtime/test/verify-browser.mjs` (extend the existing real-renderer harness); `apps/vite-basic/src/` (reuse the fixture from Step 2.2).
 - `README.md`, `packages/shdr/README.md`, `plans/language-exntesion.md` (update delivered status **only after acceptance**), `plans/module-contstants/evidence/` (new files only for consequential reproducibility/results).
 
 Tasks:
 
-- [ ] Compile and render finite pinned scalar/vector constant cases, same-file helper capture and an imported helper owning its own constant. Assert non-square/top-left behavior, safe names, scalar f32 values, and tolerant real WebGL readPixels **and presented WebGPU** pixels; verify actual target compilation/link/pipeline, not just shader snapshots.
-- [ ] In the existing REPL textarea, compile/render local constants; an unsupported external constant import or invalid edit must report a source diagnostic without fetching `.shdr.ts` or replacing the healthy previews. Re-run old numeric uniform/default and texture/resource rendering cases for isolation.
-- [ ] Document the accepted initializer grammar, scalar `number` vs shader `Expr<F32>` distinction, same-file/helper boundary, rejected imports/arithmetic, f32 caveats and deferred work. Review AC1–AC6 against owning gates and check the final diff for bundle/isolation regressions.
+- [x] Compile and render finite pinned scalar/vector constant cases, same-file helper capture and an imported helper owning its own constant. Assert non-square/top-left behavior, safe names, scalar f32 values, and tolerant real WebGL readPixels **and presented WebGPU** pixels; verify actual target compilation/link/pipeline, not just shader snapshots.
+- [x] In the existing REPL textarea, compile/render local constants; an unsupported external constant import or invalid edit must report a source diagnostic without fetching `.shdr.ts` or replacing the healthy previews. Re-run old numeric uniform/default and texture/resource rendering cases for isolation.
+- [x] Document the accepted initializer grammar, scalar `number` vs shader `Expr<F32>` distinction, same-file/helper boundary, rejected imports/arithmetic, f32 caveats and deferred work. Review AC1–AC6 against owning gates and check the final diff for bundle/isolation regressions.
 
 Verification:
 
-- Automated: **proposed** `node test/verify-module-constants.mjs` from `packages/runtime` once added and wired, plus existing `pnpm --filter @shdr/runtime test`, `pnpm --filter repl test`, `pnpm --filter vite-basic test`, `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, Prettier check and `git diff --check`. A focused browser test must assert real pixels, independent backend errors, intact old artifacts and no compiler in static output. Run the broad workspace gate here, not after every earlier step.
+- Automated: the extended `pnpm --filter @shdr/runtime test`, `pnpm --filter repl test`, and `pnpm --filter vite-basic test` passed, followed by `pnpm build`, `pnpm check`, `pnpm test`, `pnpm ci:check`, the focused editor checks, Prettier check and `git diff --check`. The browser coverage asserts real pixels, independent backend errors, intact old artifacts and no compiler in static output.
 - Manual: confirm a working Chromium WebGL 2 context and **presented** WebGPU adapter, record environment and sampled pixel tolerances outside this plan; if unavailable, mark browser acceptance Blocked. Re-run real-editor verification if Step 2.1 fixture or adapter changed afterward.
 
-- [ ] **Completion gate:** Each AC1–AC6 has owning verification, both real browser targets and editor/consumer paths pass, docs match the shipped boundary, and no unsupported capture/import or artifact change is introduced.
+- [x] **Completion gate:** Each AC1–AC6 has owning verification, both real browser targets and editor/consumer paths pass, docs match the shipped boundary, and no unsupported capture/import or artifact change is introduced.
 
-- [ ] **Phase exit gate:** Review build/check/test/CI, real editor and WebGL/presented-WebGPU acceptance, REPL import isolation, Vite static bundle and old uniform/resource regressions. Stop before merge/publish; accept only a feature-complete change with explicitly recorded residual risks outside this plan.
+- [x] **Phase exit gate:** Review build/check/test/CI, real editor and WebGL/presented-WebGPU acceptance, REPL import isolation, Vite static bundle and old uniform/resource regressions. Stop before merge/publish; accept only a feature-complete change with explicitly recorded residual risks outside this plan.
 
 ## Final acceptance
 

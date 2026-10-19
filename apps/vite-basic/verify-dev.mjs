@@ -170,7 +170,7 @@ try {
     );
   }
   const editedHelper = helperSource.replace(
-    "vec4(color.r, color.g, color.b, color.a)",
+    "vec4(color.r + COLOR_BIAS, color.g, color.b, color.a)",
     "vec4(color.r + 0.1, color.g, color.b, color.a)",
   );
   if (editedHelper === helperSource)

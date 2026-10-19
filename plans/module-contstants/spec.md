@@ -2,9 +2,9 @@
 
 ## Status
 
-- Readiness: **Ready for planning**; not implemented. This contract is not permission to implement or publish.
-- Blocking decisions: None identified. Editor type-mapping, source-graph isolation, and two-target feasibility are implementation gates, not assumed results.
-- Source: The `grill-me` discussion in this conversation and [PR 5 of the language-extension roadmap](../language-exntesion.md#pr-5--static-module-constants-not-implemented-optional-authoring-tranche). The user agreed to literals, vector constructors, and references to earlier constants, **without arithmetic in module initializers**. The [accepted language reference](../../README.md#accepted-shader-language) governs existing expression, helper, and source-module boundaries.
+- Delivery: **Implemented and verified** through core, TypeScript 7 editor, CLI/project/Vite, REPL, and real WebGL 2/presented-WebGPU browser paths. This contract is not permission to publish independently of the repository's normal review.
+- Blocking decisions: None. The implementation preserves the bounded literal/constructor grammar and all exclusions below.
+- Source: The `grill-me` discussion in this conversation and [PR 5 of the language-extension roadmap](../language-exntesion.md#pr-5--static-module-constants-implemented-optional-authoring-tranche). The user agreed to literals, vector constructors, and references to earlier constants, **without arithmetic in module initializers**. The [accepted language reference](../../README.md#accepted-shader-language) governs existing expression, helper, and source-module boundaries.
 
 ## Problem and intended outcome
 
@@ -28,12 +28,12 @@ Non-goals:
 
 ## Current behavior and evidence
 
-The following is **static inspection**, not new implementation or browser verification:
+The bounded contract is implemented without executing authored modules or initializers:
 
-- `packages/core/src/validate-shader-syntax.ts` permits callback-local names and helper parameters, but reports an outer identifier as a closure capture; `lower-shader-syntax.ts` resolves locals and selected shader callables/uniforms, not ordinary top-level values. `parse-shader-file.ts` and `parse-shader-functions.ts` recognize fragment/helper boundaries without evaluating author code.
-- `packages/core/src/shader-module-graph.ts` resolves named helpers and uniform schemas across `.shdr.ts` files. Imported helpers are lowered in their defining module. Source-file ownership and diagnostics must remain attached to that module; the current graph does not expose named constants as an import kind.
-- `packages/core/src/transform-shader-expressions.ts` rewrites numeric literals and shader operators within fragment/helper regions for TypeScript 7 checking, while `packages/shdr/src/internal.ts` has an internal number-to-`Expr<F32>` typing bridge. Extending this to referenced module scalars and accepted vector initializers is **unverified**; ordinary `const R = 0.1` is a TypeScript `number` outside shader expressions.
-- Existing f32 literal/domain checks, local name isolation, helper lowering, and GLSL/WGSL generation provide patterns, not evidence that module constant capture already works. The `circles-circling.frag`, `horizon-burn.frag`, and `moby-gradient.frag` references under `apps/vite-basic/src/references/` contain named scalar/vector constants; none is a completed module-constant Shdr port. No tests were run to author this spec.
+- `packages/core/src/parse-module-constants.ts` classifies referenced declarations on demand and `parse-shader-file.ts`/`parse-shader-functions.ts` preserve fragment/helper boundaries. Lowering resolves only same-file eligible values after local/parameter shadowing; unsupported captures retain authored diagnostics.
+- `packages/core/src/shader-module-graph.ts` lowers imported helpers in their defining files, so private constants remain owned by that file. Constants are not a graph import kind and do not become runtime named exports.
+- `packages/core/src/transform-shader-expressions.ts` and the TypeScript 7 adapter provide shader-only typing for scalar/vector references while ordinary `.ts` code retains normal TypeScript behavior.
+- Core target tests compile/link WebGL 2 programs and validate WebGPU modules/pipelines. CLI/project/Vite, static-bundle, HMR, editor, REPL, and runtime browser tests cover consumer isolation, invalid edits, imported helpers, and presented WebGPU/WebGL pixels. Reproducible results are recorded in `plans/module-contstants/evidence/step-1-2.md`, `step-1-3.md`, `step-2-1.md`, `step-2-2.md`, and `step-2-3.md`.
 
 ## Requirements and invariants
 

@@ -183,6 +183,12 @@ export default createFragmentShader(
 
 The compiler follows the supplied virtual/project graph without executing authored modules or callbacks. Named helper/schema exports are compile-time inputs; Vite exposes only the default artifact at runtime. The CLI, Vite, editor and LSP use the selected `tsconfig.json` aliases consistently. The single-textarea REPL supports local helpers only: an external `.shdr.ts` import without a supplied virtual graph reports `SHDR1300`, does not fetch a file, and preserves the last successful render.
 
+### Static module constants
+
+A top-level same-file `const` may be used as a compile-only shader value when its initializer is a finite numeric literal (including unary minus), an earlier eligible alias, or a directly imported `vec2`, `vec3`, or `vec4` constructor using those forms. Constructors must use an existing supported shape. The value is a TypeScript `number` in ordinary host code, but is lowered as `Expr<F32>` or `Expr<VecN<F32>>` only at shader references.
+
+Module initializers do not support arithmetic, swizzles, builtins, calls, imports, mutable values, or authored JavaScript execution. Constants are same-file only: a helper uses constants from its defining file, while a fragment cannot import a constant as a shader dependency. Constants cannot be used as `defineUniforms` defaults, are not runtime bindings, and cannot be updated by a host. Invalid edits retain the last successful browser preview. Finite f32 rounding and cross-GPU precision caveats remain the same as other shader literals; see the [module-constants specification](plans/module-contstants/spec.md) for the complete boundary.
+
 The callback supports only:
 
 - Simple `const name = expression` declarations followed by one final `return`, or a single expression-bodied callback.

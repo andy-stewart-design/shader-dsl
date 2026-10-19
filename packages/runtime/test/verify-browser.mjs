@@ -25,6 +25,28 @@ const time = shader("return vec4(uniforms.time, 0, 0, 1);");
 const vectorArithmetic = shader(
   "const rgb = vec3(vec2(0.2, 0.4), 0.6); return vec4((1 - rgb + 0.1).bgr, 1);",
 );
+const importedModuleConstants = compileFragmentArtifact({
+  entry: "/work/entry.shdr.ts",
+  files: {
+    "/work/entry.shdr.ts": `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(() => vec4(scale(1), 0, 0, 1));
+`,
+    "/work/helper.shdr.ts": `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`,
+  },
+});
+assert.equal(
+  importedModuleConstants.ok,
+  true,
+  JSON.stringify(importedModuleConstants.diagnostics),
+);
+const moduleConstantsArtifact = importedModuleConstants.ok
+  ? importedModuleConstants.artifact
+  : undefined;
 const server = await createServer({
   root,
   configFile: false,
@@ -144,6 +166,15 @@ try {
       );
     }
   }
+
+  await page.evaluate(async (artifact) => {
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+  }, moduleConstantsArtifact);
+  assert.deepEqual(await pixel(page, "gl"), [128, 0, 0, 255]);
+  assert.deepEqual(await pixel(page, "gpu"), [128, 0, 0, 255]);
 
   const bindings = await page.evaluate(
     async ({ coord, defaults, time }) => {
