@@ -196,6 +196,8 @@ export interface ParseModuleConstantsSuccess {
 export interface ParseModuleConstantsFailure {
   readonly ok: false;
   readonly diagnostics: readonly ShaderDiagnostic[];
+  /** Top-level declarations reached before the failure, for editor masking. */
+  readonly moduleConstantNames?: readonly string[];
 }
 
 export type ParseModuleConstantsResult =
@@ -220,6 +222,7 @@ interface ResolveContext {
   readonly parsedBindings: ParsedBindings;
   readonly resolved: Map<string, ModuleConstantDefinition>;
   readonly active: Set<string>;
+  readonly reachable: Set<string>;
 }
 
 interface InitializerResult {
@@ -253,11 +256,19 @@ export function parseModuleConstants(
     parsedBindings: bindings,
     resolved: new Map(),
     active: new Set(),
+    reachable: new Set(),
   };
 
+  let firstFailure: ParseModuleConstantsFailure | undefined;
   for (const reference of references) {
     const result = resolveReference(reference, context);
-    if (!result.ok) return result;
+    if (!result.ok && !firstFailure) firstFailure = result;
+  }
+  if (firstFailure) {
+    return {
+      ...firstFailure,
+      moduleConstantNames: [...context.reachable],
+    };
   }
 
   const constants = new Map<string, ModuleConstantDefinition>();
@@ -308,6 +319,7 @@ function resolveDefinition(
   definition: TopLevelConstant,
   context: ResolveContext,
 ): ParseModuleConstantsSuccess | ParseModuleConstantsFailure {
+  context.reachable.add(definition.name);
   const existing = context.resolved.get(definition.name);
   if (existing) return { ok: true, constants: new Map(), diagnostics: [] };
 

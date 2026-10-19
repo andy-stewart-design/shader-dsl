@@ -109,6 +109,11 @@ app.innerHTML = `
     <p id="status" role="status">Compiling generated GLSL…</p>
     <canvas id="webgpu-canvas" width="512" height="512"></canvas>
     <p id="webgpu-status" role="status">Starting WebGPU…</p>
+    <h2>Static module constants</h2>
+    <canvas id="module-constants-canvas" width="20" height="16"></canvas>
+    <p id="module-constants-status" role="status">Compiling module constants…</p>
+    <canvas id="module-constants-gpu-canvas" width="20" height="16"></canvas>
+    <p id="module-constants-gpu-status" role="status">Starting module constants WebGPU…</p>
     <h2>Math builtins</h2>
     <canvas id="math-canvas" width="128" height="128"></canvas>
     <p id="math-status" role="status">Compiling generated math shader…</p>
@@ -154,6 +159,18 @@ const status = document.querySelector<HTMLParagraphElement>("#status");
 const gpuCanvas = document.querySelector<HTMLCanvasElement>("#webgpu-canvas");
 const gpuStatus =
   document.querySelector<HTMLParagraphElement>("#webgpu-status");
+const moduleConstantsCanvas = document.querySelector<HTMLCanvasElement>(
+  "#module-constants-canvas",
+);
+const moduleConstantsStatus = document.querySelector<HTMLParagraphElement>(
+  "#module-constants-status",
+);
+const moduleConstantsGpuCanvas = document.querySelector<HTMLCanvasElement>(
+  "#module-constants-gpu-canvas",
+);
+const moduleConstantsGpuStatus = document.querySelector<HTMLParagraphElement>(
+  "#module-constants-gpu-status",
+);
 const mathCanvas = document.querySelector<HTMLCanvasElement>("#math-canvas");
 const mathStatus = document.querySelector<HTMLParagraphElement>("#math-status");
 const orbitCanvas = document.querySelector<HTMLCanvasElement>("#orbit-canvas");
@@ -184,6 +201,10 @@ if (
   !status ||
   !gpuCanvas ||
   !gpuStatus ||
+  !moduleConstantsCanvas ||
+  !moduleConstantsStatus ||
+  !moduleConstantsGpuCanvas ||
+  !moduleConstantsGpuStatus ||
   !mathCanvas ||
   !mathStatus ||
   !orbitCanvas ||
@@ -253,6 +274,34 @@ async function renderWebGpu(): Promise<void> {
         ? "unavailable"
         : "error";
     gpuStatus!.textContent =
+      error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function renderModuleConstantsWebGpu(): Promise<void> {
+  try {
+    const renderer = await createWebGpuRenderer(
+      moduleConstantsGpuCanvas!,
+      moduleConstants,
+      {
+        signal: lifetime.signal,
+        animate: false,
+        onError(error) {
+          moduleConstantsGpuCanvas!.dataset.renderStatus = "error";
+          moduleConstantsGpuStatus!.textContent = error.message;
+        },
+      },
+    );
+    renderers.push(renderer);
+    moduleConstantsGpuCanvas!.dataset.renderStatus = "success";
+    moduleConstantsGpuStatus!.textContent =
+      "Module constants WGSL rendered in WebGPU.";
+  } catch (error) {
+    moduleConstantsGpuCanvas!.dataset.renderStatus =
+      error instanceof ShdrRuntimeError && error.kind === "unavailable"
+        ? "unavailable"
+        : "error";
+    moduleConstantsGpuStatus!.textContent =
       error instanceof Error ? error.message : String(error);
   }
 }
@@ -487,11 +536,13 @@ async function renderSharedSchemaDemos(): Promise<void> {
 // missing WebGPU never interrupts WebGL, and no rejected setup goes unhandled.
 void Promise.allSettled([
   renderWebGl(canvas, status, shader),
+  renderWebGl(moduleConstantsCanvas, moduleConstantsStatus, moduleConstants),
   renderWebGl(mathCanvas, mathStatus, math),
   renderWebGl(orbitCanvas, orbitStatus, orbitMath),
   renderWebGl(squareMatricesCanvas, squareMatricesStatus, squareMatrices),
   renderWebGl(composedCanvas, composedStatus, composed),
   renderWebGpu(),
+  renderModuleConstantsWebGpu(),
   renderOrbitWebGpu(),
   renderComposedWebGpu(),
   renderCustomUniformDemos(),

@@ -170,12 +170,12 @@ try {
     );
   }
   const editedHelper = helperSource.replace(
-    "vec4(color.r + COLOR_BIAS, color.g, color.b, color.a)",
-    "vec4(color.r + 0.1, color.g, color.b, color.a)",
+    "const COLOR_BIAS = 0;",
+    "const COLOR_BIAS = 0.1;",
   );
   if (editedHelper === helperSource)
     throw new Error(
-      "The shared-helper fixture did not contain its edit target.",
+      "The shared-helper fixture did not contain its constant edit target.",
     );
   await requestShaderModule(baseUrl, "shared-helper-gradient", "gradient");
   await requestShaderModule(

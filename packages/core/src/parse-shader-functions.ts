@@ -202,7 +202,10 @@ export function parseShaderFunctions(
         diagnostics: parsedConstants.diagnostics,
         moduleConstantRegions: collectTopLevelModuleConstantRanges(
           file,
-          new Set(references.map((reference) => reference.name)),
+          new Set([
+            ...references.map((reference) => reference.name),
+            ...(parsedConstants.moduleConstantNames ?? []),
+          ]),
         ),
       };
     }

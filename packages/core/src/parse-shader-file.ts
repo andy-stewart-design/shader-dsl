@@ -550,7 +550,10 @@ function parseShaderModule(
       shaderRegion: callbackRange,
       moduleConstantRegions: collectTopLevelModuleConstantRanges(
         file,
-        new Set(callbackReferences.map((reference) => reference.name)),
+        new Set([
+          ...callbackReferences.map((reference) => reference.name),
+          ...(callbackConstants.moduleConstantNames ?? []),
+        ]),
       ),
     };
   }

@@ -495,7 +495,9 @@ function moduleConstantRegions(parsed: {
     string,
     { readonly declarationRange: TextRange }
   >;
+  readonly moduleConstantRegions?: readonly TextRange[];
 }): readonly TextRange[] {
+  if (parsed.moduleConstantRegions?.length) return parsed.moduleConstantRegions;
   const constants = parsed.info?.moduleConstants ?? parsed.moduleConstants;
   return constants
     ? [...constants.values()].map((constant) => constant.declarationRange)

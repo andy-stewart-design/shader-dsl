@@ -245,6 +245,87 @@ const USED_COPY = COPY;
     });
   });
 
+  it("masks reachable dependency declarations when a constant chain fails", () => {
+    const source = `import { createFragmentShader, vec2, vec3, vec4 } from "shdr";
+const A = vec3(0, 0, 0);
+const BAD = vec2(A, 1);
+export default createFragmentShader(() => vec4(BAD.x, 0, 0, 1));
+`;
+    const parsed = parseShaderFile(source, "module-constants.shdr.ts");
+    expect(parsed.diagnostics[0]).toMatchObject({
+      code: ShaderDiagnosticCode.InvalidConstructor,
+    });
+    expect(parsed.shaderRegions).toEqual(
+      expect.arrayContaining([
+        {
+          start: source.indexOf("const A"),
+          length: "const A = vec3(0, 0, 0);".length,
+        },
+        {
+          start: source.indexOf("const BAD"),
+          length: "const BAD = vec2(A, 1);".length,
+        },
+      ]),
+    );
+
+    const helperSource = `import { defineShaderFunction, vec2, vec3 } from "shdr";
+import type { Expr, F32, Vec2 } from "shdr";
+const A = vec3(0, 0, 0);
+const BAD = vec2(A, 1);
+export const helper = defineShaderFunction((x: Expr<Vec2<F32>>) =>
+  vec2(BAD.x + x.x, 0),
+);
+`;
+    const helper = parseShaderFile(helperSource, "helper.shdr.ts");
+    expect(helper.diagnostics[0]).toMatchObject({
+      code: ShaderDiagnosticCode.InvalidConstructor,
+    });
+    expect(helper.shaderRegions).toEqual(
+      expect.arrayContaining([
+        {
+          start: helperSource.indexOf("const A"),
+          length: "const A = vec3(0, 0, 0);".length,
+        },
+        {
+          start: helperSource.indexOf("const BAD"),
+          length: "const BAD = vec2(A, 1);".length,
+        },
+      ]),
+    );
+
+    const multiHelperSource = `import { defineShaderFunction, vec3 } from "shdr";
+import type { Expr, F32, Vec3 } from "shdr";
+const A = vec3(0, 0, 0);
+const BAD = 1 + 2;
+const B = vec3(A);
+export const first = defineShaderFunction((x: Expr<F32>) => x + BAD);
+export const second = defineShaderFunction((x: Expr<Vec3<F32>>) => B.x + x.x);
+`;
+    const multiHelper = parseShaderFile(
+      multiHelperSource,
+      "multi-helper.shdr.ts",
+    );
+    expect(multiHelper.diagnostics[0]).toMatchObject({
+      code: ShaderDiagnosticCode.UnsupportedOperator,
+    });
+    expect(multiHelper.shaderRegions).toEqual(
+      expect.arrayContaining([
+        {
+          start: multiHelperSource.indexOf("const A"),
+          length: "const A = vec3(0, 0, 0);".length,
+        },
+        {
+          start: multiHelperSource.indexOf("const BAD"),
+          length: "const BAD = 1 + 2;".length,
+        },
+        {
+          start: multiHelperSource.indexOf("const B"),
+          length: "const B = vec3(A);".length,
+        },
+      ]),
+    );
+  });
+
   it("resolves module names after fragment locals and helper parameters", () => {
     const source = `import { createFragmentShader, defineShaderFunction, vec4 } from "shdr";
 import type { Expr, F32 } from "shdr";

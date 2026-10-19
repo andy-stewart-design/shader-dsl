@@ -85,6 +85,67 @@ describe("module constants in the TypeScript 7 editor adapter", () => {
     }
   });
 
+  it("masks valid dependencies when a module constant initializer fails", () => {
+    const invalid = `import { createFragmentShader, vec2, vec3, vec4 } from "shdr";
+const A = vec3(0, 0, 0);
+const BAD = vec2(A, 1);
+export default createFragmentShader(() => vec4(BAD.x, 0, 0, 1));
+`;
+    const editor = adapter();
+    try {
+      const document = editor.updateDocument({
+        fileName,
+        source: invalid,
+        version: 1,
+        projectVersion: 1,
+      });
+      expect(document.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ source: "shdr", code: "SHDR1206" }),
+        ]),
+      );
+      expect(
+        document.diagnostics.filter(
+          ({ source, code }) => source === "typescript" && code === 2345,
+        ),
+      ).toEqual([]);
+    } finally {
+      editor.dispose();
+    }
+  });
+
+  it("masks dependencies reached after an earlier helper failure", () => {
+    const invalid = `import { defineShaderFunction, vec3 } from "shdr";
+import type { Expr, F32, Vec3 } from "shdr";
+const A = vec3(0, 0, 0);
+const BAD = 1 + 2;
+const B = vec3(A);
+export const first = defineShaderFunction((x: Expr<F32>) => x + BAD);
+export const second = defineShaderFunction((x: Expr<Vec3<F32>>) => B.x + x.x);
+`;
+    const editor = adapter();
+    try {
+      const document = editor.updateDocument({
+        fileName,
+        source: invalid,
+        version: 1,
+        projectVersion: 1,
+      });
+      expect(document.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ source: "shdr", code: "SHDR1105" }),
+        ]),
+      );
+      expect(
+        document.diagnostics.filter(
+          ({ source, code }) => source === "typescript" && code === 2345,
+        ),
+      ).toEqual([]);
+    } finally {
+      editor.dispose();
+    }
+  });
+
   it("types private helper constants and refreshes an edit", () => {
     const valid = `import { defineShaderFunction } from "shdr";
 import type { Expr, F32 } from "shdr";

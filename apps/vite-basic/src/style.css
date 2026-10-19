@@ -39,6 +39,12 @@ canvas {
   height: min(120vw, 600px);
 }
 
+#module-constants-canvas,
+#module-constants-gpu-canvas {
+  width: 200px;
+  height: 160px;
+}
+
 #math-canvas,
 #composed-canvas,
 #composed-gpu-canvas,
