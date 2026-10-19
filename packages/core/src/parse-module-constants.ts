@@ -68,6 +68,17 @@ export function collectTopLevelModuleConstantNames(
   return new Set(collectDefinitions(file).keys());
 }
 
+/** Returns declaration ranges for the referenced top-level constant candidates. */
+export function collectTopLevelModuleConstantRanges(
+  file: File,
+  names: ReadonlySet<string>,
+): readonly TextRange[] {
+  return [...collectDefinitions(file).values()]
+    .flatMap((definitions) => definitions)
+    .filter((definition) => names.has(definition.name))
+    .map((definition) => definition.declarationRange);
+}
+
 /** Collects only candidate module names from shader expression regions. */
 export function collectModuleConstantReferences(
   callback: ArrowFunctionExpression,

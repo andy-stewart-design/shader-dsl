@@ -1,5 +1,9 @@
 import { MappedTextWriter, type VirtualSource } from "./mapped-text-writer.js";
 import type { ShaderFileInfo } from "./parse-shader-file.js";
+import type {
+  ModuleConstantDefinition,
+  ModuleConstantInitializer,
+} from "./parse-module-constants.js";
 import type { ShaderBinaryOperator } from "./shader-operator.js";
 import type { ShaderExpressionSyntax } from "./shader-syntax.js";
 import type { TextRange } from "./source-range.js";
@@ -13,6 +17,7 @@ export const F32_HELPER_NAME = "__shdr_internal_f32";
 export function transformShaderExpressionsForHelpers(
   source: string,
   helpers: readonly ShaderFunctionSyntax[],
+  moduleConstants: ReadonlyMap<string, ModuleConstantDefinition> = new Map(),
 ): VirtualSource {
   const roots = helpers
     .flatMap((helper) => [
@@ -20,34 +25,39 @@ export function transformShaderExpressionsForHelpers(
       helper.body.returnExpression,
     ])
     .sort((left, right) => left.range.start - right.range.start);
+  const constants = [...moduleConstants.values()];
   const helperNames = collectHelperNames(roots);
+  const helperNameSet = new Set(helperNames);
+  for (const constant of constants)
+    visitModuleInitializer(constant.initializer, helperNameSet);
+  const allHelperNames = [...helperNameSet].sort();
   const writer = new MappedTextWriter(source);
 
-  if (helperNames.length > 0) {
+  if (allHelperNames.length > 0) {
     writer.append(
-      `import { ${helperNames.join(", ")} } from "shdr/internal";\n`,
+      `import { ${allHelperNames.join(", ")} } from "shdr/internal";\n`,
     );
   }
 
-  let originalCursor = 0;
-  for (const expression of roots) {
-    copyIfNonEmpty(writer, {
-      start: originalCursor,
-      length: expression.range.start - originalCursor,
-    });
-    writeExpression(writer, expression);
-    originalCursor = rangeEnd(expression.range);
-  }
-  copyIfNonEmpty(writer, {
-    start: originalCursor,
-    length: source.length - originalCursor,
-  });
+  const writes = [
+    ...constants.map((constant) => ({
+      range: constant.initializer.range,
+      write: (target: MappedTextWriter) =>
+        writeModuleInitializer(target, constant.initializer),
+    })),
+    ...roots.map((expression) => ({
+      range: expression.range,
+      write: (target: MappedTextWriter) => writeExpression(target, expression),
+    })),
+  ].sort((left, right) => left.range.start - right.range.start);
+  writeAll(writer, source, writes);
 
   return writer.finish(
     { start: 0, length: 0 },
-    helpers
-      .map((helper) => helper.range)
-      .sort((left, right) => left.start - right.start),
+    [
+      ...constants.map((constant) => constant.declarationRange),
+      ...helpers.map((helper) => helper.range),
+    ].sort((left, right) => left.start - right.start),
   );
 }
 
@@ -56,6 +66,7 @@ export function transformShaderExpressions(
   shaderFile: ShaderFileInfo,
 ): VirtualSource {
   const helpers = shaderFile.functions ?? [];
+  const constants = [...(shaderFile.moduleConstants?.values() ?? [])];
   const roots = [
     shaderFile.callback.syntax,
     ...helpers.map((helper) => helper.body),
@@ -66,35 +77,129 @@ export function transformShaderExpressions(
     ])
     .sort((left, right) => left.range.start - right.range.start);
   const helperNames = collectHelperNames(roots);
+  const helperNameSet = new Set(helperNames);
+  for (const constant of constants)
+    visitModuleInitializer(constant.initializer, helperNameSet);
+  const allHelperNames = [...helperNameSet].sort();
   const writer = new MappedTextWriter(source);
 
-  if (helperNames.length > 0) {
+  if (allHelperNames.length > 0) {
     writer.append(
-      `import { ${helperNames.join(", ")} } from "shdr/internal";\n`,
+      `import { ${allHelperNames.join(", ")} } from "shdr/internal";\n`,
     );
   }
 
+  const writes = [
+    ...constants.map((constant) => ({
+      range: constant.initializer.range,
+      write: (target: MappedTextWriter) =>
+        writeModuleInitializer(target, constant.initializer),
+    })),
+    ...roots.map((expression) => ({
+      range: expression.range,
+      write: (target: MappedTextWriter) => writeExpression(target, expression),
+    })),
+  ].sort((left, right) => left.range.start - right.range.start);
+  writeAll(writer, source, writes);
+
+  const regions =
+    constants.length || helpers.length
+      ? [
+          ...constants.map((constant) => constant.declarationRange),
+          ...helpers.map((helper) => helper.range),
+          shaderFile.shaderRegion,
+        ].sort((left, right) => left.start - right.start)
+      : undefined;
+  return writer.finish(shaderFile.shaderRegion, regions);
+}
+
+interface VirtualWrite {
+  readonly range: TextRange;
+  readonly write: (writer: MappedTextWriter) => void;
+}
+
+function writeAll(
+  writer: MappedTextWriter,
+  source: string,
+  writes: readonly VirtualWrite[],
+): void {
   let originalCursor = 0;
-  for (const expression of roots) {
+  for (const item of writes) {
     copyIfNonEmpty(writer, {
       start: originalCursor,
-      length: expression.range.start - originalCursor,
+      length: item.range.start - originalCursor,
     });
-    writeExpression(writer, expression);
-    originalCursor = rangeEnd(expression.range);
+    item.write(writer);
+    originalCursor = rangeEnd(item.range);
   }
-
   copyIfNonEmpty(writer, {
     start: originalCursor,
     length: source.length - originalCursor,
   });
+}
 
-  const regions = helpers.length
-    ? [...helpers.map((helper) => helper.range), shaderFile.shaderRegion].sort(
-        (left, right) => left.start - right.start,
-      )
-    : undefined;
-  return writer.finish(shaderFile.shaderRegion, regions);
+function visitModuleInitializer(
+  initializer: ModuleConstantInitializer,
+  helperNames: Set<string>,
+): void {
+  switch (initializer.kind) {
+    case "literal":
+      helperNames.add(F32_HELPER_NAME);
+      return;
+    case "reference":
+      return;
+    case "constructor":
+      for (const argument of initializer.arguments)
+        visitModuleInitializer(argument, helperNames);
+      return;
+  }
+}
+
+function writeModuleInitializer(
+  writer: MappedTextWriter,
+  initializer: ModuleConstantInitializer,
+): void {
+  switch (initializer.kind) {
+    case "literal":
+      writer.writeExpression(initializer.range, (generated) => {
+        generated.append(`${F32_HELPER_NAME}(`);
+        generated.copy(initializer.range);
+        generated.append(")");
+      });
+      return;
+    case "reference":
+      writer.copy(initializer.range);
+      return;
+    case "constructor":
+      writer.writeExpression(initializer.range, (generated) => {
+        writeModuleChildren(
+          generated,
+          initializer.range,
+          initializer.arguments,
+        );
+      });
+      return;
+  }
+}
+
+function writeModuleChildren(
+  writer: MappedTextWriter,
+  parent: TextRange,
+  children: readonly ModuleConstantInitializer[],
+): void {
+  let originalCursor = parent.start;
+  for (const child of children) {
+    copyIfNonEmpty(writer, {
+      start: originalCursor,
+      length: child.range.start - originalCursor,
+    });
+    writeModuleInitializer(writer, child);
+    originalCursor = rangeEnd(child.range);
+  }
+  copyIfNonEmpty(writer, {
+    start: originalCursor,
+    length: rangeEnd(parent) - originalCursor,
+  });
 }
 
 function writeExpression(

@@ -55,6 +55,7 @@ export function createVirtualSourceFromParsed(
         virtualSource: transformShaderExpressionsForHelpers(
           source,
           parsed.helperFunctions,
+          parsed.moduleConstants,
         ),
         diagnostics: [],
       };

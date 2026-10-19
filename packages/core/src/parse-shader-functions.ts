@@ -10,12 +10,14 @@ import {
   collectModuleConstantReferences,
   collectShaderLocalNames,
   collectTopLevelModuleConstantNames,
+  collectTopLevelModuleConstantRanges,
   parseModuleConstants,
   type ModuleConstantDefinition,
 } from "./parse-module-constants.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
 import type { ShaderFunctionSyntax } from "./shader-syntax.js";
 import type { ShaderValueType } from "./shader-type.js";
+import type { TextRange } from "./source-range.js";
 import { validateShaderSyntax } from "./validate-shader-syntax.js";
 
 export const SHADER_TYPE_IMPORTS = new Set([
@@ -40,6 +42,7 @@ export function parseShaderFunctions(
   readonly functions: readonly ShaderFunctionSyntax[];
   readonly diagnostics: readonly ShaderDiagnostic[];
   readonly moduleConstants?: ReadonlyMap<string, ModuleConstantDefinition>;
+  readonly moduleConstantRegions?: readonly TextRange[];
 } {
   // A spelling alone is not a shader boundary: preserve unrelated host code.
   if (!markerImported) return { functions: [], diagnostics: [] };
@@ -194,7 +197,14 @@ export function parseShaderFunctions(
     );
     const parsedConstants = parseModuleConstants(source, references);
     if (!parsedConstants.ok) {
-      return { functions: [], diagnostics: parsedConstants.diagnostics };
+      return {
+        functions: [],
+        diagnostics: parsedConstants.diagnostics,
+        moduleConstantRegions: collectTopLevelModuleConstantRanges(
+          file,
+          new Set(references.map((reference) => reference.name)),
+        ),
+      };
     }
     moduleConstants = parsedConstants.constants;
   }

@@ -32,9 +32,9 @@ export default createFragmentShader(({ coord }) => {
 `;
 
 /**
- * Feasibility-only candidate: retain ordinary module declarations and add
+ * Bounded bridge characterization: retain ordinary module declarations and add
  * shader-typed aliases/initializer expressions only in the generated shader
- * view. This intentionally does not change production transformation code.
+ * view. Production coverage lives in module-constants-editor.test.ts.
  */
 function candidateVirtualSource(): VirtualSource {
   const code = `import { __shdr_internal_f32, __shdr_internal_mul } from "shdr/internal";

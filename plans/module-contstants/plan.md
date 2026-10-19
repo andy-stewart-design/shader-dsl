@@ -159,16 +159,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Map accepted numeric module values to `Expr<F32>` only inside shader regions, and type-check vector initializers built from earlier scalars without transforming unrelated code or requiring authored JS execution. Preserve original-file hovers and diagnostics for definitions and uses.
-- [ ] Check fragment, same-file helper, imported helper-only module, shadowed names, invalid module initializer and invalid capture; unsaved edits to a helper's constant must refresh its consumers without generated-helper cascades or ordinary `.ts` diagnostic takeover.
-- [ ] Add source-ranged TypeScript 7 adapter fixtures and a real VS Code fixture/verifier for representative hover, invalid constant and edit/restore flows; preserve existing VS Code/Zed shared adapter behavior without making the proposed LSP transport migration a prerequisite.
+- [x] Map accepted numeric module values to `Expr<F32>` only inside shader regions, and type-check vector initializers built from earlier scalars without transforming unrelated code or requiring authored JS execution. Preserve original-file hovers and diagnostics for definitions and uses.
+- [x] Check fragment, same-file helper, imported helper-only module, shadowed names, invalid module initializer and invalid capture; unsaved edits to a helper's constant must refresh its consumers without generated-helper cascades or ordinary `.ts` diagnostic takeover.
+- [x] Add source-ranged TypeScript 7 adapter fixtures and a real VS Code fixture/verifier for representative hover, invalid constant and edit/restore flows; preserve existing VS Code/Zed shared adapter behavior without making the proposed LSP transport migration a prerequisite.
 
 Verification:
 
 - Automated: **proposed** `pnpm --dir packages/language-service exec vitest run --config ../../vitest.config.ts --root . test/module-constants-editor.test.ts`, `pnpm --filter @shdr/language-service test`, and `pnpm --filter @shdr/editor-fixture test`. Assert authored file/offsets, fixed vs unsaved diagnostics, scalar/vector hover types and ordinary `.ts` isolation.
 - Manual: run `pnpm --filter @shdr/editor-fixture test:editor` with installed VS Code and a real TypeScript 7-capable fixture; check authored hover/diagnostic and restored edit. If unavailable, mark UI acceptance Blocked rather than equating an adapter unit test with real-editor proof.
 
-- [ ] **Completion gate:** Core and editor agree on accepted values/invalid source, unsaved imported-helper edits refresh, and real VS Code reports correct authored locations; no ordinary TypeScript regression.
+- [x] **Completion gate:** Core and editor agree on accepted values/invalid source, unsaved imported-helper edits refresh, and real VS Code reports correct authored locations; no ordinary TypeScript regression.
 
 ### Step 2.2 — Project consumers and static isolation
 

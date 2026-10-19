@@ -22,6 +22,7 @@ import {
   collectModuleConstantReferences,
   collectShaderLocalNames,
   collectTopLevelModuleConstantNames,
+  collectTopLevelModuleConstantRanges,
   parseModuleConstants,
   type ModuleConstantDefinition,
 } from "./parse-module-constants.js";
@@ -98,6 +99,8 @@ export interface ParseShaderFileResult {
   readonly shaderRegion?: TextRange;
   /** Helper declarations and fragment callback recognized before semantic validation. */
   readonly shaderRegions?: readonly TextRange[];
+  /** Referenced module declarations recognized before a constant validation failure. */
+  readonly moduleConstantRegions?: readonly TextRange[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -123,7 +126,8 @@ export function parseShaderFile(
   const { file } = parsed;
   const result = parseShaderModule(file, fileName, source);
   const helperRegions = findHelperRegions(file);
-  if (!helperRegions.length) return result;
+  const moduleConstantRegions = result.moduleConstantRegions ?? [];
+  if (!helperRegions.length && !moduleConstantRegions.length) return result;
 
   // Retain boundaries even when a helper signature/body fails before the
   // fragment is validated. They must not swallow ordinary code between helpers.
@@ -143,6 +147,7 @@ export function parseShaderFile(
       : undefined);
   const shaderRegions = [
     ...helperRegions,
+    ...moduleConstantRegions,
     ...(shaderRegion ? [shaderRegion] : []),
   ].sort((left, right) => left.start - right.start);
   return {
@@ -244,7 +249,13 @@ function parseShaderModule(
     ]),
     source,
   );
-  if (helpers.diagnostics.length) return { diagnostics: helpers.diagnostics };
+  if (helpers.diagnostics.length)
+    return {
+      diagnostics: helpers.diagnostics,
+      ...(helpers.moduleConstantRegions
+        ? { moduleConstantRegions: helpers.moduleConstantRegions }
+        : {}),
+    };
 
   const hasDefaultExport = file.program.body.some(
     (statement) => statement.type === "ExportDefaultDeclaration",
@@ -537,6 +548,10 @@ function parseShaderModule(
     return {
       diagnostics: callbackConstants.diagnostics,
       shaderRegion: callbackRange,
+      moduleConstantRegions: collectTopLevelModuleConstantRanges(
+        file,
+        new Set(callbackReferences.map((reference) => reference.name)),
+      ),
     };
   }
   const moduleConstants = new Map<string, ModuleConstantDefinition>([
