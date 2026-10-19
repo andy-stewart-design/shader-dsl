@@ -1,5 +1,6 @@
 import {
   defineUniforms,
+  createFragmentShader,
   floor,
   fract,
   length,
@@ -13,11 +14,13 @@ import {
   vec4,
 } from "shdr";
 
-export default defineUniforms((u) => ({
+const uniforms = defineUniforms((u) => ({
   dpi: u.f32(8),
   spread: u.f32(0.32),
   blur: u.f32(0.08),
-})).createFragmentShader(({ coord, uniforms }) => {
+}));
+
+export default createFragmentShader(({ coord, uniforms }) => {
   // Shdr coordinates and mouse are top-left; GLSL inputs here are bottom-left.
   const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
   const inputMouse = vec2(
@@ -49,4 +52,4 @@ export default defineUniforms((u) => ({
   const rg = 0.75 - distFromMouse * 0.75;
   const color = vec3(rg, rg, 1) * d - darkFactor;
   return vec4(color, 1);
-});
+}, { uniforms });
