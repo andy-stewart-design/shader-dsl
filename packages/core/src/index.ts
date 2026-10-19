@@ -13,6 +13,17 @@ export {
   type CreateVirtualSourceSuccess,
 } from "./create-virtual-source.js";
 export {
+  parseModuleConstants,
+  type ModuleConstantDefinition,
+  type ModuleConstantInitializer,
+  type ModuleConstantReference,
+  type ModuleConstantType,
+  type ParseModuleConstantsFailure,
+  type ParseModuleConstantsOptions,
+  type ParseModuleConstantsResult,
+  type ParseModuleConstantsSuccess,
+} from "./parse-module-constants.js";
+export {
   SHADER_BUILTINS,
   builtinResultType,
   isShaderBuiltinName,

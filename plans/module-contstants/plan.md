@@ -76,17 +76,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Classify only referenced simple top-level `const` declarations: finite f32 numeric literals/negative literals, prior same-file constant references, and existing `vec2/3/4` constructor signatures with directly imported callables. Keep unsupported host declarations inert unless used in a shader.
-- [ ] Detect forward/self references, invalid alias chains, wrong-shape constructors, reserved/conflicting names and f32 overflow at authored definition/use ranges. No arithmetic, general JS calls, imported constant names, uniform-default references, or execution.
-- [ ] Preserve helper/schema parse boundaries and unchanged diagnostics for old captures; avoid accidentally treating `defineShaderFunction` or `defineUniforms` declarations as module constants.
-- [ ] Add focused parser/graph tests for valid chains and invalid/unused host declarations, including a constant visible only within its defining file.
+- [x] Classify only referenced simple top-level `const` declarations: finite f32 numeric literals/negative literals, prior same-file constant references, and existing `vec2/3/4` constructor signatures with directly imported callables. Keep unsupported host declarations inert unless used in a shader.
+- [x] Detect forward/self references, invalid alias chains, wrong-shape constructors, reserved/conflicting names and f32 overflow at authored definition/use ranges. No arithmetic, general JS calls, imported constant names, uniform-default references, or execution.
+- [x] Preserve helper/schema parse boundaries and unchanged diagnostics for old captures; avoid accidentally treating `defineShaderFunction` or `defineUniforms` declarations as module constants.
+- [x] Add focused parser/graph tests for valid chains and invalid/unused host declarations, including a constant visible only within its defining file.
 
 Verification:
 
 - Automated: **proposed** `pnpm --dir packages/core exec vitest run --config ../../vitest.config.ts --root . test/module-constants.test.ts`, plus `pnpm --filter @shdr/core check`; assert eligible shapes and authored ranges without claiming generated shader use yet.
 - Manual: Not needed for static classification. No change should make a previously supported shader or ordinary host file fail.
 
-- [ ] **Completion gate:** Eligible definitions are classified on demand with accurate failures, existing shader capture behavior still rejects references, and core builds/checks without executing source.
+- [x] **Completion gate:** Eligible definitions are classified on demand with accurate failures, existing shader capture behavior still rejects references, and core builds/checks without executing source.
 
 ### Step 1.2 — Fragment capture, IR and target codegen
 
