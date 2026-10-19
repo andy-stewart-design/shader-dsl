@@ -126,19 +126,19 @@ Expected files:
 
 Tasks:
 
-- [ ] Resolve constants in the file **defining** each local or imported helper, never from the fragment that calls it; preserve transitive helper reachability and existing named helper/schema import rules.
-- [ ] Support a helper-only `.shdr.ts` module with private constants, and same-file entry plus helper, including valid local/parameter shadowing and two entries importing one helper. Check-only mode must identify invalid referenced constants in helpers even if no fragment export exists.
-- [ ] Return defining-file authored ranges once for invalid shared definitions without cascaded caller faults; reject imported constant names, unsupported host captures, and nonliteral uniform defaults.
-- [ ] Assert identical target-neutral meaning for equivalent single-source/virtual graphs, stable file IDs, and no emitted runtime named constant export.
+- [x] Resolve constants in the file **defining** each local or imported helper, never from the fragment that calls it; preserve transitive helper reachability and existing named helper/schema import rules.
+- [x] Support a helper-only `.shdr.ts` module with private constants, and same-file entry plus helper, including valid local/parameter shadowing and two entries importing one helper. Check-only mode must identify invalid referenced constants in helpers even if no fragment export exists.
+- [x] Return defining-file authored ranges once for invalid shared definitions without cascaded caller faults; reject imported constant names, unsupported host captures, and nonliteral uniform defaults.
+- [x] Assert identical target-neutral meaning for equivalent single-source/virtual graphs, stable file IDs, and no emitted runtime named constant export.
 
 Verification:
 
 - Automated: focused **proposed** core graph fixtures in `packages/core/test/{reusable-graph,module-constants}.test.ts`, `pnpm --filter @shdr/core test`, and (if affected) `pnpm --filter @shdr/project test`. Check original file/range, multi-entry isolation and import negatives; one passing fragment is not proof for a helper-only source.
 - Manual: Not needed for core graph ownership; actual editor/project invalidation is Step 2.2.
 
-- [ ] **Completion gate:** Single-source and imported helper graphs use only defining-file constants, with source-owned errors and unchanged helper/schema imports. Editor/host parity remains pending.
+- [x] **Completion gate:** Single-source and imported helper graphs use only defining-file constants, with source-owned errors and unchanged helper/schema imports. Editor/host parity remains pending.
 
-- [ ] **Phase exit gate:** `pnpm build`, `pnpm --filter @shdr/core check`, focused core/graph suites, and real GLSL-link/WGSL-pipeline tests pass without breaking old helpers; review the atomic pending consumer work before Phase 2.
+- [x] **Phase exit gate:** `pnpm build`, `pnpm --filter @shdr/core check`, focused core/graph suites, and real GLSL-link/WGSL-pipeline tests pass without breaking old helpers; review the atomic pending consumer work before Phase 2.
 
 ## Phase 2 — Editor, consumer and rendered acceptance
 

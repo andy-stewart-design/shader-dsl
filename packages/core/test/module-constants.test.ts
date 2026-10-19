@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileFragmentArtifact } from "../src/compile-fragment-artifact.js";
 import {
+  checkShaderGraph,
   compileFragment,
   lowerFragment,
   parseModuleConstants,
@@ -303,6 +304,117 @@ export const scale = defineShaderFunction((x: Expr<F32>) => x * FACTOR);
     expect(result.artifact.wgsl).not.toContain("FACTOR");
     expect(result.artifact.glsl).toContain("0.25");
     expect(result.artifact.wgsl).toContain("0.25");
+  });
+
+  it("keeps helper constants private to their defining graph module", () => {
+    const helper = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const FACTOR = 0.25;
+const SCALE = FACTOR;
+export const scale = defineShaderFunction((SCALE: Expr<F32>) => SCALE * FACTOR);
+`;
+    const entry = `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => {
+  const SCALE = 0.5;
+  return vec4(scale(uniforms.time), SCALE, 0, 1);
+});
+`;
+    const first = compileFragmentArtifact({
+      entry: "/work/first.shdr.ts",
+      files: {
+        "/work/first.shdr.ts": entry,
+        "/work/helper.shdr.ts": helper,
+      },
+    });
+    const second = compileFragmentArtifact({
+      entry: "/work/second.shdr.ts",
+      files: {
+        "/work/second.shdr.ts": entry,
+        "/work/helper.shdr.ts": helper,
+      },
+    });
+    expect(first.ok, JSON.stringify(first.diagnostics)).toBe(true);
+    expect(second.ok, JSON.stringify(second.diagnostics)).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(first.artifact).toEqual(second.artifact);
+    expect(first.artifact.glsl).toContain("0.25");
+    expect(first.artifact.glsl).not.toContain("FACTOR");
+
+    const helperOnly = checkShaderGraph({
+      entry: "/work/helper.shdr.ts",
+      files: { "/work/helper.shdr.ts": helper },
+    });
+    expect(helperOnly.ok).toBe(true);
+  });
+
+  it("reports one defining-file error for invalid helper constants in check-only and graphs", () => {
+    const helper = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const BAD = 1 + 2;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * BAD);
+`;
+    const checkOnly = checkShaderGraph({
+      entry: "/work/helper.shdr.ts",
+      files: { "/work/helper.shdr.ts": helper },
+    });
+    expect(checkOnly.ok).toBe(false);
+    if (!checkOnly.ok) {
+      expect(checkOnly.diagnostics).toHaveLength(1);
+      expect(checkOnly.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.UnsupportedOperator,
+        fileName: "/work/helper.shdr.ts",
+        range: { start: helper.indexOf("1 + 2") },
+      });
+    }
+
+    const entry = `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));
+`;
+    const graph = compileFragmentArtifact({
+      entry: "/work/entry.shdr.ts",
+      files: {
+        "/work/entry.shdr.ts": entry,
+        "/work/helper.shdr.ts": helper,
+      },
+    });
+    expect(graph.ok).toBe(false);
+    if (!graph.ok) {
+      expect(graph.diagnostics).toHaveLength(1);
+      expect(graph.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.UnsupportedOperator,
+        fileName: "/work/helper.shdr.ts",
+      });
+      expect(graph.artifact).toBeUndefined();
+    }
+  });
+
+  it("rejects imported constants in helper definitions", () => {
+    const entry = `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));
+`;
+    const helper = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+import { SCALE } from "./constants.shdr.ts";
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`;
+    const result = compileFragmentArtifact({
+      entry: "/work/entry.shdr.ts",
+      files: {
+        "/work/entry.shdr.ts": entry,
+        "/work/helper.shdr.ts": helper,
+        "/work/constants.shdr.ts": "export const SCALE = 0.25;",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.diagnostics[0]).toMatchObject({
+        code: ShaderDiagnosticCode.ClosureCapture,
+        fileName: "/work/helper.shdr.ts",
+        range: { start: helper.lastIndexOf("SCALE") },
+      });
   });
 
   it("analyzes only referenced declarations and leaves unused host code inert", () => {
