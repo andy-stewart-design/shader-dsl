@@ -17,6 +17,7 @@ import horizonBurnShader from "./references/horizon-burn.shdr.ts";
 import plasmaShader from "./references/plasma.shdr.ts";
 import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import squareMatricesShader from "./square-matrices.shdr.ts";
+import moduleConstantsShader from "./module-constants.shdr.ts";
 import customUniformsShader from "./custom-uniforms.shdr.ts";
 import customInline from "./custom-demo-inline.shdr.ts";
 import customNamed from "./custom-demo-named.shdr.ts";
@@ -38,6 +39,7 @@ const horizonBurn: CompiledFragmentArtifact = horizonBurnShader;
 const plasma: CompiledFragmentArtifact = plasmaShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 const squareMatrices: CompiledFragmentArtifact = squareMatricesShader;
+const moduleConstants: CompiledFragmentArtifact = moduleConstantsShader;
 const composed: CompiledFragmentArtifact = composedReusable;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
@@ -69,6 +71,9 @@ if (
   !squareMatrices.glsl.includes("mat2") ||
   !squareMatrices.glsl.includes("shdr_internal_fn_") ||
   !squareMatrices.wgsl.includes("mat4x4<f32>") ||
+  !moduleConstants.glsl.includes("0.125") ||
+  moduleConstants.glsl.includes("RADIUS") ||
+  moduleConstants.glsl.includes("CENTER") ||
   !cells.wgsl.includes("mix(") ||
   !cells.wgsl.includes("step(") ||
   !pr3Math.glsl.includes("pow(") ||

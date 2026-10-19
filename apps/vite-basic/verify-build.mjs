@@ -26,6 +26,7 @@ assertIncludes(bundle, "normalize(");
 assertIncludes(bundle, "fract(");
 assertIncludes(bundle, "mat2");
 assertIncludes(bundle, "mat4x4<f32>");
+assertIncludes(bundle, "0.125");
 assertIncludes(bundle, "atan2(");
 assertIncludes(bundle, "shdr_internal_mod_");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
@@ -52,6 +53,8 @@ if (!sources.some((source) => source.endsWith("/src/orbit-math.shdr.ts")))
   throw new Error("Static build omitted the orbit-math shader.");
 if (!sources.some((source) => source.endsWith("/src/square-matrices.shdr.ts")))
   throw new Error("Static build omitted the square-matrices shader.");
+if (!sources.some((source) => source.endsWith("/src/module-constants.shdr.ts")))
+  throw new Error("Static build omitted the module-constants shader.");
 for (const form of ["inline", "named"]) {
   if (
     !sources.some((source) =>

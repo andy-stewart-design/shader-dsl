@@ -183,16 +183,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Check same-file and imported-helper constant fixtures through CLI and project-backed Vite, including fixes/re-edits in a helper-only source and an explicit rejected attempt to import a constant as a shader dependency.
-- [ ] Verify `defineUniforms` defaults stay literal-only; imported schema contents, bindings, artifact JSON, old shader builds, HMR dependency tracking and stale/failed candidate behavior remain unchanged.
-- [ ] Audit Vite production output for parser/compiler, top-level constant execution and named runtime constant exports; only the fragment's default artifact is consumed.
+- [x] Check same-file and imported-helper constant fixtures through CLI and project-backed Vite, including fixes/re-edits in a helper-only source and an explicit rejected attempt to import a constant as a shader dependency.
+- [x] Verify `defineUniforms` defaults stay literal-only; imported schema contents, bindings, artifact JSON, old shader builds, HMR dependency tracking and stale/failed candidate behavior remain unchanged.
+- [x] Audit Vite production output for parser/compiler, top-level constant execution and named runtime constant exports; only the fragment's default artifact is consumed.
 
 Verification:
 
 - Automated: `pnpm --filter @shdr/cli test`, `pnpm --filter @shdr/vite test`, `pnpm --filter vite-basic test`, `pnpm --filter @shdr/project test` (if affected), and `pnpm ci:check` after rebuilding relevant packages. Extended fixtures must assert actual dependency refresh and static bundle contents, not just the presence of generated GLSL strings.
 - Manual: Not needed where Vite dev/HMR and static build requests are exercised in existing browser scripts; if a project-config alias variant cannot be automated, record its limitation outside this plan before acceptance.
 
-- [ ] **Completion gate:** CLI/Vite edits and diagnostics track defining files, static bundles contain no compiler/authored execution, and old schemas/renderers remain unchanged.
+- [x] **Completion gate:** CLI/Vite edits and diagnostics track defining files, static bundles contain no compiler/authored execution, and old schemas/renderers remain unchanged.
 
 ### Step 2.3 — REPL, real-browser pixels and contract documentation
 

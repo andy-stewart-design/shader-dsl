@@ -74,6 +74,48 @@ describe("shared shader project loader", () => {
     });
   });
 
+  it("loads defining-file module constants and refreshes invalid helper edits", async () => {
+    await withProject(async (root) => {
+      await mkdir(join(root, "src"), { recursive: true });
+      const entry = join(root, "src/entry.shdr.ts");
+      const helper = join(root, "src/helper.shdr.ts");
+      const helperSource = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`;
+      await writeFile(
+        entry,
+        `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));
+`,
+      );
+      await writeFile(helper, helperSource);
+      const loaded = await loadShaderGraph({ entry, searchRoots: [root] });
+      const compiled = compileFragmentArtifact(loaded.input);
+      expect(compiled.ok).toBe(true);
+      if (compiled.ok) {
+        expect(compiled.artifact.glsl).toContain("0.5");
+        expect(compiled.artifact.glsl).not.toContain("SCALE");
+      }
+      expect([...loaded.input.files.keys()]).toContain(await realpath(helper));
+
+      await writeFile(
+        helper,
+        helperSource.replace("const SCALE = 0.5;", "const SCALE = hostScale;"),
+      );
+      const edited = await loadShaderGraph({ entry, searchRoots: [root] });
+      const diagnostics = checkShaderGraph(edited.input);
+      expect(diagnostics.ok).toBe(false);
+      if (!diagnostics.ok)
+        expect(diagnostics.diagnostics[0]).toMatchObject({
+          code: "SHDR1108",
+          fileName: await realpath(helper),
+        });
+    });
+  });
+
   it("canonicalizes symlinked alias targets for the core graph", async () => {
     await withProject(async (root) => {
       const realLibrary = join(root, "library");
