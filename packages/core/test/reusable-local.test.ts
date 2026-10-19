@@ -7,7 +7,7 @@ import { ShaderDiagnosticCode } from "../src/diagnostics.js";
 const imports = `import { createFragmentShader, defineShaderFunction, defineUniforms, vec2, vec3, vec4, fract, sqrt, exp, clamp, pow, smoothstep, step } from "shdr";
 import type { Expr, F32, Vec2, Vec3, Vec4 } from "shdr";`;
 function source(helpers: string, expression: string, extra = ""): string {
-  return `${imports}\n${extra}\n${helpers}\nexport default createFragmentShader(({ coord, uniforms }) => ${expression});`;
+  return `${imports}\n${extra || "const hostScale = getScale();"}\n${helpers}\nexport default createFragmentShader(({ coord, uniforms }) => ${expression});`;
 }
 function compile(text: string) {
   const result = compileFragmentArtifact(text);
@@ -280,10 +280,10 @@ const root = defineShaderFunction((x: Expr<F32>) => left(x) + right(x));`,
       ShaderDiagnosticCode.ClosureCapture,
     ],
     [
-      "const f = defineShaderFunction((x: Expr<F32>) => external);",
+      "const f = defineShaderFunction((x: Expr<F32>) => hostScale);",
       "vec4(f(1))",
-      "external",
-      ShaderDiagnosticCode.ClosureCapture,
+      "getScale()",
+      ShaderDiagnosticCode.UnsupportedCall,
     ],
     [
       "const f = defineShaderFunction((x: Expr<F32>) => x);",
@@ -324,13 +324,13 @@ const root = defineShaderFunction((x: Expr<F32>) => left(x) + right(x));`,
     [
       "const ordinary = (x: Expr<F32>) => x;",
       "vec4(ordinary(1))",
-      "ordinary(1)",
-      ShaderDiagnosticCode.UnsupportedCall,
+      "(x: Expr<F32>) => x",
+      ShaderDiagnosticCode.UnsupportedExpression,
     ],
   ])(
     "rejects invalid typed boundary or call at its authored span: %s",
     (helper, expression, token, code) => {
-      reject(source(helper, expression, "const external = 1;"), code, token);
+      reject(source(helper, expression), code, token);
     },
   );
 

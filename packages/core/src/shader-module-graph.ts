@@ -19,6 +19,7 @@ import {
   type ShaderDiagnostic,
   type ShaderGraphDiagnostic,
 } from "./diagnostics.js";
+import type { ModuleConstantDefinition } from "./parse-module-constants.js";
 import { lowerShaderBody, lowerShaderSyntax } from "./lower-shader-syntax.js";
 import { reachableShaderFunctions } from "./lower-shader-functions.js";
 import type { ShaderFunction, ShaderModule } from "./shader-ir.js";
@@ -74,6 +75,7 @@ interface GraphModule {
   readonly functions: readonly ShaderFunctionSyntax[];
   readonly exportedFunctions: ReadonlySet<string>;
   readonly shaderCallableNames: ReadonlySet<string>;
+  readonly moduleConstants: ReadonlyMap<string, ModuleConstantDefinition>;
   readonly uniformSchemas: ReadonlyMap<string, ParsedCustomUniforms>;
   readonly exportedUniforms: ReadonlySet<string>;
   readonly sourceImports: readonly ShaderSourceImportInfo[];
@@ -367,6 +369,7 @@ function lowerShaderGraphInternal(
     const body = lowerShaderBody(definition.syntax.body, parameterNames, [], {
       parameters,
       functions,
+      moduleConstants: definition.module.moduleConstants,
     });
     if (!body.ok) {
       diagnostics.push(
@@ -488,6 +491,7 @@ function lowerShaderGraphInternal(
     declarations,
     {
       functions: rootFunctions,
+      moduleConstants: root.moduleConstants,
       sampleCallables: new Set(
         root.fragment.shaderCallableImports
           .filter((item) => item.importedName === "sample")
@@ -540,6 +544,7 @@ function parseGraphModule(
         shaderCallableNames: new Set(
           parsed.info.shaderCallableImports.map((item) => item.localName),
         ),
+        moduleConstants: parsed.info.moduleConstants ?? new Map(),
         uniformSchemas: new Map(),
         exportedUniforms: new Set(),
         sourceImports: parsed.info.sourceImports,
@@ -632,6 +637,7 @@ function parseGraphDependencyModule(
         item.specifiers.map((specifier) => specifier.localName),
       ),
     ]),
+    source,
   );
   if (helpers.diagnostics.length)
     return graphFailure(
@@ -645,6 +651,7 @@ function parseGraphDependencyModule(
       functions: helpers.functions,
       exportedFunctions: exportedFunctionNames(file.file, helpers.functions),
       shaderCallableNames: shdrCallables,
+      moduleConstants: helpers.moduleConstants ?? new Map(),
       uniformSchemas: schemas.value,
       exportedUniforms: exportedUniformNames(file.file, schemas.value),
       sourceImports,

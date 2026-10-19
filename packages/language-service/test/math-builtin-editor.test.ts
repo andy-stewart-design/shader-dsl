@@ -278,7 +278,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
         token: "banana",
       },
       {
-        text: `const captured = 1;\n${source("sin(captured)")}`,
+        text: `let captured = 1;\n${source("sin(captured)")}`,
         code: ShaderDiagnosticCode.ClosureCapture,
         token: "captured)",
       },

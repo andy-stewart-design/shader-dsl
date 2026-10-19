@@ -173,13 +173,8 @@ function identityMapping(
 describe("module constant feasibility characterization", () => {
   it("confirms current capture behavior and a bounded scalar/vector virtual bridge", () => {
     const current = createVirtualSource(source, fileName);
-    expect(current.ok).toBe(false);
-    if (current.ok) return;
-    expect(current.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: ShaderDiagnosticCode.ClosureCapture }),
-      ]),
-    );
+    expect(current.ok, JSON.stringify(current)).toBe(true);
+    if (!current.ok) return;
 
     const checker = new TypeScript7CheckerAdapter({
       cwd: projectDirectory,
@@ -235,13 +230,8 @@ describe("module constant feasibility characterization", () => {
 
   it("applies the same bounded bridge to helper-only virtual regions", () => {
     const current = createVirtualSource(helperSource, helperFileName);
-    expect(current.ok).toBe(false);
-    if (current.ok) return;
-    expect(current.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: ShaderDiagnosticCode.ClosureCapture }),
-      ]),
-    );
+    expect(current.ok, JSON.stringify(current)).toBe(true);
+    if (!current.ok) return;
 
     const checker = new TypeScript7CheckerAdapter({
       cwd: projectDirectory,
@@ -270,13 +260,17 @@ describe("module constant feasibility characterization", () => {
   });
 
   it("keeps graph ownership in the defining file and has no constant import kind", () => {
+    const invalidHelper = helperSource.replace(
+      "const SCALE = 0.5;",
+      "const SCALE = hostScale;",
+    );
     const graph = checkShaderGraph({
       entry: "/work/entry.shdr.ts",
       files: {
         "/work/entry.shdr.ts": `import { createFragmentShader, vec4 } from "shdr";
 import { scale } from "./helper.shdr.ts";
 export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));`,
-        "/work/helper.shdr.ts": helperSource,
+        "/work/helper.shdr.ts": invalidHelper,
       },
     });
     expect(graph.ok).toBe(false);
@@ -286,7 +280,7 @@ export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time),
         fileName: "/work/helper.shdr.ts",
       });
       expect(graph.diagnostics[0]?.range.start).toBe(
-        helperSource.indexOf("SCALE", helperSource.indexOf("=>")),
+        invalidHelper.indexOf("hostScale"),
       );
     }
 

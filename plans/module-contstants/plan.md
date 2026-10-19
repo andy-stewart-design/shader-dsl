@@ -101,17 +101,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Resolve only eligible same-file module names **after** shader-local/parameter names; preserve local forward-reference checks and reject other outer values as captures. Do not widen unrelated expression syntax.
-- [ ] Lower f32 scalar/vector constants through target-neutral IR without reassociation or host-JS evaluation; preserve scalar rounding, signed-zero and overflow policy and safe emitted names. If using shader globals instead of inlining, verify no binding or artifact-schema changes.
-- [ ] Keep invalid/unknown captures source-located, prohibit module constants in literal-only uniform defaults, and ensure failure yields no candidate artifact.
-- [ ] Check generated GLSL shader compilation/link and WGSL module/pipeline validation in real targets for fragment-only constants, plus negative and old-artifact parity tests. No sampled/rendered-pixel claim yet.
+- [x] Resolve only eligible same-file module names **after** shader-local/parameter names; preserve local forward-reference checks and reject other outer values as captures. Do not widen unrelated expression syntax.
+- [x] Lower f32 scalar/vector constants through target-neutral IR without reassociation or host-JS evaluation; preserve scalar rounding, signed-zero and overflow policy and safe emitted names. If using shader globals instead of inlining, verify no binding or artifact-schema changes.
+- [x] Keep invalid/unknown captures source-located, prohibit module constants in literal-only uniform defaults, and ensure failure yields no candidate artifact.
+- [x] Check generated GLSL shader compilation/link and WGSL module/pipeline validation in real targets for fragment-only constants, plus negative and old-artifact parity tests. No sampled/rendered-pixel claim yet.
 
 Verification:
 
 - Automated: focused **proposed** core `test/module-constants.test.ts`, `pnpm --filter @shdr/core check` and `pnpm --filter @shdr/core test`; assert typed IR, both generated targets, unchanged JSON/default/resource metadata, and existing capture failures. Target tests prove compilation, not rendered behavior.
 - Manual: Not needed for fragment-only target checks; real browser pixels are required at Step 2.3.
 
-- [ ] **Completion gate:** Fragment constants compile and negative captures fail at authored ranges with unchanged old artifacts; helper/project/editor acceptance remains pending under the atomic 1.2–2.3 group.
+- [x] **Completion gate:** Fragment constants compile and negative captures fail at authored ranges with unchanged old artifacts; helper/project/editor acceptance remains pending under the atomic 1.2–2.3 group.
 
 ### Step 1.3 — Helper and multi-file graph ownership
 

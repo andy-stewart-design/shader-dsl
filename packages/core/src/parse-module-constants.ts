@@ -1,6 +1,8 @@
 import { parse, type ParseError } from "@babel/parser";
 import type {
+  ArrowFunctionExpression,
   CallExpression,
+  Expression,
   File,
   Identifier,
   ImportDeclaration,
@@ -57,6 +59,114 @@ export interface ModuleConstantDefinition {
 export interface ModuleConstantReference {
   readonly name: string;
   readonly range: TextRange;
+}
+
+/** Returns eligible-name candidates without validating their initializers. */
+export function collectTopLevelModuleConstantNames(
+  file: File,
+): ReadonlySet<string> {
+  return new Set(collectDefinitions(file).keys());
+}
+
+/** Collects only candidate module names from shader expression regions. */
+export function collectModuleConstantReferences(
+  callback: ArrowFunctionExpression,
+  candidateNames: ReadonlySet<string>,
+  boundNames: ReadonlySet<string>,
+): readonly ModuleConstantReference[] {
+  const references: ModuleConstantReference[] = [];
+  const seen = new Set<string>();
+  const add = (node: Identifier): void => {
+    if (!candidateNames.has(node.name) || boundNames.has(node.name)) return;
+    const range = rangeOf(node);
+    const key = `${node.name}:${range.start}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    references.push({ name: node.name, range });
+  };
+  const visit = (node: Expression): void => {
+    switch (node.type) {
+      case "Identifier":
+        add(node);
+        return;
+      case "ParenthesizedExpression":
+        visit(node.expression);
+        return;
+      case "BinaryExpression":
+        visit(node.left as Expression);
+        visit(node.right as Expression);
+        return;
+      case "UnaryExpression":
+        visit(node.argument);
+        return;
+      case "CallExpression":
+        if (node.callee.type === "Identifier") add(node.callee);
+        else if (
+          node.callee.type === "MemberExpression" &&
+          node.callee.object.type !== "Super"
+        )
+          visit(node.callee.object as Expression);
+        for (const argument of node.arguments) {
+          if (
+            argument.type !== "SpreadElement" &&
+            argument.type !== "ArgumentPlaceholder"
+          )
+            visit(argument);
+        }
+        return;
+      case "MemberExpression":
+        if (node.object.type !== "Super") visit(node.object as Expression);
+        return;
+      default:
+        return;
+    }
+  };
+
+  const visitStatement = (statement: Node): void => {
+    if (statement.type === "VariableDeclaration") {
+      for (const declaration of statement.declarations) {
+        if (declaration.init) visit(declaration.init);
+      }
+    } else if (statement.type === "ReturnStatement" && statement.argument) {
+      visit(statement.argument);
+    }
+  };
+
+  if (callback.body.type === "BlockStatement") {
+    for (const statement of callback.body.body) visitStatement(statement);
+  } else {
+    visit(callback.body);
+  }
+  return references;
+}
+
+/** Collects callback parameters and shader-local declaration names. */
+export function collectShaderLocalNames(
+  callback: ArrowFunctionExpression,
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const parameter of callback.params) {
+    if (parameter.type === "Identifier") names.add(parameter.name);
+    else if (parameter.type === "ObjectPattern") {
+      for (const property of parameter.properties) {
+        if (
+          property.type === "ObjectProperty" &&
+          property.key.type === "Identifier"
+        )
+          names.add(property.key.name);
+      }
+    }
+  }
+  if (callback.body.type === "BlockStatement") {
+    for (const statement of callback.body.body) {
+      if (statement.type !== "VariableDeclaration") continue;
+      for (const declaration of statement.declarations) {
+        if (declaration.id.type === "Identifier")
+          names.add(declaration.id.name);
+      }
+    }
+  }
+  return names;
 }
 
 export interface ParseModuleConstantsOptions {
@@ -480,7 +590,7 @@ function collectDefinitions(
     const declaration = unwrapVariableDeclaration(statement);
     if (!declaration || declaration.kind !== "const") continue;
     for (const item of declaration.declarations) {
-      if (item.id.type !== "Identifier") continue;
+      if (item.id.type !== "Identifier" || isMarkerDeclaration(item)) continue;
       const constant: TopLevelConstant = {
         name: item.id.name,
         nameRange: rangeOf(item.id),
@@ -496,6 +606,15 @@ function collectDefinitions(
     }
   }
   return definitions;
+}
+
+function isMarkerDeclaration(item: VariableDeclarator): boolean {
+  return (
+    item.init?.type === "CallExpression" &&
+    item.init.callee.type === "Identifier" &&
+    (item.init.callee.name === "defineShaderFunction" ||
+      item.init.callee.name === "defineUniforms")
+  );
 }
 
 function collectBindings(

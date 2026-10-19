@@ -1,4 +1,5 @@
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import type { ModuleConstantDefinition } from "./parse-module-constants.js";
 import { lowerShaderBody } from "./lower-shader-syntax.js";
 import type {
   ShaderFunction,
@@ -16,6 +17,7 @@ import { sameShaderValueType } from "./shader-type.js";
 export function lowerShaderFunctions(
   definitions: readonly ShaderFunctionSyntax[],
   importedCallables: ReadonlySet<string>,
+  moduleConstants: ReadonlyMap<string, ModuleConstantDefinition> = new Map(),
 ):
   | {
       readonly ok: true;
@@ -68,6 +70,7 @@ export function lowerShaderFunctions(
     const result = lowerShaderBody(definition.body, callableNames, [], {
       parameters,
       functions,
+      moduleConstants,
     });
     if (!result.ok) {
       error = result.diagnostics[0]!;

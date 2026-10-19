@@ -13,6 +13,9 @@ export {
   type CreateVirtualSourceSuccess,
 } from "./create-virtual-source.js";
 export {
+  collectModuleConstantReferences,
+  collectShaderLocalNames,
+  collectTopLevelModuleConstantNames,
   parseModuleConstants,
   type ModuleConstantDefinition,
   type ModuleConstantInitializer,

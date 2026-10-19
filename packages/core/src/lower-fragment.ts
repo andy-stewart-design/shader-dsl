@@ -44,6 +44,7 @@ export function lowerParsedFragment(
   const helpers = lowerShaderFunctions(
     parsed.info.functions ?? [],
     importedCallables,
+    parsed.info.moduleConstants,
   );
   if (!helpers.ok) return helpers;
   const declarations = parsed.info.customUniforms?.declarations ?? [];
@@ -56,6 +57,7 @@ export function lowerParsedFragment(
     declarations,
     {
       functions: helpers.functions,
+      moduleConstants: parsed.info.moduleConstants,
       sampleCallables: new Set(
         parsed.info.shaderCallableImports
           .filter((item) => item.importedName === "sample")

@@ -13,6 +13,7 @@ export function validateShaderSyntax(
   callback: ArrowFunctionExpression,
   calleeNames: ReadonlySet<string>,
   helperParameters?: ReadonlySet<string>,
+  allowedOuterNames: ReadonlySet<string> = new Set(),
 ): readonly ShaderDiagnostic[] {
   const annotation =
     callback.typeParameters ??
@@ -40,7 +41,12 @@ export function validateShaderSyntax(
           : []),
   );
   if (callback.body.type !== "BlockStatement") {
-    const issue = validateExpression(callback.body, localNames, calleeNames);
+    const issue = validateExpression(
+      callback.body,
+      localNames,
+      calleeNames,
+      allowedOuterNames,
+    );
     return issue ? [issue] : [];
   }
 
@@ -107,6 +113,7 @@ export function validateShaderSyntax(
         statement,
         localNames,
         calleeNames,
+        allowedOuterNames,
       );
       if (declarationDiagnostic) return [declarationDiagnostic];
       continue;
@@ -145,6 +152,7 @@ export function validateShaderSyntax(
     returnStatement.argument,
     localNames,
     calleeNames,
+    allowedOuterNames,
   );
 
   return expressionDiagnostic ? [expressionDiagnostic] : [];
@@ -154,6 +162,7 @@ function validateVariableDeclaration(
   declaration: VariableDeclaration,
   localNames: ReadonlySet<string>,
   calleeNames: ReadonlySet<string>,
+  allowedOuterNames: ReadonlySet<string>,
 ): ShaderDiagnostic | undefined {
   if (declaration.kind !== "const") {
     return diagnostic(
@@ -192,20 +201,30 @@ function validateVariableDeclaration(
     );
   }
 
-  return validateExpression(declarator.init, localNames, calleeNames);
+  return validateExpression(
+    declarator.init,
+    localNames,
+    calleeNames,
+    allowedOuterNames,
+  );
 }
 
 function validateExpression(
   expression: Expression,
   localNames: ReadonlySet<string>,
   calleeNames: ReadonlySet<string>,
+  allowedOuterNames: ReadonlySet<string>,
 ): ShaderDiagnostic | undefined {
   switch (expression.type) {
     case "NumericLiteral":
       return undefined;
 
     case "Identifier":
-      if (localNames.has(expression.name)) return undefined;
+      if (
+        localNames.has(expression.name) ||
+        allowedOuterNames.has(expression.name)
+      )
+        return undefined;
       return diagnostic(
         ShaderDiagnosticCode.ClosureCapture,
         `Shader expressions cannot capture the outer identifier ${JSON.stringify(expression.name)}.`,
@@ -213,7 +232,12 @@ function validateExpression(
       );
 
     case "ParenthesizedExpression":
-      return validateExpression(expression.expression, localNames, calleeNames);
+      return validateExpression(
+        expression.expression,
+        localNames,
+        calleeNames,
+        allowedOuterNames,
+      );
 
     case "BinaryExpression":
       if (
@@ -229,8 +253,18 @@ function validateExpression(
         );
       }
       return (
-        validateExpression(expression.left, localNames, calleeNames) ??
-        validateExpression(expression.right, localNames, calleeNames)
+        validateExpression(
+          expression.left,
+          localNames,
+          calleeNames,
+          allowedOuterNames,
+        ) ??
+        validateExpression(
+          expression.right,
+          localNames,
+          calleeNames,
+          allowedOuterNames,
+        )
       );
 
     case "CallExpression": {
@@ -265,6 +299,7 @@ function validateExpression(
           argument,
           localNames,
           calleeNames,
+          allowedOuterNames,
         );
         if (argumentDiagnostic) return argumentDiagnostic;
       }
@@ -286,7 +321,12 @@ function validateExpression(
           expression,
         );
       }
-      return validateExpression(expression.object, localNames, calleeNames);
+      return validateExpression(
+        expression.object,
+        localNames,
+        calleeNames,
+        allowedOuterNames,
+      );
 
     case "OptionalMemberExpression":
     case "OptionalCallExpression":
@@ -301,7 +341,12 @@ function validateExpression(
 
     case "UnaryExpression":
       if (expression.operator === "-") {
-        return validateExpression(expression.argument, localNames, calleeNames);
+        return validateExpression(
+          expression.argument,
+          localNames,
+          calleeNames,
+          allowedOuterNames,
+        );
       }
       return diagnostic(
         ShaderDiagnosticCode.UnsupportedOperator,
