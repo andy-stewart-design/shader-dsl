@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing spec: [spec.md](spec.md). The user agreed to earlier same-file scalar/vector constants with literals, supported `vec2/3/4` constructors, and aliases; **no module-initializer arithmetic**.
-- Delivery state: **Planning only.** All boxes below are pending; no implementation or verification has been performed for this plan. A completed plan is not publication approval.
+- Delivery state: **Phase 1 complete; Phase 2 pending.** A completed phase is not publication approval.
 - Blocker at the Phase 0 gate: if the TypeScript 7 virtual-source path cannot give `const R = 0.1` a shader-only `Expr<F32>` interpretation without changing ordinary TypeScript or losing authored ranges, stop for contract review instead of shipping compiler-only support.
 
 **Checklist policy:** Update `plan.md` by checking tasks, step completion gates, and phase exit gates only. A task is not a passed gate; a phase cannot advance until its exit gate passes. Keep command results, environments, failures, deviations, and approvals in separate `plans/module-contstants/evidence/` notes **when needed**, not in this checklist. Leave a blocked gate unchecked. Change the plan text only for material scope/direction changes; do not add progress reports or a duplicate status table.

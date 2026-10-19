@@ -131,19 +131,33 @@ void main() {
             code: string,
           ) => {
             const shader = gl.createShader(type);
-            if (!shader) return false;
+            if (!shader) return null;
             gl.shaderSource(shader, code);
             gl.compileShader(shader);
-            const ok = gl.getShaderParameter(
-              shader,
-              gl.COMPILE_STATUS,
-            ) as boolean;
-            gl.deleteShader(shader);
-            return ok;
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+              gl.deleteShader(shader);
+              return null;
+            }
+            return shader;
           };
-          const webgl =
-            compile(gl.VERTEX_SHADER, vertexSource) &&
-            compile(gl.FRAGMENT_SHADER, glslSource);
+          const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+          const fragment = compile(gl.FRAGMENT_SHADER, glslSource);
+          let webgl = false;
+          if (vertex && fragment) {
+            const program = gl.createProgram();
+            if (program) {
+              gl.attachShader(program, vertex);
+              gl.attachShader(program, fragment);
+              gl.linkProgram(program);
+              webgl = gl.getProgramParameter(
+                program,
+                gl.LINK_STATUS,
+              ) as boolean;
+              gl.deleteProgram(program);
+            }
+          }
+          if (vertex) gl.deleteShader(vertex);
+          if (fragment) gl.deleteShader(fragment);
 
           let webgpu = false;
           if ("gpu" in navigator) {
