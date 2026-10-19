@@ -1,6 +1,6 @@
 import { createFragmentShader, vec4 } from "shdr";
 
-const scale = 2;
+const scale = computeScale();
 
 export default createFragmentShader(({ coord, uniforms }) => {
   const value = uniforms.time / scale;

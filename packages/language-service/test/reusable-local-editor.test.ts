@@ -319,7 +319,7 @@ const f = defineShaderFunction((x: Expr<F32>) => root(x) + one());`,
     {
       helpers:
         "const f = defineShaderFunction((x: Expr<F32>) => x + captured);",
-      extra: "const captured = 1;",
+      extra: "let captured = 1;",
       code: ShaderDiagnosticCode.ClosureCapture,
       token: "captured",
       from: "x +",
@@ -366,7 +366,7 @@ const f = defineShaderFunction((x: Expr<F32>) => root(x) + one());`,
     },
     {
       helpers: "const f = defineShaderFunction((x: Expr<F32>) => ordinary(x));",
-      extra: "const ordinary = (x: unknown) => x;",
+      extra: "let ordinary = (x: unknown) => x;",
       code: ShaderDiagnosticCode.UnsupportedCall,
       token: "ordinary(x)",
     },

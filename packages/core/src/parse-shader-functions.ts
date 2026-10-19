@@ -6,9 +6,18 @@ import {
   type TSType,
 } from "@babel/types";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import {
+  collectModuleConstantReferences,
+  collectShaderLocalNames,
+  collectTopLevelModuleConstantNames,
+  collectTopLevelModuleConstantRanges,
+  parseModuleConstants,
+  type ModuleConstantDefinition,
+} from "./parse-module-constants.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
 import type { ShaderFunctionSyntax } from "./shader-syntax.js";
 import type { ShaderValueType } from "./shader-type.js";
+import type { TextRange } from "./source-range.js";
 import { validateShaderSyntax } from "./validate-shader-syntax.js";
 
 export const SHADER_TYPE_IMPORTS = new Set([
@@ -28,9 +37,12 @@ export function parseShaderFunctions(
   markerImported: boolean,
   typeImports: ReadonlySet<string>,
   importedCallables: ReadonlySet<string>,
+  source?: string,
 ): {
   readonly functions: readonly ShaderFunctionSyntax[];
   readonly diagnostics: readonly ShaderDiagnostic[];
+  readonly moduleConstants?: ReadonlyMap<string, ModuleConstantDefinition>;
+  readonly moduleConstantRegions?: readonly TextRange[];
 } {
   // A spelling alone is not a shader boundary: preserve unrelated host code.
   if (!markerImported) return { functions: [], diagnostics: [] };
@@ -172,13 +184,46 @@ export function parseShaderFunctions(
     ...importedCallables,
     ...callbacks.map(({ syntax }) => syntax.name),
   ]);
+  let moduleConstants: ReadonlyMap<string, ModuleConstantDefinition> =
+    new Map();
+  if (source !== undefined) {
+    const candidateNames = collectTopLevelModuleConstantNames(file);
+    const references = callbacks.flatMap(({ callback }) =>
+      collectModuleConstantReferences(
+        callback,
+        candidateNames,
+        collectShaderLocalNames(callback),
+      ),
+    );
+    const parsedConstants = parseModuleConstants(source, references);
+    if (!parsedConstants.ok) {
+      return {
+        functions: [],
+        diagnostics: parsedConstants.diagnostics,
+        moduleConstantRegions: collectTopLevelModuleConstantRanges(
+          file,
+          new Set([
+            ...references.map((reference) => reference.name),
+            ...(parsedConstants.moduleConstantNames ?? []),
+          ]),
+        ),
+      };
+    }
+    moduleConstants = parsedConstants.constants;
+  }
+  const allowedOuterNames = new Set(moduleConstants.keys());
   for (const { syntax, callback } of callbacks) {
     const names = new Set(syntax.parameters.map((parameter) => parameter.name));
     if (syntax.parameters.some((parameter) => callees.has(parameter.name))) {
       invalid("Helper parameters cannot shadow shader callables.", callback);
       continue;
     }
-    const errors = validateShaderSyntax(callback, callees, names);
+    const errors = validateShaderSyntax(
+      callback,
+      callees,
+      names,
+      allowedOuterNames,
+    );
     if (errors.length) {
       diagnostics.push(...errors);
       continue;
@@ -188,7 +233,7 @@ export function parseShaderFunctions(
       body: { ...normalizeShaderSyntax(callback), contextBindings: [] },
     });
   }
-  return { functions, diagnostics };
+  return { functions, diagnostics, moduleConstants };
 }
 
 function parseExpressionType(

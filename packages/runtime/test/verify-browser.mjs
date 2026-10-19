@@ -25,6 +25,30 @@ const time = shader("return vec4(uniforms.time, 0, 0, 1);");
 const vectorArithmetic = shader(
   "const rgb = vec3(vec2(0.2, 0.4), 0.6); return vec4((1 - rgb + 0.1).bgr, 1);",
 );
+const importedModuleConstants = compileFragmentArtifact({
+  entry: "/work/entry.shdr.ts",
+  files: {
+    "/work/entry.shdr.ts": `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ coord }) =>
+  vec4(scale(coord.x / 20), coord.y / 16, 0, 1),
+);
+`,
+    "/work/helper.shdr.ts": `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`,
+  },
+});
+assert.equal(
+  importedModuleConstants.ok,
+  true,
+  JSON.stringify(importedModuleConstants.diagnostics),
+);
+const moduleConstantsArtifact = importedModuleConstants.ok
+  ? importedModuleConstants.artifact
+  : undefined;
 const server = await createServer({
   root,
   configFile: false,
@@ -144,6 +168,53 @@ try {
       );
     }
   }
+
+  await page.evaluate(async (artifact) => {
+    for (const canvas of [
+      document.querySelector("#gl"),
+      document.querySelector("#gpu"),
+    ]) {
+      canvas.style.width = "10px";
+      canvas.style.height = "8px";
+    }
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+  }, moduleConstantsArtifact);
+  const moduleCenterGl = await pixelAt(page, "gl", 10, 8);
+  const moduleCenterGpu = await pixelAt(page, "gpu", 10, 8);
+  const moduleLeftGl = await pixelAt(page, "gl", 0, 8);
+  const moduleLeftGpu = await pixelAt(page, "gpu", 0, 8);
+  for (const [name, actual] of [
+    ["module WebGL center", moduleCenterGl],
+    ["module WebGPU center", moduleCenterGpu],
+  ]) {
+    assertChannel(name + " red", actual[0], 64, 6);
+    assertChannel(name + " green", actual[1], 136, 4);
+    assertChannel(name + " blue", actual[2], 0, 2);
+  }
+  for (const [name, actual] of [
+    ["module WebGL left", moduleLeftGl],
+    ["module WebGPU left", moduleLeftGpu],
+  ]) {
+    assertChannel(name + " red", actual[0], 3, 4);
+    assertChannel(name + " green", actual[1], 136, 4);
+    assertChannel(name + " blue", actual[2], 0, 2);
+  }
+  assert.deepEqual(moduleCenterGl, moduleCenterGpu);
+  assert.deepEqual(moduleLeftGl, moduleLeftGpu);
+  await page.evaluate(async () => {
+    for (const canvas of [
+      document.querySelector("#gl"),
+      document.querySelector("#gpu"),
+    ]) {
+      canvas.style.width = "8px";
+      canvas.style.height = "8px";
+    }
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+  });
 
   const bindings = await page.evaluate(
     async ({ coord, defaults, time }) => {
@@ -501,19 +572,41 @@ try {
   await server.close();
 }
 
+function assertChannel(label, actual, expected, tolerance) {
+  assert.ok(
+    Math.abs(actual - expected) <= tolerance,
+    `${label}: ${actual}, expected ${expected} ± ${tolerance}`,
+  );
+}
+
 async function pixel(page, id) {
+  return pixelAt(page, id, 0, 0);
+}
+
+async function pixelAt(page, id, x, y) {
   if (id === "gl")
-    return page.evaluate(() => {
-      const canvas = document.querySelector("#gl"),
-        gl = canvas.getContext("webgl2");
-      const value = new Uint8Array(4);
-      gl.finish();
-      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
-      return [...value];
-    });
+    return page.evaluate(
+      ({ x, y }) => {
+        const canvas = document.querySelector("#gl"),
+          gl = canvas.getContext("webgl2");
+        const value = new Uint8Array(4);
+        gl.finish();
+        gl.readPixels(
+          x,
+          canvas.height - 1 - y,
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          value,
+        );
+        return [...value];
+      },
+      { x, y },
+    );
   const bytes = await page.locator(`#${id}`).screenshot();
   return page.evaluate(
-    async (png) => {
+    async ({ png, x, y }) => {
       const image = await createImageBitmap(
         new Blob([new Uint8Array(png)], { type: "image/png" }),
       );
@@ -522,9 +615,9 @@ async function pixel(page, id) {
       canvas.height = image.height;
       const context = canvas.getContext("2d");
       context.drawImage(image, 0, 0);
-      return [...context.getImageData(0, 0, 1, 1).data];
+      return [...context.getImageData(x, y, 1, 1).data];
     },
-    [...bytes],
+    { png: [...bytes], x, y },
   );
 }
 async function auditBundles() {

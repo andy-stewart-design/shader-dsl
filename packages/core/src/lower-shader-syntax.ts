@@ -26,6 +26,10 @@ import type {
   ShaderTextureDeclaration,
 } from "shdr";
 import type {
+  ModuleConstantDefinition,
+  ModuleConstantInitializer,
+} from "./parse-module-constants.js";
+import type {
   ShaderBinaryExpressionSyntax,
   ShaderCallbackSyntax,
   ShaderCallExpressionSyntax,
@@ -112,6 +116,7 @@ interface LoweringContext {
   readonly contextName?: string;
   readonly importedCallables: ReadonlySet<string>;
   readonly functions: ReadonlyMap<string, ShaderFunction>;
+  readonly moduleConstants: ReadonlyMap<string, ModuleConstantDefinition>;
 }
 
 type LowerExpressionResult =
@@ -121,6 +126,7 @@ type LowerExpressionResult =
 export interface LowerShaderSyntaxOptions {
   readonly functions?: ReadonlyMap<string, ShaderFunction>;
   readonly sampleCallables?: ReadonlySet<string>;
+  readonly moduleConstants?: ReadonlyMap<string, ModuleConstantDefinition>;
 }
 
 interface LowerShaderBodyOptions extends LowerShaderSyntaxOptions {
@@ -239,6 +245,7 @@ export function lowerShaderBody(
       importedCallables,
       functions,
       sampleCallables: options.sampleCallables ?? new Set(),
+      moduleConstants: options.moduleConstants ?? new Map(),
     });
     if (!initializer.ok) return failure(initializer.diagnostic);
 
@@ -284,6 +291,7 @@ export function lowerShaderBody(
     importedCallables,
     functions,
     sampleCallables: options.sampleCallables ?? new Set(),
+    moduleConstants: options.moduleConstants ?? new Map(),
   });
   if (!returned.ok) return failure(returned.diagnostic);
   return {
@@ -376,6 +384,11 @@ function lowerExpression(
         );
       }
 
+      const moduleConstant = context.moduleConstants.get(syntax.name);
+      if (moduleConstant) {
+        return lowerModuleConstant(moduleConstant, context, new Set());
+      }
+
       return expressionFailure(
         ShaderDiagnosticCode.UnknownIdentifier,
         `Unknown shader identifier ${JSON.stringify(syntax.name)}; shader callbacks cannot capture outer values.`,
@@ -455,6 +468,94 @@ function lowerExpression(
     default:
       return assertNever(syntax);
   }
+}
+
+function lowerModuleConstant(
+  definition: ModuleConstantDefinition,
+  context: LoweringContext,
+  active: Set<string>,
+): LowerExpressionResult {
+  if (active.has(definition.name)) {
+    return expressionFailure(
+      ShaderDiagnosticCode.ForwardReference,
+      `Module constant ${JSON.stringify(definition.name)} cannot reference itself or a cyclic alias.`,
+      definition.nameRange,
+    );
+  }
+  active.add(definition.name);
+  const result = lowerModuleConstantInitializer(
+    definition.initializer,
+    context,
+    active,
+  );
+  active.delete(definition.name);
+  return result;
+}
+
+function lowerModuleConstantInitializer(
+  initializer: ModuleConstantInitializer,
+  context: LoweringContext,
+  active: Set<string>,
+): LowerExpressionResult {
+  switch (initializer.kind) {
+    case "literal":
+      return {
+        ok: true,
+        expression: {
+          kind: "numeric-literal",
+          value: initializer.value,
+          type: F32_TYPE,
+          range: initializer.range,
+        },
+      };
+    case "reference": {
+      const definition = context.moduleConstants.get(initializer.name);
+      if (!definition) {
+        return expressionFailure(
+          ShaderDiagnosticCode.UnknownIdentifier,
+          `Unknown module constant ${JSON.stringify(initializer.name)}.`,
+          initializer.range,
+        );
+      }
+      return lowerModuleConstant(definition, context, active);
+    }
+    case "constructor": {
+      const arguments_: ShaderExpression[] = [];
+      for (const argument of initializer.arguments) {
+        const lowered = lowerModuleConstantInitializer(
+          argument,
+          context,
+          active,
+        );
+        if (!lowered.ok) return lowered;
+        arguments_.push(lowered.expression);
+      }
+      return {
+        ok: true,
+        expression: {
+          kind: "call",
+          target: { kind: "constructor", name: initializer.name },
+          arguments: arguments_,
+          type: moduleConstantShaderType(initializer.type),
+          range: initializer.range,
+        },
+      };
+    }
+    default:
+      return assertNever(initializer);
+  }
+}
+
+function moduleConstantShaderType(
+  type: ModuleConstantInitializer["type"],
+): ShaderValueType {
+  return type.kind === "scalar"
+    ? F32_TYPE
+    : type.size === 2
+      ? VEC2_F32_TYPE
+      : type.size === 3
+        ? VEC3_F32_TYPE
+        : VEC4_F32_TYPE;
 }
 
 function lowerCallExpression(

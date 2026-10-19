@@ -65,9 +65,9 @@ const invalidSyntaxCases: readonly InvalidSyntaxCase[] = [
   },
   {
     fixture: "closure-capture",
-    code: ShaderDiagnosticCode.ClosureCapture,
-    messageCategory: "capture",
-    rangeText: "scale",
+    code: ShaderDiagnosticCode.UnsupportedCall,
+    messageCategory: "Module constant initializers",
+    rangeText: "computeScale()",
   },
   {
     fixture: "type-annotation",

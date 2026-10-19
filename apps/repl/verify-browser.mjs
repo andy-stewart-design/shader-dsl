@@ -694,6 +694,89 @@ export default createFragmentShader(({ coord, uniforms }) => {
     }
   }
 
+  const moduleConstantsSource = `import { createFragmentShader, defineShaderFunction, vec2, vec4 } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+const CENTER = vec2(0.5, 0.25);
+const scale = defineShaderFunction((value: Expr<F32>) => value * SCALE);
+export default createFragmentShader(() => vec4(scale(0.25), CENTER.x, CENTER.y, 1));
+`;
+  await compileSource(page, editor, moduleConstantsSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await assertBindings(page, "glsl-es-300", "");
+  await assertBindings(page, "wgsl", "");
+  const moduleConstantsGlPixel = await readCenterPixel(page);
+  assertChannel("module constant WebGL red", moduleConstantsGlPixel[0], 32, 3);
+  assertChannel(
+    "module constant WebGL green",
+    moduleConstantsGlPixel[1],
+    128,
+    3,
+  );
+  assertChannel("module constant WebGL blue", moduleConstantsGlPixel[2], 64, 3);
+  const moduleConstantsGpuPixel = (
+    await readWebGpuPixels(page, [[0.5, 0.5]])
+  )[0];
+  assertChannel(
+    "module constant WebGPU red",
+    moduleConstantsGpuPixel[0],
+    32,
+    3,
+  );
+  assertChannel(
+    "module constant WebGPU green",
+    moduleConstantsGpuPixel[1],
+    128,
+    3,
+  );
+  assertChannel(
+    "module constant WebGPU blue",
+    moduleConstantsGpuPixel[2],
+    64,
+    3,
+  );
+  await assertPixelParity(
+    page,
+    "module constants",
+    [
+      [0.5, 0.5],
+      [0.25, 0.75],
+    ],
+    3,
+  );
+
+  const importedConstantSource = `import { createFragmentShader, vec4 } from "shdr";
+import { VALUE } from "./constants.shdr.ts";
+export default createFragmentShader(() => vec4(VALUE, 0, 0, 1));
+`;
+  await compileSource(page, editor, importedConstantSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1108|SHDR1300/);
+  assert.deepEqual(await readCenterPixel(page), moduleConstantsGlPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    moduleConstantsGpuPixel,
+  );
+
+  const invalidModuleConstantsSource = moduleConstantsSource.replace(
+    "const SCALE = 0.5;",
+    "const SCALE = 0.5 + 0.1;",
+  );
+  await compileSource(page, editor, invalidModuleConstantsSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1105/);
+  assert.deepEqual(await readCenterPixel(page), moduleConstantsGlPixel);
+  assert.deepEqual(
+    (await readWebGpuPixels(page, [[0.5, 0.5]]))[0],
+    moduleConstantsGpuPixel,
+  );
+  await compileSource(page, editor, moduleConstantsSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+
   for (const [name, callback, samples] of [
     ["no context", "() => vec4(0.25, 0.5, 0.75, 1)", [[0.25, 0.25]]],
     [

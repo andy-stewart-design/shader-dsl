@@ -456,6 +456,40 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const constantsUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "module-constants.shdr.ts",
+  );
+  const constants = await vscode.workspace.openTextDocument(constantsUri);
+  await vscode.window.showTextDocument(constants);
+  await waitForDiagnostics(
+    constantsUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(constants, "RADIUS =", /0\.1/);
+  await waitForHoverText(constants, "CENTER =", /Vec2<F32>/);
+  await waitForHoverText(constants, "RADIUS, 1", /Expr<F32>/);
+  await replaceText(
+    constants,
+    "const RADIUS = 0.1;",
+    "const RADIUS = hostRadius;",
+  );
+  const invalidConstantDiagnostics = await waitForDiagnostics(
+    constantsUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1108",
+  );
+  assert.equal(invalidConstantDiagnostics[0]?.source, "shdr");
+  await replaceText(
+    constants,
+    "const RADIUS = hostRadius;",
+    "const RADIUS = 0.1;",
+  );
+  await waitForDiagnostics(
+    constantsUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   // Removing the final helper marker must still invalidate callers, even
   // though the new mixed module no longer looks like a dependency.
   await replaceText(helper, "Expr<Vec2<F32>>", "Expr<F32>");

@@ -84,6 +84,77 @@ export default createFragmentShader(({ uniforms }) => vec4(gain(uniforms.time)))
     });
   });
 
+  it("checks module constants through helper edits and rejects constant imports/defaults", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { noEmit: true },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      const helper = join(cwd, "src/helper.shdr.ts");
+      const entry = join(cwd, "src/scene.shdr.ts");
+      const helperSource = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`;
+      const entrySource = `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));
+`;
+      await writeFile(helper, helperSource);
+      await writeFile(entry, entrySource);
+      const valid = invoke(cwd, "check");
+      expect(valid.status).toBe(0);
+      expect(valid.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+
+      await writeFile(
+        helper,
+        helperSource.replace("const SCALE = 0.5;", "const SCALE = hostScale;"),
+      );
+      const invalidHelper = invoke(cwd, "check");
+      expect(invalidHelper.status).toBe(1);
+      expect(invalidHelper.stdout).toMatch(/helper\.shdr\.ts:3:15: SHDR1108: /);
+      expect(invalidHelper.stdout).not.toMatch(/scene\.shdr\.ts:.*SHDR1108/);
+
+      await writeFile(helper, helperSource);
+      const restored = invoke(cwd, "check");
+      expect(restored.status).toBe(0);
+
+      await writeFile(
+        join(cwd, "src/constants.shdr.ts"),
+        "export const VALUE = 0.25;\n",
+      );
+      await writeFile(
+        entry,
+        `import { createFragmentShader, vec4 } from "shdr";
+import { VALUE } from "./constants.shdr.ts";
+export default createFragmentShader(() => vec4(VALUE, 0, 0, 1));
+`,
+      );
+      const imported = invoke(cwd, "check");
+      expect(imported.status).toBe(1);
+      expect(imported.stdout).toMatch(/scene\.shdr\.ts:3:.*SHDR1108: /);
+
+      await writeFile(
+        entry,
+        `import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const GAIN = 0.5;
+const uniforms = defineUniforms((u) => ({ gain: u.f32(GAIN) }));
+export default createFragmentShader(({ uniforms }) => vec4(uniforms.gain), { uniforms });
+`,
+      );
+      const invalidDefault = invoke(cwd, "check");
+      expect(invalidDefault.status).toBe(1);
+      expect(invalidDefault.stdout).toMatch(/scene\.shdr\.ts:3:.*SHDR1210: /);
+    });
+  });
+
   it("checks mixed-shape clamp/pow calls through local and imported entries", async () => {
     await withProject(async (cwd) => {
       await mkdir(join(cwd, "src/lib"), { recursive: true });

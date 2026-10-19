@@ -18,6 +18,14 @@ import {
   type ParsedCustomUniforms,
 } from "./parse-custom-uniforms.js";
 import { ShaderDiagnosticCode, type ShaderDiagnostic } from "./diagnostics.js";
+import {
+  collectModuleConstantReferences,
+  collectShaderLocalNames,
+  collectTopLevelModuleConstantNames,
+  collectTopLevelModuleConstantRanges,
+  parseModuleConstants,
+  type ModuleConstantDefinition,
+} from "./parse-module-constants.js";
 import { normalizeShaderSyntax } from "./normalize-shader-syntax.js";
 import type {
   ShaderCallbackSyntax,
@@ -72,6 +80,7 @@ export interface ShaderFileInfo {
   readonly customUniformsImport?: ShaderImportInfo;
   readonly functions?: readonly ShaderFunctionSyntax[];
   readonly shaderCallableImports: readonly ShaderImportInfo[];
+  readonly moduleConstants?: ReadonlyMap<string, ModuleConstantDefinition>;
   /** Direct named imports from other source modules. */
   readonly sourceImports: readonly ShaderSourceImportInfo[];
   readonly defaultExportRange: TextRange;
@@ -84,10 +93,14 @@ export interface ParseShaderFileResult {
   readonly info?: ShaderFileInfo;
   /** Helper declarations recognized in a helper-only module. */
   readonly helperFunctions?: readonly ShaderFunctionSyntax[];
+  /** Constants classified in this source even when it is helper-only. */
+  readonly moduleConstants?: ReadonlyMap<string, ModuleConstantDefinition>;
   /** Available when the callback boundary was recognized but its syntax failed validation. */
   readonly shaderRegion?: TextRange;
   /** Helper declarations and fragment callback recognized before semantic validation. */
   readonly shaderRegions?: readonly TextRange[];
+  /** Referenced module declarations recognized before a constant validation failure. */
+  readonly moduleConstantRegions?: readonly TextRange[];
   readonly diagnostics: readonly ShaderDiagnostic[];
 }
 
@@ -111,9 +124,10 @@ export function parseShaderFile(
   if (!("file" in parsed)) return { diagnostics: parsed.diagnostics };
 
   const { file } = parsed;
-  const result = parseShaderModule(file, fileName);
+  const result = parseShaderModule(file, fileName, source);
   const helperRegions = findHelperRegions(file);
-  if (!helperRegions.length) return result;
+  const moduleConstantRegions = result.moduleConstantRegions ?? [];
+  if (!helperRegions.length && !moduleConstantRegions.length) return result;
 
   // Retain boundaries even when a helper signature/body fails before the
   // fragment is validated. They must not swallow ordinary code between helpers.
@@ -133,6 +147,7 @@ export function parseShaderFile(
       : undefined);
   const shaderRegions = [
     ...helperRegions,
+    ...moduleConstantRegions,
     ...(shaderRegion ? [shaderRegion] : []),
   ].sort((left, right) => left.start - right.start);
   return {
@@ -177,6 +192,7 @@ function findHelperRegions(file: File): readonly TextRange[] {
 function parseShaderModule(
   file: File,
   fileName: string,
+  source: string,
 ): ParseShaderFileResult {
   const reservedIdentifier = findReservedIdentifier(file.program);
   if (reservedIdentifier) {
@@ -231,8 +247,15 @@ function parseShaderModule(
         entry.specifiers.map((specifier) => specifier.localName),
       ),
     ]),
+    source,
   );
-  if (helpers.diagnostics.length) return { diagnostics: helpers.diagnostics };
+  if (helpers.diagnostics.length)
+    return {
+      diagnostics: helpers.diagnostics,
+      ...(helpers.moduleConstantRegions
+        ? { moduleConstantRegions: helpers.moduleConstantRegions }
+        : {}),
+    };
 
   const hasDefaultExport = file.program.body.some(
     (statement) => statement.type === "ExportDefaultDeclaration",
@@ -244,6 +267,9 @@ function parseShaderModule(
   ) {
     return {
       helperFunctions: helpers.functions,
+      ...(helpers.moduleConstants
+        ? { moduleConstants: helpers.moduleConstants }
+        : {}),
       diagnostics: [
         diagnostic(
           ShaderDiagnosticCode.MissingDefaultExport,
@@ -509,7 +535,38 @@ function parseShaderModule(
     };
   }
 
-  const syntaxDiagnostics = validateShaderSyntax(callback, calleeNames);
+  const candidateNames = collectTopLevelModuleConstantNames(file);
+  const callbackReferences = collectModuleConstantReferences(
+    callback,
+    candidateNames,
+    collectShaderLocalNames(callback),
+  );
+  const callbackConstants = parseModuleConstants(source, callbackReferences, {
+    conflictingNames: calleeNames,
+  });
+  if (!callbackConstants.ok) {
+    return {
+      diagnostics: callbackConstants.diagnostics,
+      shaderRegion: callbackRange,
+      moduleConstantRegions: collectTopLevelModuleConstantRanges(
+        file,
+        new Set([
+          ...callbackReferences.map((reference) => reference.name),
+          ...(callbackConstants.moduleConstantNames ?? []),
+        ]),
+      ),
+    };
+  }
+  const moduleConstants = new Map<string, ModuleConstantDefinition>([
+    ...(helpers.moduleConstants ?? new Map()),
+    ...callbackConstants.constants,
+  ]);
+  const syntaxDiagnostics = validateShaderSyntax(
+    callback,
+    calleeNames,
+    undefined,
+    new Set(moduleConstants.keys()),
+  );
   if (syntaxDiagnostics.length > 0) {
     return {
       diagnostics: syntaxDiagnostics,
@@ -527,6 +584,7 @@ function parseShaderModule(
       customUniforms,
       ...(customUniformsImport ? { customUniformsImport } : {}),
       ...(helpers.functions.length ? { functions: helpers.functions } : {}),
+      ...(moduleConstants.size ? { moduleConstants } : {}),
       shaderCallableImports: imports.shaderCallableImports,
       sourceImports: imports.sourceImports,
       defaultExportRange: rangeOf(defaultExport),

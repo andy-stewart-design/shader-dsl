@@ -155,6 +155,98 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
     }
   });
 
+  it("compiles module constants through helper edits and rejects static isolation violations", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shdr-vite-constants-"));
+    try {
+      const sourceDirectory = join(root, "src");
+      await mkdir(sourceDirectory, { recursive: true });
+      const helper = join(sourceDirectory, "helper.shdr.ts");
+      const entry = join(sourceDirectory, "entry.shdr.ts");
+      const helperSource = `import { defineShaderFunction } from "shdr";
+import type { Expr, F32 } from "shdr";
+const SCALE = 0.5;
+export const scale = defineShaderFunction((x: Expr<F32>) => x * SCALE);
+`;
+      const entrySource = `import { createFragmentShader, vec4 } from "shdr";
+import { scale } from "./helper.shdr.ts";
+export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time), 0, 0, 1));
+`;
+      await writeFile(helper, helperSource);
+      await writeFile(entry, entrySource);
+      const plugin = shdr();
+      configure(plugin, root);
+      const watched: string[] = [];
+      const initial = parseArtifact(
+        await transform(plugin, entrySource, entry, watched),
+      );
+      expect(initial.glsl).toContain("0.5");
+      expect(initial.glsl).not.toContain("SCALE");
+      expect(watched).toContain(await realpath(helper));
+
+      await writeFile(
+        helper,
+        helperSource.replace("const SCALE = 0.5;", "const SCALE = 0.75;"),
+      );
+      const edited = parseArtifact(await transform(plugin, entrySource, entry));
+      expect(edited.glsl).toContain("0.75");
+
+      await writeFile(
+        helper,
+        helperSource.replace("const SCALE = 0.5;", "const SCALE = hostScale;"),
+      );
+      let invalidHelper: unknown;
+      try {
+        await transform(plugin, entrySource, entry);
+      } catch (error) {
+        invalidHelper = error;
+      }
+      expect(invalidHelper).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(helper),
+        pluginCode: "SHDR1108",
+      });
+
+      const constants = join(sourceDirectory, "constants.shdr.ts");
+      await writeFile(constants, "export const VALUE = 0.25;\n");
+      const importedSource = `import { createFragmentShader, vec4 } from "shdr";
+import { VALUE } from "./constants.shdr.ts";
+export default createFragmentShader(() => vec4(VALUE, 0, 0, 1));
+`;
+      await writeFile(entry, importedSource);
+      let imported: unknown;
+      try {
+        await transform(plugin, importedSource, entry);
+      } catch (error) {
+        imported = error;
+      }
+      expect(imported).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(entry),
+        pluginCode: "SHDR1108",
+      });
+
+      const defaultSource = `import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const GAIN = 0.5;
+const uniforms = defineUniforms((u) => ({ gain: u.f32(GAIN) }));
+export default createFragmentShader(({ uniforms }) => vec4(uniforms.gain), { uniforms });
+`;
+      await writeFile(entry, defaultSource);
+      let invalidDefault: unknown;
+      try {
+        await transform(plugin, defaultSource, entry);
+      } catch (error) {
+        invalidDefault = error;
+      }
+      expect(invalidDefault).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(entry),
+        pluginCode: "SHDR1210",
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("compiles aliased imported helpers and schemas and watches their sources", async () => {
     const root = await mkdtemp(join(tmpdir(), "shdr-vite-graph-"));
     try {

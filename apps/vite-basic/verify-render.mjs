@@ -43,6 +43,12 @@ try {
         ?.getAttribute("data-render-status") ?? "",
     ),
   );
+  await page
+    .locator('#module-constants-canvas[data-render-status="success"]')
+    .waitFor();
+  await page
+    .locator('#module-constants-gpu-canvas[data-render-status="success"]')
+    .waitFor();
 
   const renderState = await page.evaluate(() => ({
     status: document
@@ -90,6 +96,68 @@ try {
   assertPixel("center", samples.center, [128, 128, 0, 255], 3);
   assertPixel("top row", samples.top, [128, 0, 0, 255], 3);
   assertPixel("bottom row", samples.bottom, [128, 255, 0, 255], 3);
+
+  const moduleConstantsSamples = {
+    glTop: await readWebGlCanvasPixel(
+      page,
+      "module-constants-canvas",
+      100,
+      159,
+    ),
+    gpuTop: await readGpuCanvasPixel(
+      page,
+      "module-constants-gpu-canvas",
+      101,
+      2,
+    ),
+    glCenter: await readWebGlCanvasPixel(
+      page,
+      "module-constants-canvas",
+      100,
+      80,
+    ),
+    gpuCenter: await readGpuCanvasPixel(
+      page,
+      "module-constants-gpu-canvas",
+      101,
+      81,
+    ),
+  };
+  for (const [name, actual, expected] of [
+    [
+      "module constants WebGL top",
+      moduleConstantsSamples.glTop,
+      [16, 1, 64, 255],
+    ],
+    [
+      "module constants WebGPU top",
+      moduleConstantsSamples.gpuTop,
+      [16, 1, 64, 255],
+    ],
+    [
+      "module constants WebGL center",
+      moduleConstantsSamples.glCenter,
+      [16, 64, 64, 255],
+    ],
+    [
+      "module constants WebGPU center",
+      moduleConstantsSamples.gpuCenter,
+      [16, 64, 64, 255],
+    ],
+  ])
+    assertPixel(name, actual, expected, 6);
+  assertPixel(
+    "module constants top parity",
+    moduleConstantsSamples.glTop,
+    moduleConstantsSamples.gpuTop,
+    6,
+  );
+  assertPixel(
+    "module constants center parity",
+    moduleConstantsSamples.glCenter,
+    moduleConstantsSamples.gpuCenter,
+    6,
+  );
 
   await page.locator('#math-canvas[data-render-status="success"]').waitFor();
   await page.locator('#orbit-canvas[data-render-status="success"]').waitFor();
@@ -376,7 +444,7 @@ try {
   }
 
   console.log(
-    "Verified imported-helper GLSL/WGSL pixels, shared-schema isolation, custom-uniform host flows, math shader, top-left Y and missing-WebGPU fallback.",
+    "Verified module-constant coordinate pixels on both backends, imported-helper GLSL/WGSL pixels, shared-schema isolation, custom-uniform host flows, math shader, top-left Y and missing-WebGPU fallback.",
   );
 } finally {
   if (browser) await browser.close();

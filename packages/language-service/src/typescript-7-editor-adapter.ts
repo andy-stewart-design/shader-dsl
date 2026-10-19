@@ -221,6 +221,7 @@ export class TypeScript7EditorAdapter {
         ),
         shaderRegion: helperOnly ? undefined : transformed.shaderRegion,
         shaderRegions: helperOnly ? [] : transformed.shaderRegions,
+        moduleConstantRegions: moduleConstantRegions(analysis.parsed),
         original,
         useOriginalForShader: helperOnly,
       });
@@ -231,6 +232,10 @@ export class TypeScript7EditorAdapter {
     const hasLocalHelpers = !!(
       analysis.parsed.info?.functions?.length ||
       analysis.parsed.helperFunctions?.length
+    );
+    const hasModuleConstants = !!(
+      analysis.parsed.info?.moduleConstants?.size ||
+      analysis.parsed.moduleConstants?.size
     );
     const helperFailure = hasLocalHelpers && !lowered.ok && !helperOnly;
     const definitionFailure =
@@ -251,7 +256,8 @@ export class TypeScript7EditorAdapter {
     // A helper's invalid native arithmetic return can leave the marker's generic
     // Result cached as Expr<ShaderType>. Reopen before checking its transformed
     // body; retained original/virtual snapshots still own their respective ranges.
-    if (hasLocalHelpers && !unchanged) this.#checker.closeFile(fileName);
+    if ((hasLocalHelpers || hasModuleConstants) && !unchanged)
+      this.#checker.closeFile(fileName);
     const virtual = unchanged
       ? undefined
       : this.#checker.checkVirtualSource(fileName, transformed.virtualSource);
@@ -332,6 +338,7 @@ export class TypeScript7EditorAdapter {
       diagnostics: mergeRoutedDiagnostics(routed, graphDiagnostics),
       shaderRegion: transformed.virtualSource.shaderRegion,
       shaderRegions: transformed.virtualSource.shaderRegions,
+      moduleConstantRegions: moduleConstantRegions(analysis.parsed),
       // A failed definition can corrupt inferred helper/dependent types. A
       // fragment-only call error does not invalidate trusted helper signatures.
       disableShaderHovers: definitionFailure,
@@ -359,6 +366,7 @@ interface EditorDocumentState {
   readonly diagnostics: readonly RoutedDiagnostic[];
   readonly shaderRegion?: TextRange;
   readonly shaderRegions?: readonly TextRange[];
+  readonly moduleConstantRegions?: readonly TextRange[];
   readonly disableShaderHovers?: boolean;
   readonly suppressCoreErrorHovers?: boolean;
   readonly original?: CheckedTypeScriptSource;
@@ -370,6 +378,7 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
   readonly #original?: CheckedTypeScriptSource;
   readonly #virtual?: CheckedVirtualSource;
   readonly #shaderRegions: readonly TextRange[];
+  readonly #moduleConstantRegions: readonly TextRange[];
   readonly #disableShaderHovers: boolean;
   readonly #suppressCoreErrorHovers: boolean;
   readonly #useOriginalForShader: boolean;
@@ -393,6 +402,7 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     this.diagnostics = state.diagnostics;
     this.#shaderRegions =
       state.shaderRegions ?? (state.shaderRegion ? [state.shaderRegion] : []);
+    this.#moduleConstantRegions = state.moduleConstantRegions ?? [];
     this.#disableShaderHovers = state.disableShaderHovers ?? false;
     this.#suppressCoreErrorHovers = state.suppressCoreErrorHovers ?? false;
     this.#original = state.original;
@@ -420,6 +430,11 @@ class TypeScript7EditorDocumentImpl implements TypeScript7EditorDocument {
     ) {
       return undefined;
     }
+    const inModuleConstant = this.#moduleConstantRegions.some((region) =>
+      containsPosition(region, position),
+    );
+    if (inModuleConstant || !inShader)
+      return this.#original?.getQuickInfoAtPosition(position);
     if (this.#virtual) {
       return this.#virtual.getQuickInfoAtOriginalPosition(position);
     }
@@ -467,6 +482,26 @@ function rangesOverlap(left: TextRange, right: TextRange): boolean {
     left.start < right.start + right.length &&
     right.start < left.start + left.length
   );
+}
+
+function moduleConstantRegions(parsed: {
+  readonly info?: {
+    readonly moduleConstants?: ReadonlyMap<
+      string,
+      { readonly declarationRange: TextRange }
+    >;
+  };
+  readonly moduleConstants?: ReadonlyMap<
+    string,
+    { readonly declarationRange: TextRange }
+  >;
+  readonly moduleConstantRegions?: readonly TextRange[];
+}): readonly TextRange[] {
+  if (parsed.moduleConstantRegions?.length) return parsed.moduleConstantRegions;
+  const constants = parsed.info?.moduleConstants ?? parsed.moduleConstants;
+  return constants
+    ? [...constants.values()].map((constant) => constant.declarationRange)
+    : [];
 }
 
 function isHelperOnlySource(source: string): boolean {
