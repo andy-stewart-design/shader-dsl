@@ -43,19 +43,19 @@ Expected files:
 
 Tasks:
 
-- [ ] Record current focused core, language-service, CLI, and runtime/browser baseline results; separate pre-existing failures from new failures.
-- [ ] Probe in memory whether a top-level scalar `number` can be interpreted as `Expr<F32>` **only at shader references**, and vector-constant constructor inputs can type-check, with original-source hovers/errors and unchanged ordinary `.ts` behavior. Inspect both fragment and helper-only virtual regions.
-- [ ] Trace graph/check-only handling of local constants in an imported helper's defining file, unrelated top-level host code, and the absence of a constant export/import protocol. Identify the narrow parser/lowering seam and any source-range ownership risks.
-- [ ] If the type bridge or original-source mapping contradicts R4/R5, document the conflict and stop for spec review; do not hide virtual helper cascades or make plain `tsc` execute/accept arbitrary shader syntax.
+- [x] Record current focused core, language-service, CLI, and runtime/browser baseline results; separate pre-existing failures from new failures.
+- [x] Probe in memory whether a top-level scalar `number` can be interpreted as `Expr<F32>` **only at shader references**, and vector-constant constructor inputs can type-check, with original-source hovers/errors and unchanged ordinary `.ts` behavior. Inspect both fragment and helper-only virtual regions.
+- [x] Trace graph/check-only handling of local constants in an imported helper's defining file, unrelated top-level host code, and the absence of a constant export/import protocol. Identify the narrow parser/lowering seam and any source-range ownership risks.
+- [x] If the type bridge or original-source mapping contradicts R4/R5, document the conflict and stop for spec review; do not hide virtual helper cascades or make plain `tsc` execute/accept arbitrary shader syntax.
 
 Verification:
 
 - Automated: use existing `pnpm --filter @shdr/core test` and `pnpm --filter @shdr/language-service test` as **baseline commands**; if the proposed feasibility test is added, run `pnpm --dir packages/language-service exec vitest run --config ../../vitest.config.ts --root . test/module-constant-feasibility.test.ts`. The probe establishes possible typing/mapping, **not** end-to-end shader support.
 - Manual: Not needed for this in-memory proof. The actual VS Code experience is checked in Step 2.1; no GPU claim is made here.
 
-- [ ] **Completion gate:** A bounded editor/source-graph approach appears feasible, and current failures/baselines are recorded outside this plan; otherwise stop for spec review.
+- [x] **Completion gate:** A bounded editor/source-graph approach appears feasible, and current failures/baselines are recorded outside this plan; otherwise stop for spec review.
 
-- [ ] **Phase exit gate:** Review the TypeScript 7 bridge, shader-only scope, defining-file resolution, and baseline before Phase 1; no production capability is claimed.
+- [x] **Phase exit gate:** Review the TypeScript 7 bridge, shader-only scope, defining-file resolution, and baseline before Phase 1; no production capability is claimed.
 
 ## Phase 1 — Static source and lowering
 
