@@ -131,9 +131,32 @@ const named = createFragmentShader(
     vec4(uniforms.color.x, uniforms.color.y, uniforms.dpi, uniforms.dpi),
   { uniforms },
 );
+const withAlias = createFragmentShader(
+  ($) => {
+    const u = $.u;
+    const other = u;
+    type _Gain = Expect<Equal<typeof other.dpi, Expr<F32>>>;
+    type _Resolution = Expect<Equal<typeof $.u.resolution, Expr<Vec2<F32>>>>;
+    return vec4(other.color.x, $.uniforms.dpi, $.u.time, u.dpi);
+  },
+  { uniforms },
+);
+const withBothNames = createFragmentShader(
+  ({ u, coord, uniforms }) => {
+    type _Color = Expect<Equal<typeof u.color, Expr<Vec3<F32>>>>;
+    return vec4(u.color.x, uniforms.dpi, coord.x, uniforms.dpi);
+  },
+  { uniforms },
+);
+const withBothNamesReordered = createFragmentShader(
+  ({ coord, uniforms, u }) => vec4(uniforms.dpi, u.color.y, coord.y, u.color.z),
+  { uniforms },
+);
 const typed: TypedCompiledFragmentArtifact<typeof uniforms.schema> = inline;
 const sameType: TypedCompiledFragmentArtifact<typeof uniforms.schema> = named;
-void [typed, sameType];
+const aliasType: TypedCompiledFragmentArtifact<typeof uniforms.schema> =
+  withAlias;
+void [typed, sameType, aliasType, withBothNames, withBothNamesReordered];
 // @ts-expect-error A different inferred schema is not assignable to this artifact.
 const bad: TypedCompiledFragmentArtifact<typeof uniforms.schema> =
   defineUniforms((u) => ({ color: u.f32(1) })).createFragmentShader(

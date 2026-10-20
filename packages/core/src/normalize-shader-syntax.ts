@@ -15,7 +15,7 @@ export function normalizeShaderSyntax(
       ? callback.params[0].properties.map((property) =>
           property.type === "ObjectProperty" &&
           property.key.type === "Identifier"
-            ? (property.key.name as "coord" | "uniforms")
+            ? (property.key.name as "coord" | "uniforms" | "u")
             : "uniforms",
         )
       : [];

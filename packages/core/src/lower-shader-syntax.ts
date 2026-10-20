@@ -104,6 +104,8 @@ interface LocalBinding {
 
 interface LoweringContext {
   readonly locals: Map<string, LocalBinding>;
+  /** Compile-time aliases of the uniform namespace; never emitted as shader values. */
+  readonly uniformAliases: ReadonlySet<string>;
   readonly futureNames: ReadonlySet<string>;
   readonly constantLocals: Map<ShaderLocalSymbolId, ShaderKnownComponents>;
   readonly localInitializers: Map<ShaderLocalSymbolId, ShaderExpression>;
@@ -199,6 +201,7 @@ export function lowerShaderBody(
   const locals = new Map<string, LocalBinding>(
     options.parameters?.map((parameter) => [parameter.name, parameter]) ?? [],
   );
+  const uniformAliases = new Set<string>();
   const functions = options.functions ?? new Map<string, ShaderFunction>();
   const constantLocals = new Map<ShaderLocalSymbolId, ShaderKnownComponents>();
   const localInitializers = new Map<ShaderLocalSymbolId, ShaderExpression>();
@@ -208,7 +211,9 @@ export function lowerShaderBody(
   const statements: ShaderConstDeclaration[] = [];
   const custom = new Map(customUniforms.map((item) => [item.name, item]));
   const contextBindings = new Set(
-    options.parameters ? [] : (syntax.contextBindings ?? ["coord", "uniforms"]),
+    options.parameters
+      ? []
+      : (syntax.contextBindings ?? ["coord", "uniforms", "u"]),
   );
   let nextSymbolId = options.parameters?.length ?? 0;
 
@@ -216,14 +221,17 @@ export function lowerShaderBody(
     if (
       (!options.parameters &&
         (CONTEXT_BINDING_NAMES.has(declaration.name) ||
+          contextBindings.has(declaration.name) ||
           syntax.contextName === declaration.name)) ||
       importedCallables.has(declaration.name) ||
-      locals.has(declaration.name)
+      locals.has(declaration.name) ||
+      uniformAliases.has(declaration.name)
     ) {
       return failure(
         diagnostic(
           ShaderDiagnosticCode.DuplicateLocal,
           CONTEXT_BINDING_NAMES.has(declaration.name) ||
+            contextBindings.has(declaration.name) ||
             syntax.contextName === declaration.name
             ? `Shader local ${JSON.stringify(declaration.name)} conflicts with a shader context binding.`
             : importedCallables.has(declaration.name)
@@ -234,8 +242,9 @@ export function lowerShaderBody(
       );
     }
 
-    const initializer = lowerExpression(declaration.initializer, {
+    const expressionContext: LoweringContext = {
       locals,
+      uniformAliases,
       futureNames,
       constantLocals,
       localInitializers,
@@ -246,7 +255,16 @@ export function lowerShaderBody(
       functions,
       sampleCallables: options.sampleCallables ?? new Set(),
       moduleConstants: options.moduleConstants ?? new Map(),
-    });
+    };
+    if (isUniformNamespace(declaration.initializer, expressionContext)) {
+      uniformAliases.add(declaration.name);
+      futureNames.delete(declaration.name);
+      continue;
+    }
+    const initializer = lowerExpression(
+      declaration.initializer,
+      expressionContext,
+    );
     if (!initializer.ok) return failure(initializer.diagnostic);
 
     const symbolId = nextSymbolId;
@@ -282,6 +300,7 @@ export function lowerShaderBody(
 
   const returned = lowerExpression(syntax.returnExpression, {
     locals,
+    uniformAliases,
     futureNames,
     constantLocals,
     localInitializers,
@@ -384,6 +403,14 @@ function lowerExpression(
         );
       }
 
+      if (isUniformNamespace(syntax, context)) {
+        return expressionFailure(
+          ShaderDiagnosticCode.InvalidUniform,
+          "The uniforms namespace must be accessed through a supported property.",
+          syntax.range,
+        );
+      }
+
       const moduleConstant = context.moduleConstants.get(syntax.name);
       if (moduleConstant) {
         return lowerModuleConstant(moduleConstant, context, new Set());
@@ -400,19 +427,7 @@ function lowerExpression(
       return lowerExpression(syntax.expression, context);
 
     case "property-access":
-      if (
-        syntax.object.kind === "property-access" &&
-        syntax.object.object.kind === "identifier" &&
-        syntax.object.object.name === context.contextName &&
-        syntax.object.propertyName === "uniforms"
-      ) {
-        return lowerDefaultUniform(syntax, context.customUniforms);
-      }
-      if (
-        syntax.object.kind === "identifier" &&
-        syntax.object.name === "uniforms" &&
-        context.contextBindings.has("uniforms")
-      ) {
+      if (isUniformNamespace(syntax.object, context)) {
         return lowerDefaultUniform(syntax, context.customUniforms);
       }
       if (
@@ -429,9 +444,15 @@ function lowerExpression(
               range: syntax.range,
             },
           };
+        if (syntax.propertyName === "uniforms" || syntax.propertyName === "u")
+          return expressionFailure(
+            ShaderDiagnosticCode.InvalidUniform,
+            "The uniforms namespace must be accessed through a supported property.",
+            syntax.range,
+          );
         return expressionFailure(
           ShaderDiagnosticCode.UnsupportedPropertyAccess,
-          "Only coord and uniforms are available on the fragment context.",
+          "Only coord, uniforms and u are available on the fragment context.",
           syntax.range,
         );
       }
@@ -468,6 +489,28 @@ function lowerExpression(
     default:
       return assertNever(syntax);
   }
+}
+
+/** Resolve only uniform roots, never arbitrary object-valued shader expressions. */
+function isUniformNamespace(
+  syntax: ShaderExpressionSyntax,
+  context: LoweringContext,
+): boolean {
+  if (syntax.kind === "parenthesized-expression")
+    return isUniformNamespace(syntax.expression, context);
+  if (syntax.kind === "identifier")
+    return (
+      (context.contextBindings.has(syntax.name) &&
+        (syntax.name === "uniforms" || syntax.name === "u")) ||
+      (context.uniformAliases.has(syntax.name) &&
+        !context.futureNames.has(syntax.name))
+    );
+  return (
+    syntax.kind === "property-access" &&
+    syntax.object.kind === "identifier" &&
+    syntax.object.name === context.contextName &&
+    (syntax.propertyName === "uniforms" || syntax.propertyName === "u")
+  );
 }
 
 function lowerModuleConstant(

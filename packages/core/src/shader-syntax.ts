@@ -10,7 +10,7 @@ interface ShaderSyntaxNode {
 }
 
 export interface ShaderCallbackSyntax extends ShaderSyntaxNode {
-  readonly contextBindings?: readonly ("coord" | "uniforms")[];
+  readonly contextBindings?: readonly ("coord" | "uniforms" | "u")[];
   /** Simple fragment callback parameter, e.g. context.coord. */
   readonly contextName?: string;
   readonly declarations: readonly ShaderConstDeclarationSyntax[];

@@ -68,6 +68,11 @@ describe("same-file shader helper TypeScript 7 editor parity", () => {
         "({ uniforms }) => vec4(uniforms.time)",
         "({ coord, uniforms }) => vec4(coord.x, uniforms.time, 0, 1)",
         "({ uniforms, coord }) => vec4(coord.x, uniforms.time, 0, 1)",
+        "(ctx) => vec4(ctx.coord.x / ctx.u.resolution.x, ctx.u.time, 0, 1)",
+        "({ u }) => vec4(u.time)",
+        "({ coord, uniforms, u }) => vec4(coord.x, uniforms.time, u.time, 1)",
+        "({ u, coord, uniforms }) => vec4(coord.x, u.time, uniforms.time, 1)",
+        "(ctx) => { const u = ctx.u; const alias = u; return vec4(ctx.coord.x, alias.time, 0, 1); }",
       ].entries()) {
         const text = `${prefix}export default createFragmentShader(${callback});`;
         const document = update(editor, text, index + 1, index + 1);
@@ -80,7 +85,7 @@ describe("same-file shader helper TypeScript 7 editor parity", () => {
         }
       }
       const bad = `${prefix}export default createFragmentShader(() => vec4(coord.x));`;
-      const invalid = update(editor, bad, 7, 7);
+      const invalid = update(editor, bad, 12, 12);
       expect(invalid.diagnostics).toEqual([
         expect.objectContaining({
           source: "shdr",

@@ -490,6 +490,15 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const aliasUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "uniform-aliases.shdr.ts",
+  );
+  const aliasDocument = await vscode.workspace.openTextDocument(aliasUri);
+  await vscode.window.showTextDocument(aliasDocument);
+  await waitForDiagnostics(aliasUri, (diagnostics) => diagnostics.length === 0);
+  await waitForHoverText(aliasDocument, "gain, $.uniforms", /Expr<F32>/);
+
   // Removing the final helper marker must still invalidate callers, even
   // though the new mixed module no longer looks like a dependency.
   await replaceText(helper, "Expr<Vec2<F32>>", "Expr<F32>");
