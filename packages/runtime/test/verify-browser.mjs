@@ -49,6 +49,23 @@ assert.equal(
 const moduleConstantsArtifact = importedModuleConstants.ok
   ? importedModuleConstants.artifact
   : undefined;
+const uniformAliases =
+  compileFragmentArtifact(`import { createFragmentShader, defineUniforms, vec4 } from "shdr";
+const uniforms = defineUniforms((u) => ({ gain: u.f32(0.5) }));
+export default createFragmentShader(($) => {
+  const u = $.u;
+  const other = u;
+  return vec4(other.gain, $.uniforms.gain, $.u.gain, 1);
+}, { uniforms });
+`);
+assert.equal(
+  uniformAliases.ok,
+  true,
+  JSON.stringify(uniformAliases.diagnostics),
+);
+const uniformAliasesArtifact = uniformAliases.ok
+  ? uniformAliases.artifact
+  : undefined;
 const server = await createServer({
   root,
   configFile: false,
@@ -205,7 +222,7 @@ try {
   }
   assert.deepEqual(moduleCenterGl, moduleCenterGpu);
   assert.deepEqual(moduleLeftGl, moduleLeftGpu);
-  await page.evaluate(async () => {
+  await page.evaluate(async (artifact) => {
     for (const canvas of [
       document.querySelector("#gl"),
       document.querySelector("#gpu"),
@@ -213,8 +230,22 @@ try {
       canvas.style.width = "8px";
       canvas.style.height = "8px";
     }
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
     await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
-  });
+  }, uniformAliasesArtifact);
+  for (const backend of ["gl", "gpu"]) {
+    const actual = await pixel(page, backend);
+    for (const [index, expected] of [128, 128, 128, 255].entries())
+      assertChannel(
+        `${backend} uniform alias channel ${index}`,
+        actual[index],
+        expected,
+        3,
+      );
+  }
 
   const bindings = await page.evaluate(
     async ({ coord, defaults, time }) => {
