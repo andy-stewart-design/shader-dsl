@@ -151,6 +151,7 @@ export interface FragmentContext<
 > {
   readonly coord: Expr<Vec4<F32>>;
   readonly uniforms: DefaultUniforms & UniformExpressions<S>;
+  readonly u: DefaultUniforms & UniformExpressions<S>;
 }
 
 export type ShaderDefaultUniform = "resolution" | "mouse" | "time";

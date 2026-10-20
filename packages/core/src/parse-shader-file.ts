@@ -528,7 +528,7 @@ function parseShaderModule(
           ShaderDiagnosticCode.InvalidCallbackParameter,
           parameter?.type === "Identifier" && calleeNames.has(parameter.name)
             ? `The fragment context parameter ${JSON.stringify(parameter.name)} cannot shadow a shader callable.`
-            : "The callback accepts (), a simple context identifier, or an object pattern selecting coord and/or uniforms in either order.",
+            : "The callback accepts (), a simple context identifier, or an object pattern selecting coord, uniforms, and/or u in any order.",
           parameter ? rangeOf(parameter) : rangeOf(callback),
         ),
       ],
@@ -909,8 +909,9 @@ function isContextParameter(
     return property.key.name;
   });
   return (
-    names.every((name) => name === "coord" || name === "uniforms") &&
-    new Set(names).size === names.length
+    names.every(
+      (name) => name === "coord" || name === "uniforms" || name === "u",
+    ) && new Set(names).size === names.length
   );
 }
 
