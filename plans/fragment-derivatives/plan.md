@@ -5,7 +5,7 @@
 - Governing contract: [spec.md](spec.md). No derivative implementation or verification is claimed.
 - Delivery state: **Planning only**. Every step is Pending; evidence is Not run.
 - Acceptance/release pending: All implementation, real-target acceptance, review, merge, and any publication. A plan is not permission to perform these actions.
-- Blockers: Phase 0 found no WebGPU adapter in the available Playwright Chromium/SwiftShader environment; the configured VS Code executable is also missing. Step 0.2 is Blocked pending target availability; stop before Phase 1.
+- Blockers: None for Phase 0 target feasibility. Raw WebGL and WebGPU probes pass under Playwright Chromium/SwiftShader. The configured VS Code executable is missing; real-editor verification remains unavailable for its owning phase.
 
 Step statuses below are the authoritative execution record. A phase completes only after its steps **and** its exit gate pass. Checked tasks alone do not verify a step; `Verified` includes its scoped gate and review, not user approval or release. Manual approvals in supervised execution belong to extension state.
 
@@ -62,7 +62,7 @@ Evidence: [evidence/phase-0.md](evidence/phase-0.md) — baseline commands passe
 
 ### Step 0.2 — Probe raw derivative signatures, signs, and helper uniformity
 
-Status: Blocked — no WebGPU adapter available
+Status: Complete — raw target feasibility probe passes
 Requirements / acceptance: R1–R4, R8; AC1/AC2/AC4 (**raw feasibility only**; generated/public/presented acceptance remains Steps 1.1–3.1).
 Depends on: Step 0.1.
 Review boundary: Raw GLSL/WGSL fragment probes; no compiler/DSL acceptance or full reference shader port.
@@ -85,9 +85,9 @@ Verification:
 - Manual: Review raw captures/logged environment and proposed tolerances. These tests cannot prove authored-source diagnostics, Vite isolation, or presented WebGPU runtime behavior.
 
 Completion gate: A viable strategy for all agreed raw shapes and reachable helpers is evidenced; any material contradiction blocks Phase 1 pending a reviewed product decision/spec revision.
-Evidence: [evidence/phase-0.md](evidence/phase-0.md); `packages/core/test/fragment-derivatives-target-feasibility.test.ts` fails as required when WebGPU adapter acquisition returns null. WebGL compile/link/draw reached; WGSL and cross-target rendered behavior remain unverified.
+Evidence: [evidence/phase-0.md](evidence/phase-0.md); raw WebGL link/draw/readback and WGSL module/pipeline/offscreen draw/readback pass, including signed Y, vector lanes, and helper use.
 
-Phase exit gate: Blocked. The required raw WGSL/pipeline and cross-target probes cannot complete without WebGPU. Rerun the probe with `test/reusable-graph.test.ts` and `pnpm --filter @shdr/core check` after resolving the prerequisite; do not advance until target/helper feasibility is evidenced.
+Phase exit gate: Complete for raw feasibility. Focused probe plus `test/reusable-graph.test.ts` passed (2 files / 16 tests), and `pnpm --filter @shdr/core check` passed. Real editor remains unavailable, but is not a Phase 0 target-feasibility gate; no editor acceptance is claimed.
 
 ## Phase 1 — Public and compiled fragment contract
 

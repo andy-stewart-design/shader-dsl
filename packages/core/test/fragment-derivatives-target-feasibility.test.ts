@@ -35,11 +35,13 @@ fn probe4(x: vec4<f32>) -> vec4<f32> { return dpdy(x); }
  return vec4(p[i],0.0,1.0);
 }
 @fragment fn fragment(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
- let x = dpdx(p.x); let y = probe(p.y); let w = fwidth(p.y);
- let a2 = dpdx(vec2(p.x,p.y)); let b2 = dpdy(vec2(p.x,p.y)); let c2 = fwidth(vec2(p.x,p.y));
- let a3 = dpdx(vec3(p.x,p.y,p.x*2.0)); let b3 = dpdy(vec3(p.x,p.y,p.x*2.0)); let c3 = fwidth(vec3(p.x,p.y,p.x*2.0));
- let a4 = dpdx(vec4(p.x,p.y,p.x*2.0,p.y*3.0)); let b4 = dpdy(vec4(p.x,p.y,p.x*2.0,p.y*3.0)); let c4 = fwidth(vec4(p.x,p.y,p.x*2.0,p.y*3.0));
- return vec4(x, y, a2.x, w) + vec4(a3.x+b3.y+c3.z+a4.w+b4.x+c4.y, b2.x, probe2(vec2(p.x,p.y)).y, probe3(vec3(p.x,p.y,p.x)).z)*0.0;
+ let lanes = vec4<f32>(p.x, p.y, 2.0*p.x, 3.0*p.y);
+ let dx2 = dpdx(vec2<f32>(p.x,p.y)); let dy2 = dpdy(vec2<f32>(p.x,p.y)); let fw2 = fwidth(vec2<f32>(p.x,p.y));
+ let dx3 = dpdx(vec3<f32>(p.x,p.y,p.x*2.0)); let dy3 = dpdy(vec3<f32>(p.x,p.y,p.x*2.0)); let fw3 = fwidth(vec3<f32>(p.x,p.y,p.x*2.0));
+ let dx4 = dpdx(lanes); let dy4 = probe4(lanes); let fw4 = fwidth(lanes);
+ let keepShapesObservable = dx2.x + dy2.y + fw2.x + dx3.x + dy3.y + fw3.x + dx4.z + dy4.w + fw4.z;
+ let yDown = probe(64.0-p.y);
+ return vec4(0.5+0.25*dx4.x, 0.5+0.25*dy4.y, 0.5+0.25*yDown, 0.5+0.25*fw4.z) + vec4(keepShapesObservable)*0.000001;
 }`;
 
 it("compiles, links, and renders raw derivative/helper probes on WebGL 2 and validates a WGSL pipeline", async () => {
@@ -48,7 +50,14 @@ it("compiles, links, and renders raw derivative/helper probes on WebGL 2 and val
   ] });
   try {
     const page = await browser.newPage();
-    await page.setContent("<canvas width=96 height=64></canvas>");
+    await page.route("http://localhost/", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><html><body><canvas width=96 height=64></canvas></body></html>",
+      }),
+    );
+    // WebGPU requires a secure context; localhost is trustworthy, unlike about:blank.
+    await page.goto("http://localhost/");
     const result = await page.evaluate(async ({ glsl, wgsl }) => {
       const canvas = document.querySelector("canvas") as HTMLCanvasElement;
       const gl = canvas.getContext("webgl2");
@@ -73,18 +82,40 @@ it("compiles, links, and renders raw derivative/helper probes on WebGL 2 and val
         const info = await module.getCompilationInfo();
         const errors = info.messages.filter(m=>m.type === "error");
         if (errors.length) throw new Error(errors.map(e=>e.message).join("\n"));
-        const pipeline = device.createRenderPipeline({layout:"auto",vertex:{module,entryPoint:"vertex"},fragment:{module,entryPoint:"fragment",targets:[{format:"bgra8unorm"}]},primitive:{topology:"triangle-list"}});
-        await pipeline.getBindGroupLayout(0);
-        return {pixel:Array.from(pixel), renderer:gl.getParameter(gl.RENDERER), adapter:adapter.info?.description ?? "unknown WebGPU adapter", wgslValidated:true, wgslPipeline:true};
+        const pipeline = device.createRenderPipeline({layout:"auto",vertex:{module,entryPoint:"vertex"},fragment:{module,entryPoint:"fragment",targets:[{format:"rgba8unorm"}]},primitive:{topology:"triangle-list"}});
+        const target = device.createTexture({size:{width:96,height:64},format:"rgba8unorm",usage:0x10|0x01}); // RENDER_ATTACHMENT | COPY_SRC
+        const bytesPerRow = 512;
+        const readback = device.createBuffer({size:bytesPerRow*64,usage:0x08|0x01}); // COPY_DST | MAP_READ
+        device.pushErrorScope("validation");
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({colorAttachments:[{view:target.createView(),loadOp:"clear",storeOp:"store"}]});
+        pass.setPipeline(pipeline); pass.draw(3); pass.end();
+        encoder.copyTextureToBuffer({texture:target},{buffer:readback,bytesPerRow},{width:96,height:64});
+        device.queue.submit([encoder.finish()]);
+        const validationError = await device.popErrorScope();
+        if (validationError) throw new Error(`WebGPU validation failed: ${validationError.message}`);
+        await readback.mapAsync(0x01); // GPUMapMode.READ
+        const gpuBytes = new Uint8Array(readback.getMappedRange());
+        const offset = 32*bytesPerRow+48*4;
+        const gpuPixel = Array.from(gpuBytes.slice(offset,offset+4));
+        readback.unmap(); target.destroy(); readback.destroy();
+        return {pixel:Array.from(pixel), gpuPixel, renderer:gl.getParameter(gl.RENDERER), adapter:adapter.info?.description ?? "unknown WebGPU adapter", wgslValidated:true, wgslPipeline:true};
       } finally { device.destroy(); }
     }, { glsl, wgsl });
     expect(result.wgslValidated).toBe(true);
     expect(result.wgslPipeline).toBe(true);
+    const expectedGpu = [191, 191, 64, 255]; // +X, +down-Y, reconstructed -Y, 2x fwidth lane
+    result.gpuPixel.forEach((channel, index) => {
+      expect(channel).toBeGreaterThanOrEqual(expectedGpu[index]! - 4);
+      expect(channel).toBeLessThanOrEqual(expectedGpu[index]! + 4);
+    });
     // 0.5 + 0.25*slope encodes an expected unit magnitude as ~191/255.
     // 8-bit quantization plus SwiftShader variation: +/- 4 codes (~0.063 slope).
-    expect(result.pixel).toEqual(expect.arrayContaining([expect.any(Number)]));
-    for (const channel of result.pixel) expect(channel).toBeGreaterThanOrEqual(187);
-    for (const channel of result.pixel) expect(channel).toBeLessThanOrEqual(195);
+    const expected = [191, 191, 255, 191]; // blue encodes a 2x lane slope
+    result.pixel.forEach((channel, index) => {
+      expect(channel).toBeGreaterThanOrEqual(expected[index]! - 4);
+      expect(channel).toBeLessThanOrEqual(expected[index]! + 4);
+    });
     console.info("fragment derivative feasibility target:", JSON.stringify(result));
   } finally { await browser.close(); }
 }, 60_000);
