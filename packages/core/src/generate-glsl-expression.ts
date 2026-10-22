@@ -238,7 +238,7 @@ function emitExpression(
         expression.target.kind === "builtin-function" &&
         expression.target.name === "dFdy"
       )
-        return `-(${name}(${args.join(", ")}))`;
+        return `(-${name}(${args.join(", ")}))`;
       return `${name}(${args.join(", ")})`;
     }
 

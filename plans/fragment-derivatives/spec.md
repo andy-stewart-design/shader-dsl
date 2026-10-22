@@ -2,13 +2,13 @@
 
 ## Status
 
-- Readiness: **Ready for planning.** Derivatives are not implemented; this document does not authorize implementation, merge, or publication.
-- Blocking decisions: None. The signed-Y convention was agreed in the preceding discussion; raw-target feasibility and numerical tolerances are verification work, not assumed results.
+- Readiness: **Implementation in progress.** Phase 0 and Phase 1 core implementation are verified; Phases 2–3, rendered acceptance, review, merge, and publication remain pending. This status does not authorize release.
+- Blocking decisions: None currently. The signed-Y convention is implemented and raw-target feasibility is evidenced; presented-WebGPU and broader feature acceptance remain verification work.
 - Source: The derivative discussion in this conversation, [PR 4 of the language-extension roadmap](../language-exntesion.md#pr-4--fragment-derivatives-not-implemented), and the [accepted shader language](../../README.md#accepted-shader-language). A complete port or fidelity claim for reference shader **3** is separate work.
 
 ## Problem and intended outcome
 
-A fragment shader cannot currently use screen-space derivatives for grid width, antialiasing, or similar effects. An author should be able to call `dFdx`, `dFdy`, and `fwidth` on supported f32 shader expressions in a fragment or a reusable helper, with one meaning across generated GLSL ES 3.00 and WGSL. The shaders should compile and produce comparable rendered behavior on real WebGL 2 and presented WebGPU without executing authored TypeScript.
+Fragment shaders need screen-space derivatives for grid width, antialiasing, and similar effects. Authors can call `dFdx`, `dFdy`, and `fwidth` on supported f32 shader expressions in a fragment or reusable helper, with one meaning across generated GLSL ES 3.00 and WGSL. The shaders should compile and produce comparable rendered behavior on real WebGL 2 and presented WebGPU without executing authored TypeScript.
 
 **Central invariant:** signed derivatives use Shdr's existing top-left screen coordinates: positive X points right and positive Y points down. A direct mapping to native GLSL `dFdy` would violate that invariant; backend output may differ in spelling and sign to preserve the authored meaning.
 
@@ -28,12 +28,13 @@ Non-goals:
 
 ## Current behavior and evidence
 
-Static inspection of the current repository (not derivative runtime verification) establishes:
+Implementation and verification status at Phase 1 completion:
 
-- `packages/shdr/src/math.ts` and `packages/shdr/src/index.ts` expose existing compile-only scalar/vector math functions; they do not expose these three derivatives. `packages/core/src/shader-builtin.ts` lists accepted builtin names and shapes; the target generators do not generate derivative calls.
-- `packages/core/src/generate-glsl-fragment.ts` constructs the top-left coordinate as `u_resolution.y - gl_FragCoord.y`. `packages/core/src/generate-wgsl-fragment.ts` uses the fragment-position builtin, whose Y orientation is top-left. Consequently, naively forwarding native signed-Y derivatives would disagree for `coord.y`.
-- Fragment and helper syntax is currently straight-line, and helper calls are statically lowered in their defining files. No authored non-uniform branches or other shader stages exist. This observation does not establish a guarantee for future control flow.
-- Existing source-only compilation, JSON artifact, uniform/resource bindings, static-consumer isolation, TypeScript 7 mapping, and renderer failure preservation remain constraints. Existing real-browser tests establish _prior features_, not derivative acceptance.
+- `packages/shdr` exports compile-only scalar/Vec2/3/4 overloads; core validates exact unary shapes and does not constant-fold derivative values.
+- Both generators emit the specified native calls; GLSL wraps the result as `(-dFdy(x))` so nested authored negation remains valid GLSL, and WGSL maps to `dpdx`/`dpdy`.
+- Direct and nested imported-helper graphs pass source-owned diagnostics, artifact invariance, GLSL link, and WGSL pipeline checks. No graph implementation changes were required.
+- Raw WebGL and offscreen WebGPU probes validate signed Y and nonsaturating vector-width lanes. Editor/CLI/Vite/REPL parity and presented-WebGPU acceptance remain pending; see [plan.md](plan.md) and [evidence/phase-0.md](evidence/phase-0.md).
+- Fragment/helper syntax remains straight-line and helpers are statically lowered in their defining files. Future non-uniform control flow or stages require a separate contract. Existing artifact, binding, static-consumer and renderer lifecycle constraints remain in force.
 
 ## Requirements and invariants
 

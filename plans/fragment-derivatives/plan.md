@@ -2,10 +2,10 @@
 
 ## Status and governing source
 
-- Governing contract: [spec.md](spec.md). No derivative implementation or verification is claimed.
-- Delivery state: **Planning only**. Every step is Pending; evidence is Not run.
-- Acceptance/release pending: All implementation, real-target acceptance, review, merge, and any publication. A plan is not permission to perform these actions.
-- Blockers: None for Phase 0 target feasibility. Raw WebGL and WebGPU probes pass under Playwright Chromium/SwiftShader. The configured VS Code executable is missing; real-editor verification remains unavailable for its owning phase.
+- Governing contract: [spec.md](spec.md).
+- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, and 2.1 and the Phase 0/1 exit gates are Verified; Phase 2.2–2.3 and Phase 3 remain Pending. See each step's evidence below.
+- Remaining work: Phase 2 consumer integration and Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
+- Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
 
 Step statuses below are the authoritative execution record. A phase completes only after its steps **and** its exit gate pass. Checked tasks alone do not verify a step; `Verified` includes its scoped gate and review, not user approval or release. Manual approvals in supervised execution belong to extension state.
 
@@ -36,7 +36,7 @@ Review boundary: Baseline and raw standalone probes only; no change to accepted 
 
 ### Step 0.1 — Establish a reproducible baseline
 
-Status: Complete (baseline checks); editor prerequisite unavailable
+Status: Verified (baseline checks); editor prerequisite unavailable
 Requirements / acceptance: R7–R8; AC6 (baseline only; feature regression belongs to Steps 1.2 and 3.2).
 Depends on: None.
 Review boundary: Read-only checks and classification; a prerequisite fix would need its own reviewed scope.
@@ -48,9 +48,9 @@ Expected files:
 
 Tasks:
 
-- [ ] Inspect revision/worktree state, actual tool versions, built-export health, and current target/editor prerequisites; do not alter unrelated work.
-- [ ] Establish whether existing core, public type, graph, and editor suites build and pass at this revision; classify pre-existing failures and capability gaps separately.
-- [ ] Record the starting contract (GLSL top-left `coord.y`, WGSL position Y, straight-line helper reachability) and any existing safety concerns without claiming derivative support.
+- [x] Inspect revision/worktree state, actual tool versions, built-export health, and current target/editor prerequisites; do not alter unrelated work.
+- [x] Establish whether existing core, public type, graph, and editor suites build and pass at this revision; classify pre-existing failures and capability gaps separately.
+- [x] Record the starting contract (GLSL top-left `coord.y`, WGSL position Y, straight-line helper reachability) and any existing safety concerns without claiming derivative support.
 
 Verification:
 
@@ -62,7 +62,7 @@ Evidence: [evidence/phase-0.md](evidence/phase-0.md) — baseline commands passe
 
 ### Step 0.2 — Probe raw derivative signatures, signs, and helper uniformity
 
-Status: Complete — raw target feasibility probe passes
+Status: Verified — raw target feasibility probe passes
 Requirements / acceptance: R1–R4, R8; AC1/AC2/AC4 (**raw feasibility only**; generated/public/presented acceptance remains Steps 1.1–3.1).
 Depends on: Step 0.1.
 Review boundary: Raw GLSL/WGSL fragment probes; no compiler/DSL acceptance or full reference shader port.
@@ -74,10 +74,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Compile/link raw GLSL ES 3.00 and validate WGSL shader **and render pipeline** for all three unary names on scalar and Vec2/3/4 f32, including a reachable straight-line helper (probe real WGSL derivative uniformity, not just parsing).
-- [ ] Draw pinned finite, smooth interior fields on non-square canvases using native target positions, explicit GLSL negative `dFdy` **result**, and WGSL `dpdy`; compare positive/down and reconstructed-up signs and lane-wise `fwidth` magnitudes. Keep raw observations separate from generated-shader acceptance.
-- [ ] Encode signed values into visible channels with a documented mapping (e.g. `0.5 + 0.25 * slope`) and set tolerances from quantization and observed target accuracy **before** using them as generated-feature gates; do not tune tolerances to excuse a missing sign flip.
-- [ ] Record adapter/browser/backend capability and what was compiled versus drawn; if a target or helper case fails, stop for spec review rather than silently narrowing helpers or inventing fallback values.
+- [x] Compile/link raw GLSL ES 3.00 and validate WGSL shader **and render pipeline** for all three unary names on scalar and Vec2/3/4 f32, including a reachable straight-line helper (probe real WGSL derivative uniformity, not just parsing).
+- [x] Draw pinned finite, smooth interior fields on non-square canvases using native target positions, explicit GLSL negative `dFdy` **result**, and WGSL `dpdy`; compare positive/down and reconstructed-up signs and lane-wise `fwidth` magnitudes. Keep raw observations separate from generated-shader acceptance.
+- [x] Encode signed values into visible channels with a documented mapping (e.g. `0.5 + 0.25 * slope`) and set tolerances from quantization and observed target accuracy **before** using them as generated-feature gates; do not tune tolerances to excuse a missing sign flip.
+- [x] Record adapter/browser/backend capability and what was compiled versus drawn; if a target or helper case fails, stop for spec review rather than silently narrowing helpers or inventing fallback values.
 
 Verification:
 
@@ -119,10 +119,10 @@ Tasks:
 Verification:
 
 - Automated, root: `pnpm build`; `pnpm --filter shdr check`; `pnpm --filter @shdr/core check`; focused derivative and existing builtin parity/IR tests (4 files / 79 tests). Type assertions cover the twelve returns and rejects; generated tests compile/link GLSL and validate a WGSL pipeline for all twelve signatures.
-- Manual: Reviewed emitter diff for symmetric target coverage and no runtime/IR artifact schema additions; a review caught and fixed a temporary WGSL `sin`/`cos` mapping regression. Compilation is not rendered semantic proof.
+- Manual: Reviewed emitter diff for symmetric target coverage and no runtime/IR artifact schema additions; review caught/fixed a temporary WGSL `sin`/`cos` mapping regression and a generated-GLSL nested-unary `--` token bug. Added a real generated GLSL link regression for authored `-dFdy(coord.y)`. Compilation is not rendered semantic proof.
 
 Completion gate: A direct-fragment derivative call passes public types, core diagnostics, **both generated target compilers/pipelines**, and review with no newly accepted one-target-only signature. This step and the rest of the feature are not individually mergeable.
-Evidence: `packages/shdr/test/fragment-derivative-types.ts`; `packages/core/test/fragment-derivatives.test.ts`; source/backend changes listed above. Probe and focused gates pass; generated target validation is not rendered semantic proof.
+Evidence: `packages/shdr/test/fragment-derivative-types.ts`; `packages/core/test/fragment-derivatives.test.ts`; source/backend changes listed above. Repaired nested-unary GLSL and all focused target gates pass; generated target validation is not presented-pixel acceptance.
 
 ### Step 1.2 — Preserve helper graphs, ownership and artifact invariants
 
@@ -160,7 +160,7 @@ Review boundary: Tests/fixtures and necessary integration fixes, not a new langu
 
 ### Step 2.1 — TypeScript 7 and real-editor parity
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R5–R6; AC1 (hover portion), AC3 (editor portion), AC5 (editor/refresh portion). CLI/Vite/REPL remain Steps 2.2–2.3.
 Depends on: Phase 1 exit.
 Review boundary: Diagnostic routing and QuickInfo for derivative calls, local/imported helpers and edit refresh; ordinary `.ts` ownership stays unchanged.
@@ -172,17 +172,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Assert scalar/Vec2/3/4 QuickInfo and zero diagnostics for a valid fragment and typed helper; invalid arity, matrix/texture, missing import and forbidden capture map to original authored spans, not virtual/generated text.
-- [ ] Test incremental valid → invalid → valid edits in fragment and imported helper, including helper-only ownership and ordinary `.ts` checks; prevent stale/cascaded diagnostics.
-- [ ] Extend installed VS Code fixture for valid derivative hover and a precise invalid call, without replacing the shared TypeScript 7 adapter or introducing an LSP fork.
-- [ ] Inspect real editor responses and any limitations; do not treat unit-adapter mocks as proof of installed VS Code behavior.
+- [x] Assert scalar/Vec2/3/4 QuickInfo and zero diagnostics for a valid fragment and typed helper; invalid arity, matrix/texture, missing import and forbidden capture map to original authored spans, not virtual/generated text.
+- [x] Test incremental valid → invalid → valid edits in fragment and imported helper, including helper-only ownership and ordinary `.ts` checks; prevent stale/cascaded diagnostics.
+- [x] Extend installed VS Code fixture for valid derivative hover and a precise invalid call, without replacing the shared TypeScript 7 adapter or introducing an LSP fork.
+- [x] Inspect real editor responses and limitations; real extension-host verification completed.
 
 Verification:
 
 - Automated, root, **after adding the test/fixture**: `pnpm build`; `pnpm --filter @shdr/language-service exec vitest run --config ../../vitest.config.ts --root . test/fragment-derivatives-editor.test.ts`; `pnpm --filter @shdr/editor-fixture build`; `pnpm --filter @shdr/editor-fixture test:editor`. Expect authored hover/diagnostic/edit parity and successful real extension-host check.
 - Manual: With installed VS Code fixture, open/edit `fragment-derivatives.shdr.ts`, check signed-call hover, invalid range, helper refresh and ordinary `.ts` language ownership. If the executable is unavailable, mark this gate Blocked, not unit-verified.
 
-Completion gate: Adapter and installed-editor evidence agrees on valid/invalid calls and source locations; ordinary TypeScript unaffected. Evidence: Not run.
+Completion gate: Adapter and installed-editor evidence agrees on valid/invalid calls and source locations; ordinary TypeScript unaffected. Evidence: `packages/language-service/test/fragment-derivatives-editor.test.ts` (7 tests), `apps/editor-fixture/src/extension.test.ts`; language-service check, editor-fixture build, and `pnpm --filter @shdr/editor-fixture test:editor` passed. Real VS Code testing exposed and fixed a helper-only diagnostic-routing gap: graph `InvalidBuiltin` diagnostics now suppress redundant TypeScript overload cascades; the adapter test asserts exactly one diagnostic.
 
 ### Step 2.2 — Project, CLI and static Vite consumers
 
