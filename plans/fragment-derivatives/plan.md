@@ -126,7 +126,7 @@ Evidence: `packages/shdr/test/fragment-derivative-types.ts`; `packages/core/test
 
 ### Step 1.2 — Preserve helper graphs, ownership and artifact invariants
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1, R4–R7; AC1 (helper/graph and defining-file portion), AC3 (invalid helper portion), AC6 (core artifact portion). Editor/CLI, static-consumer and runtime portions remain Phases 2–3.
 Depends on: Step 1.1.
 Review boundary: Local, helper-only and imported `defineShaderFunction` cases, edits, diagnostics and existing artifact schema; no expanded stage grammar.
@@ -138,19 +138,19 @@ Expected files:
 
 Tasks:
 
-- [ ] Exercise scalar/vector derivatives inside local and imported helper-only modules (including nested helper calls); prove both generated targets compile/link with derivative calls in reachable helpers.
-- [ ] Test helper-source wrong arity, forbidden capture and invalid syntax; assert diagnostics point to the defining file/range and editing the helper invalidates stale acceptance without generating a candidate artifact.
-- [ ] Compare artifact JSON keys, existing uniform/texture/custom binding metadata and referenced-resource behavior before/after a derivative inside a shader combining math, custom uniforms, sampling and helpers.
-- [ ] Confirm plain `.shdr.ts` compilation never evaluates shader modules as JS; keep direct named-import checks, safe identifier handling and ordinary shader operations intact.
+- [x] Exercise scalar/vector derivatives inside local and imported helper-only modules (including nested helper calls); prove both generated targets compile/link with derivative calls in reachable helpers.
+- [x] Test helper-source wrong arity, forbidden capture and invalid syntax; assert diagnostics point to the defining file/range and editing the helper invalidates stale acceptance without generating a candidate artifact.
+- [x] Compare artifact JSON keys, existing uniform/texture/custom binding metadata and referenced-resource behavior before/after a derivative inside a shader combining math, custom uniforms, sampling and helpers.
+- [x] Confirm plain `.shdr.ts` compilation never evaluates shader modules as JS; keep direct named-import checks, safe identifier handling and ordinary shader operations intact.
 
 Verification:
 
 - Automated, root, **after adding tests**: `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root . test/fragment-derivatives.test.ts test/fragment-derivatives-generated.test.ts test/fragment-derivatives-graph.test.ts test/reusable-graph.test.ts`; `pnpm --filter @shdr/core check`. Expect accepted helper graphs to validate on both real targets; negative graphs yield authored diagnostics and no candidate; metadata/bindings unchanged except generated shader code.
 - Manual: Inspect any graph-source change for continued defining-file ownership and no dependency on future control flow.
 
-Completion gate: Both target outputs and artifact/diagnostic invariants hold for direct and imported helpers; review complete. Evidence: Not run.
+Completion gate: Both target outputs and artifact/diagnostic invariants hold for direct and imported helpers; review complete. Evidence: `packages/core/test/fragment-derivatives-graph.test.ts` and `packages/core/test/fragment-derivatives-generated.test.ts`; 8 focused tests pass, including helper ownership, edit/recovery, no source execution, metadata invariance, GLSL link and WGSL pipeline.
 
-Phase exit gate: After Step 1.2 run `pnpm build`, `pnpm --filter shdr check`, `pnpm --filter @shdr/core test` (or direct package Vitest with installed Chromium if hooks would install it), and `pnpm --filter @shdr/core check`. Check all shapes, negatives, helper graph and generated-target feasibility compose and old core tests still pass; failures block Phase 2. Evidence: Not run.
+Phase exit gate: Verified. `pnpm build`, `pnpm --filter shdr check`, `pnpm --filter @shdr/core check`, and direct full core Vitest passed (63 files / 562 tests). Direct Vitest was used instead of `@shdr/core test` to avoid its browser-install hook. No graph implementation changes were needed.
 
 ## Phase 2 — Editor and consumer integration
 
