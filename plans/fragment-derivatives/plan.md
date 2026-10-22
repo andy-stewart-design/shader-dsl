@@ -4,7 +4,7 @@
 
 - Governing contract: [spec.md](spec.md).
 - Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, and 2.3 and the Phase 0/1/2 exit gates are Verified; Phase 3 remains Pending. See each step's evidence below.
-- Remaining work: Phase 2 consumer integration and Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
+- Remaining work: Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
 - Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
 
 Step statuses below are the authoritative execution record. A phase completes only after its steps **and** its exit gate pass. Checked tasks alone do not verify a step; `Verified` includes its scoped gate and review, not user approval or release. Manual approvals in supervised execution belong to extension state.
@@ -182,7 +182,7 @@ Verification:
 - Automated, root, **after adding the test/fixture**: `pnpm build`; `pnpm --filter @shdr/language-service exec vitest run --config ../../vitest.config.ts --root . test/fragment-derivatives-editor.test.ts`; `pnpm --filter @shdr/editor-fixture build`; `pnpm --filter @shdr/editor-fixture test:editor`. Expect authored hover/diagnostic/edit parity and successful real extension-host check.
 - Manual: With installed VS Code fixture, open/edit `fragment-derivatives.shdr.ts`, check signed-call hover, invalid range, helper refresh and ordinary `.ts` language ownership. If the executable is unavailable, mark this gate Blocked, not unit-verified.
 
-Completion gate: Adapter and installed-editor evidence agrees on valid/invalid calls and source locations; ordinary TypeScript unaffected. Evidence: `packages/language-service/test/fragment-derivatives-editor.test.ts` (7 tests), `apps/editor-fixture/src/extension.test.ts`; language-service check, editor-fixture build, and `pnpm --filter @shdr/editor-fixture test:editor` passed. Real VS Code testing exposed and fixed a helper-only diagnostic-routing gap: graph `InvalidBuiltin` diagnostics now suppress redundant TypeScript overload cascades; the adapter test asserts exactly one diagnostic.
+Completion gate: Adapter and installed-editor evidence agrees on valid/invalid calls and source locations. Automated VS Code coverage confirms an ordinary `.ts` document retains TypeScript language ownership; it does not verify the standard TypeScript provider's hover behavior, which remains untested. Evidence: `packages/language-service/test/fragment-derivatives-editor.test.ts` (7 tests), `apps/editor-fixture/src/extension.test.ts`; language-service check, editor-fixture build, and `pnpm --filter @shdr/editor-fixture test:editor` passed. Real VS Code testing exposed and fixed a helper-only diagnostic-routing gap: graph `InvalidBuiltin` diagnostics now suppress redundant TypeScript overload cascades; the adapter test asserts exactly one diagnostic.
 
 ### Step 2.2 — Project, CLI and static Vite consumers
 
@@ -201,7 +201,7 @@ Tasks:
 
 - [x] Exercise project/CLI checks of valid helper-only modules and invalid helper edits in temporary projects; assert authored file/range, no artifact for invalid source, and no JS evaluation.
 - [x] Import a derivative artifact into a static Vite app and assert built shader text and source maps while excluding Shdr/compiler modules, source evaluation and opposite runtime in the WebGL-only bundle.
-- [x] Exercise Vite dev edits of fragment/helper and recovery; keep the old installed shader on failed edit where the current consumer already supports that behavior.
+- [x] Exercise Vite dev pre-transform edits of fragment/helper, invalid diagnostics and recovery. This verifies transform behavior only; it does not claim that an already-installed app renderer preserves its prior shader after an invalid edit (that is tested in the REPL consumer).
 - [x] Verify default and custom uniforms/textures coexist with derivative output without schema or resource binding changes; update tests/fixtures alongside their consumers.
 
 Verification:

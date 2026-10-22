@@ -189,9 +189,10 @@ export default defineUniforms((u) => ({ tint: u.vec3(0.5, 0.7, 0.9), photo: u.te
       expect(artifact.wgsl).toContain("dpdx(");
       expect(artifact.wgsl).toContain("dpdy(");
       expect(artifact.resources?.textures[0]?.url).toBe("/photo.png");
-      expect(artifact.custom.declarations.map((item) => item.name)).toEqual([
-        "tint",
-      ]);
+      const custom = artifact.custom;
+      expect(custom).toBeDefined();
+      if (!custom) throw new Error("Expected custom uniform metadata.");
+      expect(custom.declarations.map((item) => item.name)).toEqual(["tint"]);
       expect(watched).toContain(await realpath(helper));
       expect(transformed?.code).not.toContain("defineShaderFunction");
       expect(transformed?.code).not.toContain("createFragmentShader");
@@ -640,7 +641,7 @@ function parseArtifact(result: TransformResult | null): {
   readonly glsl: string;
   readonly wgsl: string;
   readonly custom?: {
-    readonly declarations: readonly unknown[];
+    readonly declarations: readonly { readonly name: string }[];
   };
   readonly resources?: {
     readonly textures: readonly { readonly url: string }[];
