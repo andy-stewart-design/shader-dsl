@@ -24,6 +24,7 @@ import customNamed from "./custom-demo-named.shdr.ts";
 import sharedSchemaA from "./custom-shared-a.shdr.ts";
 import sharedSchemaB from "./custom-shared-b.shdr.ts";
 import composedReusable from "./reusable-composed.shdr.ts";
+import fragmentDerivatives from "./fragment-derivatives.shdr.ts";
 import "./style.css";
 
 const shader: CompiledFragmentArtifact = fragmentShader;
@@ -41,6 +42,7 @@ const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 const squareMatrices: CompiledFragmentArtifact = squareMatricesShader;
 const moduleConstants: CompiledFragmentArtifact = moduleConstantsShader;
 const composed: CompiledFragmentArtifact = composedReusable;
+const derivatives: CompiledFragmentArtifact = fragmentDerivatives;
 if (
   customUniformsShader.custom?.declarations[0]?.type !== "vec3" ||
   sharedSchemaA.custom?.declarations[0]?.type !== "f32" ||
@@ -96,7 +98,16 @@ if (
   plasma.custom?.declarations.map((item) => item.name).join(",") !==
     "scale,speed,complexity,grain,colorA,colorB" ||
   cells.custom?.declarations.map((item) => item.name).join(",") !==
-    "dpi,spread,blur"
+    "dpi,spread,blur" ||
+  derivatives.custom?.declarations.map((item) => item.name).join(",") !==
+    "tint" ||
+  !derivatives.resources?.textures[0]?.url.endsWith("abstract-01.jpg") ||
+  !derivatives.glsl.includes("dFdx(") ||
+  !derivatives.glsl.includes("(-dFdy(") ||
+  !derivatives.glsl.includes("fwidth(") ||
+  !derivatives.wgsl.includes("dpdx(") ||
+  !derivatives.wgsl.includes("dpdy(") ||
+  !derivatives.wgsl.includes("fwidth(")
 )
   throw new Error("The shader artifacts were not compiled by the Vite plugin.");
 

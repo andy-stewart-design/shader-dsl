@@ -20,6 +20,14 @@ const schemaSource = await readFile(schemaShaderFile, "utf8");
 const customShaderFile = fileURLToPath(
   new URL("./src/custom-uniforms.shdr.ts", import.meta.url),
 );
+const derivativeHelperFile = fileURLToPath(
+  new URL("./src/shared/fragment-derivative-helper.shdr.ts", import.meta.url),
+);
+const derivativeHelperSource = await readFile(derivativeHelperFile, "utf8");
+const derivativeShaderFile = fileURLToPath(
+  new URL("./src/fragment-derivatives.shdr.ts", import.meta.url),
+);
+const derivativeShaderSource = await readFile(derivativeShaderFile, "utf8");
 const customSource = await readFile(customShaderFile, "utf8");
 const namedShaderFile = fileURLToPath(
   new URL("./src/custom-demo-named.shdr.ts", import.meta.url),
@@ -47,6 +55,8 @@ let sourceWasEdited = false;
 let helperWasEdited = false;
 let schemaWasEdited = false;
 let customWasEdited = false;
+let derivativeHelperWasEdited = false;
+let derivativeShaderWasEdited = false;
 let namedWasEdited = false;
 
 try {
@@ -102,6 +112,16 @@ try {
   assertIncludes(initialModule, "#version 300 es");
   assertIncludes(initialModule, "shdr_fragment_color");
   assertExcludes(initialModule, "createFragmentShader");
+
+  const initialDerivatives = await requestShaderModule(
+    baseUrl,
+    "initial-derivatives",
+    "fragment-derivatives",
+  );
+  assertIncludes(initialDerivatives, "dFdx(");
+  assertIncludes(initialDerivatives, "(-dFdy(");
+  assertIncludes(initialDerivatives, "dpdx(");
+  assertIncludes(initialDerivatives, "abstract-01.jpg");
   assertExcludes(initialModule, "coord.xy / uniforms.resolution");
 
   browser = await chromium.launch({
@@ -119,10 +139,65 @@ try {
     if (message.type() === "error") browserErrors.push(message.text());
   });
 
+  const invalidDerivativeShader = derivativeShaderSource.replace(
+    "dFdx(coord.x)",
+    "dFdx(coord.x, coord.x)",
+  );
+  await writeFile(derivativeShaderFile, invalidDerivativeShader);
+  derivativeShaderWasEdited = true;
+  server.watcher.emit("change", derivativeShaderFile);
+  await waitForInvalidShaderTransform(
+    baseUrl,
+    "invalid-fragment-derivatives",
+    "fragment-derivatives",
+  );
+
+  await writeFile(derivativeShaderFile, derivativeShaderSource);
+  derivativeShaderWasEdited = false;
+  await waitForShaderTransform(
+    baseUrl,
+    "recovered-fragment-derivatives",
+    "fragment-derivatives",
+    (module) => module.includes("dFdx(") && module.includes("abstract-01.jpg"),
+  );
+
+  const invalidDerivativeHelper = derivativeHelperSource.replace(
+    "fwidth(dFdy(value))",
+    "fwidth(dFdy(value, value))",
+  );
+  await writeFile(derivativeHelperFile, invalidDerivativeHelper);
+  derivativeHelperWasEdited = true;
+  server.watcher.emit("change", derivativeHelperFile);
+  await waitForInvalidShaderTransform(
+    baseUrl,
+    "invalid-helper-derivatives",
+    "fragment-derivatives",
+  );
+
+  await writeFile(derivativeHelperFile, derivativeHelperSource);
+  derivativeHelperWasEdited = false;
+  const recoveredDerivatives = await waitForShaderTransform(
+    baseUrl,
+    "recovered-derivatives",
+    "fragment-derivatives",
+    (module) => module.includes("dpdx(") && module.includes("abstract-01.jpg"),
+  );
+  assertIncludes(recoveredDerivatives, "dFdx(");
+
   await page.goto(baseUrl, { waitUntil: "load" });
-  await page.locator('#shader-canvas[data-render-status="success"]').waitFor();
-  await page.locator('#orbit-canvas[data-render-status="success"]').waitFor();
-  const browserCompile = await page.evaluate(
+  try {
+    await page
+      .locator('#shader-canvas[data-render-status="success"]')
+      .waitFor();
+    await page.locator('#orbit-canvas[data-render-status="success"]').waitFor();
+  } catch (error) {
+    throw new Error(
+      `Vite dev renderer did not reach success: ${browserErrors.join("\\n")}`,
+      { cause: error },
+    );
+  }
+  const browserCompile = await evaluateAfterHmr(
+    page,
     async ({ source, helper }) => {
       const { compileFragmentArtifact } =
         await import("/src/browser-compiler-smoke.ts");
@@ -397,6 +472,10 @@ try {
 } finally {
   if (sourceWasEdited) await writeFile(shaderFile, originalSource);
   if (customWasEdited) await writeFile(customShaderFile, customSource);
+  if (derivativeHelperWasEdited)
+    await writeFile(derivativeHelperFile, derivativeHelperSource);
+  if (derivativeShaderWasEdited)
+    await writeFile(derivativeShaderFile, derivativeShaderSource);
   if (namedWasEdited) await writeFile(namedShaderFile, namedSource);
   if (helperWasEdited) await writeFile(helperShaderFile, helperSource);
   if (schemaWasEdited) await writeFile(schemaShaderFile, schemaSource);
@@ -414,6 +493,22 @@ async function requestShaderModule(baseUrl, cacheKey, shaderName = "gradient") {
     );
   }
   return response.text();
+}
+
+async function waitForInvalidShaderTransform(baseUrl, cacheKey, shaderName) {
+  const timeoutAt = Date.now() + 5_000;
+  let latest = "";
+  while (Date.now() < timeoutAt) {
+    const response = await fetch(
+      `${baseUrl}/src/${shaderName}.shdr.ts?t=${encodeURIComponent(cacheKey)}`,
+    );
+    latest = await response.text();
+    if (!response.ok && latest.includes("SHDR1208")) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Vite did not report the invalid derivative transform. Last response:\n${latest}`,
+  );
 }
 
 async function waitForEditedTransform(baseUrl) {

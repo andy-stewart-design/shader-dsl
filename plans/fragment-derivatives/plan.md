@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing contract: [spec.md](spec.md).
-- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, and 2.1 and the Phase 0/1 exit gates are Verified; Phase 2.2–2.3 and Phase 3 remain Pending. See each step's evidence below.
+- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, and 2.2 and the Phase 0/1 exit gates are Verified; Step 2.3 and Phase 3 remain Pending. See each step's evidence below.
 - Remaining work: Phase 2 consumer integration and Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
 - Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
 
@@ -186,7 +186,7 @@ Completion gate: Adapter and installed-editor evidence agrees on valid/invalid c
 
 ### Step 2.2 — Project, CLI and static Vite consumers
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R5–R7; AC3 (CLI/project portion), AC5 (CLI/Vite portion), AC6 (static-bundle/artifact portion). Rendered acceptance remains Phase 3.
 Depends on: Step 2.1.
 Review boundary: Existing project graph and Vite static transforms, no new browser compiler in static consumers.
@@ -199,17 +199,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Exercise project/CLI checks of valid helper-only modules and invalid helper edits in temporary projects; assert authored file/range, no artifact for invalid source, and no JS evaluation.
-- [ ] Import a derivative artifact into a static Vite app and assert built shader text and source maps while excluding Shdr/compiler modules, source evaluation and opposite runtime in the WebGL-only bundle.
-- [ ] Exercise Vite dev edits of fragment/helper and recovery; keep the old installed shader on failed edit where the current consumer already supports that behavior.
-- [ ] Verify default and custom uniforms/textures coexist with derivative output without schema or resource binding changes; update tests/fixtures alongside their consumers.
+- [x] Exercise project/CLI checks of valid helper-only modules and invalid helper edits in temporary projects; assert authored file/range, no artifact for invalid source, and no JS evaluation.
+- [x] Import a derivative artifact into a static Vite app and assert built shader text and source maps while excluding Shdr/compiler modules, source evaluation and opposite runtime in the WebGL-only bundle.
+- [x] Exercise Vite dev edits of fragment/helper and recovery; keep the old installed shader on failed edit where the current consumer already supports that behavior.
+- [x] Verify default and custom uniforms/textures coexist with derivative output without schema or resource binding changes; update tests/fixtures alongside their consumers.
 
 Verification:
 
 - Automated, root: `pnpm build`; `pnpm --filter @shdr/project test`; `pnpm --filter @shdr/cli test`; `pnpm --filter @shdr/vite test`; `pnpm --filter vite-basic test` (includes existing build/dev/render scripts; run direct scripts only with installed browser if hooks would install). Expect graph edits/diagnostics and static bundle isolation; distinguish build output inspection from pixel behavior.
 - Manual: Review built output/sourcemap exclusions and ensure the Vite test fixtures, not runtime code, own any new compiler probes.
 
-Completion gate: CLI/project/Vite graph and static-consumer checks pass against rebuilt exports, with no runtime schema or compiler-bundle regression. Evidence: Not run.
+Completion gate: CLI/project/Vite graph and static-consumer checks pass against rebuilt exports, with no runtime schema or compiler-bundle regression. Evidence: `packages/project/test/project.test.ts` (5 tests), `packages/cli/test/cli.test.ts` (29 tests), `packages/vite/test/index.test.ts` (24 tests), `apps/vite-basic/src/fragment-derivatives.shdr.ts` and `apps/vite-basic/src/shared/fragment-derivative-helper.shdr.ts`; project/CLI/Vite suites, app check/build/static-bundle validation, Vite dev edit/error/recovery, render and texture scripts passed. Vite's existing transform returns `map: null`; production maps include the static entry source but not the erased helper source, while emitted artifacts contain reachable helper code. No plugin mapping behavior was changed.
 
 ### Step 2.3 — Browser compiler and REPL edit/failure parity
 

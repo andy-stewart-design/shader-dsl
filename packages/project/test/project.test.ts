@@ -116,6 +116,68 @@ export default createFragmentShader(({ uniforms }) => vec4(scale(uniforms.time),
     });
   });
 
+  it("compiles derivative helper graphs with stable resources and source-owned edit errors", async () => {
+    await withProject(async (root) => {
+      await mkdir(join(root, "src/shared"), { recursive: true });
+      const entry = join(root, "src/entry.shdr.ts");
+      const helper = join(root, "src/shared/derivatives.shdr.ts");
+      const helperSource = `import { defineShaderFunction, dFdx, fwidth } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const slope = defineShaderFunction((value: Expr<F32>) => fwidth(dFdx(value)));
+`;
+      const entrySource = `import { defineUniforms, sample, vec4 } from "shdr";
+import { slope } from "./shared/derivatives.shdr.ts";
+export default defineUniforms((u) => ({ tint: u.vec3(0.5, 0.7, 0.9), photo: u.texture2D("/photo.png") }))
+  .createFragmentShader(({ coord, uniforms }) => {
+    const color = sample(uniforms.photo, coord.xy / uniforms.resolution);
+    return vec4(color.x * uniforms.tint.x + slope(coord.x), color.y, color.z, 1);
+  });
+`;
+      await writeFile(entry, entrySource);
+      await writeFile(helper, helperSource);
+      const loaded = await loadShaderGraph({ entry, searchRoots: [root] });
+      expect([...loaded.input.files.keys()]).toContain(await realpath(helper));
+      const compiled = compileFragmentArtifact(loaded.input);
+      expect(compiled.ok).toBe(true);
+      if (compiled.ok) {
+        expect(compiled.artifact.glsl).toContain("dFdx(");
+        expect(compiled.artifact.wgsl).toContain("dpdx(");
+        expect(
+          compiled.artifact.custom.declarations.map((item) => item.name),
+        ).toEqual(["tint"]);
+        expect(compiled.artifact.resources?.textures[0]?.url).toBe(
+          "/photo.png",
+        );
+        expect(Object.keys(compiled.artifact)).toEqual([
+          "glsl",
+          "wgsl",
+          "defaults",
+          "custom",
+          "resources",
+        ]);
+      }
+
+      const invalidHelper = helperSource.replace(
+        "dFdx(value)",
+        "dFdx(value, value)",
+      );
+      await writeFile(helper, invalidHelper);
+      const invalid = await loadShaderGraph({ entry, searchRoots: [root] });
+      const diagnostics = checkShaderGraph(invalid.input);
+      expect(diagnostics.ok).toBe(false);
+      if (!diagnostics.ok) {
+        expect(diagnostics.diagnostics[0]).toMatchObject({
+          code: "SHDR1208",
+          fileName: await realpath(helper),
+          range: {
+            start: invalidHelper.indexOf("dFdx(value, value)"),
+          },
+        });
+      }
+      expect(compileFragmentArtifact(invalid.input).ok).toBe(false);
+    });
+  });
+
   it("canonicalizes symlinked alias targets for the core graph", async () => {
     await withProject(async (root) => {
       const realLibrary = join(root, "library");
