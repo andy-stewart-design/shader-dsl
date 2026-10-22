@@ -3,7 +3,7 @@
 ## Status and governing source
 
 - Governing contract: [spec.md](spec.md).
-- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, and 2.2 and the Phase 0/1 exit gates are Verified; Step 2.3 and Phase 3 remain Pending. See each step's evidence below.
+- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, and 2.3 and the Phase 0/1/2 exit gates are Verified; Phase 3 remains Pending. See each step's evidence below.
 - Remaining work: Phase 2 consumer integration and Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
 - Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
 
@@ -213,7 +213,7 @@ Completion gate: CLI/project/Vite graph and static-consumer checks pass against 
 
 ### Step 2.3 — Browser compiler and REPL edit/failure parity
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R5–R7; AC5 (browser/REPL portion), AC6 (REPL regression portion). Quantitative rendered acceptance remains Step 3.1.
 Depends on: Step 2.2.
 Review boundary: Single-textarea authored input, independent existing renderers, no `.shdr.ts` import fetch or extra bindings.
@@ -224,19 +224,19 @@ Expected files:
 
 Tasks:
 
-- [ ] Paste direct-imported derivative source in the single textarea; assert browser compilation produces both targets with no request for shader source modules.
-- [ ] Edit to wrong arity/shape or remove direct import, assert authored diagnostics and no usable candidate while the prior healthy WebGL/WebGPU preview remains installed.
-- [ ] Restore source and verify validation/render status recovers; distinguish shader diagnostics from unavailable/failed backend/device status.
-- [ ] Keep existing independent preview and texture/custom uniform tests intact; do not add host derivative options.
+- [x] Paste direct-imported derivative source in the single textarea; assert browser compilation produces both targets with no request for shader source modules.
+- [x] Edit to wrong arity/shape or remove direct import, assert authored diagnostics and no usable candidate while the prior healthy WebGL/WebGPU preview remains installed.
+- [x] Restore source and verify validation/render status recovers; distinguish shader diagnostics from unavailable/failed backend/device status.
+- [x] Keep existing independent preview and texture/custom uniform tests intact; do not add host derivative options.
 
 Verification:
 
 - Automated, root, existing script **after extension**: `pnpm build`; `pnpm --filter repl exec node verify-browser.mjs`; `pnpm --filter repl check`. Assert real browser edit/recovery and request interception. This does not substitute for pinned non-square signed pixel probes in Step 3.1.
 - Manual: Inspect screenshot/state only if scripted selectors cannot show which old preview survived; record both backend states, not a generic success banner.
 
-Completion gate: Valid/invalid/restore sequence holds on both present browser preview paths with original-source diagnostics and no shader-import fetch. Evidence: Not run.
+Completion gate: Valid/invalid/restore sequences for wrong derivative arity and missing direct import hold on both browser preview paths with authored diagnostics and no shader-import fetch. Evidence: `apps/repl/verify-browser.mjs`; root build, `pnpm --filter repl exec node verify-browser.mjs`, and `pnpm --filter repl check` passed. The same script verifies both prior pixels remain unchanged after failure and both targets recover after restore.
 
-Phase exit gate: After Step 2.3, run rebuilt package consumer suites, `pnpm --filter @shdr/editor-fixture test:editor`, `pnpm --filter vite-basic test`, and `pnpm --filter repl exec node verify-browser.mjs` (using direct scripts if hooks would install). Review that edits, binding metadata, installed-editor diagnostics and compiler isolation compose; unresolved browser/editor capability blocks Phase 3. Evidence: Not run.
+Phase exit gate: Verified. Rebuilt package consumer suites passed (project 5, CLI 29, Vite 24 tests); installed VS Code fixture passed; vite-basic check/build plus dev, render and texture scripts passed; REPL browser compiler/runtime script and type/lint check passed. Derivative computation has not yet passed the signed/non-square quantitative rendering gate in Phase 3.
 
 ## Phase 3 — Rendered contract and final acceptance
 
