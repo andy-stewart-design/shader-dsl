@@ -4,6 +4,9 @@ import type { ShaderValueType } from "./shader-type.js";
 export const SHADER_BUILTINS = {
   sin: "unary-same",
   cos: "unary-same",
+  dFdx: "unary-same",
+  dFdy: "unary-same",
+  fwidth: "unary-same",
   asin: "unary-same",
   acos: "unary-same",
   atan: "atan",

@@ -97,7 +97,7 @@ Review boundary: Public language, core validation and artifact generation; consu
 
 ### Step 1.1 — Add complete unary types and both emitters atomically
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1–R5, R7; AC1 (public/core/direct-fragment portion), AC2/AC4 (generation/target compilation portion), AC3 (core negatives). Graph/editor/rendered portions remain Steps 1.2, 2.1 and 3.1.
 Depends on: Phase 0 exit.
 Review boundary: Exactly `dFdx`, `dFdy`, `fwidth` for f32 scalar/Vec2/3/4 in direct-imported straight-line fragments; no new grammar or backend-only signatures.
@@ -106,23 +106,23 @@ Expected files:
 
 - `packages/shdr/src/{math,index}.ts`; **new** `packages/shdr/test/fragment-derivative-types.ts` — exact compile-only overloads/exports and positive/negative type assertions.
 - `packages/core/src/{shader-builtin,evaluate-shader-constant,generate-glsl-expression,generate-wgsl-expression}.ts`; `packages/core/src/lower-shader-syntax.ts` **only if needed** — enforce exact unary shapes, handle unknown screen-space results in conservative constant analysis, and emit native calls with GLSL _result_ negation/parenthesization. Preserve existing reserved-name safety.
-- **New** `packages/core/test/fragment-derivatives.test.ts` and `packages/core/test/fragment-derivatives-generated.test.ts` — authored-shape/diagnostic/output tests and real generated-target compilation/link/pipeline checks.
+- **New** `packages/core/test/fragment-derivatives.test.ts` — authored-shape/diagnostic/output tests and real generated-target compilation/link/pipeline checks for all twelve signatures.
 
 Tasks:
 
-- [ ] Add public unary overloads and exports without a host runtime implementation; assert all twelve returns and rejected host numbers, arities, matrices, mixed/union shapes.
-- [ ] Register a shared unary-same f32 shape rule, retain direct import enforcement, and ensure bad calls/captures/control-flow syntax diagnose original source with no usable artifact.
-- [ ] Keep derivative results unknown to compile-time numeric evaluation, even for literal arguments; preserve locally provable invalid-f32 handling for operands without fabricating derivative constants.
-- [ ] Emit GLSL `dFdx(x)`, `-dFdy(x)`, `fwidth(x)` and WGSL `dpdx(x)`, `dpdy(x)`, `fwidth(x)`; test nested expression grouping and ensure no transform applies to `fwidth` or the GLSL argument instead of the result.
-- [ ] Add direct-fragment scalar and distinct-lane vector fixtures, core negatives, and a real generated GLSL-link/WGSL-pipeline test; no claims about presented pixels yet.
+- [x] Add public unary overloads and exports without a host runtime implementation; assert all twelve returns and rejected host numbers, arities, matrices, mixed/union shapes.
+- [x] Register a shared unary-same f32 shape rule, retain direct import enforcement, and ensure bad calls/captures/control-flow syntax diagnose original source with no usable artifact.
+- [x] Keep derivative results unknown to compile-time numeric evaluation, even for literal arguments; preserve locally provable invalid-f32 handling for operands without fabricating derivative constants.
+- [x] Emit GLSL `dFdx(x)`, `-dFdy(x)`, `fwidth(x)` and WGSL `dpdx(x)`, `dpdy(x)`, `fwidth(x)`; test nested expression grouping and ensure no transform applies to `fwidth` or the GLSL argument instead of the result.
+- [x] Add direct-fragment scalar and distinct-lane vector fixtures, core negatives, and a real generated GLSL-link/WGSL-pipeline test; no claims about presented pixels yet.
 
 Verification:
 
-- Automated, root, existing plus **new files after this step**: `pnpm --filter shdr check`; `pnpm --filter @shdr/core check`; `pnpm --filter @shdr/core exec vitest run --config ../../vitest.config.ts --root . test/fragment-derivatives.test.ts test/fragment-derivatives-generated.test.ts`. Type assertions are included by the public package `check`; assert exact types, invalid source ranges, 12 emitted signatures, grouping and target validation.
-- Manual: Inspect emitter diff for symmetric target coverage and no runtime/IR artifact schema additions; compilation is not rendered semantic proof.
+- Automated, root: `pnpm build`; `pnpm --filter shdr check`; `pnpm --filter @shdr/core check`; focused derivative and existing builtin parity/IR tests (4 files / 79 tests). Type assertions cover the twelve returns and rejects; generated tests compile/link GLSL and validate a WGSL pipeline for all twelve signatures.
+- Manual: Reviewed emitter diff for symmetric target coverage and no runtime/IR artifact schema additions; a review caught and fixed a temporary WGSL `sin`/`cos` mapping regression. Compilation is not rendered semantic proof.
 
 Completion gate: A direct-fragment derivative call passes public types, core diagnostics, **both generated target compilers/pipelines**, and review with no newly accepted one-target-only signature. This step and the rest of the feature are not individually mergeable.
-Evidence: Not run.
+Evidence: `packages/shdr/test/fragment-derivative-types.ts`; `packages/core/test/fragment-derivatives.test.ts`; source/backend changes listed above. Probe and focused gates pass; generated target validation is not rendered semantic proof.
 
 ### Step 1.2 — Preserve helper graphs, ownership and artifact invariants
 

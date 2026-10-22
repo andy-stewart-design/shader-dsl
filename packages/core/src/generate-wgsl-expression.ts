@@ -381,6 +381,12 @@ function callTargetName(target: ShaderCallTarget): string {
       switch (target.name) {
         case "sin":
         case "cos":
+          return target.name;
+        case "dFdx":
+          return "dpdx";
+        case "dFdy":
+          return "dpdy";
+        case "fwidth":
         case "asin":
         case "acos":
         case "atan":

@@ -1,6 +1,30 @@
 import { shaderSourceWasNotTransformed } from "./runtime-error.js";
 import type { Expr, F32, Vec2, Vec3, Vec4 } from "./types.js";
 
+export function dFdx(x: Expr<F32>): Expr<F32>;
+export function dFdx(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function dFdx(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function dFdx(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function dFdx(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("dFdx");
+}
+
+export function dFdy(x: Expr<F32>): Expr<F32>;
+export function dFdy(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function dFdy(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function dFdy(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function dFdy(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("dFdy");
+}
+
+export function fwidth(x: Expr<F32>): Expr<F32>;
+export function fwidth(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
+export function fwidth(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
+export function fwidth(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
+export function fwidth(..._args: readonly unknown[]): never {
+  return shaderSourceWasNotTransformed("fwidth");
+}
+
 export function sin(x: Expr<F32>): Expr<F32>;
 export function sin(x: Expr<Vec2<F32>>): Expr<Vec2<F32>>;
 export function sin(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;

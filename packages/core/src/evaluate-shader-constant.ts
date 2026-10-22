@@ -110,6 +110,10 @@ function calculateShaderComponents(
         result: number,
       ) => (value === known ? result : undefined);
       switch (expression.target.name) {
+        case "dFdx":
+        case "dFdy":
+        case "fwidth":
+          return unknown();
         case "sin":
         case "tanh":
           return first.map((value) => exact(value, 0, 0));
