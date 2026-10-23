@@ -3,8 +3,8 @@
 ## Status and governing source
 
 - Governing contract: [spec.md](spec.md).
-- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, and 2.3 and the Phase 0/1/2 exit gates are Verified; Phase 3 remains Pending. See each step's evidence below.
-- Remaining work: Phase 3 rendered acceptance/documentation, followed by review. Merge and publication remain pending; a plan is not permission to perform those actions.
+- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, 2.3, and 3.1 and the Phase 0/1/2 exit gates are Verified; Step 3.2 remains Pending. See each step's evidence below.
+- Remaining work: Step 3.2 documentation, full regression gate, and final review. Merge and publication remain pending; a plan is not permission to perform those actions.
 - Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
 
 Step statuses below are the authoritative execution record. A phase completes only after its steps **and** its exit gate pass. Checked tasks alone do not verify a step; `Verified` includes its scoped gate and review, not user approval or release. Manual approvals in supervised execution belong to extension state.
@@ -246,7 +246,7 @@ Review boundary: Target-neutral signed Y and lane-wise width, final full-suite r
 
 ### Step 3.1 — Verify interior signed/width pixels on WebGL and presented WebGPU
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R2–R4, R8; AC2 and AC4 (rendered/pipeline portions), AC1 (target validation completion). No edge/quad-boundary or bit-exact claim.
 Depends on: Phase 2 exit and Phase 0 recorded encoding/tolerances.
 Review boundary: Real runtime pixels and capability characterization only; no new derivative semantics or engine-specific rewrites to chase pixels.
@@ -258,17 +258,17 @@ Expected files:
 
 Tasks:
 
-- [ ] Compile authored source/artifact and **link** generated GLSL; validate WGSL module/**pipeline** and draw to a presented WebGPU canvas, not just an offscreen buffer or module-info probe.
-- [ ] Use a non-square pinned canvas and stable interior coordinates/finite values. Encode and sample `dFdx(coord.x) ≈ +1`, `dFdy(coord.y) ≈ +1`, `dFdy(resolution.y - coord.y) ≈ -1`, and `fwidth(coord.y) ≈ 1` on **both** targets; detect missing/double GLSL negation.
-- [ ] Probe distinct-lane scalar/Vec2/3/4 smooth slopes and a reachable imported helper; encode component-wise widths/signs into byte channels across passes so x-only checks cannot mask lane bugs. Compare each target to expected tolerances and record target-to-target differences separately.
-- [ ] Verify pixel/readback origin, visible presented canvas capture and renderer success/error status; explicitly exclude discontinuities, borders, coarse/fine precision and unsupported adapters from portable-value assertions.
+- [x] Compile authored source/artifact and **link** generated GLSL; validate WGSL module/**pipeline** and draw to a presented WebGPU canvas, not just an offscreen buffer or module-info probe.
+- [x] Use a non-square pinned canvas and stable interior coordinates/finite values. Encode and sample `dFdx(coord.x) ≈ +1`, `dFdy(coord.y) ≈ +1`, `dFdy(resolution.y - coord.y) ≈ -1`, and `fwidth(coord.y) ≈ 1` on **both** targets; detect missing/double GLSL negation.
+- [x] Probe distinct-lane scalar/Vec2/3/4 smooth slopes and a reachable imported helper; encode component-wise widths/signs into byte channels across passes so x-only checks cannot mask lane bugs. Compare each target to expected tolerances and record target-to-target differences separately.
+- [x] Verify pixel/readback origin, visible presented canvas capture and renderer success/error status; explicitly exclude discontinuities, borders, coarse/fine precision and unsupported adapters from portable-value assertions.
 
 Verification:
 
 - Automated, root, **after adding script**: `pnpm build`; `pnpm --filter @shdr/runtime exec node test/verify-fragment-derivatives.mjs`; `pnpm --filter @shdr/runtime check`. Expect GLSL link, WGSL pipeline, presented-WebGPU/WebGL interior pixels with predeclared tolerance and an actual observed sign distinction. On unavailable WebGPU/WebGL, fail/block, never silently skip.
 - Manual: Review labeled sample coordinates, target identity (SwiftShader vs hardware), tolerances and presented canvas evidence; generated text or offscreen-only WGSL is insufficient.
 
-Completion gate: All required rendered probes pass and evidence documents environment/limits, or remain Blocked with no AC2/AC4 claim. Evidence: Not run.
+Completion gate: All required rendered probes pass and evidence documents environment/limits. Evidence: [evidence/rendered-acceptance.md](evidence/rendered-acceptance.md); `packages/runtime/test/verify-fragment-derivatives.mjs`; `pnpm build`, direct runtime verification (14 passes on both targets), `pnpm --filter @shdr/runtime check`, and `git diff --check` passed. Tested Chromium SwiftShader produced exact WebGL/WebGPU byte agreement for the recorded cases; the test retains the Phase 0 ±4-code tolerance and does not claim broader hardware or edge behavior.
 
 ### Step 3.2 — Document and run final integration/regression gate
 
@@ -301,14 +301,14 @@ Phase exit gate: After Step 3.2 checks, review full diff and the gate evidence o
 
 ## Final acceptance
 
-| Spec AC | Owning step / gate                   | Required proof (not a duplicate progress checklist)                                                          | Evidence / status     |
-| ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | --------------------- |
-| AC1     | Steps 1.1–1.2, 2.1; Phase 1 exit     | Twelve types/shapes, direct/imported helpers, real target link/pipeline, editor hovers                       | Owning gates; Not run |
-| AC2     | Step 3.1                             | Non-square smooth interior signed X/Y, reconstructed Y and width on real WebGL + presented WebGPU            | Step 3.1; Not run     |
-| AC3     | Steps 1.1–1.2, 2.1–2.2; Phase 3 exit | Wrong shapes/imports/captures map to original source with no candidate across core/editor/CLI                | Owning gates; Not run |
-| AC4     | Steps 0.2, 1.2, 3.1                  | Raw feasibility followed by generated imported-helper/lane-wise target pipeline and rendered pixels          | Step 3.1; Not run     |
-| AC5     | Steps 2.1–2.3; Phase 2 exit          | Valid/invalid helper edits in installed editor/project/CLI/Vite/REPL, preserved previews and no shader fetch | Owning gates; Not run |
-| AC6     | Steps 1.2, 2.2, 3.2; Phase 3 exit    | Artifact/binding, static-bundle exclusion and existing runtime regression                                    | Owning gates; Not run |
+| Spec AC | Owning step / gate                   | Required proof (not a duplicate progress checklist)                                                          | Evidence / status                |
+| ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| AC1     | Steps 1.1–1.2, 2.1; Phase 1 exit     | Twelve types/shapes, direct/imported helpers, real target link/pipeline, editor hovers                       | Owning gates; Not run            |
+| AC2     | Step 3.1                             | Non-square smooth interior signed X/Y, reconstructed Y and width on real WebGL + presented WebGPU            | Verified; rendered-acceptance.md |
+| AC3     | Steps 1.1–1.2, 2.1–2.2; Phase 3 exit | Wrong shapes/imports/captures map to original source with no candidate across core/editor/CLI                | Owning gates; Not run            |
+| AC4     | Steps 0.2, 1.2, 3.1                  | Raw feasibility followed by generated imported-helper/lane-wise target pipeline and rendered pixels          | Verified; rendered-acceptance.md |
+| AC5     | Steps 2.1–2.3; Phase 2 exit          | Valid/invalid helper edits in installed editor/project/CLI/Vite/REPL, preserved previews and no shader fetch | Owning gates; Not run            |
+| AC6     | Steps 1.2, 2.2, 3.2; Phase 3 exit    | Artifact/binding, static-bundle exclusion and existing runtime regression                                    | Owning gates; Not run            |
 
 ## Rollback and recovery
 
