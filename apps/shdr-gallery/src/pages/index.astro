@@ -1,16 +1,68 @@
 ---
+import { referenceSummaries } from "../lib/catalog";
+import "../styles/global.css";
+
+const pageTitle = "Shdr Gallery — living shader references";
 ---
 
+<!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="A gallery of living shaders authored in Shdr." />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <header class="site-header shell">
+      <a class="brand" href="/" aria-label="Shdr Gallery home">
+        <span class="brand-mark" aria-hidden="true">✳</span> Shdr / Gallery
+      </a>
+      <span class="header-note">Reference studies · 2026</span>
+    </header>
+
+    <main class="shell">
+      <section class="hero" aria-labelledby="page-heading">
+        <p class="eyebrow">A small collection of moving images</p>
+        <h1 id="page-heading">Code the<br />moves</h1>
+        <p class="hero-copy">
+          Seven reference shaders, translated into Shdr and rendered live in your browser.
+          Explore the source, then look through the compiled output.
+        </p>
+      </section>
+
+      <section aria-labelledby="gallery-heading">
+        <div class="section-heading">
+          <h2 id="gallery-heading">Reference shaders</h2>
+          <span class="section-count">{referenceSummaries.length} studies</span>
+        </div>
+        <div class="gallery-grid">
+          {referenceSummaries.map((shader) => (
+            <a
+              class="shader-card"
+              href={`/shaders/${shader.slug}/`}
+            >
+              <div class="card-art" aria-hidden="true">
+                <svg class="card-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="m21 15-5-5L5 21" />
+                </svg>
+                <span class="card-number">{shader.number}</span>
+                <span class="card-arrow">↗</span>
+              </div>
+              <div class="card-copy">
+                <h3>{shader.title}</h3>
+                <p>{shader.description}</p>
+                <span class="card-meta">Shdr reference · WebGL</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer shell">Authored with Shdr · compiled to GLSL + WGSL</footer>
+  </body>
 </html>
