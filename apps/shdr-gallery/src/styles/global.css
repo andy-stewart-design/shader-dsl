@@ -394,6 +394,9 @@ pre {
 code {
   font-family: inherit;
 }
+.highlighted-code pre.syntax-code {
+  background: transparent !important;
+}
 
 @media (max-width: 900px) {
   .gallery-grid {

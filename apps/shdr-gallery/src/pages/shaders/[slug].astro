@@ -1,4 +1,5 @@
 ---
+import { Code } from "astro:components";
 import ShaderViewer from "../../components/ShaderViewer";
 import { references } from "../../lib/catalog";
 import "../../styles/global.css";
@@ -48,7 +49,29 @@ const pageTitle = `${reference.title} — Shdr Gallery`;
         artifact={reference.artifact}
         source={reference.source}
         title={reference.title}
-      />
+      >
+        <Code
+          slot="highlightedSource"
+          code={reference.source}
+          lang="typescript"
+          theme="github-dark"
+          class="syntax-code"
+        />
+        <Code
+          slot="highlightedGlsl"
+          code={reference.artifact.glsl}
+          lang="glsl"
+          theme="github-dark"
+          class="syntax-code"
+        />
+        <Code
+          slot="highlightedWgsl"
+          code={reference.artifact.wgsl}
+          lang="wgsl"
+          theme="github-dark"
+          class="syntax-code"
+        />
+      </ShaderViewer>
     </main>
 
     <footer class="site-footer shell">Shdr Gallery · one shader, three ways to read it</footer>

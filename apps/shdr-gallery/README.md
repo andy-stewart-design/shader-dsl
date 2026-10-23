@@ -1,43 +1,21 @@
-# Astro Starter Kit: Minimal
+# Shdr Gallery
+
+A static Astro gallery for the seven translated reference shaders. The authored
+`.shdr.ts` sources live in [`src/shaders`](src/shaders); each page displays the
+source and its generated GLSL/WGSL artifact and renders a WebGL preview. The
+original GLSL baselines remain in [`apps/vite-basic/src/references`](../vite-basic/src/references)
+for parity tests.
+
+## Commands
+
+Run these from the workspace root or this app directory:
 
 ```sh
-pnpm create astro@latest -- --template minimal
+pnpm --filter shdr-gallery check
+pnpm --filter shdr-gallery build
+pnpm --filter shdr-gallery test
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
-
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
-
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `pnpm install`             | Installs dependencies                            |
-| `pnpm dev`             | Starts local dev server at `localhost:4321`      |
-| `pnpm build`           | Build your production site to `./dist/`          |
-| `pnpm preview`         | Preview your build locally, before deploying     |
-| `pnpm astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `pnpm astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+The Astro config anchors source loading to this app's source directory, so the
+production build does not depend on the current working directory or the sibling
+Vite fixture's authored shader files.

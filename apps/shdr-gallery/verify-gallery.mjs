@@ -59,7 +59,11 @@ try {
       "--use-angle=swiftshader",
     ],
   });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({
+    permissions: ["clipboard-read", "clipboard-write"],
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
   const browserErrors = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
@@ -99,17 +103,49 @@ try {
 
     const tabs = page.getByRole("tab");
     assert.equal(await tabs.count(), 3, `${href} should have three code tabs`);
-    for (const [label, marker] of [
-      ["Shdr source", "createFragmentShader"],
-      ["Compiled GLSL", "#version 300 es"],
-      ["Compiled WGSL", "@fragment"],
+    const initialCode = page.locator('[role="tabpanel"] pre.syntax-code code');
+    const initialCopyButton = page.getByRole("button", {
+      name: "Copy code",
+      exact: true,
+    });
+    assert.equal(await initialCopyButton.getAttribute("type"), "button");
+    assert.ok(
+      await initialCode.textContent(),
+      `${href} source should be readable`,
+    );
+
+    for (const [label, marker, language] of [
+      ["Shdr source", "createFragmentShader", "typescript"],
+      ["Compiled GLSL", "#version 300 es", "glsl"],
+      ["Compiled WGSL", "@fragment", "wgsl"],
     ]) {
       const tab = page.getByRole("tab", { name: label, exact: true });
       await tab.click();
       assert.equal(await tab.getAttribute("aria-selected"), "true");
+      const panel = page.getByRole("tabpanel");
+      assert.equal(
+        await tab.getAttribute("aria-controls"),
+        await panel.getAttribute("id"),
+        `${label} tab should control the code panel`,
+      );
+      assert.equal(
+        await panel.getAttribute("aria-labelledby"),
+        await tab.getAttribute("id"),
+        `${label} panel should be labelled by its tab`,
+      );
       assert.match(
-        await page.getByRole("tabpanel").textContent(),
+        await panel.textContent(),
         new RegExp(escapeRegExp(marker)),
+      );
+      const highlightedCode = panel.locator("pre.syntax-code");
+      assert.equal(await highlightedCode.count(), 1);
+      assert.equal(
+        await highlightedCode.getAttribute("data-language"),
+        language,
+      );
+      assert.ok(
+        (await highlightedCode.locator('span[style*="color"]').count()) > 0,
+        `${label} should contain colored syntax tokens`,
       );
     }
     await assertNoHorizontalOverflow(page, href);

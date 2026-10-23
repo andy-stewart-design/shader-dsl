@@ -424,7 +424,7 @@ export default createFragmentShader(() => {
     7,
   );
   const plasmaSource = await readFile(
-    new URL("../vite-basic/src/references/plasma.shdr.ts", import.meta.url),
+    new URL("../shdr-gallery/src/shaders/plasma.shdr.ts", import.meta.url),
     "utf8",
   );
   await compileSource(page, editor, plasmaSource);
@@ -442,7 +442,7 @@ export default createFragmentShader(() => {
   // runtime test pins host values and checks reference WebGL + presented GPU.
   const horizonSource = await readFile(
     new URL(
-      "../vite-basic/src/references/horizon-burn.shdr.ts",
+      "../shdr-gallery/src/shaders/horizon-burn.shdr.ts",
       import.meta.url,
     ),
     "utf8",

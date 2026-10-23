@@ -33,10 +33,7 @@ interface ReferenceDefinition extends Omit<
 // browser loader (the matching artifacts are static Vite imports). The value
 // is injected by astro.config.mjs, whose URL remains anchored to the app
 // source even when this module is bundled for a production build.
-const sourceRoot = resolve(
-  import.meta.env.SHDR_GALLERY_ROOT,
-  "../vite-basic/src/references",
-);
+const sourceRoot = resolve(import.meta.env.SHDR_GALLERY_ROOT, "src/shaders");
 
 async function sourceFor(fileName: string): Promise<string> {
   return readFile(resolve(sourceRoot, fileName), "utf8");

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { createWebGlRenderer } from "@shdr/runtime/webgl";
 import type { CompiledFragmentArtifact } from "shdr";
 
@@ -7,6 +7,9 @@ interface ShaderViewerProps {
   readonly artifact: CompiledFragmentArtifact;
   readonly source: string;
   readonly title: string;
+  readonly highlightedSource: ReactNode;
+  readonly highlightedGlsl: ReactNode;
+  readonly highlightedWgsl: ReactNode;
 }
 
 type TabId = "source" | "glsl" | "wgsl";
@@ -16,12 +19,16 @@ interface Tab {
   readonly label: string;
   readonly language: string;
   readonly code: string;
+  readonly highlighted: ReactNode;
 }
 
 export default function ShaderViewer({
   artifact,
   source,
   title,
+  highlightedSource,
+  highlightedGlsl,
+  highlightedWgsl,
 }: ShaderViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [previewError, setPreviewError] = useState<string>();
@@ -34,18 +41,21 @@ export default function ShaderViewer({
       label: "Shdr source",
       language: "TypeScript",
       code: source,
+      highlighted: highlightedSource,
     },
     {
       id: "glsl",
       label: "Compiled GLSL",
       language: "GLSL ES 3.00",
       code: artifact.glsl,
+      highlighted: highlightedGlsl,
     },
     {
       id: "wgsl",
       label: "Compiled WGSL",
       language: "WGSL",
       code: artifact.wgsl,
+      highlighted: highlightedWgsl,
     },
   ];
   const selectedTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]!;
@@ -174,9 +184,9 @@ export default function ShaderViewer({
             <span>{selectedTab.language}</span>
             <span>{selectedTab.code.split("\n").length} lines</span>
           </div>
-          <pre>
-            <code>{selectedTab.code}</code>
-          </pre>
+          <div className="highlighted-code" key={selectedTab.id}>
+            {selectedTab.highlighted}
+          </div>
         </div>
       </div>
     </section>

@@ -13,12 +13,6 @@ import mixedShapeMathShader from "./mixed-shape-math.shdr.ts";
 import cellsShader from "./cells-representative.shdr.ts";
 import pr3MathShader from "./pr3-math.shdr.ts";
 import readableOutputShader from "./readable-output.shdr.ts";
-import horizonBurnShader from "./references/horizon-burn.shdr.ts";
-import plasmaShader from "./references/plasma.shdr.ts";
-import circlesCirclingShader from "./references/circles-circling.shdr.ts";
-import infiniteSquircleShader from "./references/infinite-squircle.shdr.ts";
-import mobyGradientShader from "./references/moby-gradient.shdr.ts";
-import screamWaveShader from "./references/scream-wave.shdr.ts";
 import vectorArithmeticShader from "./vector-arithmetic.shdr.ts";
 import squareMatricesShader from "./square-matrices.shdr.ts";
 import moduleConstantsShader from "./module-constants.shdr.ts";
@@ -40,12 +34,6 @@ const mixedShapeMath: CompiledFragmentArtifact = mixedShapeMathShader;
 const cells: CompiledFragmentArtifact = cellsShader;
 const pr3Math: CompiledFragmentArtifact = pr3MathShader;
 const readableOutput: CompiledFragmentArtifact = readableOutputShader;
-const horizonBurn: CompiledFragmentArtifact = horizonBurnShader;
-const plasma: CompiledFragmentArtifact = plasmaShader;
-const circlesCircling: CompiledFragmentArtifact = circlesCirclingShader;
-const infiniteSquircle: CompiledFragmentArtifact = infiniteSquircleShader;
-const mobyGradient: CompiledFragmentArtifact = mobyGradientShader;
-const screamWave: CompiledFragmentArtifact = screamWaveShader;
 const vectorArithmetic: CompiledFragmentArtifact = vectorArithmeticShader;
 const squareMatrices: CompiledFragmentArtifact = squareMatricesShader;
 const moduleConstants: CompiledFragmentArtifact = moduleConstantsShader;
@@ -100,17 +88,6 @@ if (
   ) ||
   !readableOutput.wgsl.includes("let shdr_local_3: f32 = shdr_local_2;") ||
   !readableOutput.wgsl.includes("a + (b + shdr_local_3 * 0.1f)") ||
-  !horizonBurn.glsl.includes("fract(") ||
-  !horizonBurn.wgsl.includes("shdr_fragment_main") ||
-  !plasma.wgsl.includes("shdr_internal_safe_sqrt_f32") ||
-  !circlesCircling.glsl.includes("shdr_internal_fn_") ||
-  !infiniteSquircle.glsl.includes("mat2") ||
-  !mobyGradient.wgsl.includes("shdr_internal_fn_") ||
-  !screamWave.glsl.includes("shdr_internal_fn_") ||
-  screamWave.custom?.declarations.map((item) => item.name).join(",") !==
-    "intensity,waveSpeed" ||
-  plasma.custom?.declarations.map((item) => item.name).join(",") !==
-    "scale,speed,complexity,grain,colorA,colorB" ||
   cells.custom?.declarations.map((item) => item.name).join(",") !==
     "dpi,spread,blur" ||
   derivatives.custom?.declarations.map((item) => item.name).join(",") !==

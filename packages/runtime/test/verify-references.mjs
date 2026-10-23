@@ -144,7 +144,7 @@ const cases = [];
 for (const [name, defaults] of references) {
   const authored = await readFile(
     new URL(
-      `../../../apps/vite-basic/src/references/${name}.shdr.ts`,
+      `../../../apps/shdr-gallery/src/shaders/${name}.shdr.ts`,
       import.meta.url,
     ),
     "utf8",
