@@ -2,8 +2,8 @@
 
 ## Status
 
-- Readiness: **Implementation in progress.** Phases 0–2 and Step 3.1 rendered acceptance are verified; Step 3.2 final documentation/regression review, merge, and publication remain pending. This status does not authorize release.
-- Blocking decisions: None currently. The signed-Y convention is implemented and presented WebGL/WebGPU pixels pass on Chromium SwiftShader; broader hardware behavior and final feature acceptance remain unverified.
+- Readiness: **Implementation verified; delivery pending.** Phases 0–3 and Step 3.2 final documentation/regression review are verified. Merge and publication remain pending; this status does not authorize release.
+- Blocking decisions: None for the scoped Chromium SwiftShader gates. The signed-Y convention is implemented and presented WebGL/WebGPU pixels pass; broader hardware behavior, reference shader 3 fidelity, and the standard TypeScript provider hover on ordinary `.ts` files remain untested.
 - Source: The derivative discussion in this conversation, [PR 4 of the language-extension roadmap](../language-exntesion.md#pr-4--fragment-derivatives-not-implemented), and the [accepted shader language](../../README.md#accepted-shader-language). A complete port or fidelity claim for reference shader **3** is separate work.
 
 ## Problem and intended outcome
@@ -28,7 +28,7 @@ Non-goals:
 
 ## Current behavior and evidence
 
-Implementation and verification status after Step 3.1:
+Implementation and verification status after Step 3.2:
 
 - `packages/shdr` exports compile-only scalar/Vec2/3/4 overloads; core validates exact unary shapes and does not constant-fold derivative values.
 - Both generators emit the specified native calls; GLSL wraps the result as `(-dFdy(x))` so nested authored negation remains valid GLSL, and WGSL maps to `dpdx`/`dpdy`.
@@ -36,6 +36,7 @@ Implementation and verification status after Step 3.1:
 - Phase 2 consumer gates pass: TypeScript 7 adapter and real VS Code extension tests, project/CLI/Vite graph and static-bundle tests, and REPL browser edit/failure/recovery checks. The REPL verified that invalid derivative arity and missing direct imports preserve the prior WebGL and WebGPU previews, and that valid source restores both targets. The standard TypeScript provider's hover on ordinary `.ts` files remains untested; see [plan.md](plan.md) for the narrower editor evidence.
 - Raw WebGL/offscreen WebGPU feasibility probes and the Phase 3.1 presented WebGL/WebGPU pixel gate validate signed Y and nonsaturating vector-width lanes on Chromium SwiftShader. This does not promise results on other hardware or at edges/discontinuities; see [plan.md](plan.md), [evidence/phase-0.md](evidence/phase-0.md), and [evidence/rendered-acceptance.md](evidence/rendered-acceptance.md).
 - Fragment/helper syntax remains straight-line and helpers are statically lowered in their defining files. Future non-uniform control flow or stages require a separate contract. Existing artifact, binding, static-consumer and renderer lifecycle constraints remain in force.
+- Final direct package/unit, browser verifier, Vite, REPL, editor, build/check, formatting, and diff gates pass. The aggregate `pnpm test` was intentionally not run because its hooks install Chromium; its direct installed-browser equivalents pass. Vite invalid-edit evidence remains transform-only, and ordinary `.ts` standard-provider hover remains untested.
 
 ## Requirements and invariants
 

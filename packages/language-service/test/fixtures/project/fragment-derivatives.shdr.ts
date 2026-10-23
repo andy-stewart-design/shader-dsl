@@ -1,10 +1,4 @@
-import {
-  createFragmentShader,
-  dFdx,
-  dFdy,
-  fwidth,
-  vec4,
-} from "shdr";
+import { createFragmentShader, dFdx, dFdy, fwidth, vec4 } from "shdr";
 import { derivativeHelper } from "./fragment-derivative-helper.shdr.ts";
 
 export default createFragmentShader(({ coord }) => {

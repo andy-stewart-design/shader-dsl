@@ -3,9 +3,9 @@
 ## Status and governing source
 
 - Governing contract: [spec.md](spec.md).
-- Delivery state: **Implementation in progress**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, 2.3, and 3.1 and the Phase 0/1/2 exit gates are Verified; Step 3.2 remains Pending. See each step's evidence below.
-- Remaining work: Step 3.2 documentation, full regression gate, and final review. Merge and publication remain pending; a plan is not permission to perform those actions.
-- Blockers: None currently. Raw WebGL/WebGPU probes pass under Playwright Chromium/SwiftShader, and the installed VS Code real-editor gate passes.
+- Delivery state: **Implementation verified; delivery pending**. Steps 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, and 3.2 and the Phase 0/1/2/3 exit gates are Verified. See each step's evidence below.
+- Remaining work: Merge, publication, and any broader hardware/fidelity work remain pending; a plan is not permission to perform those actions.
+- Blockers: None for the scoped Chromium SwiftShader gates. The standard TypeScript provider hover on ordinary `.ts` files remains explicitly untested; the Vite evidence is transform-only for invalid-edit recovery.
 
 Step statuses below are the authoritative execution record. A phase completes only after its steps **and** its exit gate pass. Checked tasks alone do not verify a step; `Verified` includes its scoped gate and review, not user approval or release. Manual approvals in supervised execution belong to extension state.
 
@@ -236,7 +236,7 @@ Verification:
 
 Completion gate: Valid/invalid/restore sequences for wrong derivative arity and missing direct import hold on both browser preview paths with authored diagnostics and no shader-import fetch. Evidence: `apps/repl/verify-browser.mjs`; root build, `pnpm --filter repl exec node verify-browser.mjs`, and `pnpm --filter repl check` passed. The same script verifies both prior pixels remain unchanged after failure and both targets recover after restore.
 
-Phase exit gate: Verified. Rebuilt package consumer suites passed (project 5, CLI 29, Vite 24 tests); installed VS Code fixture passed; vite-basic check/build plus dev, render and texture scripts passed; REPL browser compiler/runtime script and type/lint check passed. Derivative computation has not yet passed the signed/non-square quantitative rendering gate in Phase 3.
+Phase exit gate: Verified. Rebuilt package consumer suites passed (project 5, CLI 29, Vite 24 tests); installed VS Code fixture passed; vite-basic check/build plus dev, render and texture scripts passed; REPL browser compiler/runtime script and type/lint check passed. The signed/non-square quantitative rendering gate was completed in Phase 3.1.
 
 ## Phase 3 — Rendered contract and final acceptance
 
@@ -272,7 +272,7 @@ Completion gate: All required rendered probes pass and evidence documents enviro
 
 ### Step 3.2 — Document and run final integration/regression gate
 
-Status: Pending
+Status: Verified
 Requirements / acceptance: R1–R8; AC3/AC5 (final regressions), AC6 (complete artifact/static/runtime compatibility); AC1–AC4 compose from prior owning gates.
 Depends on: Step 3.1.
 Review boundary: Docs, compatibility review and whole-feature proof; no source fidelity claim for reference shader **3**.
@@ -285,30 +285,30 @@ Expected files:
 
 Tasks:
 
-- [ ] Document the exact accepted scalar/vector signatures, signed-Y behavior and GLSL output adjustment, fragment-only straight-line/helper scope, and exclusions (coarse/fine, matrix, control flow and reference shader 3).
-- [ ] Run the whole repository regression and installed VS Code gate against the final revision; distinguish any pre-existing baseline failure from a derivative regression and record skipped/blocked target gates explicitly.
-- [ ] Inspect JSON artifact shape, static production bundle/sourcemaps, old renderer cases and failed-edit recovery; no extra bindings or compiler/source evaluation in static output.
-- [ ] Review AC1–AC6 evidence and surviving feature diff, including all proposed fixtures/tests and source locations, before requesting a feature-complete PR review; publication/merge is not implied.
+- [x] Document the exact accepted scalar/vector signatures, signed-Y behavior and GLSL output adjustment, fragment-only straight-line/helper scope, and exclusions (coarse/fine, matrix, control flow and reference shader 3).
+- [x] Run the whole scoped repository regression and installed VS Code gate against the final revision; distinguish the intentionally unrun aggregate hook from the passing direct installed-browser suites and record target/editor results explicitly.
+- [x] Inspect JSON artifact shape, static production bundle/sourcemaps, old renderer cases and failed-edit recovery; no extra bindings or compiler/source evaluation in static output.
+- [x] Review AC1–AC6 evidence and surviving feature diff, including all proposed fixtures/tests and source locations, before requesting a feature-complete PR review; publication/merge is not implied.
 
 Verification:
 
-- Automated, root, existing: `pnpm build`; `pnpm ci:check`; `pnpm test`; `pnpm --filter @shdr/editor-fixture test:editor`; `pnpm --filter @shdr/runtime exec node test/verify-fragment-derivatives.mjs`; `git diff --check`. If `pnpm test` would install a browser without approval, run equivalent installed-browser package commands and **record the skipped aggregate as not passed**, not a green whole-suite claim.
-- Manual: Review target captures, real editor failure/restore, bundle source-map exclusions, and docs against the signed-Y spec; verify reference shader **3** was not silently included. Do not assert publication or broad GPU fidelity.
+- Automated, root, final revision: `pnpm build` passed; `pnpm ci:check` passed; the aggregate `pnpm test` was **not run** per instruction because its hooks install Chromium. Equivalent direct installed-browser package/unit suites passed for `shdr` (15), core (63 files/563), project (5), CLI (29), Vite (24), language-service (21 files/122), and LSP (17); runtime browser verifiers passed, including `verify-fragment-derivatives.mjs`; vite-basic build/build-script/dev/render/texture scripts passed; REPL `verify-browser.mjs` passed; editor-fixture build/check/test and real `test:editor` passed; full Prettier check and `git diff --check` passed.
+- Manual: Reviewed artifact schema/bindings, static compiler/source exclusion, source non-evaluation, editor/CLI/Vite/REPL recovery, generated targets, and presented rendering. The standard TypeScript provider hover on ordinary `.ts` files remains untested. Vite invalid-edit evidence remains transform-only and does not claim installed-renderer stale-frame preservation. Reference shader **3** fidelity and broad GPU parity are not claimed.
 
-Completion gate: All AC owners below have passing checks at the final revision, review complete, and any unavailable mandatory target/editor remains **Blocked**, not marked Verified. Evidence: Not run.
+Completion gate: All scoped AC owners have passing checks at the final revision; the aggregate `pnpm test` is recorded as not run, with its direct installed-browser equivalents passing. Evidence: [rendered-acceptance.md](evidence/rendered-acceptance.md), owning step evidence, and final command results above.
 
-Phase exit gate: After Step 3.2 checks, review full diff and the gate evidence once: exact public/types/diagnostics, static isolation, both target compilers and real rendered interior WebGL/**presented** WebGPU, old regressions. Only then mark implementation verified; delivery still requires separate approval. Evidence: Not run.
+Phase exit gate: Verified. Final review covered exact public/types/diagnostics, static isolation, both target compilers and real rendered interior WebGL/**presented** WebGPU, old regressions, artifact/binding invariants, and the documented limitations. Delivery still requires separate approval.
 
 ## Final acceptance
 
-| Spec AC | Owning step / gate                   | Required proof (not a duplicate progress checklist)                                                          | Evidence / status                |
-| ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| AC1     | Steps 1.1–1.2, 2.1; Phase 1 exit     | Twelve types/shapes, direct/imported helpers, real target link/pipeline, editor hovers                       | Owning gates; Not run            |
-| AC2     | Step 3.1                             | Non-square smooth interior signed X/Y, reconstructed Y and width on real WebGL + presented WebGPU            | Verified; rendered-acceptance.md |
-| AC3     | Steps 1.1–1.2, 2.1–2.2; Phase 3 exit | Wrong shapes/imports/captures map to original source with no candidate across core/editor/CLI                | Owning gates; Not run            |
-| AC4     | Steps 0.2, 1.2, 3.1                  | Raw feasibility followed by generated imported-helper/lane-wise target pipeline and rendered pixels          | Verified; rendered-acceptance.md |
-| AC5     | Steps 2.1–2.3; Phase 2 exit          | Valid/invalid helper edits in installed editor/project/CLI/Vite/REPL, preserved previews and no shader fetch | Owning gates; Not run            |
-| AC6     | Steps 1.2, 2.2, 3.2; Phase 3 exit    | Artifact/binding, static-bundle exclusion and existing runtime regression                                    | Owning gates; Not run            |
+| Spec AC | Owning step / gate                   | Required proof (not a duplicate progress checklist)                                                          | Evidence / status                            |
+| ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| AC1     | Steps 1.1–1.2, 2.1; Phase 1 exit     | Twelve types/shapes, direct/imported helpers, real target link/pipeline, editor hovers                       | Verified; owning gates and final regression  |
+| AC2     | Step 3.1                             | Non-square smooth interior signed X/Y, reconstructed Y and width on real WebGL + presented WebGPU            | Verified; rendered-acceptance.md             |
+| AC3     | Steps 1.1–1.2, 2.1–2.2; Phase 3 exit | Wrong shapes/imports/captures map to original source with no candidate across core/editor/CLI                | Verified; owning gates and final regression  |
+| AC4     | Steps 0.2, 1.2, 3.1                  | Raw feasibility followed by generated imported-helper/lane-wise target pipeline and rendered pixels          | Verified; rendered-acceptance.md             |
+| AC5     | Steps 2.1–2.3; Phase 2 exit          | Valid/invalid helper edits in installed editor/project/CLI/Vite/REPL, preserved previews and no shader fetch | Verified; owning gates and final regression  |
+| AC6     | Steps 1.2, 2.2, 3.2; Phase 3 exit    | Artifact/binding, static-bundle exclusion and existing runtime regression                                    | Verified; final regression and bundle review |
 
 ## Rollback and recovery
 

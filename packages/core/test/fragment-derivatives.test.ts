@@ -227,10 +227,12 @@ export default createFragmentShader(({ uniforms }) => vec4(dFdx(uniforms.photo),
     expect(result.ok).toBe(false);
     if (result.ok) return;
     const call = "dFdx(uniforms.photo)";
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({
-      code: ShaderDiagnosticCode.InvalidBuiltin,
-      range: { start: input.indexOf(call), length: call.length },
-    }));
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: ShaderDiagnosticCode.InvalidBuiltin,
+        range: { start: input.indexOf(call), length: call.length },
+      }),
+    );
   });
 
   it("requires direct named imports", () => {

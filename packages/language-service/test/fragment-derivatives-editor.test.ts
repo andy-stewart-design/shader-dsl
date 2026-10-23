@@ -82,7 +82,7 @@ describe("fragment derivative TypeScript 7 editor parity", () => {
     ],
     [
       "missing direct import",
-      entry.replace("  dFdx,\n", "").replace("dFdx(coord.x)", "dFdx(coord.x)"),
+      entry.replace(/\bdFdx,\s*/, ""),
       "dFdx(coord.x)",
       ShaderDiagnosticCode.UnsupportedCall,
     ],
