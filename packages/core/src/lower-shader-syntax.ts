@@ -844,7 +844,10 @@ function invalidBuiltinDomain(
     name !== "exp" &&
     name !== "tanh" &&
     name !== "clamp" &&
-    name !== "pow"
+    name !== "pow" &&
+    name !== "dFdx" &&
+    name !== "dFdy" &&
+    name !== "fwidth"
   )
     return undefined;
   const values = args.map((arg) =>

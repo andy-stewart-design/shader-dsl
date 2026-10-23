@@ -5,6 +5,7 @@ import {
   lowerFragment,
   ShaderDiagnosticCode,
 } from "../src/index.js";
+import { compileFragmentArtifact } from "../src/browser.js";
 import { generateGlslFragment } from "../src/generate-glsl-fragment.js";
 import { generateWgslFragment } from "../src/generate-wgsl-fragment.js";
 import { chromium } from "playwright";
@@ -85,6 +86,54 @@ export default createFragmentShader(({ coord }) => vec4(dFdy(coord.y - 1), fwidt
     const input = `import { createFragmentShader, dFdx, smoothstep, vec4 } from "shdr";
 export default createFragmentShader(({ coord }) => vec4(smoothstep(dFdx(0), 0, coord.x), 0, 0, 1));`;
     expect(lowerFragment(input)).toMatchObject({ ok: true, diagnostics: [] });
+  });
+
+  for (const op of operators) {
+    it(`rejects known f32 overflow in ${op} operands before WGSL emission`, () => {
+      const call = `${op}(3e38 * 3e38)`;
+      const input = source(call, "scalar");
+      const lowered = lowerFragment(input);
+      expect(lowered).toMatchObject({ ok: false });
+      if (!lowered.ok) {
+        expect(lowered.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: ShaderDiagnosticCode.InvalidBuiltinDomain,
+            range: { start: input.indexOf(call), length: call.length },
+          }),
+        );
+      }
+
+      const compiled = compileFragment(input, { target: "wgsl" });
+      expect(compiled).toMatchObject({
+        ok: false,
+        diagnostics: [
+          expect.objectContaining({
+            code: ShaderDiagnosticCode.InvalidBuiltinDomain,
+            range: { start: input.indexOf(call), length: call.length },
+          }),
+        ],
+      });
+      expect(compiled).not.toHaveProperty("code");
+
+      const artifact = compileFragmentArtifact(input);
+      expect(artifact).toMatchObject({
+        ok: false,
+        diagnostics: [
+          expect.objectContaining({
+            code: ShaderDiagnosticCode.InvalidBuiltinDomain,
+            range: { start: input.indexOf(call), length: call.length },
+          }),
+        ],
+      });
+      expect(artifact.artifact).toBeUndefined();
+    });
+  }
+
+  it("accepts dynamic derivative operands and emits WGSL", () => {
+    const input = source("dFdx(coord.x)", "scalar");
+    const result = compileFragmentArtifact(input);
+    expect(result).toMatchObject({ ok: true, diagnostics: [] });
+    if (result.ok) expect(result.artifact.wgsl).toContain("dpdx(");
   });
 
   it.each([
