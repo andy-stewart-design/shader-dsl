@@ -870,6 +870,83 @@ export default createFragmentShader(({ uniforms }) =>
   await waitForValidation(page, "glsl-es-300", "success");
   await waitForValidation(page, "wgsl", "success");
 
+  const derivativeSource = `import { createFragmentShader, dFdx, dFdy, fwidth, vec4 } from "shdr";
+export default createFragmentShader(({ coord, uniforms }) => {
+  const uv = coord.xy / uniforms.resolution;
+  return vec4(
+    0.25 + dFdx(uv.x),
+    0.25 + dFdy(uv.y),
+    0.25 + fwidth(uv.x),
+    1,
+  );
+});
+`;
+  await compileSource(page, editor, derivativeSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  assert.doesNotMatch(await diagnostics.textContent(), /SHDR\d{4}/);
+  await glslTab.click();
+  const derivativeGlsl = await page.getByRole("tabpanel").textContent();
+  assert.match(derivativeGlsl, /dFdx\(/);
+  assert.match(derivativeGlsl, /\(-dFdy\(/);
+  assert.match(derivativeGlsl, /fwidth\(/);
+  await wgslTab.click();
+  const derivativeWgsl = await page.getByRole("tabpanel").textContent();
+  assert.match(derivativeWgsl, /dpdx\(/);
+  assert.match(derivativeWgsl, /dpdy\(/);
+  assert.match(derivativeWgsl, /fwidth\(/);
+  await glslTab.click();
+  const derivativeGlPixel = await readWebGlPixels(page, [[0.5, 0.5]]);
+  const derivativeGpuPixel = await readWebGpuPixels(page, [[0.5, 0.5]]);
+
+  const invalidDerivativeSource = derivativeSource.replace(
+    "dFdy(uv.y)",
+    "dFdy(uv.y, uv.y)",
+  );
+  await compileSource(page, editor, invalidDerivativeSource);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1208/);
+  assert.match(
+    await glslValidation.textContent(),
+    /blocked by shared source diagnostics/i,
+  );
+  await page
+    .getByText("Last successful GLSL ES 3.00 render remains visible.")
+    .waitFor();
+  await page
+    .getByText("Last successful WGSL render remains visible.")
+    .waitFor();
+  assert.deepEqual(
+    await readWebGlPixels(page, [[0.5, 0.5]]),
+    derivativeGlPixel,
+  );
+  assert.deepEqual(
+    await readWebGpuPixels(page, [[0.5, 0.5]]),
+    derivativeGpuPixel,
+  );
+
+  const missingDerivativeImport = derivativeSource.replace("dFdx, ", "");
+  await compileSource(page, editor, missingDerivativeImport);
+  await waitForValidation(page, "glsl-es-300", "blocked");
+  await waitForValidation(page, "wgsl", "blocked");
+  assert.match(await diagnostics.textContent(), /SHDR1106/);
+  assert.deepEqual(
+    await readWebGlPixels(page, [[0.5, 0.5]]),
+    derivativeGlPixel,
+  );
+  assert.deepEqual(
+    await readWebGpuPixels(page, [[0.5, 0.5]]),
+    derivativeGpuPixel,
+  );
+
+  await compileSource(page, editor, derivativeSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+  await compileSource(page, editor, originalSource);
+  await waitForValidation(page, "glsl-es-300", "success");
+  await waitForValidation(page, "wgsl", "success");
+
   await verifyCustomUniforms(
     page,
     editor,

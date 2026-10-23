@@ -550,6 +550,76 @@ export async function run(): Promise<void> {
     (diagnostics) => diagnostics.length === 0,
   );
 
+  const derivativeHelperUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "shared/fragment-derivative-helper.shdr.ts",
+  );
+  const derivativeHelper =
+    await vscode.workspace.openTextDocument(derivativeHelperUri);
+  await vscode.window.showTextDocument(derivativeHelper);
+  await waitForDiagnostics(
+    derivativeHelperUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(derivativeHelper, "value:", /Expr<Vec2<F32>>/);
+
+  const derivativesUri = vscode.Uri.joinPath(
+    workspace.uri,
+    "fragment-derivatives.shdr.ts",
+  );
+  const derivatives = await vscode.workspace.openTextDocument(derivativesUri);
+  await vscode.window.showTextDocument(derivatives);
+  await waitForDiagnostics(
+    derivativesUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForHoverText(derivatives, "derivativeScalar =", /Expr<F32>/);
+  await waitForHoverText(derivatives, "derivativeVector2 =", /Expr<Vec2<F32>>/);
+  await waitForHoverText(derivatives, "derivativeVector3 =", /Expr<Vec3<F32>>/);
+  await waitForHoverText(derivatives, "derivativeVector4 =", /Expr<Vec4<F32>>/);
+  await waitForHoverText(derivatives, "helperValue =", /Expr<F32>/);
+
+  const originalDerivativeCall = "dFdx(coord.x)";
+  const invalidDerivativeCall = "dFdx(coord.x, coord.y)";
+  await replaceText(derivatives, originalDerivativeCall, invalidDerivativeCall);
+  const invalidDerivativeDiagnostics = await waitForDiagnostics(
+    derivativesUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(
+    derivatives.getText(invalidDerivativeDiagnostics[0]?.range),
+    invalidDerivativeCall,
+  );
+  await replaceText(derivatives, invalidDerivativeCall, originalDerivativeCall);
+  await waitForDiagnostics(
+    derivativesUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
+  await vscode.window.showTextDocument(derivativeHelper);
+  const originalHelperCall = "dFdx(value.x)";
+  const invalidHelperCall = "dFdx(value.x, value.x)";
+  await replaceText(derivativeHelper, originalHelperCall, invalidHelperCall);
+  const invalidHelperDiagnostics = await waitForDiagnostics(
+    derivativeHelperUri,
+    (diagnostics) =>
+      diagnostics.length === 1 && diagnostics[0]?.code === "SHDR1208",
+  );
+  assert.equal(
+    derivativeHelper.getText(invalidHelperDiagnostics[0]?.range),
+    invalidHelperCall,
+  );
+  await replaceText(derivativeHelper, invalidHelperCall, originalHelperCall);
+  await waitForDiagnostics(
+    derivativeHelperUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+  await waitForDiagnostics(
+    derivativesUri,
+    (diagnostics) => diagnostics.length === 0,
+  );
+
   // The standard TypeScript provider for ordinary .ts files is intentionally
   // covered by the manual editor check, not this isolated extension-host test.
   // This test launches with extensions disabled and should only assert behavior
@@ -559,6 +629,6 @@ export async function run(): Promise<void> {
   assert.equal(ordinary.languageId, "typescript");
 
   console.log(
-    "Complete real VS Code Shdr extension, math, mix/step and PR 3 checklist verified.",
+    "Complete real VS Code Shdr extension, fragment derivatives, math, mix/step and PR 3 checklist verified.",
   );
 }

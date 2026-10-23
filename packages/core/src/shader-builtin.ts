@@ -4,6 +4,9 @@ import type { ShaderValueType } from "./shader-type.js";
 export const SHADER_BUILTINS = {
   sin: "unary-same",
   cos: "unary-same",
+  dFdx: "unary-same",
+  dFdy: "unary-same",
+  fwidth: "unary-same",
   asin: "unary-same",
   acos: "unary-same",
   atan: "atan",
@@ -56,7 +59,10 @@ export function builtinResultType(
         first.size === other.size));
   switch (SHADER_BUILTINS[name]) {
     case "unary-same":
-      return args.length === 1 ? first : undefined;
+      return args.length === 1 &&
+        (first.kind === "scalar" || first.kind === "vector")
+        ? first
+        : undefined;
     case "unary-vector":
       return args.length === 1 && first.kind === "vector" ? first : undefined;
     case "atan":

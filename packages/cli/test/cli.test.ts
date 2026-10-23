@@ -84,6 +84,57 @@ export default createFragmentShader(({ uniforms }) => vec4(gain(uniforms.time)))
     });
   });
 
+  it("checks derivative helper graphs and reports invalid helper edits at their source", async () => {
+    await withProject(async (cwd) => {
+      await mkdir(join(cwd, "src/shared"), { recursive: true });
+      await writeFile(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { noEmit: true },
+          include: ["src/**/*.shdr.ts"],
+        }),
+      );
+      const helper = join(cwd, "src/shared/derivatives.shdr.ts");
+      const entry = join(cwd, "src/scene.shdr.ts");
+      const helperSource = `import { defineShaderFunction, dFdx, fwidth } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const slope = defineShaderFunction((value: Expr<F32>) => fwidth(dFdx(value)));
+`;
+      await writeFile(helper, helperSource);
+      await writeFile(
+        entry,
+        `import { createFragmentShader, vec4 } from "shdr";
+import { slope } from "./shared/derivatives.shdr.ts";
+export default createFragmentShader(({ coord }) => vec4(slope(coord.x)));
+`,
+      );
+      const valid = invoke(cwd, "check");
+      expect(valid.status).toBe(0);
+      expect(valid.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+      expect(valid.stderr).toBe("");
+
+      const invalidHelper = helperSource.replace(
+        "dFdx(value)",
+        "dFdx(value, value)",
+      );
+      await writeFile(helper, invalidHelper);
+      const invalid = invoke(cwd, "check");
+      expect(invalid.status).toBe(1);
+      expect(invalid.stdout).toMatch(/derivatives\.shdr\.ts:3:.*SHDR1208:/);
+      expect(invalid.stdout).not.toMatch(/__shdr_internal/);
+      expect(invalid.stdout).not.toMatch(/scene\.shdr\.ts:.*SHDR1208/);
+
+      await writeFile(helper, helperSource);
+      const restored = invoke(cwd, "check");
+      expect(restored.status).toBe(0);
+      expect(restored.stdout).toBe(
+        "Checked 2 shader files: no Shdr diagnostics.\n",
+      );
+    });
+  });
+
   it("checks module constants through helper edits and rejects constant imports/defaults", async () => {
     await withProject(async (cwd) => {
       await mkdir(join(cwd, "src"), { recursive: true });

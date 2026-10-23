@@ -214,6 +214,19 @@ Operations on vectors are component-wise; scalar operands in vector addition/sub
 
 Vector-plus-scalar packings place the vector first; other shapes such as `vec4(1, coord.xyz)` are not supported. Swizzles cannot be written to or computed (`coord[0]`); unavailable components such as `coord.rgb.a` are invalid.
 
+### Fragment derivatives
+
+Import `dFdx`, `dFdy`, and `fwidth` directly by name from `"shdr"` (aliases and namespace imports are not accepted). Each function has exactly these compile-only overloads:
+
+- `(Expr<F32>) → Expr<F32>`
+- `(Expr<Vec2<F32>>) → Expr<Vec2<F32>>`
+- `(Expr<Vec3<F32>>) → Expr<Vec3<F32>>`
+- `(Expr<Vec4<F32>>) → Expr<Vec4<F32>>`
+
+Vector results are component-wise. Derivatives use Shdr's top-left fragment axes: X increases to the right and Y increases downward. In an ordinary smooth interior, `dFdx(coord.x)` and `dFdy(coord.y)` are approximately `+1`; `dFdy` of a bottom-left-reconstructed value is approximately `-1`. The target mappings preserve that meaning: GLSL emits `dFdx(x)`, `(-dFdy(x))`, and `fwidth(x)`; WGSL emits `dpdx(x)`, `dpdy(x)`, and `fwidth(x)`. The GLSL negation applies to the derivative result, not to its argument.
+
+Calls are supported in the existing straight-line fragment callback and in local or imported `defineShaderFunction` helpers reachable by that fragment. Helpers remain statically checked in their defining modules; this does not add control flow or another shader stage. Derivatives are GPU screen-space operations: authored modules are not evaluated on the CPU, and no derivative mode, binding, or artifact-schema field is added. Coarse/fine variants, vertex/compute derivatives, control-flow or divergent-execution semantics, mixed-shape/multi-argument forms, matrix or texture-handle inputs, explicit texture-gradient sampling or LOD controls, and guarantees at edges, discontinuities, or across GPUs are excluded. Derivative support does not change existing implicit texture-sampling behavior. This contract does not claim reference shader 3 fidelity or broad GPU parity.
+
 ### Square matrices
 
 The language supports square f32 matrices `Mat2<F32>`, `Mat3<F32>`, and `Mat4<F32>`, constructed with the direct imports `mat2`, `mat3`, and `mat4`. Matrices are compile-only shader expressions, not host values or runtime uniforms. A matrix can be stored in a local, passed to a local or imported `defineShaderFunction` helper, or returned from a helper; the fragment still must return `Expr<Vec4<F32>>`.

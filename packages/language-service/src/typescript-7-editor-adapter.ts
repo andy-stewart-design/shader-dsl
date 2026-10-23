@@ -190,6 +190,9 @@ export class TypeScript7EditorAdapter {
   ): TypeScript7EditorDocumentImpl {
     const analysis = analyzeFragment(input.source, fileName);
     const helperOnly = isHelperOnlySource(input.source);
+    const graphBuiltinDiagnostics = graphDiagnostics.filter(
+      (diagnostic) => diagnostic.code === ShaderDiagnosticCode.InvalidBuiltin,
+    );
     const transformed = analysis.virtual;
     if (!transformed.ok) {
       const diagnostics = helperOnly
@@ -215,7 +218,7 @@ export class TypeScript7EditorAdapter {
               : transformed.shaderRegions,
             originalSyntacticDiagnostics: original.syntacticDiagnostics,
             originalSemanticDiagnostics: original.semanticDiagnostics,
-            coreDiagnostics: diagnostics,
+            coreDiagnostics: [...diagnostics, ...graphBuiltinDiagnostics],
           }),
           graphDiagnostics,
         ),
@@ -326,7 +329,7 @@ export class TypeScript7EditorAdapter {
       shaderOperationDiagnostics: helperFailure
         ? []
         : (virtual?.shaderOperationDiagnostics ?? []),
-      coreDiagnostics,
+      coreDiagnostics: [...coreDiagnostics, ...graphBuiltinDiagnostics],
     });
     return new TypeScript7EditorDocumentImpl({
       fileName,

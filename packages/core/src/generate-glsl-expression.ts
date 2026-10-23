@@ -234,6 +234,11 @@ function emitExpression(
             args[index] = `${vector}(${args[index]})`;
         }
       }
+      if (
+        expression.target.kind === "builtin-function" &&
+        expression.target.name === "dFdy"
+      )
+        return `(-${name}(${args.join(", ")}))`;
       return `${name}(${args.join(", ")})`;
     }
 
@@ -296,6 +301,9 @@ function callTargetName(target: ShaderCallTarget): string {
       switch (target.name) {
         case "sin":
         case "cos":
+        case "dFdx":
+        case "dFdy":
+        case "fwidth":
         case "asin":
         case "acos":
         case "atan":

@@ -29,6 +29,12 @@ assertIncludes(bundle, "mat4x4<f32>");
 assertIncludes(bundle, "0.125");
 assertIncludes(bundle, "atan2(");
 assertIncludes(bundle, "shdr_internal_mod_");
+assertIncludes(bundle, "dFdx(");
+assertIncludes(bundle, "(-dFdy(");
+assertIncludes(bundle, "fwidth(");
+assertIncludes(bundle, "dpdx(");
+assertIncludes(bundle, "dpdy(");
+assertIncludes(bundle, "abstract-01.jpg");
 assertExcludes(bundle, "coord.xy / uniforms.resolution");
 assertExcludes(bundle, "-vec3(rgb) + vec3(1)");
 assertExcludes(bundle, "const waves = sin(uv * 2) + cos(uv * 3)");
@@ -55,6 +61,12 @@ if (!sources.some((source) => source.endsWith("/src/square-matrices.shdr.ts")))
   throw new Error("Static build omitted the square-matrices shader.");
 if (!sources.some((source) => source.endsWith("/src/module-constants.shdr.ts")))
   throw new Error("Static build omitted the module-constants shader.");
+if (
+  !sources.some((source) =>
+    source.endsWith("/src/fragment-derivatives.shdr.ts"),
+  )
+)
+  throw new Error("Static build omitted the fragment-derivatives shader.");
 for (const form of ["inline", "named"]) {
   if (
     !sources.some((source) =>
@@ -118,10 +130,16 @@ try {
   assertIncludes(oneCode, "#version 300 es");
   assertIncludes(oneCode, "atan(");
   assertIncludes(oneCode, "shdr_internal_mod_");
+  assertIncludes(oneCode, "dFdx(");
+  assertIncludes(oneCode, "(-dFdy(");
+  assertIncludes(oneCode, "dpdx(");
   assertExcludes(oneCode, "createFragmentShader");
   if (
     !oneSources.some((source) => source.endsWith("/runtime/dist/webgl.mjs")) ||
     !oneSources.some((source) => source.endsWith("/src/orbit-math.shdr.ts")) ||
+    !oneSources.some((source) =>
+      source.endsWith("/src/fragment-derivatives.shdr.ts"),
+    ) ||
     oneSources.some((source) =>
       /runtime\/dist\/webgpu\.mjs|packages\/core\/|@babel[+/]parser|browser-compiler-smoke/.test(
         source,

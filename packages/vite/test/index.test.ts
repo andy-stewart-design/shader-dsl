@@ -155,6 +155,78 @@ export default createFragmentShader(({ uniforms }) => vec4(uniforms.color.x, uni
     }
   });
 
+  it("pre-transforms derivative helper graphs and recovers from invalid helper edits", async () => {
+    const root = await mkdtemp(join(tmpdir(), "shdr-vite-derivatives-"));
+    try {
+      const sourceDirectory = join(root, "src");
+      const sharedDirectory = join(sourceDirectory, "shared");
+      await mkdir(sharedDirectory, { recursive: true });
+      const helper = join(sharedDirectory, "derivatives.shdr.ts");
+      const entry = join(sourceDirectory, "entry.shdr.ts");
+      const helperSource = `import { defineShaderFunction, dFdx, dFdy, fwidth } from "shdr";
+import type { Expr, F32 } from "shdr";
+export const slope = defineShaderFunction((value: Expr<F32>) => fwidth(dFdy(dFdx(value))));
+`;
+      const entrySource = `import { defineUniforms, sample, vec4 } from "shdr";
+import { slope } from "./shared/derivatives.shdr.ts";
+export default defineUniforms((u) => ({ tint: u.vec3(0.5, 0.7, 0.9), photo: u.texture2D("/photo.png") }))
+  .createFragmentShader(({ coord, uniforms }) => {
+    const color = sample(uniforms.photo, coord.xy / uniforms.resolution);
+    return vec4(color.x * uniforms.tint.x + slope(coord.x), color.y, color.z, 1);
+  });
+`;
+      await writeFile(helper, helperSource);
+      await writeFile(entry, entrySource);
+      const plugin = shdr();
+      configure(plugin, root);
+      const watched: string[] = [];
+      const transformed = await transform(plugin, entrySource, entry, watched);
+      const artifact = parseArtifact(transformed);
+      expect(transformed?.map).toBeNull();
+      expect(artifact.glsl).toContain("dFdx(");
+      expect(artifact.glsl).toContain("(-dFdy(");
+      expect(artifact.glsl).toContain("fwidth(");
+      expect(artifact.wgsl).toContain("dpdx(");
+      expect(artifact.wgsl).toContain("dpdy(");
+      expect(artifact.resources?.textures[0]?.url).toBe("/photo.png");
+      const custom = artifact.custom;
+      expect(custom).toBeDefined();
+      if (!custom) throw new Error("Expected custom uniform metadata.");
+      expect(custom.declarations.map((item) => item.name)).toEqual(["tint"]);
+      expect(watched).toContain(await realpath(helper));
+      expect(transformed?.code).not.toContain("defineShaderFunction");
+      expect(transformed?.code).not.toContain("createFragmentShader");
+
+      await writeFile(
+        helper,
+        helperSource.replace("dFdx(value)", "dFdx(value, value)"),
+      );
+      let invalid: unknown;
+      try {
+        await transform(plugin, entrySource, entry);
+      } catch (error) {
+        invalid = error;
+      }
+      expect(invalid).toMatchObject({
+        name: "ShdrCompileError",
+        id: await realpath(helper),
+        pluginCode: "SHDR1208",
+      });
+
+      await writeFile(
+        helper,
+        helperSource.replace("dFdx(value)", "dFdx(value * 2)"),
+      );
+      const recovered = parseArtifact(
+        await transform(plugin, entrySource, entry),
+      );
+      expect(recovered.glsl).toContain("dFdx(");
+      expect(recovered.wgsl).toContain("dpdx(");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("compiles module constants through helper edits and rejects static isolation violations", async () => {
     const root = await mkdtemp(join(tmpdir(), "shdr-vite-constants-"));
     try {
@@ -569,7 +641,7 @@ function parseArtifact(result: TransformResult | null): {
   readonly glsl: string;
   readonly wgsl: string;
   readonly custom?: {
-    readonly declarations: readonly unknown[];
+    readonly declarations: readonly { readonly name: string }[];
   };
   readonly resources?: {
     readonly textures: readonly { readonly url: string }[];

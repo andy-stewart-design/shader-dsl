@@ -21,7 +21,7 @@ The [opaque runtime v1 contract](./_completed/runtime-api/spec.md) computes shad
 
 ### Further reference-port vocabulary, when needed
 
-The [language-extension roadmap](./language-exntesion.md) describes remaining candidates such as fragment derivatives and narrowly analyzed module constants. Square f32 matrices are now delivered under their own bounded contract; future matrix work must still be reviewed separately if it adds uniforms, indexing, builtins, rectangular shapes, or reference-port fidelity. Reversed-`smoothstep` reference behavior is not portable GLSL fidelity; agree on a defined rewrite and pinned inputs before claiming a port matches its original. Vertex-stage authoring and varying interfaces need separate stage-specific IR, type/location and interpolation rules, and a host pipeline contract.
+The [language-extension roadmap](./language-exntesion.md) describes remaining candidates such as narrowly analyzed module constants. Square f32 matrices are now delivered under their own bounded contract; future matrix work must still be reviewed separately if it adds uniforms, indexing, builtins, rectangular shapes, or reference-port fidelity. Reversed-`smoothstep` reference behavior is not portable GLSL fidelity; agree on a defined rewrite and pinned inputs before claiming a port matches its original. Vertex-stage authoring and varying interfaces need separate stage-specific IR, type/location and interpolation rules, and a host pipeline contract.
 
 ## Optional builtin signature extensions
 
