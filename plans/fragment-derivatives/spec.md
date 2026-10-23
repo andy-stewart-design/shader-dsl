@@ -4,7 +4,7 @@
 
 - Readiness: **Implementation verified; delivery pending.** Phases 0–3 and Step 3.2 final documentation/regression review are verified. Merge and publication remain pending; this status does not authorize release.
 - Blocking decisions: None for the scoped Chromium SwiftShader gates. The signed-Y convention is implemented and presented WebGL/WebGPU pixels pass; broader hardware behavior, reference shader 3 fidelity, and the standard TypeScript provider hover on ordinary `.ts` files remain untested.
-- Source: The derivative discussion in this conversation, [PR 4 of the language-extension roadmap](../language-exntesion.md#pr-4--fragment-derivatives-not-implemented), and the [accepted shader language](../../README.md#accepted-shader-language). A complete port or fidelity claim for reference shader **3** is separate work.
+- Source: The derivative discussion in this conversation, [PR 4 of the language-extension roadmap](../language-exntesion.md#pr-4--fragment-derivatives-implemented-pr-23-open--merge-pending), and the [accepted shader language](../../README.md#accepted-shader-language). A complete port or fidelity claim for reference shader **3** is separate work.
 
 ## Problem and intended outcome
 
