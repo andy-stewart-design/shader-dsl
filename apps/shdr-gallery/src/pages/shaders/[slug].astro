@@ -1,0 +1,79 @@
+---
+import { Code } from "astro:components";
+import ShaderViewer from "../../components/ShaderViewer";
+import { references } from "../../lib/catalog";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  return references.map((reference) => ({
+    params: { slug: reference.slug },
+    props: { reference },
+  }));
+}
+
+const { reference } = Astro.props;
+const pageTitle = `${reference.title} — Shdr Gallery`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={reference.description} />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <header class="site-header shell">
+      <a class="brand" href="/" aria-label="Shdr Gallery home">
+        <span class="brand-mark" aria-hidden="true">✳</span> Shdr / Gallery
+      </a>
+      <span class="header-note">Reference study · {reference.number}</span>
+    </header>
+
+    <main class="detail-main shell">
+      <div class="detail-top">
+        <a class="back-link" href="/">← Back to all shaders</a>
+        <div class="detail-heading">
+          <div>
+            <p class="eyebrow">Reference / {reference.number}</p>
+            <h1>{reference.title}</h1>
+          </div>
+          <p class="detail-description">{reference.description}</p>
+        </div>
+      </div>
+
+      <ShaderViewer
+        client:load
+        artifact={reference.artifact}
+        source={reference.source}
+        title={reference.title}
+      >
+        <Code
+          slot="highlightedSource"
+          code={reference.source}
+          lang="typescript"
+          theme="github-dark"
+          class="syntax-code"
+        />
+        <Code
+          slot="highlightedGlsl"
+          code={reference.artifact.glsl}
+          lang="glsl"
+          theme="github-dark"
+          class="syntax-code"
+        />
+        <Code
+          slot="highlightedWgsl"
+          code={reference.artifact.wgsl}
+          lang="wgsl"
+          theme="github-dark"
+          class="syntax-code"
+        />
+      </ShaderViewer>
+    </main>
+
+    <footer class="site-footer shell">Shdr Gallery · one shader, three ways to read it</footer>
+  </body>
+</html>

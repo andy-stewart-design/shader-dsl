@@ -6,7 +6,7 @@ import { createServer } from "vite";
 
 const authored = await readFile(
   new URL(
-    "../../../apps/vite-basic/src/references/horizon-burn.shdr.ts",
+    "../../../apps/shdr-gallery/src/shaders/horizon-burn.shdr.ts",
     import.meta.url,
   ),
   "utf8",

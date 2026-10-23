@@ -30,17 +30,17 @@ const filmGrain = defineShaderFunction((p: Expr<Vec2<F32>>) => {
 });
 
 // Algebraic translation of horizon-burn.frag.
-export default createFragmentShader(({ coord, uniforms }) => {
+export default createFragmentShader(($) => {
   // gl_FragCoord has a bottom-left origin; Shdr's coord is top-left.
-  const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
-  const shdrUv = frag / uniforms.resolution;
+  const frag = vec2($.coord.x, $.u.resolution.y - $.coord.y);
+  const shdrUv = frag / $.u.resolution;
   const ndc = shdrUv * 2 - 1;
   const scaledUv = ndc * 0.06;
   const shiftedUv = scaledUv - 0.03;
   const waveSeedX = shiftedUv.x * 6;
   const waveSeedY = shiftedUv.y * 6;
-  const waveX = sin(waveSeedX + sin(uniforms.time + waveSeedY) * 0.2);
-  const waveY = sin(waveSeedY + sin(uniforms.time + waveSeedX) * 0.2);
+  const waveX = sin(waveSeedX + sin($.u.time + waveSeedY) * 0.2);
+  const waveY = sin(waveSeedY + sin($.u.time + waveSeedX) * 0.2);
   const warpedUv = shiftedUv + vec2(waveX, waveY);
   const paletteInput = warpedUv.x * sin(1) + warpedUv.y;
 
