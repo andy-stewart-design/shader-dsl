@@ -14,10 +14,10 @@ import {
 // Algebraic translation of infinite-squircle.frag. The deliberately unusual
 // cosine coefficients in the reference matrix are retained verbatim. Shdr's
 // coord is top-left; frag restores GLSL's bottom-left coordinate convention.
-export default createFragmentShader(({ coord, uniforms }) => {
-  const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
-  const p = (frag * 2 - uniforms.resolution) / uniforms.resolution.y;
-  const time = uniforms.time;
+export default createFragmentShader(($) => {
+  const frag = vec2($.coord.x, $.u.resolution.y - $.coord.y);
+  const p = (frag * 2 - $.u.resolution) / $.u.resolution.y;
+  const time = $.u.time;
   const angle = time / 4 - sin(time) / 4;
   const rotation = mat2(
     cos(angle),

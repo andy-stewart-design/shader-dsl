@@ -80,19 +80,19 @@ const circles = defineShaderFunction(
 
 // Algebraic translation of circles-circling.frag. Shdr coord has a top-left
 // origin, so reconstruct bottom-left gl_FragCoord before calculating xy.
-export default createFragmentShader(({ coord, uniforms }) => {
-  const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
+export default createFragmentShader(($) => {
+  const frag = vec2($.coord.x, $.u.resolution.y - $.coord.y);
   const centralRadius = 0.1;
   const satelliteRadius = 0.0375;
   const rotationSpeed = 0.15;
   const spacing = 2.5;
   const center = vec2(0);
-  const xy = (frag * 2 - uniforms.resolution) / uniforms.resolution.y;
+  const xy = (frag * 2 - $.u.resolution) / $.u.resolution.y;
   const distanceFromCenter = length(xy - center);
   const index = floor(
     (distanceFromCenter - centralRadius) / (satelliteRadius * spacing),
   );
-  const phase = -(uniforms.time * rotationSpeed) * (index * 0.1 + 1);
+  const phase = -($.u.time * rotationSpeed) * (index * 0.1 + 1);
   const color =
     circles(
       xy,
@@ -100,7 +100,7 @@ export default createFragmentShader(({ coord, uniforms }) => {
       centralRadius + satelliteRadius * index * spacing,
       satelliteRadius,
       phase,
-      uniforms.resolution.y,
+      $.u.resolution.y,
     ) * step(0, index);
   return vec4(color * 0.9, 1);
 });

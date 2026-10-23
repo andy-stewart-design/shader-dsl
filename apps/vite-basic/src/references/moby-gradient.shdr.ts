@@ -63,19 +63,19 @@ const vignette = defineShaderFunction(
 // Algebraic translation of moby-gradient.frag. Host values are automatic
 // u_time/u_resolution; the source has no custom uniforms. Coordinates are
 // reconstructed as bottom-left gl_FragCoord because Shdr coord is top-left.
-export default createFragmentShader(({ coord, uniforms }) => {
-  const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
-  const uv = frag / uniforms.resolution;
-  const aspectRatio = uniforms.resolution.x / uniforms.resolution.y;
+export default createFragmentShader(($) => {
+  const frag = vec2($.coord.x, $.u.resolution.y - $.coord.y);
+  const uv = frag / $.u.resolution;
+  const aspectRatio = $.u.resolution.x / $.u.resolution.y;
   const centeredUv = uv - 0.5;
   const rotationNoise = noise(
-    vec2(uniforms.time * 0.05, centeredUv.x * centeredUv.y),
+    vec2($.u.time * 0.05, centeredUv.x * centeredUv.y),
   );
   const rotationAngle = radians((rotationNoise - 0.5) * 720 + 180);
   const aspectUv = vec2(centeredUv.x, centeredUv.y / aspectRatio);
   const rotatedUv = rot(rotationAngle) * aspectUv;
   const correctedUv = vec2(rotatedUv.x, rotatedUv.y * aspectRatio);
-  const waveTime = uniforms.time * 2;
+  const waveTime = $.u.time * 2;
   const xWave = sin(correctedUv.y * 5 + waveTime) / 30;
   const yWave = sin(correctedUv.x * 5 * 1.5 + waveTime) / (30 * 0.5);
   const warpedUv = vec2(correctedUv.x + xWave, correctedUv.y + yWave);

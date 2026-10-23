@@ -150,18 +150,14 @@ const uniforms = defineUniforms((u) => ({
 // u_resolution are automatic Shdr inputs. GLSL coordinates are bottom-left;
 // frag is reconstructed from Shdr's top-left coord for every pixel-space use.
 export default createFragmentShader(
-  ({ coord, uniforms }) => {
-    const frag = vec2(coord.x, uniforms.resolution.y - coord.y);
-    const uv = frag / uniforms.resolution;
-    const time = uniforms.time;
-    const emotion = clamp(emotionCurve(time) * uniforms.intensity, 0, 1);
-    const inputMouse = vec2(
-      uniforms.mouse.x,
-      uniforms.resolution.y - uniforms.mouse.y,
-    );
-    const hasMouse = step(0.0001, length(uniforms.mouse));
-    const mouseShift =
-      (inputMouse / uniforms.resolution - 0.5) * 0.3 * hasMouse;
+  ($) => {
+    const frag = vec2($.coord.x, $.u.resolution.y - $.coord.y);
+    const uv = frag / $.u.resolution;
+    const time = $.u.time;
+    const emotion = clamp(emotionCurve(time) * $.u.intensity, 0, 1);
+    const inputMouse = vec2($.u.mouse.x, $.u.resolution.y - $.u.mouse.y);
+    const hasMouse = step(0.0001, length($.u.mouse));
+    const mouseShift = (inputMouse / $.u.resolution - 0.5) * 0.3 * hasMouse;
     const backgroundBase = mix(
       vec3(0.02, 0.01, 0.04),
       vec3(0.06, 0.01, 0.01),
@@ -184,7 +180,7 @@ export default createFragmentShader(
         noiseIntensity *
         noiseIntensity *
         0.08;
-    const chromatic = smoothstep(0.5, 1, emotion) * 0.025 * uniforms.intensity;
+    const chromatic = smoothstep(0.5, 1, emotion) * 0.025 * $.u.intensity;
     const jitter =
       smoothstep(0.85, 1, emotion) * (noise1(time * 30) - 0.5) * 0.015;
     const glitchAmount = smoothstep(0.8, 1, emotion);
@@ -196,19 +192,9 @@ export default createFragmentShader(
       glitchBand * glitchAmount * (noise1(time * 50 + uv.y * 10) - 0.5) * 0.06;
     const waveX = uv.x + glitchOffset - mouseShift.x;
     const yCenter = uv.y - 0.5 + jitter - mouseShift.y;
-    const waveR = waveform(
-      waveX - chromatic,
-      time,
-      emotion,
-      uniforms.waveSpeed,
-    );
-    const waveG = waveform(waveX, time, emotion, uniforms.waveSpeed);
-    const waveB = waveform(
-      waveX + chromatic,
-      time,
-      emotion,
-      uniforms.waveSpeed,
-    );
+    const waveR = waveform(waveX - chromatic, time, emotion, $.u.waveSpeed);
+    const waveG = waveform(waveX, time, emotion, $.u.waveSpeed);
+    const waveB = waveform(waveX + chromatic, time, emotion, $.u.waveSpeed);
     const distanceR = abs(yCenter - waveR);
     const distanceG = abs(yCenter - waveG);
     const distanceB = abs(yCenter - waveB);
