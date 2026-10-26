@@ -17,7 +17,7 @@ The example uses top-left-origin pixel coordinates and the drawing-buffer resolu
 
 ## Requirements and workspace commands
 
-Use Node.js 24 or newer and pnpm 11.23.0. From the repository root:
+Use Node.js 24 or newer and pnpm 12.6.0. From the repository root:
 
 ```sh
 pnpm install --frozen-lockfile

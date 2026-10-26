@@ -2,11 +2,11 @@ Welcome to your new TanStack Start app!
 
 # Getting Started
 
-To run this application:
+From the monorepo root, install dependencies and run this application:
 
 ```bash
 pnpm install
-pnpm dev
+pnpm --filter repl-web dev
 ```
 
 # Building For Production
@@ -14,7 +14,7 @@ pnpm dev
 To build this application for production:
 
 ```bash
-pnpm build
+pnpm --filter repl-web build
 ```
 
 ## Styling
@@ -32,12 +32,13 @@ If you prefer not to use Tailwind CSS:
 
 ## Linting & Formatting
 
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
+This project uses the shared ESLint configuration for linting and TypeScript for type checking. Formatting is handled by the root Prettier configuration:
 
 ```bash
-pnpm lint
-pnpm format
-pnpm check
+pnpm --filter repl-web lint
+pnpm --filter repl-web check
+# from the repository root
+pnpm format --write
 ```
 
 ## Deploy with Nitro
