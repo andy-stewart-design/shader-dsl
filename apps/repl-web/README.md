@@ -42,19 +42,18 @@ pnpm check
 ```
 
 
-## Deploy to Vercel
+## Deploy with Nitro
 
-1. Push this repo to GitHub, GitLab, or Bitbucket
-2. In Vercel, choose **Add New > Project** and import the repo
-3. Keep the detected TanStack Start framework settings
-4. Add production values from `.env.example` under **Settings > Environment Variables**
-5. Deploy
+This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
 
-Vercel runs the build script and deploys Nitro's output as Vercel Functions and
-static assets. The included `vercel.json` makes framework detection explicit.
+```bash
+npm run build
+node dist/server/index.mjs
+```
 
-Variables prefixed with `VITE_` are included in the browser bundle. Keep secrets
-unprefixed so they remain server-only.
+The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+
+For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
 
 
 
@@ -200,10 +199,6 @@ function PeopleComponent() {
 
 Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
 
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
 
 
 # Learn More

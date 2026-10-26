@@ -4,7 +4,7 @@
   "mode": "file-router",
   "typescript": true,
   "packageManager": "pnpm",
-  "includeExamples": true,
+  "includeExamples": false,
   "tailwind": true,
   "projectPreset": "default",
   "routerOnly": false,
@@ -16,6 +16,6 @@
   "framework": "react",
   "chosenAddOns": [
     "biome",
-    "vercel"
+    "nitro"
   ]
 }
