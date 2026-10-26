@@ -74,8 +74,8 @@ try {
   const links = page.locator("a.shader-card");
   assert.equal(
     await links.count(),
-    7,
-    "gallery index should list seven shaders",
+    8,
+    "gallery index should list eight shaders",
   );
   const hrefs = await links.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("href")),
@@ -155,7 +155,7 @@ try {
     throw new Error(`Gallery browser errors:\n${browserErrors.join("\n")}`);
   }
   console.log(
-    "Gallery smoke check passed: seven links, seven previews, three tabs, mobile layout.",
+    "Gallery smoke check passed: eight links, eight previews, three tabs, mobile layout.",
   );
 } finally {
   await browser?.close();

@@ -1,6 +1,6 @@
 # Shdr Gallery
 
-A static Astro gallery for the seven translated reference shaders. The authored
+A static Astro gallery for the eight translated reference shaders. The authored
 `.shdr.ts` sources live in [`src/shaders`](src/shaders); each page displays the
 source and its generated GLSL/WGSL artifact and renders a WebGL preview. The
 original GLSL baselines remain in [`apps/vite-basic/src/references`](../vite-basic/src/references)

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import {
   benDayArtifact,
+  chromaticRingArtifact,
   circlesArtifact,
   horizonArtifact,
   infiniteArtifact,
@@ -102,6 +103,15 @@ const definitions: readonly ReferenceDefinition[] = [
       "A graphic spotlight rendered in halftone dots, with a playful pop-art pulse.",
     sourceFile: "ben-day-spotlight.shdr.ts",
     artifact: benDayArtifact,
+  },
+  {
+    slug: "chromatic-ring",
+    title: "Chromatic Ring",
+    number: "08",
+    description:
+      "A spectral ring with sharp angular bands and a soft halo against a dark field.",
+    sourceFile: "chromatic-ring.shdr.ts",
+    artifact: chromaticRingArtifact,
   },
 ];
 
