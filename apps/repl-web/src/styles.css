@@ -53,54 +53,54 @@
   isolation: isolate;
 }
 
-/* Aura-inspired editor defaults. Override on an editor host to customize colors.
+/* Atom-inspired editor defaults. Override on an editor host to customize colors.
    Give the host a height to constrain the editor and enable internal scrolling. */
 :root {
   color-scheme: dark;
   background-color: var(--editor-background);
   color: var(--editor-foreground);
 
-  --editor-background: #15141b;
-  --editor-foreground: #edecee;
+  --editor-background: #161719;
+  --editor-foreground: #c5c8c6;
   --editor-font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     monospace;
   --editor-font-size: 14px;
   --editor-line-height: 1.6;
   --editor-padding: 8px;
-  --editor-focus: #a277ff;
+  --editor-focus: #85befd;
   --editor-focus-outline: none;
-  --editor-cursor: #a277ff;
-  --editor-border: #4d4d4d;
-  --editor-selection: #a277ff40;
-  --editor-selection-inactive: #a277ff20;
+  --editor-cursor: #d0d0d0;
+  --editor-border: #4c4c4c;
+  --editor-selection: #85befd40;
+  --editor-selection-inactive: #85befd20;
   --editor-gutter-background: var(--editor-background);
-  --editor-gutter-foreground: #9c99ad;
+  --editor-gutter-foreground: #8b8e8b;
   --editor-gutter-border: none;
   --editor-gutter-active-line-background: var(--editor-active-line);
-  --editor-active-line: #a277ff0d;
-  --editor-bracket-match: #61ffca26;
-  --editor-search-match: #ffca8526;
-  --editor-search-match-selected: #ffca8552;
-  --editor-search-border: #ffca85;
-  --editor-selection-match: #61ffca26;
-  --editor-panel-background: #110f18;
-  --editor-control-background: #15141b;
-  --editor-control-hover: #a277ff26;
+  --editor-active-line: #85befd0d;
+  --editor-bracket-match: #87c38a26;
+  --editor-search-match: #f5ffa826;
+  --editor-search-match-selected: #f5ffa852;
+  --editor-search-border: #f5ffa8;
+  --editor-selection-match: #87c38a26;
+  --editor-panel-background: #161719;
+  --editor-control-background: #161719;
+  --editor-control-hover: #85befd26;
   --editor-control-radius: 4px;
-  --editor-keyword: #a277ff;
-  --editor-property: #edecee;
-  --editor-function: #ffca85;
-  --editor-type: #61ffca;
-  --editor-string: #61ffca;
-  --editor-literal: #ffca85;
-  --editor-escape: #ffca85;
-  --editor-operator: #a277ff;
-  --editor-punctuation: #edecee;
+  --editor-keyword: #fd5ff1;
+  --editor-property: #c5c8c6;
+  --editor-function: #85befd;
+  --editor-type: #b9b6fc;
+  --editor-string: #ffd7b1;
+  --editor-literal: #87c38a;
+  --editor-escape: #f5ffa8;
+  --editor-operator: #b9b6fc;
+  --editor-punctuation: #c5c8c6;
   /* Lighter than palette 8 so comments remain readable on the background. */
-  --editor-comment: #9c99ad;
-  --editor-meta: #a277ff;
-  --editor-invalid: #ff6767;
+  --editor-comment: #8b8e8b;
+  --editor-meta: #b9b6fc;
+  --editor-invalid: #fd5ff1;
 }
 
 .home-page {
