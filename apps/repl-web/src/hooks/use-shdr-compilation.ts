@@ -1,7 +1,7 @@
 import type { CompileArtifactFailure } from "@shdr/core/browser";
-import { compileFragmentArtifact } from "@shdr/core/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
+import { compileShdrBody } from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 
 type Compilation = {
@@ -34,7 +34,7 @@ function formatCompileError(
 
 function compileSource(source: string): Compilation {
   try {
-    const result = compileFragmentArtifact(source);
+    const result = compileShdrBody(source);
     if (!result.ok) {
       return {
         artifact: null,

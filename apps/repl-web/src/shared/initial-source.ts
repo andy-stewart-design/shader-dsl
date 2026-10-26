@@ -1,8 +1,4 @@
-export const initialShaderSource = `import { createFragmentShader, vec4 } from "shdr";
+export const initialShaderSource = `const uv = coord.xy / uniforms.resolution;
+const color = vec4(uv.x, uv.y, 0, 1);
 
-export default createFragmentShader(({ coord, uniforms }) => {
-  const uv = coord.xy / uniforms.resolution;
-  const color = vec4(uv.x, uv.y, 0, 1);
-
-  return color;
-});`;
+return color;`;
