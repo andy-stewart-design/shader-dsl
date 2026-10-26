@@ -1,0 +1,5 @@
+.editor {
+	height: min(65vh, 40rem);
+	min-height: 20rem;
+	min-width: 0;
+}
