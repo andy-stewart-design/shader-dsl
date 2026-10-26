@@ -210,6 +210,54 @@ export default createFragmentShader(({ coord, uniforms }) => {
       "vec4<f32>(shdr_local_1)",
     );
   });
+
+  it("bounds native tanh with typed scalar and vector limits", () => {
+    const vec3 = { kind: "vector", scalar: "f32", size: 3 } as const;
+    const vector = (
+      name: "vec2" | "vec3" | "vec4",
+      type: ShaderValueType,
+      values: readonly number[],
+    ): ShaderExpression => ({
+      kind: "call",
+      target: { kind: "constructor", name },
+      arguments: values.map(numeric),
+      type,
+      range,
+    });
+    const tanh = (
+      argument: ShaderExpression,
+      type: ShaderValueType,
+    ): ShaderExpression => ({
+      kind: "call",
+      target: { kind: "builtin-function", name: "tanh" },
+      arguments: [argument],
+      type,
+      range,
+    });
+
+    expect(generateWgslExpression(tanh(numeric(-1), f32)).code).toBe(
+      "tanh(clamp(-1.0f, -10.0f, 10.0f))",
+    );
+    expect(
+      generateWgslExpression(tanh(vector("vec2", vec2, [0.0001, -80]), vec2))
+        .code,
+    ).toBe(
+      "tanh(clamp(vec2<f32>(0.0001f, -80.0f), vec2<f32>(-10.0f), vec2<f32>(10.0f)))",
+    );
+    expect(
+      generateWgslExpression(tanh(vector("vec3", vec3, [1, -0.0001, 89]), vec3))
+        .code,
+    ).toBe(
+      "tanh(clamp(vec3<f32>(1.0f, -0.0001f, 89.0f), vec3<f32>(-10.0f), vec3<f32>(10.0f)))",
+    );
+    expect(
+      generateWgslExpression(
+        tanh(vector("vec4", vec4, [-1000, 0, 1, -1]), vec4),
+      ).code,
+    ).toBe(
+      "tanh(clamp(vec4<f32>(-1000.0f, 0.0f, 1.0f, -1.0f), vec4<f32>(-10.0f), vec4<f32>(10.0f)))",
+    );
+  });
 });
 
 describe("WGSL fragment module generation", () => {

@@ -130,6 +130,43 @@ function normalizeUndefinedSmoothsteps(name, source) {
   return source;
 }
 
+function normalizeReferenceTanh(name, source) {
+  if (name !== "infinite-squircle") return source;
+
+  // The raw fixture's HDR intermediate can exceed the useful range of native
+  // tanh implementations. Keep this oracle independent of production's clamp
+  // lowering by evaluating tanh from exp(-2 * abs(x)) instead.
+  const helper = `
+float shdr_reference_tanh(float x) {
+    float magnitude = abs(x);
+    float e = exp(-2.0 * magnitude);
+    return sign(x) * ((1.0 - e) / (1.0 + e));
+}
+vec4 shdr_reference_tanh(vec4 x) {
+    return vec4(
+        shdr_reference_tanh(x.x),
+        shdr_reference_tanh(x.y),
+        shdr_reference_tanh(x.z),
+        shdr_reference_tanh(x.w)
+    );
+}
+`;
+  const normalized = replaceExactly(
+    name,
+    source,
+    "vec4 color = tanh(hdr);",
+    "vec4 color = shdr_reference_tanh(hdr);",
+    1,
+  );
+  return replaceExactly(
+    name,
+    normalized,
+    "out vec4 fragColor;\n",
+    `out vec4 fragColor;${helper}`,
+    1,
+  );
+}
+
 function compile(name, source) {
   const result = compileFragmentArtifact(source);
   assert.equal(
@@ -160,7 +197,10 @@ for (const [name, defaults] of references) {
     name,
     defaults,
     artifact: compile(name, authored),
-    original: normalizeUndefinedSmoothsteps(name, original),
+    original: normalizeReferenceTanh(
+      name,
+      normalizeUndefinedSmoothsteps(name, original),
+    ),
   });
 }
 const caseByName = new Map(cases.map((item) => [item.name, item]));
