@@ -19,6 +19,7 @@
 
 :where(body) {
   line-height: 1.5; /* 4. Increase line-height */
+  overflow: hidden;
   -webkit-font-smoothing: antialiased; /* 5. Improve text rendering */
 }
 
@@ -101,28 +102,99 @@
   --editor-comment: #8b8e8b;
   --editor-meta: #b9b6fc;
   --editor-invalid: #fd5ff1;
+  --preview-surface: #222426;
 }
 
 .home-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   width: 100%;
+  height: 100dvh;
   min-width: 0;
-  max-width: 80rem;
-  margin-inline: auto;
-  padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 4vw, 3rem) 4rem;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.home-editor-pane,
+.home-preview-pane {
+  min-width: 0;
+  min-height: 0;
+}
+
+.home-editor-pane {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--editor-background);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-.home-header {
-  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+.home-editor-status {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 50%;
+  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--editor-background) 92%, transparent);
+  color: var(--editor-foreground);
+  pointer-events: none;
 }
 
-.home-header h1 {
-  font-size: clamp(1.8rem, 4vw, 2.75rem);
-  letter-spacing: -0.03em;
-}
-
-.home-header p {
-  max-width: 36rem;
-  margin-top: 0.75rem;
+.home-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.625rem;
   color: var(--editor-comment);
+  font-size: 0.75rem;
+  pointer-events: auto;
+}
+
+.home-controls button {
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+  background: var(--editor-control-background);
+  color: var(--editor-foreground);
+  cursor: pointer;
+}
+
+.home-controls button:hover {
+  background: var(--editor-control-hover);
+}
+
+.home-controls button:focus-visible {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: 1px;
+}
+
+.home-error {
+  max-height: min(14rem, 35vh);
+  min-height: 0;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--editor-invalid);
+  background: var(--editor-control-background);
+  color: #ffb8f8;
+  font-family: var(--editor-font-family);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  pointer-events: auto;
+  white-space: pre-wrap;
+}
+
+.home-preview-pane {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: clamp(1rem, 5vw, 4rem);
+  overflow: hidden;
+  background: var(--preview-surface);
 }
