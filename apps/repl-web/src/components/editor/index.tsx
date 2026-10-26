@@ -1,14 +1,6 @@
 import { useCodeEditor } from "../../hooks/use-code-editor";
+import { initialShaderSource } from "../../shared/initial-source";
 import s from "./style.module.css";
-
-const defaultInitialDoc = `import { createFragmentShader, vec4 } from "shdr";
-
-export default createFragmentShader(({ coord, uniforms }) => {
-  const uv = coord.xy / uniforms.resolution;
-  const color = vec4(uv.x, uv.y, 0, 1);
-
-  return color;
-});`;
 
 export interface EditorProps {
   initialDoc?: string;
@@ -17,7 +9,7 @@ export interface EditorProps {
 }
 
 export function Editor({
-  initialDoc = defaultInitialDoc,
+  initialDoc = initialShaderSource,
   onChange,
   ariaLabel = "Shader source",
 }: EditorProps) {
