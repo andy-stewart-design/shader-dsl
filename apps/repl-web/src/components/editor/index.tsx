@@ -11,17 +11,17 @@ export default createFragmentShader(({ coord, uniforms }) => {
 });`;
 
 export interface EditorProps {
-	initialDoc?: string;
-	onChange?: (doc: string) => void;
-	ariaLabel?: string;
+  initialDoc?: string;
+  onChange?: (doc: string) => void;
+  ariaLabel?: string;
 }
 
 export function Editor({
-	initialDoc = defaultInitialDoc,
-	onChange,
-	ariaLabel = "Shader source",
+  initialDoc = defaultInitialDoc,
+  onChange,
+  ariaLabel = "Shader source",
 }: EditorProps) {
-	const editorRef = useCodeEditor({ initialDoc, onChange, ariaLabel });
+  const editorRef = useCodeEditor({ initialDoc, onChange, ariaLabel });
 
-	return <div className={s.editor} ref={editorRef} />;
+  return <div className={s.editor} ref={editorRef} />;
 }

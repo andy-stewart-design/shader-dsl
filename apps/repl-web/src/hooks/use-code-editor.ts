@@ -1,12 +1,12 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
-	type CreateEditorOptions,
-	createEditor,
+  type CreateEditorOptions,
+  createEditor,
 } from "../editor/create-editor";
 
 export type UseCodeEditorOptions = Pick<
-	CreateEditorOptions,
-	"initialDoc" | "ariaLabel" | "onChange"
+  CreateEditorOptions,
+  "initialDoc" | "ariaLabel" | "onChange"
 >;
 
 /**
@@ -15,26 +15,26 @@ export type UseCodeEditorOptions = Pick<
  * onChange always uses the latest committed callback.
  */
 export function useCodeEditor(options: UseCodeEditorOptions) {
-	const hostRef = useRef<HTMLDivElement>(null);
-	const initialOptionsRef = useRef(options);
-	const handleChange = useEffectEvent((doc: string) => {
-		options.onChange?.(doc);
-	});
+  const hostRef = useRef<HTMLDivElement>(null);
+  const initialOptionsRef = useRef(options);
+  const handleChange = useEffectEvent((doc: string) => {
+    options.onChange?.(doc);
+  });
 
-	useEffect(() => {
-		const parent = hostRef.current;
-		if (!parent) return;
+  useEffect(() => {
+    const parent = hostRef.current;
+    if (!parent) return;
 
-		const { initialDoc, ariaLabel } = initialOptionsRef.current;
-		const editor = createEditor({
-			parent,
-			initialDoc,
-			ariaLabel,
-			onChange: handleChange,
-		});
+    const { initialDoc, ariaLabel } = initialOptionsRef.current;
+    const editor = createEditor({
+      parent,
+      initialDoc,
+      ariaLabel,
+      onChange: handleChange,
+    });
 
-		return () => editor.destroy();
-	}, []);
+    return () => editor.destroy();
+  }, []);
 
-	return hostRef;
+  return hostRef;
 }
