@@ -1,0 +1,59 @@
+.editorStatus {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 50%;
+  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--editor-background) 92%, transparent);
+  color: var(--editor-foreground);
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--editor-comment);
+  font-size: 0.75rem;
+  pointer-events: auto;
+}
+
+.controls button {
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+  background: var(--editor-control-background);
+  color: var(--editor-foreground);
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: var(--editor-control-hover);
+}
+
+.controls button:focus-visible {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: 1px;
+}
+
+.error {
+  max-height: min(14rem, 35vh);
+  min-height: 0;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--editor-invalid);
+  background: var(--editor-control-background);
+  color: #ffb8f8;
+  font-family: var(--editor-font-family);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  pointer-events: auto;
+  white-space: pre-wrap;
+}

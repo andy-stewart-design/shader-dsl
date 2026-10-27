@@ -4,7 +4,7 @@ import s from "./style.module.css";
 
 export type PreviewProps = UseShdrPreviewOptions;
 
-export function Preview({ artifact, onError }: PreviewProps) {
+export function PreviewCanvas({ artifact, onError }: PreviewProps) {
   const previewRef = useShdrPreview({ artifact, onError });
 
   return <div className={s.preview} ref={previewRef} />;
