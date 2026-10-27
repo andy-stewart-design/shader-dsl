@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "../components/app-layout";
-import { Editor } from "../components/editor";
+import { EditorTabs } from "../components/editor-tabs";
 import { EditorStatus } from "../components/editor-status";
 import { PreviewCanvas } from "../components/preview-canvas";
 import { useShdrCompilation } from "../hooks/use-shdr-compilation";
@@ -22,7 +22,11 @@ function Home() {
     <AppLayout
       editor={
         <>
-          <Editor initialDoc={initialShaderSource} onChange={onChange} />
+          <EditorTabs
+            initialMain={initialShaderSource}
+            initialUtils=""
+            onChange={onChange}
+          />
           <EditorStatus
             compileError={compileError}
             runtimeError={runtimeError}

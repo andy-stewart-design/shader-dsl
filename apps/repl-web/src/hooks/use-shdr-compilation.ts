@@ -1,12 +1,20 @@
-import type { CompileArtifactFailure } from "@shdr/core/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
-import { compileShdrBody } from "../compiler/compile-shdr-body";
+import {
+  compileShdrBody,
+  type CompileShdrDiagnostic,
+  type ShaderDocument,
+} from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 
 type Compilation = {
   artifact: CompiledFragmentArtifact | null;
   error: string | null;
+};
+
+type Draft = {
+  main: string;
+  utils: string;
 };
 
 function sourceLocation(
@@ -21,24 +29,26 @@ function sourceLocation(
 }
 
 function formatCompileError(
-  source: string,
-  diagnostics: CompileArtifactFailure["diagnostics"],
+  sources: Draft,
+  diagnostics: readonly CompileShdrDiagnostic[],
 ): string {
   return diagnostics
     .map((diagnostic) => {
-      const location = `${sourceLocation(source, diagnostic.range)}: `;
+      const document = diagnostic.document;
+      const source = sources[document];
+      const location = `${document === "main" ? "Main" : "Utils"}: ${sourceLocation(source, diagnostic.range)}: `;
       return `${location}${diagnostic.code}: ${diagnostic.message}`;
     })
     .join("\n");
 }
 
-function compileSource(source: string): Compilation {
+function compileSource(sources: Draft): Compilation {
   try {
-    const result = compileShdrBody(source);
+    const result = compileShdrBody(sources.main, sources.utils);
     if (!result.ok) {
       return {
         artifact: null,
-        error: formatCompileError(source, result.diagnostics),
+        error: formatCompileError(sources, result.diagnostics),
       };
     }
     return { artifact: result.artifact, error: null };
@@ -52,20 +62,21 @@ function formatRuntimeError(error: unknown): string {
   return String(error);
 }
 
-const initialCompilation = compileSource(initialShaderSource);
+const initialSources: Draft = { main: initialShaderSource, utils: "" };
+const initialCompilation = compileSource(initialSources);
 
 export interface UseShdrCompilationResult {
   artifact: CompiledFragmentArtifact | null;
   compileError: string | null;
   runtimeError: string | null;
-  onChange: (source: string) => void;
+  onChange: (document: ShaderDocument, source: string) => void;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
 }
 
 /** Keeps editor drafts local until an explicit manual shader apply. */
 export function useShdrCompilation(): UseShdrCompilationResult {
-  const draftRef = useRef(initialShaderSource);
+  const draftRef = useRef<Draft>({ ...initialSources });
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
     initialCompilation.artifact,
   );
@@ -74,12 +85,12 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   );
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
-  const onChange = useCallback((source: string) => {
-    draftRef.current = source;
+  const onChange = useCallback((document: ShaderDocument, source: string) => {
+    draftRef.current[document] = source;
   }, []);
 
   const apply = useCallback(() => {
-    const compilation = compileSource(draftRef.current);
+    const compilation = compileSource({ ...draftRef.current });
     setCompileError(compilation.error);
     if (!compilation.artifact) return;
 

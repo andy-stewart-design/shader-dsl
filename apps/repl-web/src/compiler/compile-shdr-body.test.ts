@@ -3,14 +3,14 @@ import test from "node:test";
 import { compileShdrBody } from "./compile-shdr-body.ts";
 import { initialShaderSource } from "../shared/initial-source.ts";
 
-function expectSuccess(body: string) {
-  const result = compileShdrBody(body);
+function expectSuccess(body: string, utils = "") {
+  const result = compileShdrBody(body, utils);
   if (!result.ok) throw new Error(result.diagnostics[0]?.message);
   return result.artifact;
 }
 
-function expectFailure(body: string) {
-  const result = compileShdrBody(body);
+function expectFailure(body: string, utils = "") {
+  const result = compileShdrBody(body, utils);
   if (result.ok) throw new Error("expected compilation to fail");
   return result.diagnostics;
 }
@@ -21,6 +21,35 @@ test("compiles the default body to WGSL and GLSL", () => {
   assert.match(artifact.glsl, /void main/);
   assert.match(artifact.wgsl, /shdr_resolution/);
   assert.match(artifact.glsl, /u_resolution/);
+});
+
+test("keeps an empty Utils document backward compatible", () => {
+  const withEmptyUtils = expectSuccess(initialShaderSource, "");
+  const withoutUtils = expectSuccess(initialShaderSource);
+  assert.equal(withEmptyUtils.wgsl, withoutUtils.wgsl);
+  assert.equal(withEmptyUtils.glsl, withoutUtils.glsl);
+});
+
+test("compiles Utils helpers, constants, matrices, and forward declarations", () => {
+  const utils = `const SCALE = 0.5;
+const first = defineShaderFunction((p: Expr<Vec2<F32>>): Expr<Vec2<F32>> => second(p));
+const second = defineShaderFunction((p: Expr<Vec2<F32>>): Expr<Vec2<F32>> => mat2(1) * p);
+const tint = defineShaderFunction((uv: Expr<Vec2<F32>>): Expr<Vec3<F32>> => vec3(uv.x, uv.y, SCALE));
+const matrix2 = defineShaderFunction((m: Expr<Mat2<F32>>): Expr<Mat2<F32>> => m + mat2(1));
+const matrix3 = defineShaderFunction((m: Expr<Mat3<F32>>): Expr<Mat3<F32>> => m + mat3(1));
+const matrix4 = defineShaderFunction((m: Expr<Mat4<F32>>): Expr<Mat4<F32>> => m + mat4(1));
+// keep this Utils comment`;
+  const artifact = expectSuccess(
+    `const uv = first(coord.xy / uniforms.resolution);
+const m2 = matrix2(mat2(1)) * uv;
+const m3 = matrix3(mat3(1)) * vec3(uv, 0);
+const m4 = matrix4(mat4(1)) * vec4(uv, 0, 1);
+return vec4(m2.x, m3.y, m4.z, 1);`,
+    utils,
+  );
+  assert.match(artifact.wgsl, /mat2x2/);
+  assert.match(artifact.wgsl, /mat3x3/);
+  assert.match(artifact.wgsl, /mat4x4/);
 });
 
 test("provides implicit coord and uniforms", () => {
@@ -78,6 +107,53 @@ test("maps first, middle, and end diagnostics into the body", () => {
     start: 20,
     length: 4,
   });
+});
+
+test("maps diagnostics to the correct document", () => {
+  const utils = "const broken = ;";
+  const main = "return nope;";
+  const utilsDiagnostics = expectFailure("return vec4(0, 0, 0, 1);", utils);
+  const mainDiagnostics = expectFailure(main, "const helper = 1;");
+
+  assert.ok(utilsDiagnostics.length > 0);
+  assert.ok(
+    utilsDiagnostics.every((diagnostic) => diagnostic.document === "utils"),
+  );
+  assert.ok(
+    utilsDiagnostics.every(
+      ({ range }) =>
+        range.start >= 0 && range.start + range.length <= utils.length,
+    ),
+  );
+  assert.ok(mainDiagnostics.length > 0);
+  assert.ok(
+    mainDiagnostics.every((diagnostic) => diagnostic.document === "main"),
+  );
+  assert.ok(
+    mainDiagnostics.every(
+      ({ range }) =>
+        range.start >= 0 && range.start + range.length <= main.length,
+    ),
+  );
+
+  const emptyUtilsDiagnostics = expectFailure("return nope;");
+  assert.ok(
+    emptyUtilsDiagnostics.every((diagnostic) => diagnostic.document === "main"),
+  );
+});
+
+test("maps a Utils diagnostic to its local multiline range", () => {
+  const utils = "const x=1;\nconst y=nope;";
+  const diagnostics = expectFailure("return vec4(y);", utils);
+  const nopeStart = utils.indexOf("nope");
+  assert.ok(
+    diagnostics.some(
+      (diagnostic) =>
+        diagnostic.document === "utils" &&
+        diagnostic.range.start === nopeStart &&
+        diagnostic.range.length === "nope".length,
+    ),
+  );
 });
 
 test("maps generated suffix diagnostics to the body EOF", () => {
