@@ -3,14 +3,14 @@ import s from "./style.module.css";
 export interface EditorStatusProps {
   compileError: string | null;
   runtimeError: string | null;
-  onApply: () => void;
 }
 
 export function EditorStatus({
   compileError,
   runtimeError,
-  onApply,
 }: EditorStatusProps) {
+  if (!compileError && !runtimeError) return null;
+
   return (
     <div className={s.editorStatus}>
       {compileError ? (
@@ -23,12 +23,6 @@ export function EditorStatus({
           Preview error: {runtimeError}
         </pre>
       ) : null}
-      <div className={s.controls}>
-        <button type="button" onClick={onApply} aria-keyshortcuts="Alt+Enter">
-          Apply
-        </button>
-        <span>Option + Return</span>
-      </div>
     </div>
   );
 }

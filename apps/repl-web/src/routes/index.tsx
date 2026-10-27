@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "../components/app-layout";
+import { ApplyButton } from "../components/apply-button";
 import { EditorTabs } from "../components/editor-tabs";
 import { EditorStatus } from "../components/editor-status";
 import { PreviewCanvas } from "../components/preview-canvas";
@@ -26,11 +27,11 @@ function Home() {
             initialMain={initialShaderSource}
             initialUtils=""
             onChange={onChange}
+            actions={<ApplyButton onClick={apply} />}
           />
           <EditorStatus
             compileError={compileError}
             runtimeError={runtimeError}
-            onApply={apply}
           />
         </>
       }

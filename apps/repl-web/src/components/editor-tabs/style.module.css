@@ -7,14 +7,36 @@
   min-width: 0;
 }
 
-.list {
+.header {
   display: flex;
-  gap: 0.25rem;
+  min-width: 0;
   border-bottom: 1px solid var(--editor-border);
   background: var(--editor-background);
 }
 
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+}
+
 .tab {
+  flex: 0 0 auto;
   position: relative;
   padding: 0.625rem 0.875rem;
   border: 0;
