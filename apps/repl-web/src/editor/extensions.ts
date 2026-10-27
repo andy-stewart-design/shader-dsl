@@ -19,7 +19,6 @@ import {
 import { EditorState, type Extension } from "@codemirror/state";
 import {
   drawSelection,
-  EditorView,
   highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
@@ -49,7 +48,6 @@ export function createEditorExtensions(): Extension[] {
     closeBrackets(),
     search(),
     highlightSelectionMatches(),
-    EditorView.lineWrapping,
     // Earlier bindings win; paired-bracket deletion precedes Backspace.
     keymap.of([
       ...closeBracketsKeymap,

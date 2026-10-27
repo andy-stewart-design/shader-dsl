@@ -43,6 +43,9 @@ export const editorTheme = EditorView.theme(
       borderRight: "var(--editor-gutter-border)",
       userSelect: "none",
     },
+    ".cm-scroller .cm-gutters .cm-gutter .cm-gutterElement": {
+      minInlineSize: "3ch",
+    },
     ".cm-activeLine": {
       backgroundColor: "var(--editor-active-line)",
     },
