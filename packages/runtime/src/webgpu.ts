@@ -260,6 +260,8 @@ export class WebGpuRenderer extends CanvasRenderer {
   ): Promise<ShaderInstallResult> {
     if (!this.current(generation)) return { status: "superseded" };
     let candidate: Resources | undefined;
+    let previous: Resources | undefined;
+    let visibleChanged = false;
     try {
       candidate = await this.prepare(artifact, custom, resources);
       if (!this.current(generation)) return { status: "superseded" };
@@ -294,38 +296,67 @@ export class WebGpuRenderer extends CanvasRenderer {
       // A host patch can arrive while popErrorScope is pending. If so, submit
       // the candidate again with the latest values before committing it.
       const view = this.context.getCurrentTexture().createView();
+      previous = this.resources;
+      let visibleTime = this.committedTime();
       let values: Map<string, DynamicUniformValue>;
       while (true) {
         const version = this.uniformState.version();
         values = this.uniformState.resolve(custom);
-        await this.scoped("draw", () =>
-          this.submit(
-            candidate!,
-            view,
-            Math.max(0, (performance.now() - startedAt) / 1000),
-            values,
-          ),
-        );
-        if (!this.current(generation)) return { status: "superseded" };
+        visibleChanged = true;
+        await this.scoped("draw", () => {
+          // Resolve immediately before the visible submission, rather than
+          // before the asynchronous validation scope can yield.
+          visibleTime = this.installTime(startedAt);
+          this.submit(candidate!, view, visibleTime, values);
+        });
+        if (!this.current(generation)) {
+          if (previous && !this.disposed && !this.lost) {
+            await this.restore(previous);
+            visibleChanged = false;
+          }
+          return { status: "superseded" };
+        }
         if (this.uniformState.version() === version) break;
       }
-      const previous = this.resources;
       this.resources = candidate;
       this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) destroy(previous);
-      this.installed(startedAt);
+      this.installed(startedAt, visibleTime);
       return {
         status: "installed",
         boundUniforms: this.resources.boundUniforms,
         warnings: this.resources.warnings,
       };
     } catch (error) {
+      // A candidate is submitted to the real canvas before its validation
+      // scope resolves. If it is superseded or fails after that point, put the
+      // last installed resource/frame back before releasing the candidate.
+      let restoreError: unknown;
+      if (visibleChanged && previous && !this.disposed && !this.lost) {
+        try {
+          await this.restore(previous);
+        } catch (failure) {
+          restoreError = failure;
+        }
+      }
+      if (restoreError) throw runtimeError("webgpu", "draw", restoreError);
       if (!this.current(generation)) return { status: "superseded" };
       throw runtimeError("webgpu", "shader", error);
     } finally {
       if (candidate) destroy(candidate);
     }
+  }
+  private async restore(previous: Resources): Promise<void> {
+    this.size();
+    await this.scoped("draw", () =>
+      this.submit(
+        previous,
+        this.context.getCurrentTexture().createView(),
+        this.committedTime(),
+        this.uniformState.current(),
+      ),
+    );
   }
   private async scoped(
     kind: "shader" | "draw",
@@ -546,7 +577,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         ),
     };
   }
-  protected performDraw(timestamp: number): Promise<void> {
+  protected performDraw(_timestamp: number): Promise<number> {
     return this.enqueue(async () => {
       this.assertUsable();
       if (!this.resources)
@@ -555,15 +586,20 @@ export class WebGpuRenderer extends CanvasRenderer {
           "draw",
           "No installed WebGPU shader.",
         );
+      // Resolve the clock only once this draw reaches the serialized WebGPU
+      // queue. A preceding install/draw may have committed a newer time, and a
+      // pause may have happened while this draw was waiting in the queue.
+      const seconds = this.elapsed(performance.now());
       this.size();
       await this.scoped("draw", () =>
         this.submit(
           this.resources!,
           this.context.getCurrentTexture().createView(),
-          this.elapsed(timestamp),
+          seconds,
           this.uniformState.current(),
         ),
       );
+      return seconds;
     });
   }
   private submit(

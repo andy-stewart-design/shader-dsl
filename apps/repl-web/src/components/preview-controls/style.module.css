@@ -1,0 +1,29 @@
+.controls {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+}
+
+.button {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+  background: var(--editor-control-background);
+  color: var(--editor-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--editor-control-hover);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: 2px;
+}

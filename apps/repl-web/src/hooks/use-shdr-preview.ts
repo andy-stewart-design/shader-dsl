@@ -4,6 +4,7 @@ import { createPreview, type PreviewHandle } from "../preview/create-preview";
 
 export interface UseShdrPreviewOptions {
   artifact: CompiledFragmentArtifact;
+  playing?: boolean;
   onError?: (error: unknown) => void;
 }
 
@@ -20,6 +21,7 @@ type PreviewLifecycle = {
   failedArtifact?: CompiledFragmentArtifact;
   retry?: () => void;
   requestedArtifact?: CompiledFragmentArtifact;
+  requestedPlaying?: boolean;
 };
 
 function isActive(
@@ -31,6 +33,22 @@ function isActive(
     current === lifecycle &&
     !lifecycle.abortController.signal.aborted
   );
+}
+
+function updatePlaying(
+  lifecycle: PreviewLifecycle,
+  playing: boolean,
+  reportError: (error: unknown) => void,
+): void {
+  if (!lifecycle.handle || lifecycle.requestedPlaying === playing) return;
+
+  lifecycle.requestedPlaying = playing;
+  try {
+    lifecycle.handle.setPlaying(playing);
+  } catch (error: unknown) {
+    if (lifecycle.active && !lifecycle.abortController.signal.aborted)
+      reportError(error);
+  }
 }
 
 function updateArtifact(
@@ -53,9 +71,14 @@ function updateArtifact(
   });
 }
 
-export function useShdrPreview({ artifact, onError }: UseShdrPreviewOptions) {
+export function useShdrPreview({
+  artifact,
+  playing = true,
+  onError,
+}: UseShdrPreviewOptions) {
   const hostRef = useRef<HTMLDivElement>(null);
   const latestArtifactRef = useRef(artifact);
+  const latestPlayingRef = useRef(playing);
   const lifecycleRef = useRef<PreviewLifecycle | null>(null);
   const reportError = useEffectEvent((error: unknown) => {
     onError?.(error);
@@ -75,6 +98,13 @@ export function useShdrPreview({ artifact, onError }: UseShdrPreviewOptions) {
       }
     }
   }, [artifact]);
+
+  useEffect(() => {
+    latestPlayingRef.current = playing;
+    const lifecycle = lifecycleRef.current;
+    if (lifecycle?.active && lifecycle.handle)
+      updatePlaying(lifecycle, playing, reportError);
+  }, [playing]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -102,12 +132,14 @@ export function useShdrPreview({ artifact, onError }: UseShdrPreviewOptions) {
 
       const artifact = lifecycle.latestArtifact;
       const generation = lifecycle.generation;
+      const playing = latestPlayingRef.current;
       let reportedError = false;
       lifecycle.initializing = true;
       lifecycle.initializingArtifact = artifact;
       void createPreview({
         parent,
         artifact,
+        playing,
         signal: lifecycle.abortController.signal,
         onError: (error) => {
           if (!isActive(lifecycle, lifecycleRef.current)) return;
@@ -135,6 +167,10 @@ export function useShdrPreview({ artifact, onError }: UseShdrPreviewOptions) {
           lifecycle.rendererArtifact = artifact;
           lifecycle.handle = handle;
           lifecycle.requestedArtifact = artifact;
+          lifecycle.requestedPlaying = playing;
+          const latestPlaying = latestPlayingRef.current;
+          if (latestPlaying !== playing)
+            updatePlaying(lifecycle, latestPlaying, reportError);
           if (lifecycle.latestArtifact !== artifact) {
             updateArtifact(lifecycle, lifecycle.latestArtifact, reportError);
           }

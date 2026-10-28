@@ -7,6 +7,7 @@ import type { CompiledFragmentArtifact } from "shdr";
 export interface CreatePreviewOptions {
   readonly parent: HTMLElement;
   readonly artifact: CompiledFragmentArtifact;
+  readonly playing?: boolean;
   readonly onError?: (error: ShdrRuntimeError) => void;
   readonly signal?: AbortSignal;
 }
@@ -15,6 +16,7 @@ export interface PreviewHandle {
   readonly backend: "webgpu" | "webgl";
   readonly canvas: HTMLCanvasElement;
   readonly setShader: Renderer["setShader"];
+  readonly setPlaying: Renderer["setPlaying"];
   readonly cancelPendingShader: Renderer["cancelPendingShader"];
   readonly destroy: () => void;
 }
@@ -40,6 +42,7 @@ function makeCanvas(parent: HTMLElement): HTMLCanvasElement {
 export async function createPreview({
   parent,
   artifact,
+  playing,
   onError,
   signal,
 }: CreatePreviewOptions): Promise<PreviewHandle> {
@@ -75,6 +78,7 @@ export async function createPreview({
   }
 
   const options = {
+    playing,
     onError,
     signal: abortController.signal,
   };
@@ -117,6 +121,7 @@ export async function createPreview({
       backend,
       canvas,
       setShader: activeRenderer.setShader.bind(activeRenderer),
+      setPlaying: activeRenderer.setPlaying.bind(activeRenderer),
       cancelPendingShader:
         activeRenderer.cancelPendingShader.bind(activeRenderer),
       destroy,

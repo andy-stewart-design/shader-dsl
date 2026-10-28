@@ -21,7 +21,7 @@ const coord = shader("return vec4(coord.x / 16, coord.y / 16, 0, 1);");
 const defaults = shader(
   "return vec4(uniforms.mouse.x / uniforms.resolution.x, uniforms.mouse.y / uniforms.resolution.y, uniforms.time, 1);",
 );
-const time = shader("return vec4(uniforms.time, 0, 0, 1);");
+const time = shader("return vec4(uniforms.time / 2, 0, 0, 1);");
 const vectorArithmetic = shader(
   "const rgb = vec3(vec2(0.2, 0.4), 0.6); return vec4((1 - rgb + 0.1).bgr, 1);",
 );
@@ -169,6 +169,57 @@ try {
   });
   assert.deepEqual(await pixel(page, "gl"), [255, 0, 0, 255]);
   assert.deepEqual(await pixel(page, "gpu"), [255, 0, 0, 255]);
+
+  const initiallyPaused = await page.evaluate(async (artifact) => {
+    const { createWebGlRenderer } = await import("/src/webgl.ts");
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const glCanvas = document.createElement("canvas");
+    const gpuCanvas = document.createElement("canvas");
+    glCanvas.id = "initially-paused-gl";
+    gpuCanvas.id = "initially-paused-gpu";
+    glCanvas.style.cssText = gpuCanvas.style.cssText = "width:8px;height:8px";
+    document.body.append(glCanvas, gpuCanvas);
+    const original = window.requestAnimationFrame;
+    let frames = 0;
+    window.requestAnimationFrame = (...args) => {
+      frames++;
+      return original(...args);
+    };
+    const [gl, gpu] = await Promise.all([
+      createWebGlRenderer(glCanvas, artifact, { playing: false }),
+      createWebGpuRenderer(gpuCanvas, artifact, { playing: false }),
+    ]);
+    window.requestAnimationFrame = original;
+    await Promise.all([gl.draw(), gpu.draw()]);
+    const context = glCanvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    context.readPixels(0, 0, 1, 1, context.RGBA, context.UNSIGNED_BYTE, value);
+    window.initiallyPaused = { gl, gpu };
+    return { frames, pixel: value[0] };
+  }, red);
+  assert.deepEqual(initiallyPaused.frames, 0);
+  const initiallyPausedGpu = (await pixel(page, "initially-paused-gpu"))[0];
+  await page.waitForTimeout(120);
+  const initiallyPausedAfter = await page.evaluate(async () => {
+    await Promise.all([
+      window.initiallyPaused.gl.draw(),
+      window.initiallyPaused.gpu.draw(),
+    ]);
+    const canvas = document.querySelector("#initially-paused-gl");
+    const gl = canvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
+    return value[0];
+  });
+  assert.equal(initiallyPausedAfter, initiallyPaused.pixel);
+  assert.equal(
+    (await pixel(page, "initially-paused-gpu"))[0],
+    initiallyPausedGpu,
+  );
+  await page.evaluate(() => {
+    window.initiallyPaused.gl.dispose();
+    window.initiallyPaused.gpu.dispose();
+  });
 
   await page.evaluate(async (artifact) => {
     await Promise.all([
@@ -396,6 +447,54 @@ try {
   assert.deepEqual(await pixel(page, "gl"), [0, 255, 0, 255]);
   assert.deepEqual(await pixel(page, "gpu"), [0, 255, 0, 255]);
 
+  // A WebGPU candidate can already be visible while its validation scope is
+  // pending. A superseding install followed by a failed replacement must
+  // restore the last valid frame, rather than leaving the stale candidate.
+  await page.evaluate(async (time) => {
+    const gpu = window.gpuRenderer;
+    gpu.setPlaying(true);
+    await gpu.setShader(time, { startedAt: performance.now() - 20_000 });
+    await gpu.draw();
+    gpu.setPlaying(false);
+  }, time);
+  const beforeTransactional = (await pixel(page, "gpu"))[0];
+  const transactional = await page.evaluate(
+    async ({ green, red }) => {
+      const gpu = window.gpuRenderer;
+      const device = window.primaryDevice;
+      const originalPop = device.popErrorScope.bind(device);
+      let pops = 0;
+      let release;
+      device.popErrorScope = (...args) => {
+        pops++;
+        if (pops === 5)
+          return new Promise((resolve) => {
+            release = () => resolve(originalPop(...args));
+          });
+        return originalPop(...args);
+      };
+      const superseded = gpu.setShader(green);
+      while (!release) await new Promise((resolve) => setTimeout(resolve, 0));
+      const failed = gpu.setShader({
+        ...red,
+        wgsl: red.wgsl.replace("shdr_fragment_main", "missing_main"),
+      });
+      release();
+      const result = await Promise.all([
+        superseded,
+        failed.then(
+          () => "unexpected",
+          (error) => error.kind,
+        ),
+      ]);
+      device.popErrorScope = originalPop;
+      return result;
+    },
+    { green, red },
+  );
+  assert.deepEqual(transactional, [{ status: "superseded" }, "shader"]);
+  assert.equal((await pixel(page, "gpu"))[0], beforeTransactional);
+
   // Canvas pointer listeners work without the REPL's optional coordination hook.
   await page.evaluate(async (artifact) => {
     await Promise.all([
@@ -419,6 +518,75 @@ try {
       `${backend} pointer Y: ${sample}`,
     );
   }
+
+  // Playing is independent from the RAF switch. A successful replacement
+  // while paused starts at zero, stays frozen, and resumes from zero. The
+  // time-encoded shader makes the reset observable instead of a flat color.
+  const pausedStartGl = await page.evaluate(async (artifact) => {
+    window.glRenderer.setPlaying(true);
+    window.gpuRenderer.setPlaying(true);
+    const oldOrigin = performance.now() - 20_000;
+    await Promise.all([
+      window.glRenderer.setShader(artifact, { startedAt: oldOrigin }),
+      window.gpuRenderer.setShader(artifact, { startedAt: oldOrigin }),
+    ]);
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+    window.glRenderer.setPlaying(false);
+    window.gpuRenderer.setPlaying(false);
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+    const canvas = document.querySelector("#gl");
+    const gl = canvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
+    return value[0];
+  }, time);
+  const pausedStartGpu = (await pixel(page, "gpu"))[0];
+  assert.ok(pausedStartGl <= 2, pausedStartGl);
+  assert.ok(pausedStartGpu <= 2, pausedStartGpu);
+  await page.waitForTimeout(120);
+  const pausedEndGl = await page.evaluate(async () => {
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+    const canvas = document.querySelector("#gl");
+    const gl = canvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
+    return value[0];
+  });
+  const pausedEndGpu = (await pixel(page, "gpu"))[0];
+  assert.equal(pausedEndGl, pausedStartGl);
+  assert.equal(pausedEndGpu, pausedStartGpu);
+  const resumedGl = await page.evaluate(async () => {
+    window.glRenderer.setPlaying(true);
+    window.gpuRenderer.setPlaying(true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+    const canvas = document.querySelector("#gl");
+    const gl = canvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
+    return value[0];
+  });
+  const resumedGpu = (await pixel(page, "gpu"))[0];
+  assert.ok(resumedGl > pausedEndGl, [resumedGl, pausedEndGl]);
+  assert.ok(resumedGpu > pausedEndGpu, [resumedGpu, pausedEndGpu]);
+  await page.waitForTimeout(100);
+  const frozenGl = await page.evaluate(async () => {
+    window.glRenderer.setPlaying(false);
+    window.gpuRenderer.setPlaying(false);
+    await Promise.all([window.glRenderer.draw(), window.gpuRenderer.draw()]);
+    const canvas = document.querySelector("#gl");
+    const gl = canvas.getContext("webgl2");
+    const value = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, value);
+    return value[0];
+  });
+  const frozenGpu = (await pixel(page, "gpu"))[0];
+  assert.equal(frozenGl, resumedGl);
+  assert.equal(frozenGpu, resumedGpu);
 
   // The default loop runs on its own; disposal stops it. Manual renderers above
   // never scheduled a frame, including on pointer and size changes.
@@ -596,7 +764,7 @@ try {
   assert.equal(noAdapter, "unavailable");
   await auditBundles();
   console.log(
-    "Verified owned WebGL/WebGPU first frames, vector arithmetic/color swizzles, opaque alpha, bindings, manual inputs, failed/stale installs, loss, disposal and isolated bundles.",
+    "Verified owned WebGL/WebGPU first frames, vector arithmetic/color swizzles, opaque alpha, bindings, manual inputs, playing pause/resume, failed/stale installs, loss, disposal and isolated bundles.",
   );
 } finally {
   await browser?.close();

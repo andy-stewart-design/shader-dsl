@@ -23,6 +23,7 @@
 }
 
 .previewPane {
+  position: relative;
   container-type: size;
   display: grid;
   place-items: center;

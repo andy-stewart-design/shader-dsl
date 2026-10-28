@@ -224,12 +224,9 @@ export class WebGlRenderer extends CanvasRenderer {
       if (!this.current(generation)) return { status: "superseded" };
       const startedAt = requestedEpoch ?? performance.now();
       const values = this.uniformState.resolve(custom);
+      const visibleTime = this.installTime(startedAt);
       try {
-        this.submit(
-          candidate,
-          Math.max(0, (performance.now() - startedAt) / 1000),
-          values,
-        );
+        this.submit(candidate, visibleTime, values);
       } catch (error) {
         throw runtimeError("webgl", "draw", error);
       }
@@ -238,7 +235,7 @@ export class WebGlRenderer extends CanvasRenderer {
       this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) this.deleteProgram(previous);
-      this.installed(startedAt);
+      this.installed(startedAt, visibleTime);
       return {
         status: "installed",
         boundUniforms: this.program.boundUniforms,
@@ -254,12 +251,14 @@ export class WebGlRenderer extends CanvasRenderer {
       else textures?.dispose();
     }
   }
-  protected async performDraw(timestamp: number): Promise<void> {
+  protected async performDraw(timestamp: number): Promise<number> {
     const program = this.program;
     if (!program) throw new Error("No installed WebGL shader.");
+    const seconds = this.elapsed(timestamp);
     this.size();
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-    this.submit(program, this.elapsed(timestamp));
+    this.submit(program, seconds);
+    return seconds;
   }
   private submit(
     resource: Program,

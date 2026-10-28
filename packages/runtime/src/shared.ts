@@ -114,6 +114,7 @@ export abstract class CanvasRenderer implements Renderer {
   private drawing = false;
   private failed = false;
   private lastTime = 0;
+  private playing: boolean;
   private readonly animate: boolean;
   private readonly onError?: (error: ShdrRuntimeError) => void;
 
@@ -123,6 +124,7 @@ export abstract class CanvasRenderer implements Renderer {
     options: RendererOptions,
   ) {
     this.uniformState = new UniformState(backend);
+    this.playing = options.playing !== false;
     this.animate = options.animate !== false;
     this.onError = options.onError;
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -132,7 +134,7 @@ export abstract class CanvasRenderer implements Renderer {
     artifact: CompiledFragmentArtifact,
     options?: ShaderInstallOptions,
   ): Promise<ShaderInstallResult>;
-  protected abstract performDraw(timestamp: number): Promise<void>;
+  protected abstract performDraw(timestamp: number): Promise<number>;
   protected abstract cleanup(): void;
 
   protected assertUsable(): void {
@@ -152,19 +154,33 @@ export abstract class CanvasRenderer implements Renderer {
   protected current(generation: number): boolean {
     return !this.disposed && !this.lost && generation === this.generation;
   }
-  protected installed(startedAt: number): void {
+  /** Commit a successful visible frame's clock value. */
+  protected commitTime(seconds: number): void {
+    this.lastTime = Math.max(this.lastTime, seconds, 0);
+  }
+  /** The time of the last successfully submitted frame. */
+  protected committedTime(): number {
+    return this.lastTime;
+  }
+  /** Compute a frame time without advancing the clock. */
+  protected elapsed(timestamp: number): number {
+    return this.playing
+      ? Math.max(this.lastTime, (timestamp - this.startedAt) / 1000, 0)
+      : this.lastTime;
+  }
+  /** Compute the time for a shader-install frame. */
+  protected installTime(startedAt: number): number {
+    return this.playing
+      ? Math.max((performance.now() - startedAt) / 1000, 0)
+      : 0;
+  }
+  protected installed(startedAt: number, seconds: number): void {
+    // Every successful replacement starts its shader at the requested origin,
+    // including while paused. The playing state itself is not changed.
     this.startedAt = startedAt;
-    this.lastTime = 0;
+    this.lastTime = Math.max(0, seconds);
     this.failed = false;
     this.schedule();
-  }
-  protected elapsed(timestamp: number): number {
-    this.lastTime = Math.max(
-      this.lastTime,
-      (timestamp - this.startedAt) / 1000,
-      0,
-    );
-    return this.lastTime;
   }
   protected size(): void {
     const rect = this.canvas.getBoundingClientRect();
@@ -198,6 +214,21 @@ export abstract class CanvasRenderer implements Renderer {
     this.mouseX = Math.max(0, Math.min(1, x));
     this.mouseY = Math.max(0, Math.min(1, y));
   }
+  setPlaying(playing: boolean): void {
+    this.assertUsable();
+    if (!playing) {
+      if (this.frame !== undefined) cancelAnimationFrame(this.frame);
+      this.frame = undefined;
+      this.playing = false;
+      return;
+    }
+    if (!this.playing) {
+      // Keep the frozen logical time while excluding the paused wall-clock gap.
+      this.startedAt = performance.now() - this.lastTime * 1000;
+      this.playing = true;
+    }
+    this.schedule();
+  }
   setUniforms(values: UniformPatch): void {
     this.assertUsable();
     this.uniformState.set(values);
@@ -212,8 +243,12 @@ export abstract class CanvasRenderer implements Renderer {
   }
   async draw(): Promise<void> {
     this.assertUsable();
+    const timestamp = performance.now();
     try {
-      await this.performDraw(performance.now());
+      // The backend returns the time it actually submitted. WebGPU resolves
+      // this inside its serialized queue, after preceding work has committed.
+      const seconds = await this.performDraw(timestamp);
+      this.commitTime(seconds);
     } catch (error) {
       throw runtimeError(this.backend, "draw", error);
     }
@@ -221,6 +256,7 @@ export abstract class CanvasRenderer implements Renderer {
   private schedule(): void {
     if (
       this.animate &&
+      this.playing &&
       !this.failed &&
       !this.disposed &&
       !this.lost &&
@@ -231,7 +267,7 @@ export abstract class CanvasRenderer implements Renderer {
   }
   private tick = (): void => {
     this.frame = undefined;
-    if (this.disposed || this.lost || this.failed) return;
+    if (this.disposed || this.lost || this.failed || !this.playing) return;
     this.drawing = true;
     const generation = this.generation;
     void this.draw().then(

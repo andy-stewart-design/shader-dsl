@@ -9,6 +9,7 @@ import { createWebGlRenderer } from "@shdr/runtime/webgl";
 
 const renderer = await createWebGlRenderer(canvas, shader, {
   animate: false,
+  playing: true,
   onError(error) {
     console.error(error.kind, error.message);
   },
@@ -18,7 +19,7 @@ await renderer.setShader(shader); // Replaces only after a successful draw.
 renderer.dispose();
 ```
 
-Creation, replacement and manual-draw errors reject with `ShdrRuntimeError` from `@shdr/runtime/errors`. Later RAF/context/device errors call `onError`. `unavailable` does not trigger automatic backend fallback. Context/device loss is terminal: dispose and recreate with a **new dedicated canvas**. The canvas automatically supplies physical-pixel resolution, top-left physical-pixel mouse and elapsed seconds. `{ animate: false }` schedules no frame loop; pointer/resize changes take effect on a subsequent explicit draw. The canvas is opaque even if shader output alpha is below 1. The runtime does not write test-observability attributes to the canvas. The REPL's shared-pointer and shared-clock hooks are `setPointerNormalized`, `cancelPendingShader`, and the optional `startedAt` epoch; ordinary hosts do not need them.
+Creation, replacement and manual-draw errors reject with `ShdrRuntimeError` from `@shdr/runtime/errors`. Later RAF/context/device errors call `onError`. `unavailable` does not trigger automatic backend fallback. Context/device loss is terminal: dispose and recreate with a **new dedicated canvas**. The canvas automatically supplies physical-pixel resolution, top-left physical-pixel mouse and elapsed seconds. `{ animate: false }` schedules no frame loop; pointer/resize changes take effect on a subsequent explicit draw. `playing` independently controls the clock and RAF loop (default `true`); `setPlaying(false)` freezes the last successfully submitted frame, and resuming excludes the paused wall-clock interval. A successful replacement while paused renders its first frame at time zero and remains paused; a failed or superseded replacement leaves the previous frame and clock unchanged. The canvas is opaque even if shader output alpha is below 1. The runtime does not write test-observability attributes to the canvas. The REPL's shared-pointer and shared-clock hooks are `setPointerNormalized`, `cancelPendingShader`, and the optional `startedAt` epoch; ordinary hosts do not need them.
 
 ### Still-image textures
 
