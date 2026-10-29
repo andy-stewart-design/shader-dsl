@@ -7,5 +7,9 @@ export type PreviewProps = UseShdrPreviewOptions;
 export function PreviewCanvas({ artifact, playing, onError }: PreviewProps) {
   const previewRef = useShdrPreview({ artifact, playing, onError });
 
-  return <div className={s.preview} ref={previewRef} />;
+  return (
+    <div className={s.container}>
+      <div className={s.canvasRoot} ref={previewRef} />
+    </div>
+  );
 }

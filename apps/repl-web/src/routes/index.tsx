@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "../components/app-layout";
-import { ApplyButton } from "../components/apply-button";
-import { EditorTabs } from "../components/editor-tabs";
+import { AppPane, EditorHeader, EditorMain } from "../components/editor-tabs";
 import { EditorStatus } from "../components/editor-status";
 import { PreviewCanvas } from "../components/preview-canvas";
 import { PreviewControls } from "../components/preview-controls";
@@ -23,33 +22,28 @@ function Home() {
   } = useShdrCompilation();
 
   return (
-    <AppLayout
-      editor={
-        <>
-          <EditorTabs
-            initialMain={initialShaderSource}
-            initialUtils=""
-            onChange={onChange}
-            actions={<ApplyButton onClick={apply} />}
-          />
-          <EditorStatus
-            compileError={compileError}
-            runtimeError={runtimeError}
-          />
-        </>
-      }
-      preview={
-        artifact ? (
+    <AppLayout>
+      <AppPane as="tabs">
+        <EditorHeader onEval={apply} />
+        <EditorMain
+          initialMain={initialShaderSource}
+          initialUtils=""
+          onChange={onChange}
+        />
+        <EditorStatus compileError={compileError} runtimeError={runtimeError} />
+      </AppPane>
+      <AppPane>
+        {artifact && (
           <>
+            <PreviewControls playing={playing} onPlayingChange={setPlaying} />
             <PreviewCanvas
               artifact={artifact}
               playing={playing}
               onError={onPreviewError}
             />
-            <PreviewControls playing={playing} onPlayingChange={setPlaying} />
           </>
-        ) : null
-      }
-    />
+        )}
+      </AppPane>
+    </AppLayout>
   );
 }

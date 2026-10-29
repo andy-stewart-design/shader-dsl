@@ -1,7 +1,7 @@
 .root {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: 3rem minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -12,6 +12,7 @@
   min-width: 0;
   border-bottom: 1px solid var(--editor-border);
   background: var(--editor-background);
+  padding-inline: 1rem;
 }
 
 .list {
@@ -54,9 +55,9 @@
 
 .tab[data-active]::after {
   position: absolute;
-  right: 0.5rem;
+  right: 0;
   bottom: -1px;
-  left: 0.5rem;
+  left: 0;
   height: 2px;
   background: var(--editor-foreground);
   content: "";
