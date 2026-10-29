@@ -1,0 +1,170 @@
+/* ROOT */
+
+.root {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 3rem minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-primary);
+
+  &[data-background="secondary"] {
+    background: var(--color-surface-background-secondary);
+  }
+}
+
+/* HEADER */
+
+.header {
+  display: flex;
+  min-width: 0;
+  border-bottom: 1px solid var(--editor-border);
+  background: var(--editor-background);
+  padding-inline: 1rem;
+}
+
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.tab {
+  flex: 0 0 auto;
+  position: relative;
+  padding: 0.625rem 0.875rem;
+  border: 0;
+  background: transparent;
+  color: var(--editor-comment);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab[data-active] {
+  color: var(--editor-foreground);
+}
+
+.tab[data-active]::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--editor-foreground);
+  content: "";
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: -2px;
+}
+
+/* EVALUATE BUTTON */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+  background: var(--editor-control-background);
+  color: var(--editor-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--editor-control-hover);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: 1px;
+}
+
+.shortcut {
+  color: var(--editor-comment);
+  white-space: nowrap;
+}
+
+.shortcut kbd {
+  font: inherit;
+  font-size: 0.6875rem;
+}
+
+@media (max-width: 640px) {
+  .shortcut {
+    display: none;
+  }
+}
+
+/* MAIN */
+
+.panels {
+  min-height: 0;
+}
+
+.panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+/* STATUS */
+
+.editorStatus {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 50%;
+  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--editor-background) 92%, transparent);
+  color: var(--editor-foreground);
+  pointer-events: none;
+}
+
+.error {
+  max-height: min(14rem, 35vh);
+  min-height: 0;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--editor-invalid);
+  background: var(--editor-control-background);
+  color: #ffb8f8;
+  font-family: var(--editor-font-family);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  pointer-events: auto;
+  white-space: pre-wrap;
+}

@@ -3,6 +3,10 @@
   align-items: center;
   padding-inline: 2rem;
   padding-block-end: 3rem;
+
+  @media (min-width: 800px) {
+    padding-inline: 4rem;
+  }
 }
 
 .canvasRoot {

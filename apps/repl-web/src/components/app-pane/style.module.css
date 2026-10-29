@@ -1,0 +1,14 @@
+.pane {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 3rem minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-primary);
+
+  &[data-background="secondary"] {
+    background: var(--color-surface-background-secondary);
+  }
+}
