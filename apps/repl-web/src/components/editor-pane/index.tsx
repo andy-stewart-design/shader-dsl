@@ -1,5 +1,6 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { Editor } from "../editor";
+import Uniforms from "../uniforms-pane";
 import { initialShaderSource } from "../../shared/initial-source";
 import type { ComponentProps } from "react";
 import type { ShaderDocument } from "../../compiler/compile-shdr-body";
@@ -19,6 +20,9 @@ function EditorHeader({ onEval }: EditorHeaderProps) {
         <Tabs.Tab className={s.tab} value="utils">
           utils
         </Tabs.Tab>
+        <Tabs.Tab className={s.tab} value="uniforms">
+          uniforms
+        </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
         <EvalButton onClick={onEval} />
@@ -37,7 +41,7 @@ export function EvalButton({ onClick }: ComponentProps<"button">) {
       aria-keyshortcuts="Alt+Enter"
       title="Apply changes (Option + Return)"
     >
-      <span>Eval</span>
+      <span>Run</span>
       <span className={s.shortcut} aria-hidden="true">
         <kbd>⌥</kbd> + <kbd>↵</kbd>
       </span>
@@ -65,6 +69,9 @@ function EditorMain({ onChange }: EditorMainProps) {
           ariaLabel="Utils shader source"
           onChange={(source) => onChange("utils", source)}
         />
+      </Tabs.Panel>
+      <Tabs.Panel className={s.panel} value="uniforms" keepMounted>
+        <Uniforms.Main />
       </Tabs.Panel>
     </div>
   );

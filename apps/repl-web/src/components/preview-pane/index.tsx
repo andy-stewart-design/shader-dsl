@@ -56,6 +56,7 @@ export function PreviewHeader({
   onHeightRatioChange,
 }: PreviewHeaderProps) {
   const label = playing ? "Pause" : "Play";
+  const Icon = playing ? IconPause : IconPlay;
   const sizeLabelId = useId();
 
   return (
@@ -84,15 +85,45 @@ export function PreviewHeader({
           onChange={onHeightRatioChange}
         />
       </div>
+      <div className={s.vr}></div>
       <button
         className={s.button}
         type="button"
         aria-label={`${label} preview`}
         onClick={() => onPlayingChange(!playing)}
       >
-        {label}
+        <Icon />
       </button>
     </div>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M4 2L16 10L4 18V2Z"
+        fill="none"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        stroke-linejoin="round"
+        stroke="currentColor"
+      />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M4 3H8V17H4V3ZM12 3H16V17H12V3Z"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        stroke="currentColor"
+      />
+    </svg>
   );
 }
 

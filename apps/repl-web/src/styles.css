@@ -92,7 +92,7 @@
   --editor-panel-background: #161719;
   --editor-control-background: #161719;
   --editor-control-hover: #85befd26;
-  --editor-control-radius: 4px;
+  --editor-control-radius: 0.125rem;
   --editor-keyword: #fd5ff1;
   --editor-property: #c5c8c6;
   --editor-function: #85befd;
