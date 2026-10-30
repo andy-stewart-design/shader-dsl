@@ -13,10 +13,14 @@ type NumericUniformName<S extends UniformSchema> = {
 }[keyof S] &
   string;
 
+export type RendererColorSpace = "srgb" | "display-p3";
+
 export interface RendererOptions {
   /** Whether the renderer's clock and animation loop are running. */
   readonly playing?: boolean;
   readonly animate?: boolean;
+  /** Requested output color space. Unsupported spaces fall back to sRGB. */
+  readonly colorSpace?: RendererColorSpace;
   readonly onError?: (error: ShdrRuntimeError) => void;
   readonly signal?: AbortSignal;
   /** Optional shared initial time origin, in performance.now() milliseconds. */

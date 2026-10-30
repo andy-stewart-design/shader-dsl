@@ -36,6 +36,7 @@ import type {
   StaticRendererOptions,
   DynamicRendererOptions,
   LegacyRendererOptions,
+  RendererColorSpace,
 } from "./types.js";
 
 const VERTEX = `@vertex
@@ -48,6 +49,37 @@ const defaults = [
   { name: "mouse", binding: 1, bytes: 8 },
   { name: "time", binding: 2, bytes: 4 },
 ] as const;
+
+/** Configure through one path so reconfiguration retains the output color. */
+function configureCanvas(
+  context: GPUCanvasContext,
+  device: GPUDevice,
+  format: GPUTextureFormat,
+  colorSpace: RendererColorSpace | undefined,
+): RendererColorSpace | undefined {
+  const base = {
+    device,
+    format,
+    alphaMode: "opaque" as const,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  };
+  const configure = (requested?: RendererColorSpace): void => {
+    context.configure(
+      requested === undefined ? base : { ...base, colorSpace: requested },
+    );
+  };
+
+  try {
+    configure(colorSpace);
+    return colorSpace;
+  } catch (error) {
+    // Display-P3 is optional in WebGPU. A browser can expose WebGPU while
+    // rejecting that canvas color space, so retry with the API default.
+    if (colorSpace !== "display-p3") throw error;
+    configure("srgb");
+    return "srgb";
+  }
+}
 interface Resources {
   readonly pipeline: GPURenderPipeline;
   readonly textures: LoadedTextureResources;
@@ -76,6 +108,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   private readonly context: GPUCanvasContext;
   private readonly format: GPUTextureFormat;
   private readonly device: GPUDevice;
+  private readonly colorSpace: RendererColorSpace | undefined;
   private pendingTextureLoad?: AbortController;
   // Error scopes belong to the device, not a Promise. Serialize every scoped
   // preparation and draw, including RAF/manual draws and replacement installs.
@@ -87,12 +120,14 @@ export class WebGpuRenderer extends CanvasRenderer {
     format: GPUTextureFormat,
     vertex: GPUShaderModule,
     options: RendererOptions,
+    colorSpace: RendererColorSpace | undefined,
   ) {
     super(canvas, "webgpu", options);
     this.context = context;
     this.device = device;
     this.format = format;
     this.vertex = vertex;
+    this.colorSpace = colorSpace;
     device.addEventListener("uncapturederror", this.uncaptured);
     void device.lost.then((info) => {
       if (this.disposed || this.lost) return;
@@ -131,6 +166,7 @@ export class WebGpuRenderer extends CanvasRenderer {
     let device: GPUDevice | undefined;
     let context: GPUCanvasContext | null = null;
     let renderer: WebGpuRenderer | undefined;
+    let configuredColorSpace: RendererColorSpace | undefined;
     try {
       checkArtifact(artifact, "webgpu");
       const custom = readCustomMetadata(artifact, "webgpu");
@@ -163,12 +199,12 @@ export class WebGpuRenderer extends CanvasRenderer {
         );
       const format = navigator.gpu.getPreferredCanvasFormat();
       try {
-        context.configure({
+        configuredColorSpace = configureCanvas(
+          context,
           device,
           format,
-          alphaMode: "opaque",
-          usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
+          options.colorSpace,
+        );
       } catch (error) {
         throw runtimeError("webgpu", "surface", error);
       }
@@ -180,6 +216,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         format,
         vertex,
         options,
+        configuredColorSpace,
       );
       renderer.uniformState.creation(custom, options.uniforms);
       const abort = () => renderer?.dispose();
@@ -576,6 +613,20 @@ export class WebGpuRenderer extends CanvasRenderer {
             `${message.lineNum}:${message.linePos}: ${message.message}`,
         ),
     };
+  }
+  protected size(): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    super.size();
+    // Canvas resizing normally keeps a GPUCanvasContext configured, but
+    // reconfigure explicitly when the preview requested a non-default space.
+    // This keeps Display-P3 on browsers that require resize reconfiguration.
+    if (
+      this.colorSpace !== undefined &&
+      (this.canvas.width !== width || this.canvas.height !== height)
+    ) {
+      configureCanvas(this.context, this.device, this.format, this.colorSpace);
+    }
   }
   protected performDraw(_timestamp: number): Promise<number> {
     return this.enqueue(async () => {

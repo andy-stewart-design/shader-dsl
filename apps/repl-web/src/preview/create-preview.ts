@@ -80,6 +80,9 @@ export async function createPreview({
 
   const options = {
     playing,
+    // The REPL is the explicit wide-gamut consumer; runtime callers keep the
+    // existing sRGB default unless they opt into another output space.
+    colorSpace: "display-p3" as const,
     onError,
     signal: abortController.signal,
   };

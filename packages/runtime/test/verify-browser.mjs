@@ -170,6 +170,154 @@ try {
   assert.deepEqual(await pixel(page, "gl"), [255, 0, 0, 255]);
   assert.deepEqual(await pixel(page, "gpu"), [255, 0, 0, 255]);
 
+  const colorSpaces = await page.evaluate(async (artifact) => {
+    const { createWebGlRenderer } = await import("/src/webgl.ts");
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const probeCanvas = document.createElement("canvas");
+    const probe = probeCanvas.getContext("webgpu");
+    let gpuP3Supported = false;
+    if (probe) {
+      try {
+        probe.configure({
+          device: window.primaryDevice,
+          format: navigator.gpu.getPreferredCanvasFormat(),
+          alphaMode: "opaque",
+          usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          colorSpace: "display-p3",
+        });
+        gpuP3Supported = probe.getConfiguration().colorSpace === "display-p3";
+      } finally {
+        probe.unconfigure();
+      }
+    }
+    probeCanvas.remove();
+    const glCanvas = document.createElement("canvas");
+    const gpuCanvas = document.createElement("canvas");
+    glCanvas.style.cssText = gpuCanvas.style.cssText = "width:8px;height:8px";
+    document.body.append(glCanvas, gpuCanvas);
+    const [gl, gpu] = await Promise.all([
+      createWebGlRenderer(glCanvas, artifact, {
+        animate: false,
+        colorSpace: "display-p3",
+      }),
+      createWebGpuRenderer(gpuCanvas, artifact, {
+        animate: false,
+        colorSpace: "display-p3",
+      }),
+    ]);
+    const glContext = glCanvas.getContext("webgl2");
+    const gpuContext = gpuCanvas.getContext("webgpu");
+    const initial = {
+      gl: glContext?.drawingBufferColorSpace ?? "srgb",
+      gpu: gpuContext.getConfiguration().colorSpace,
+    };
+    glCanvas.style.width = gpuCanvas.style.width = "10px";
+    await Promise.all([gl.draw(), gpu.draw()]);
+    const resized = {
+      gl: glContext?.drawingBufferColorSpace ?? "srgb",
+      gpu: gpuContext.getConfiguration().colorSpace,
+    };
+    gl.dispose();
+    gpu.dispose();
+    glCanvas.remove();
+    gpuCanvas.remove();
+    return { gpuP3Supported, initial, resized };
+  }, red);
+  assert.ok(["display-p3", "srgb"].includes(colorSpaces.initial.gl));
+  assert.equal(colorSpaces.resized.gl, colorSpaces.initial.gl);
+  const expectedGpuColorSpace = colorSpaces.gpuP3Supported
+    ? "display-p3"
+    : "srgb";
+  assert.equal(colorSpaces.initial.gpu, expectedGpuColorSpace);
+  assert.equal(colorSpaces.resized.gpu, expectedGpuColorSpace);
+
+  const rejectedGpuColorSpace = await page.evaluate(async (artifact) => {
+    const { createWebGpuRenderer } = await import("/src/webgpu.ts");
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "width:8px;height:8px";
+    const nativeGetContext = canvas.getContext.bind(canvas);
+    const target = nativeGetContext("webgpu");
+    const calls = [];
+    const context = new Proxy(target, {
+      get(object, property) {
+        if (property === "configure")
+          return (configuration) => {
+            calls.push(configuration.colorSpace ?? "default");
+            if (configuration.colorSpace === "display-p3")
+              throw new Error("test rejection");
+            return object.configure(configuration);
+          };
+        const value = Reflect.get(object, property, object);
+        return typeof value === "function" ? value.bind(object) : value;
+      },
+    });
+    canvas.getContext = (kind, attributes) =>
+      kind === "webgpu" ? context : nativeGetContext(kind, attributes);
+    document.body.append(canvas);
+    const renderer = await createWebGpuRenderer(canvas, artifact, {
+      animate: false,
+      colorSpace: "display-p3",
+    });
+    const initial = target.getConfiguration().colorSpace;
+    canvas.style.width = "10px";
+    await renderer.draw();
+    const resized = target.getConfiguration().colorSpace;
+    renderer.dispose();
+    canvas.remove();
+    return { calls, initial, resized };
+  }, red);
+  assert.deepEqual(rejectedGpuColorSpace.calls.slice(0, 2), [
+    "display-p3",
+    "srgb",
+  ]);
+  assert.equal(rejectedGpuColorSpace.initial, "srgb");
+  assert.equal(rejectedGpuColorSpace.resized, "srgb");
+
+  const rejectedWebGlColorSpace = await page.evaluate(async (artifact) => {
+    const { createWebGlRenderer } = await import("/src/webgl.ts");
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "width:8px;height:8px";
+    const nativeGetContext = canvas.getContext.bind(canvas);
+    const target = nativeGetContext("webgl2");
+    if (!("drawingBufferColorSpace" in target)) return null;
+    const calls = [];
+    const context = new Proxy(target, {
+      get(object, property) {
+        const value = Reflect.get(object, property, object);
+        return typeof value === "function" ? value.bind(object) : value;
+      },
+      set(object, property, value) {
+        if (property === "drawingBufferColorSpace") {
+          calls.push(value);
+          if (value === "display-p3") throw new Error("test rejection");
+        }
+        return Reflect.set(object, property, value, object);
+      },
+    });
+    canvas.getContext = (kind, attributes) =>
+      kind === "webgl2" ? context : nativeGetContext(kind, attributes);
+    document.body.append(canvas);
+    const renderer = await createWebGlRenderer(canvas, artifact, {
+      animate: false,
+      colorSpace: "display-p3",
+    });
+    const initial = target.drawingBufferColorSpace;
+    canvas.style.width = "10px";
+    await renderer.draw();
+    const resized = target.drawingBufferColorSpace;
+    renderer.dispose();
+    canvas.remove();
+    return { calls, initial, resized };
+  }, red);
+  if (rejectedWebGlColorSpace) {
+    assert.deepEqual(rejectedWebGlColorSpace.calls.slice(0, 2), [
+      "display-p3",
+      "srgb",
+    ]);
+    assert.equal(rejectedWebGlColorSpace.initial, "srgb");
+    assert.equal(rejectedWebGlColorSpace.resized, "srgb");
+  }
+
   const initiallyPaused = await page.evaluate(async (artifact) => {
     const { createWebGlRenderer } = await import("/src/webgl.ts");
     const { createWebGpuRenderer } = await import("/src/webgpu.ts");
@@ -764,7 +912,7 @@ try {
   assert.equal(noAdapter, "unavailable");
   await auditBundles();
   console.log(
-    "Verified owned WebGL/WebGPU first frames, vector arithmetic/color swizzles, opaque alpha, bindings, manual inputs, playing pause/resume, failed/stale installs, loss, disposal and isolated bundles.",
+    "Verified owned WebGL/WebGPU first frames, Display-P3/sRGB fallback and resize preservation, vector arithmetic/color swizzles, opaque alpha, bindings, manual inputs, playing pause/resume, failed/stale installs, loss, disposal and isolated bundles.",
   );
 } finally {
   await browser?.close();
