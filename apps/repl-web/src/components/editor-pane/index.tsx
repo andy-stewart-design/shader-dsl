@@ -4,6 +4,7 @@ import Uniforms from "../uniforms-pane";
 import { initialShaderSource } from "../../shared/initial-source";
 import type { ComponentProps } from "react";
 import type { ShaderDocument } from "../../compiler/compile-shdr-body";
+import type { Uniform } from "../uniforms-pane/types";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -51,9 +52,11 @@ export function EvalButton({ onClick }: ComponentProps<"button">) {
 
 interface EditorMainProps {
   onChange: (document: ShaderDocument, source: string) => void;
+  uniforms: Uniform[];
+  onUniformsChange: (uniforms: Uniform[]) => void;
 }
 
-function EditorMain({ onChange }: EditorMainProps) {
+function EditorMain({ onChange, uniforms, onUniformsChange }: EditorMainProps) {
   return (
     <div className={s.panels}>
       <Tabs.Panel className={s.panel} value="main" keepMounted>
@@ -71,7 +74,10 @@ function EditorMain({ onChange }: EditorMainProps) {
         />
       </Tabs.Panel>
       <Tabs.Panel className={s.panel} value="uniforms" keepMounted>
-        <Uniforms.Main />
+        <Uniforms.Main
+          uniforms={uniforms}
+          onUniformsChange={onUniformsChange}
+        />
       </Tabs.Panel>
     </div>
   );

@@ -1,11 +1,26 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { createUniform } from "./helpers";
 import { UniformRow } from "./uniform-row";
 import type { Uniform } from "./types";
 import s from "./style.module.css";
 
-export function UniformsPane() {
-  const [uniforms, setUniforms] = useState<Uniform[]>([]);
+interface UniformsPaneProps {
+  uniforms: Uniform[];
+  onUniformsChange: (uniforms: Uniform[]) => void;
+}
+
+export function UniformsPane({
+  uniforms,
+  onUniformsChange,
+}: UniformsPaneProps) {
+  const setUniforms = useCallback(
+    (update: Uniform[] | ((current: Uniform[]) => Uniform[])) => {
+      onUniformsChange(
+        typeof update === "function" ? update(uniforms) : update,
+      );
+    },
+    [onUniformsChange, uniforms],
+  );
   const nextId = useRef(0);
 
   const addUniform = useCallback(() => {
@@ -20,17 +35,25 @@ export function UniformsPane() {
         current.map((uniform) => uniform.name),
       ),
     ]);
-  }, []);
+  }, [setUniforms]);
 
-  const updateUniform = useCallback((updated: Uniform) => {
-    setUniforms((current) =>
-      current.map((uniform) => (uniform.id === updated.id ? updated : uniform)),
-    );
-  }, []);
+  const updateUniform = useCallback(
+    (updated: Uniform) => {
+      setUniforms((current) =>
+        current.map((uniform) =>
+          uniform.id === updated.id ? updated : uniform,
+        ),
+      );
+    },
+    [setUniforms],
+  );
 
-  const removeUniform = useCallback((id: string) => {
-    setUniforms((current) => current.filter((uniform) => uniform.id !== id));
-  }, []);
+  const removeUniform = useCallback(
+    (id: string) => {
+      setUniforms((current) => current.filter((uniform) => uniform.id !== id));
+    },
+    [setUniforms],
+  );
 
   return (
     <div className={s.pane}>

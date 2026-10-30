@@ -1,16 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileShdrBody } from "./compile-shdr-body.ts";
+import type { ShaderUniformDefinition } from "./uniform-definitions.ts";
 import { initialShaderSource } from "../shared/initial-source.ts";
 
-function expectSuccess(body: string, utils = "") {
-  const result = compileShdrBody(body, utils);
+function expectSuccess(
+  body: string,
+  utils = "",
+  uniforms: readonly ShaderUniformDefinition[] = [],
+) {
+  const result = compileShdrBody(body, utils, uniforms);
   if (!result.ok) throw new Error(result.diagnostics[0]?.message);
   return result.artifact;
 }
 
-function expectFailure(body: string, utils = "") {
-  const result = compileShdrBody(body, utils);
+function expectFailure(
+  body: string,
+  utils = "",
+  uniforms: readonly ShaderUniformDefinition[] = [],
+) {
+  const result = compileShdrBody(body, utils, uniforms);
   if (result.ok) throw new Error("expected compilation to fail");
   return result.diagnostics;
 }
@@ -28,6 +37,43 @@ test("keeps an empty Utils document backward compatible", () => {
   const withoutUtils = expectSuccess(initialShaderSource);
   assert.equal(withEmptyUtils.wgsl, withoutUtils.wgsl);
   assert.equal(withEmptyUtils.glsl, withoutUtils.glsl);
+});
+
+test("compiles float and vec3 uniform definitions for both targets", () => {
+  const definitions: readonly ShaderUniformDefinition[] = [
+    { name: "gain", type: "f32", default: 0.5 },
+    { name: "tint", type: "vec3", default: [1, 0, 0] },
+  ];
+  const artifact = expectSuccess(
+    "return vec4(uniforms.tint * uniforms.gain, 1);",
+    "",
+    definitions,
+  );
+  assert.match(artifact.glsl, /shdr_custom_0/);
+  assert.match(artifact.glsl, /shdr_custom_1/);
+  assert.match(artifact.wgsl, /shdr_custom_0/);
+  assert.match(artifact.wgsl, /shdr_custom_1/);
+  assert.deepEqual(artifact.custom?.declarations, [
+    { name: "gain", type: "f32", default: 0.5 },
+    { name: "tint", type: "vec3", default: [1, 0, 0] },
+  ]);
+});
+
+test("rejects unsafe generated uniform definitions", () => {
+  const invalidDefinitions: readonly ShaderUniformDefinition[][] = [
+    [{ name: "resolution", type: "f32", default: 0 }],
+    [
+      { name: "gain", type: "f32", default: 0 },
+      { name: "gain", type: "f32", default: 1 },
+    ],
+    [{ name: "gain-name", type: "f32", default: 0 }],
+    [{ name: "gain", type: "f32", default: Number.POSITIVE_INFINITY }],
+    [{ name: "gain", type: "f32", default: 1e300 }],
+  ];
+  for (const definitions of invalidDefinitions) {
+    const [diagnostic] = expectFailure("return vec4(0);", "", definitions);
+    assert.equal(diagnostic?.code, "SHDR1210");
+  }
 });
 
 test("compiles Utils helpers, constants, matrices, and forward declarations", () => {
@@ -139,6 +185,22 @@ test("maps diagnostics to the correct document", () => {
   const emptyUtilsDiagnostics = expectFailure("return nope;");
   assert.ok(
     emptyUtilsDiagnostics.every((diagnostic) => diagnostic.document === "main"),
+  );
+});
+
+test("maps generated-uniform collisions back to Utils", () => {
+  const utils = "const uniforms = 1;";
+  const diagnostics = expectFailure("return vec4(uniforms.gain);", utils, [
+    { name: "gain", type: "f32", default: 0.5 },
+  ]);
+  assert.ok(diagnostics.length > 0);
+  assert.ok(
+    diagnostics.some(
+      (diagnostic) =>
+        diagnostic.document === "utils" &&
+        diagnostic.range.start <= utils.indexOf("uniforms") &&
+        diagnostic.range.start + diagnostic.range.length <= utils.length,
+    ),
   );
 });
 

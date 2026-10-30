@@ -4,6 +4,11 @@ import {
   type CompileArtifactFailure,
   type CompileArtifactResult,
 } from "@shdr/core/browser";
+import {
+  generateUniformsSource,
+  type ShaderUniformDefinition,
+} from "./uniform-definitions.ts";
+export type { ShaderUniformDefinition } from "./uniform-definitions.ts";
 
 const SHADER_CONSTRUCTORS = [
   "vec2",
@@ -37,13 +42,18 @@ const SOURCE_HEADER = `import { ${SHADER_IMPORTS.join(", ")} } from "shdr";
 import type { ${SHADER_TYPE_IMPORTS.join(", ")} } from "shdr";
 
 `;
+const UNIFORM_SOURCE_HEADER = `import { ${SHADER_IMPORTS.concat("defineUniforms").join(", ")} } from "shdr";
+import type { ${SHADER_TYPE_IMPORTS.join(", ")} } from "shdr";
+
+`;
 const MAIN_BRIDGE = `
 
 export default createFragmentShader(({ coord, uniforms }) => {
 `;
 const SOURCE_SUFFIX = "\n});";
+const UNIFORM_SOURCE_SUFFIX = "\n}, { uniforms });";
 
-export type ShaderDocument = "main" | "utils";
+export type ShaderDocument = "main" | "utils" | "uniforms";
 type CoreDiagnostic = CompileArtifactFailure["diagnostics"][number];
 
 export type CompileShdrDiagnostic = CoreDiagnostic & {
@@ -62,11 +72,28 @@ export type CompileShdrBodyResult =
 export function compileShdrBody(
   main: string,
   utils = "",
+  uniformDefinitions: readonly ShaderUniformDefinition[] = [],
 ): CompileShdrBodyResult {
-  const utilsStart = SOURCE_HEADER.length;
+  const hasUniforms = uniformDefinitions.length > 0;
+  const header = hasUniforms ? UNIFORM_SOURCE_HEADER : SOURCE_HEADER;
+  const generatedUniforms = hasUniforms
+    ? generateUniformsSource(uniformDefinitions)
+    : { ok: true as const, source: "" };
+  if (!generatedUniforms.ok) {
+    return {
+      ok: false,
+      diagnostics: generatedUniforms.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        document: "uniforms" as const,
+      })),
+    };
+  }
+
+  const utilsStart = header.length + generatedUniforms.source.length;
   const mainStart = utilsStart + utils.length + MAIN_BRIDGE.length;
+  const suffix = hasUniforms ? UNIFORM_SOURCE_SUFFIX : SOURCE_SUFFIX;
   const result = compileFragmentArtifact(
-    SOURCE_HEADER + utils + MAIN_BRIDGE + main + SOURCE_SUFFIX,
+    header + generatedUniforms.source + utils + MAIN_BRIDGE + main + suffix,
   );
   if (result.ok) return result;
 
@@ -75,12 +102,24 @@ export function compileShdrBody(
     diagnostics: result.diagnostics.map((diagnostic) => {
       const document = diagnosticDocument(
         diagnostic.range.start,
+        header.length,
+        generatedUniforms.source.length,
         utilsStart,
         utils.length,
         mainStart,
       );
-      const source = document === "utils" ? utils : main;
-      const sourceStart = document === "utils" ? utilsStart : mainStart;
+      const source =
+        document === "utils"
+          ? utils
+          : document === "uniforms"
+            ? generatedUniforms.source
+            : main;
+      const sourceStart =
+        document === "utils"
+          ? utilsStart
+          : document === "uniforms"
+            ? header.length
+            : mainStart;
       return {
         ...diagnostic,
         document,
@@ -92,12 +131,15 @@ export function compileShdrBody(
 
 function diagnosticDocument(
   generatedStart: number,
+  headerLength: number,
+  uniformsLength: number,
   utilsStart: number,
   utilsLength: number,
   mainStart: number,
 ): ShaderDocument {
   if (generatedStart >= mainStart) return "main";
   if (utilsLength > 0 && generatedStart >= utilsStart) return "utils";
+  if (uniformsLength > 0 && generatedStart >= headerLength) return "uniforms";
   return "main";
 }
 

@@ -6,6 +6,8 @@ import {
   type ShaderDocument,
 } from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
+import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions";
+import type { Uniform } from "../components/uniforms-pane/types";
 
 type Compilation = {
   artifact: CompiledFragmentArtifact | null;
@@ -35,16 +37,32 @@ function formatCompileError(
   return diagnostics
     .map((diagnostic) => {
       const document = diagnostic.document;
-      const source = sources[document];
-      const location = `${document === "main" ? "Main" : "Utils"}: ${sourceLocation(source, diagnostic.range)}: `;
+      const source = document === "uniforms" ? "" : sources[document];
+      const label =
+        document === "main"
+          ? "Main"
+          : document === "utils"
+            ? "Utils"
+            : "Uniforms";
+      const location = `${label}: ${sourceLocation(source, diagnostic.range)}: `;
       return `${location}${diagnostic.code}: ${diagnostic.message}`;
     })
     .join("\n");
 }
 
-function compileSource(sources: Draft): Compilation {
+function compileSource(
+  sources: Draft,
+  uniforms: readonly Uniform[],
+): Compilation {
+  const converted = toShaderUniformDefinitions(uniforms);
+  if (!converted.ok) return { artifact: null, error: converted.error };
+
   try {
-    const result = compileShdrBody(sources.main, sources.utils);
+    const result = compileShdrBody(
+      sources.main,
+      sources.utils,
+      converted.definitions,
+    );
     if (!result.ok) {
       return {
         artifact: null,
@@ -63,7 +81,7 @@ function formatRuntimeError(error: unknown): string {
 }
 
 const initialSources: Draft = { main: initialShaderSource, utils: "" };
-const initialCompilation = compileSource(initialSources);
+const initialCompilation = compileSource(initialSources, []);
 
 export interface UseShdrCompilationResult {
   artifact: CompiledFragmentArtifact | null;
@@ -75,7 +93,9 @@ export interface UseShdrCompilationResult {
 }
 
 /** Keeps editor drafts local until an explicit manual shader apply. */
-export function useShdrCompilation(): UseShdrCompilationResult {
+export function useShdrCompilation(
+  uniforms: readonly Uniform[],
+): UseShdrCompilationResult {
   const draftRef = useRef<Draft>({ ...initialSources });
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
     initialCompilation.artifact,
@@ -86,17 +106,21 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
   const onChange = useCallback((document: ShaderDocument, source: string) => {
+    if (document === "uniforms") return;
     draftRef.current[document] = source;
   }, []);
 
   const apply = useCallback(() => {
-    const compilation = compileSource({ ...draftRef.current });
+    const compilation = compileSource(
+      { ...draftRef.current },
+      uniforms,
+    );
     setCompileError(compilation.error);
     if (!compilation.artifact) return;
 
     setRuntimeError(null);
     setArtifact(compilation.artifact);
-  }, []);
+  }, [uniforms]);
 
   const onPreviewError = useCallback((error: unknown) => {
     setRuntimeError(formatRuntimeError(error));

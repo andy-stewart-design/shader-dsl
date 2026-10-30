@@ -58,6 +58,16 @@ export function nameError(name: string, duplicate: boolean): string | null {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
     return "Use letters, numbers, and underscores; start with a letter or underscore.";
   }
+  if (RESERVED_NAMES.has(name)) return "This name is reserved.";
   if (duplicate) return "Names should be unique.";
   return null;
 }
+
+const RESERVED_NAMES = new Set([
+  "resolution",
+  "mouse",
+  "time",
+  "__proto__",
+  "prototype",
+  "constructor",
+]);

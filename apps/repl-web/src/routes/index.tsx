@@ -5,6 +5,7 @@ import { AppPane } from "#/components/app-pane";
 import Editor from "#/components/editor-pane";
 import Preview from "#/components/preview-pane";
 import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
+import type { Uniform } from "#/components/uniforms-pane/types";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -12,6 +13,7 @@ function Home() {
   const [playing, setPlaying] = useState(true);
   const [widthRatio, setWidthRatio] = useState(1);
   const [heightRatio, setHeightRatio] = useState(1);
+  const [uniforms, setUniforms] = useState<Uniform[]>([]);
   const {
     artifact,
     compileError,
@@ -19,13 +21,17 @@ function Home() {
     onChange,
     onPreviewError,
     apply,
-  } = useShdrCompilation();
+  } = useShdrCompilation(uniforms);
 
   return (
     <AppLayout>
       <AppPane as="tabs" background="secondary">
         <Editor.Header onEval={apply} />
-        <Editor.Main onChange={onChange} />
+        <Editor.Main
+          onChange={onChange}
+          uniforms={uniforms}
+          onUniformsChange={setUniforms}
+        />
         <Editor.Status
           compileError={compileError}
           runtimeError={runtimeError}
