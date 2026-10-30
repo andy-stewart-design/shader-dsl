@@ -3,8 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "#/components/app-layout";
 import { AppPane } from "#/components/app-pane";
 import Editor from "#/components/editor-pane";
-import { PreviewCanvas } from "#/components/preview-canvas";
-import { PreviewControls } from "#/components/preview-controls";
+import Preview from "#/components/preview-pane";
 import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
 
 export const Route = createFileRoute("/")({ component: Home });
@@ -33,8 +32,8 @@ function Home() {
       <AppPane>
         {artifact && (
           <>
-            <PreviewControls playing={playing} onPlayingChange={setPlaying} />
-            <PreviewCanvas
+            <Preview.Header playing={playing} onPlayingChange={setPlaying} />
+            <Preview.Main
               artifact={artifact}
               playing={playing}
               onError={onPreviewError}

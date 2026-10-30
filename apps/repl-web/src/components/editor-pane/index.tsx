@@ -21,13 +21,13 @@ function EditorHeader({ onEval }: EditorHeaderProps) {
         </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
-        <EvaluateButton onClick={onEval} />
+        <EvalButton onClick={onEval} />
       </div>
     </div>
   );
 }
 
-export function EvaluateButton({ onClick }: ComponentProps<"button">) {
+export function EvalButton({ onClick }: ComponentProps<"button">) {
   return (
     <button
       className={s.button}
