@@ -180,20 +180,28 @@
 }
 
 .colorPickerLabel {
+  position: relative;
   display: block;
   flex: 0 0 auto;
   block-size: 2rem;
   inline-size: 2.25rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+}
+
+.colorPickerLabel:has(.colorPicker:focus-visible) {
+  outline: 2px solid var(--editor-focus);
+  outline-offset: 1px;
 }
 
 .colorPicker {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  padding: 0.2rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  background: var(--editor-control-background);
+  padding: 0;
+  border: 0;
+  opacity: 0;
   cursor: pointer;
 }
 

@@ -27,7 +27,10 @@ export function ColorField({
     <div className={s.colorField}>
       <span className={s.fieldLabel}>Value</span>
       <div className={s.colorControls}>
-        <label className={s.colorPickerLabel}>
+        <label
+          className={s.colorPickerLabel}
+          style={{ backgroundColor: validColor }}
+        >
           <span className={s.srOnly}>Color swatch</span>
           <input
             className={s.colorPicker}
