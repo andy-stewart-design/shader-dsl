@@ -194,6 +194,26 @@ export function useShdrPreview({
     };
 
     lifecycle.retry = initialize;
+
+    // Renderer sizing happens during a draw. Observe the CSS-sized host so a
+    // paused preview still picks up ratio and pane resizes.
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(() => {
+            const handle = lifecycle.handle;
+            if (
+              latestPlayingRef.current ||
+              !handle ||
+              !isActive(lifecycle, lifecycleRef.current)
+            )
+              return;
+            void handle.draw().catch((error: unknown) => {
+              if (isActive(lifecycle, lifecycleRef.current)) reportError(error);
+            });
+          });
+    resizeObserver?.observe(parent);
+
     lifecycle.frame = requestAnimationFrame(() => {
       lifecycle.frame = undefined;
       initialize();
@@ -203,6 +223,7 @@ export function useShdrPreview({
       lifecycle.active = false;
       if (lifecycleRef.current === lifecycle) lifecycleRef.current = null;
       if (lifecycle.frame !== undefined) cancelAnimationFrame(lifecycle.frame);
+      resizeObserver?.disconnect();
       lifecycle.abortController.abort();
       lifecycle.handle?.destroy();
       lifecycle.handle = undefined;

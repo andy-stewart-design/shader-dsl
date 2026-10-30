@@ -10,6 +10,8 @@ export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   const [playing, setPlaying] = useState(true);
+  const [widthRatio, setWidthRatio] = useState(1);
+  const [heightRatio, setHeightRatio] = useState(1);
   const {
     artifact,
     compileError,
@@ -32,11 +34,20 @@ function Home() {
       <AppPane>
         {artifact && (
           <>
-            <Preview.Header playing={playing} onPlayingChange={setPlaying} />
+            <Preview.Header
+              playing={playing}
+              onPlayingChange={setPlaying}
+              widthRatio={widthRatio}
+              onWidthRatioChange={setWidthRatio}
+              heightRatio={heightRatio}
+              onHeightRatioChange={setHeightRatio}
+            />
             <Preview.Main
               artifact={artifact}
               playing={playing}
               onError={onPreviewError}
+              widthRatio={widthRatio}
+              heightRatio={heightRatio}
             />
           </>
         )}
