@@ -34,7 +34,7 @@ export function UniformsPane() {
 
   return (
     <div className={s.pane}>
-      <div className={s.intro}>
+      {/*<div className={s.intro}>
         <div>
           <h2 className={s.heading}>Uniforms</h2>
           <p className={s.description}>
@@ -46,17 +46,10 @@ export function UniformsPane() {
           <span aria-hidden="true">+</span>
           New uniform
         </button>
-      </div>
+      </div>*/}
 
       {uniforms.length > 0 ? (
         <div className={s.uniformList} role="list" aria-label="Uniforms">
-          <div className={s.columnHeader} aria-hidden="true">
-            <span>Name</span>
-            <span>Type</span>
-            <span>Value</span>
-            <span>Min</span>
-            <span>Max</span>
-          </div>
           {uniforms.map((uniform) => {
             const duplicateName =
               uniform.name.trim() !== "" &&
@@ -85,6 +78,12 @@ export function UniformsPane() {
           </p>
         </div>
       )}
+      <div className={s.intro}>
+        <button className={s.newButton} type="button" onClick={addUniform}>
+          <span aria-hidden="true">+</span>
+          New uniform
+        </button>
+      </div>
     </div>
   );
 }
