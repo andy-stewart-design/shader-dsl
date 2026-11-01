@@ -5,22 +5,23 @@ import {
   runtimeValuesToPatch,
   toRuntimeUniforms,
 } from "./uniform-controls.ts";
-import type { Uniform } from "../uniforms-pane/types";
+import type { Uniform } from "../../shared/uniforms";
 
 const float: Uniform = {
   id: "float",
   name: "gain",
   type: "float",
-  float: { value: "0.5", min: "-2", max: "2" },
-  color: { draft: "#000000", valid: "#000000" },
+  value: "0.5",
+  min: "-2",
+  max: "2",
 };
 
 const color: Uniform = {
   id: "color",
   name: "tint",
   type: "color",
-  float: { value: "0", min: "-1", max: "1" },
-  color: { draft: "#0f8", valid: "#0f8" },
+  draft: "#0f8",
+  valid: "#0f8",
 };
 
 test("runtime controls use applied defaults and metadata", () => {
@@ -37,7 +38,7 @@ test("runtime controls use applied defaults and metadata", () => {
 
 test("invalid float ranges fall back without producing NaN patches", () => {
   const controls = toRuntimeUniforms([
-    { ...float, float: { ...float.float, min: "bad", max: "bad" } },
+    { ...float, min: "bad", max: "bad" },
   ]);
   assert.equal(controls.length, 1);
   const [control] = controls;
@@ -53,12 +54,14 @@ test("invalid float ranges fall back without producing NaN patches", () => {
 test("fallback ranges stay within finite f32 for both signs", () => {
   const largestF32 = Math.fround(3.4028234663852886e38);
   const controls = toRuntimeUniforms([
-    { ...float, float: { value: String(largestF32), min: "bad", max: "bad" } },
+    { ...float, value: String(largestF32), min: "bad", max: "bad" },
     {
       ...float,
       id: "negative-float",
       name: "loss",
-      float: { value: String(-largestF32), min: "bad", max: "bad" },
+      value: String(-largestF32),
+      min: "bad",
+      max: "bad",
     },
   ]);
 

@@ -1,4 +1,4 @@
-import type { Uniform } from "../uniforms-pane/types";
+import type { Uniform } from "../../shared/uniforms";
 import { colorToValidHex } from "../uniforms-pane/helpers.ts";
 type RuntimePatchValue =
   | number
@@ -58,11 +58,11 @@ export function toRuntimeUniforms(
 ): readonly RuntimeUniform[] {
   return uniforms.flatMap((uniform): RuntimeUniform[] => {
     if (uniform.type === "float") {
-      const defaultValue = finiteFloat(uniform.float.value);
+      const defaultValue = finiteFloat(uniform.value);
       if (defaultValue === undefined) return [];
 
-      const draftMin = finiteFloat(uniform.float.min);
-      const draftMax = finiteFloat(uniform.float.max);
+      const draftMin = finiteFloat(uniform.min);
+      const draftMax = finiteFloat(uniform.max);
       const range =
         draftMin !== undefined &&
         draftMax !== undefined &&
@@ -78,7 +78,7 @@ export function toRuntimeUniforms(
       }];
     }
 
-    const defaultValue = colorToValidHex(uniform.color.draft);
+    const defaultValue = colorToValidHex(uniform.draft);
     return defaultValue
       ? [{ name: uniform.name, type: "color", defaultValue }]
       : [];

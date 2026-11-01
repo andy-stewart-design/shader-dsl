@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { createUniform } from "./helpers";
 import { UniformRow } from "./uniform-row";
-import type { Uniform } from "./types";
+import type { Uniform } from "../../shared/uniforms";
 import s from "./style.module.css";
 
 interface UniformsPaneProps {
@@ -24,17 +24,21 @@ export function UniformsPane({
   const nextId = useRef(0);
 
   const addUniform = useCallback(() => {
-    const sequence = nextId.current;
-    nextId.current += 1;
-    const id = `uniform-${sequence}`;
-    setUniforms((current) => [
-      ...current,
-      createUniform(
-        id,
-        sequence,
-        current.map((uniform) => uniform.name),
-      ),
-    ]);
+    setUniforms((current) => {
+      let sequence = nextId.current;
+      const ids = new Set(current.map((uniform) => uniform.id));
+      while (ids.has(`uniform-${sequence}`)) sequence += 1;
+      nextId.current = sequence + 1;
+      const id = `uniform-${sequence}`;
+      return [
+        ...current,
+        createUniform(
+          id,
+          sequence,
+          current.map((uniform) => uniform.name),
+        ),
+      ];
+    });
   }, [setUniforms]);
 
   const updateUniform = useCallback(

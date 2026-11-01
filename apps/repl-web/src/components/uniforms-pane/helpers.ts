@@ -1,4 +1,4 @@
-import type { Uniform } from "./types";
+import type { Uniform, UniformType } from "../../shared/uniforms";
 
 export function createUniform(
   id: string,
@@ -15,16 +15,34 @@ export function createUniform(
     id,
     name: `value_${nameIndex}`,
     type: "float",
-    float: {
-      value: "0",
-      min: "-1",
-      max: "1",
-    },
-    color: {
-      draft: "#85befd",
-      valid: "#85befd",
-    },
+    value: "0",
+    min: "-1",
+    max: "1",
   };
+}
+
+export function changeUniformType(
+  uniform: Uniform,
+  type: UniformType,
+): Uniform {
+  if (uniform.type === type) return uniform;
+
+  return type === "float"
+    ? {
+        id: uniform.id,
+        name: uniform.name,
+        type: "float",
+        value: "0",
+        min: "-1",
+        max: "1",
+      }
+    : {
+        id: uniform.id,
+        name: uniform.name,
+        type: "color",
+        draft: "#85befd",
+        valid: "#85befd",
+      };
 }
 
 export function numberDraftError(draft: string, label: string): string | null {

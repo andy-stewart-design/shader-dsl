@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import {
   compileShdrBody,
   type CompileShdrDiagnostic,
-  type ShaderDocument,
 } from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions";
-import type { Uniform } from "../components/uniforms-pane/types";
+import { getDraftState } from "../stores/draft";
+import { cloneUniforms, type Uniform } from "../shared/uniforms";
 
 type Compilation = {
   artifact: CompiledFragmentArtifact | null;
   error: string | null;
 };
 
-type Draft = {
+type Sources = {
   main: string;
   utils: string;
 };
@@ -31,7 +31,7 @@ function sourceLocation(
 }
 
 function formatCompileError(
-  sources: Draft,
+  sources: Sources,
   diagnostics: readonly CompileShdrDiagnostic[],
 ): string {
   return diagnostics
@@ -51,7 +51,7 @@ function formatCompileError(
 }
 
 function compileSource(
-  sources: Draft,
+  sources: Sources,
   uniforms: readonly Uniform[],
 ): Compilation {
   const converted = toShaderUniformDefinitions(uniforms);
@@ -80,7 +80,7 @@ function formatRuntimeError(error: unknown): string {
   return String(error);
 }
 
-const initialSources: Draft = { main: initialShaderSource, utils: "" };
+const initialSources: Sources = { main: initialShaderSource, utils: "" };
 const initialCompilation = compileSource(initialSources, []);
 
 export interface UseShdrCompilationResult {
@@ -89,16 +89,12 @@ export interface UseShdrCompilationResult {
   appliedUniforms: readonly Uniform[];
   compileError: string | null;
   runtimeError: string | null;
-  onChange: (document: ShaderDocument, source: string) => void;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
 }
 
-/** Keeps editor drafts local until an explicit manual shader apply. */
-export function useShdrCompilation(
-  uniforms: readonly Uniform[],
-): UseShdrCompilationResult {
-  const draftRef = useRef<Draft>({ ...initialSources });
+/** Applies the latest store draft only on an explicit manual shader apply. */
+export function useShdrCompilation(): UseShdrCompilationResult {
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
     initialCompilation.artifact,
   );
@@ -110,29 +106,20 @@ export function useShdrCompilation(
     [],
   );
 
-  const onChange = useCallback((document: ShaderDocument, source: string) => {
-    if (document === "uniforms") return;
-    draftRef.current[document] = source;
-  }, []);
-
   const apply = useCallback(() => {
-    const compilation = compileSource(
-      { ...draftRef.current },
-      uniforms,
-    );
+    const draft = getDraftState();
+    const sources: Sources = { main: draft.main, utils: draft.utils };
+    const uniforms = draft.uniforms;
+    const compilation = compileSource(sources, uniforms);
     setCompileError(compilation.error);
     if (!compilation.artifact) return;
 
     setRuntimeError(null);
     // Copy the successful apply snapshot. Draft edits remain local to the
     // editor and cannot change the working preview controls.
-    setAppliedUniforms(uniforms.map((uniform) => ({
-      ...uniform,
-      float: { ...uniform.float },
-      color: { ...uniform.color },
-    })));
+    setAppliedUniforms(cloneUniforms(uniforms));
     setArtifact(compilation.artifact);
-  }, [uniforms]);
+  }, []);
 
   const onPreviewError = useCallback((error: unknown) => {
     setRuntimeError(formatRuntimeError(error));
@@ -166,7 +153,6 @@ export function useShdrCompilation(
     appliedUniforms,
     compileError,
     runtimeError,
-    onChange,
     onPreviewError,
     apply,
   };

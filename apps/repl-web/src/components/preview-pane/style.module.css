@@ -9,6 +9,7 @@
   min-height: 0;
   min-width: 0;
   background: var(--color-surface-background-primary);
+  transition: grid-template-rows 300ms cubic-bezier(0.33, 1, 0.68, 1);
 
   &:not([data-drawer-mode="closed"]) {
     grid-template-rows: minmax(0, 1fr) 20rem 3rem;

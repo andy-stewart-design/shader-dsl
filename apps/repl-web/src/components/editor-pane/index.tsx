@@ -1,10 +1,13 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { Editor } from "../editor";
 import Uniforms from "../uniforms-pane";
-import { initialShaderSource } from "../../shared/initial-source";
 import type { ComponentProps } from "react";
-import type { ShaderDocument } from "../../compiler/compile-shdr-body";
-import type { Uniform } from "../uniforms-pane/types";
+import {
+  useDraftActions,
+  useDraftSource,
+  useDraftUniforms,
+  type DraftDocument,
+} from "../../stores/draft";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -50,34 +53,41 @@ export function EvalButton({ onClick }: ComponentProps<"button">) {
   );
 }
 
-interface EditorMainProps {
-  onChange: (document: ShaderDocument, source: string) => void;
-  uniforms: Uniform[];
-  onUniformsChange: (uniforms: Uniform[]) => void;
+function DraftEditor({
+  document,
+  ariaLabel,
+}: {
+  document: DraftDocument;
+  ariaLabel: string;
+}) {
+  const source = useDraftSource(document);
+  const { setSource } = useDraftActions();
+  return (
+    <Editor
+      initialDoc={source}
+      ariaLabel={ariaLabel}
+      onChange={(nextSource) => setSource(document, nextSource)}
+    />
+  );
 }
 
-function EditorMain({ onChange, uniforms, onUniformsChange }: EditorMainProps) {
+function DraftUniforms() {
+  const uniforms = useDraftUniforms();
+  const { setUniforms } = useDraftActions();
+  return <Uniforms.Main uniforms={uniforms} onUniformsChange={setUniforms} />;
+}
+
+function EditorMain() {
   return (
     <div className={s.panels}>
       <Tabs.Panel className={s.panel} value="main" keepMounted>
-        <Editor
-          initialDoc={initialShaderSource}
-          ariaLabel="Main shader source"
-          onChange={(source) => onChange("main", source)}
-        />
+        <DraftEditor document="main" ariaLabel="Main shader source" />
       </Tabs.Panel>
       <Tabs.Panel className={s.panel} value="utils" keepMounted>
-        <Editor
-          initialDoc={""}
-          ariaLabel="Utils shader source"
-          onChange={(source) => onChange("utils", source)}
-        />
+        <DraftEditor document="utils" ariaLabel="Utils shader source" />
       </Tabs.Panel>
       <Tabs.Panel className={s.panel} value="uniforms" keepMounted>
-        <Uniforms.Main
-          uniforms={uniforms}
-          onUniformsChange={onUniformsChange}
-        />
+        <DraftUniforms />
       </Tabs.Panel>
     </div>
   );

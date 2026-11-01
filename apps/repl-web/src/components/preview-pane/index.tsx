@@ -1,5 +1,8 @@
 import {
+  useEffect,
   useId,
+  useMemo,
+  useRef,
   type CSSProperties,
   type ReactNode,
   type RefObject,
@@ -9,8 +12,16 @@ import {
   type UseShdrPreviewOptions,
 } from "#/hooks/use-shdr-preview";
 import s from "./style.module.css";
-import { useDrawerMode, usePreviewActions } from "./state";
+import {
+  useDrawerMode,
+  useHeightRatio,
+  usePlaying,
+  usePreviewActions,
+  useWidthRatio,
+} from "../../stores/preview";
 import { RuntimeControls } from "./runtime-controls";
+import { toRuntimeUniforms } from "./uniform-controls";
+import type { Uniform } from "../../shared/uniforms";
 
 export interface PreviewHeaderProps {
   playing: boolean;
@@ -29,6 +40,13 @@ interface RatioInputProps {
 }
 
 function RatioInput({ name, label, value, onChange }: RatioInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (input && document.activeElement !== input) input.value = String(value);
+  }, [value]);
+
   return (
     <label className={s.ratioField}>
       <span className={s.srOnly}>{label}</span>
@@ -40,14 +58,13 @@ function RatioInput({ name, label, value, onChange }: RatioInputProps) {
         step="any"
         inputMode="decimal"
         defaultValue={value}
+        ref={inputRef}
         onChange={(event) => {
           const ratio = Number(event.currentTarget.value);
           if (Number.isFinite(ratio) && ratio > 0) onChange(ratio);
         }}
         onBlur={(event) => {
-          const ratio = Number(event.currentTarget.value);
-          if (!Number.isFinite(ratio) || ratio <= 0)
-            event.currentTarget.value = String(value);
+          event.currentTarget.value = String(value);
         }}
       />
     </label>
@@ -151,18 +168,13 @@ interface PreviewCanvasSurfaceProps {
   heightRatio: number;
 }
 
-
 export function PreviewMain({
   widthRatio,
   heightRatio,
   ...props
 }: PreviewMainProps) {
-  const {
-    hostRef,
-    runtimeUniforms,
-    runtimeValues,
-    onRuntimeValueChange,
-  } = useShdrPreview(props);
+  const { hostRef, runtimeUniforms, runtimeValues, onRuntimeValueChange } =
+    useShdrPreview(props);
 
   return (
     <>
@@ -221,6 +233,54 @@ export function PreviewCanvas({
   );
 }
 
+function ConnectedPreviewHeader() {
+  const playing = usePlaying();
+  const widthRatio = useWidthRatio();
+  const heightRatio = useHeightRatio();
+  const { setPlaying, setWidthRatio, setHeightRatio } = usePreviewActions();
+
+  return (
+    <PreviewHeader
+      playing={playing}
+      onPlayingChange={setPlaying}
+      widthRatio={widthRatio}
+      onWidthRatioChange={setWidthRatio}
+      heightRatio={heightRatio}
+      onHeightRatioChange={setHeightRatio}
+    />
+  );
+}
+
+interface ConnectedPreviewMainProps extends Omit<
+  PreviewMainProps,
+  "runtimeUniforms" | "playing" | "widthRatio" | "heightRatio"
+> {
+  appliedUniforms: readonly Uniform[];
+}
+
+function ConnectedPreviewMain({
+  appliedUniforms,
+  ...props
+}: ConnectedPreviewMainProps) {
+  const playing = usePlaying();
+  const widthRatio = useWidthRatio();
+  const heightRatio = useHeightRatio();
+  const runtimeUniforms = useMemo(
+    () => toRuntimeUniforms(appliedUniforms),
+    [appliedUniforms],
+  );
+
+  return (
+    <PreviewMain
+      {...props}
+      runtimeUniforms={runtimeUniforms}
+      playing={playing}
+      widthRatio={widthRatio}
+      heightRatio={heightRatio}
+    />
+  );
+}
+
 function PreviewPane({ children }: { children: ReactNode }) {
   const mode = useDrawerMode();
 
@@ -231,5 +291,9 @@ function PreviewPane({ children }: { children: ReactNode }) {
   );
 }
 
-const Parent = { Pane: PreviewPane, Header: PreviewHeader, Main: PreviewMain };
+const Parent = {
+  Pane: PreviewPane,
+  Header: ConnectedPreviewHeader,
+  Main: ConnectedPreviewMain,
+};
 export default Parent;

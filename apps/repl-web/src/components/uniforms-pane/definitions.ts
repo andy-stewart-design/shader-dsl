@@ -1,6 +1,6 @@
 import type { ShaderUniformDefinition } from "../../compiler/uniform-definitions";
 import { colorToValidHex } from "./helpers.ts";
-import type { Uniform } from "./types.ts";
+import type { Uniform } from "../../shared/uniforms.ts";
 
 export type UniformConversionResult =
   | {
@@ -33,7 +33,7 @@ export function toShaderUniformDefinitions(
     names.add(name);
 
     if (uniform.type === "float") {
-      const value = parseF32(uniform.float.value);
+      const value = parseF32(uniform.value);
       if (value === undefined) {
         return invalid(
           `Uniform ${JSON.stringify(name)} must have a finite f32 value.`,
@@ -43,7 +43,7 @@ export function toShaderUniformDefinitions(
       continue;
     }
 
-    const color = colorToValidHex(uniform.color.draft);
+    const color = colorToValidHex(uniform.draft);
     if (!color) {
       return invalid(
         `Uniform ${JSON.stringify(name)} must have a valid 3- or 6-digit hex color.`,

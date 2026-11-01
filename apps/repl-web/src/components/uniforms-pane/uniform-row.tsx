@@ -1,5 +1,6 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import {
+  changeUniformType,
   colorDraftError,
   colorToValidHex,
   nameError,
@@ -8,7 +9,7 @@ import {
 import { ColorField } from "./color-field";
 import { FloatFields } from "./float-fields";
 import { TypeSelect } from "./type-select";
-import type { Uniform, UniformType } from "./types";
+import type { Uniform, UniformType } from "../../shared/uniforms";
 import s from "./style.module.css";
 
 interface UniformRowProps {
@@ -26,27 +27,72 @@ export function UniformRow({
 }: UniformRowProps) {
   const idPrefix = `uniform-${useId().replaceAll(":", "")}`;
   const uniformNameError = nameError(uniform.name, duplicateName);
-  const valueError = numberDraftError(uniform.float.value, "Value");
-  const minError = numberDraftError(uniform.float.min, "Min");
-  const maxError = numberDraftError(uniform.float.max, "Max");
-  const valueNumber = Number(uniform.float.value);
-  const minNumber = Number(uniform.float.min);
-  const maxNumber = Number(uniform.float.max);
-  const hasValidRange = !minError && !maxError;
-  const rangeError =
-    hasValidRange && minNumber >= maxNumber
-      ? "Min must be less than max."
-      : null;
-  const outOfRangeError =
-    !valueError && !rangeError && hasValidRange
-      ? valueNumber < minNumber || valueNumber > maxNumber
-        ? "Value is outside the selected range."
-        : null
-      : null;
-  const colorError = colorDraftError(uniform.color.draft);
+  let typeFields: ReactNode;
+
+  if (uniform.type === "float") {
+    const valueError = numberDraftError(uniform.value, "Value");
+    const minError = numberDraftError(uniform.min, "Min");
+    const maxError = numberDraftError(uniform.max, "Max");
+    const valueNumber = Number(uniform.value);
+    const minNumber = Number(uniform.min);
+    const maxNumber = Number(uniform.max);
+    const hasValidRange = !minError && !maxError;
+    const rangeError =
+      hasValidRange && minNumber >= maxNumber
+        ? "Min must be less than max."
+        : null;
+    const outOfRangeError =
+      !valueError && !rangeError && hasValidRange
+        ? valueNumber < minNumber || valueNumber > maxNumber
+          ? "Value is outside the selected range."
+          : null
+        : null;
+
+    typeFields = (
+      <FloatFields
+        idPrefix={idPrefix}
+        value={uniform.value}
+        min={uniform.min}
+        max={uniform.max}
+        valueError={outOfRangeError ?? valueError}
+        minError={minError}
+        maxError={maxError}
+        rangeError={rangeError}
+        onValueChange={(value) => onChange({ ...uniform, value })}
+        onMinChange={(min) => onChange({ ...uniform, min })}
+        onMaxChange={(max) => onChange({ ...uniform, max })}
+      />
+    );
+  } else {
+    const colorError = colorDraftError(uniform.draft);
+    typeFields = (
+      <ColorField
+        idPrefix={idPrefix}
+        uniformName={uniform.name}
+        draft={uniform.draft}
+        validColor={uniform.valid}
+        error={colorError}
+        onDraftChange={(draft) => {
+          const valid = colorToValidHex(draft);
+          onChange({
+            ...uniform,
+            draft,
+            valid: valid ?? uniform.valid,
+          });
+        }}
+        onColorChange={(color) =>
+          onChange({
+            ...uniform,
+            draft: color,
+            valid: color,
+          })
+        }
+      />
+    );
+  }
 
   function updateType(type: UniformType) {
-    onChange({ ...uniform, type });
+    onChange(changeUniformType(uniform, type));
   }
 
   return (
@@ -79,51 +125,7 @@ export function UniformRow({
         onChange={updateType}
       />
 
-      {uniform.type === "float" ? (
-        <FloatFields
-          idPrefix={idPrefix}
-          value={uniform.float.value}
-          min={uniform.float.min}
-          max={uniform.float.max}
-          valueError={outOfRangeError ?? valueError}
-          minError={minError}
-          maxError={maxError}
-          rangeError={rangeError}
-          onValueChange={(value) =>
-            onChange({ ...uniform, float: { ...uniform.float, value } })
-          }
-          onMinChange={(min) =>
-            onChange({ ...uniform, float: { ...uniform.float, min } })
-          }
-          onMaxChange={(max) =>
-            onChange({ ...uniform, float: { ...uniform.float, max } })
-          }
-        />
-      ) : (
-        <ColorField
-          idPrefix={idPrefix}
-          uniformName={uniform.name}
-          draft={uniform.color.draft}
-          validColor={uniform.color.valid}
-          error={colorError}
-          onDraftChange={(draft) => {
-            const valid = colorToValidHex(draft);
-            onChange({
-              ...uniform,
-              color: {
-                draft,
-                valid: valid ?? uniform.color.valid,
-              },
-            });
-          }}
-          onColorChange={(color) =>
-            onChange({
-              ...uniform,
-              color: { draft: color, valid: color },
-            })
-          }
-        />
-      )}
+      {typeFields}
 
       <div className={s.removeButtonContainer}>
         <button

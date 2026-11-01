@@ -1,6 +1,6 @@
 import { Select } from "@base-ui/react/select";
 import { useId } from "react";
-import type { UniformType } from "./types";
+import type { UniformType } from "../../shared/uniforms";
 import s from "./style.module.css";
 
 const TYPE_OPTIONS: ReadonlyArray<{ label: string; value: UniformType }> = [
