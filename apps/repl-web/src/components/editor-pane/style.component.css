@@ -1,0 +1,27 @@
+/* PANE */
+
+.editorPane {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 3rem minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-secondary);
+}
+
+/* MAIN */
+
+.editorPane__panels {
+  min-height: 0;
+}
+
+.editorPane__panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.editorPane__panel[hidden] {
+  display: none;
+}
