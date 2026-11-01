@@ -1,299 +1,64 @@
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-} from "react";
-import {
-  useShdrPreview,
-  type UseShdrPreviewOptions,
-} from "#/hooks/use-shdr-preview";
-import s from "./style.module.css";
+import { useMemo, type CSSProperties } from "react";
+import type { CompiledFragmentArtifact } from "shdr";
+import { useShdrPreview } from "#/hooks/use-shdr-preview";
+import type { Uniform } from "../../shared/uniforms";
 import {
   useDrawerMode,
   useHeightRatio,
   usePlaying,
-  usePreviewActions,
   useWidthRatio,
 } from "../../stores/preview";
-import { RuntimeControls } from "./runtime-controls";
 import { toRuntimeUniforms } from "./uniform-controls";
-import type { Uniform } from "../../shared/uniforms";
+import PreviewHeader from "./preview-header";
+import RuntimeControls from "./runtime-controls";
+import "./style.component.css";
 
-export interface PreviewHeaderProps {
-  playing: boolean;
-  onPlayingChange: (playing: boolean) => void;
-  widthRatio: number;
-  onWidthRatioChange: (ratio: number) => void;
-  heightRatio: number;
-  onHeightRatioChange: (ratio: number) => void;
-}
-
-interface RatioInputProps {
-  name: string;
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}
-
-function RatioInput({ name, label, value, onChange }: RatioInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (input && document.activeElement !== input) input.value = String(value);
-  }, [value]);
-
-  return (
-    <label className={s.ratioField}>
-      <span className={s.srOnly}>{label}</span>
-      <input
-        className={s.ratioInput}
-        name={name}
-        type="number"
-        min="0"
-        step="any"
-        inputMode="decimal"
-        defaultValue={value}
-        ref={inputRef}
-        onChange={(event) => {
-          const ratio = Number(event.currentTarget.value);
-          if (Number.isFinite(ratio) && ratio > 0) onChange(ratio);
-        }}
-        onBlur={(event) => {
-          event.currentTarget.value = String(value);
-        }}
-      />
-    </label>
-  );
-}
-
-export function PreviewHeader({
-  playing,
-  onPlayingChange,
-  widthRatio,
-  onWidthRatioChange,
-  heightRatio,
-  onHeightRatioChange,
-}: PreviewHeaderProps) {
-  const label = playing ? "Pause" : "Play";
-  const Icon = playing ? IconPause : IconPlay;
-  const sizeLabelId = useId();
-  const { setDrawerMode } = usePreviewActions();
-
-  function onControlsClick() {
-    setDrawerMode((mode) => (mode === "controls" ? "closed" : "controls"));
-  }
-
-  return (
-    <div className={s.header}>
-      <button onClick={onControlsClick}>Controls</button>
-      <div
-        className={s.ratioControls}
-        role="group"
-        aria-labelledby={sizeLabelId}
-      >
-        <span id={sizeLabelId} className={s.ratioGroupLabel}>
-          Size
-        </span>
-        <RatioInput
-          name="widthRatio"
-          label="Width ratio"
-          value={widthRatio}
-          onChange={onWidthRatioChange}
-        />
-        <span className={s.ratioSeparator} aria-hidden="true">
-          ×
-        </span>
-        <RatioInput
-          name="heightRatio"
-          label="Height ratio"
-          value={heightRatio}
-          onChange={onHeightRatioChange}
-        />
-      </div>
-      <div className={s.vr}></div>
-      <button
-        className={s.button}
-        type="button"
-        aria-label={`${label} preview`}
-        onClick={() => onPlayingChange(!playing)}
-      >
-        <Icon />
-      </button>
-    </div>
-  );
-}
-
-function IconPlay() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path
-        d="M4 2L16 10L4 18V2Z"
-        fill="none"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        stroke-linejoin="round"
-        stroke="currentColor"
-      />
-    </svg>
-  );
-}
-
-function IconPause() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path
-        d="M4 3H8V17H4V3ZM12 3H16V17H12V3Z"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </svg>
-  );
-}
-
-export interface PreviewMainProps extends UseShdrPreviewOptions {
-  widthRatio: number;
-  heightRatio: number;
-}
-
-interface PreviewCanvasSurfaceProps {
-  previewRef: RefObject<HTMLDivElement | null>;
-  widthRatio: number;
-  heightRatio: number;
-}
-
-export function PreviewMain({
-  widthRatio,
-  heightRatio,
-  ...props
-}: PreviewMainProps) {
-  const { hostRef, runtimeUniforms, runtimeValues, onRuntimeValueChange } =
-    useShdrPreview(props);
-
-  return (
-    <>
-      <div className={s.main}>
-        <PreviewCanvasSurface
-          previewRef={hostRef}
-          widthRatio={widthRatio}
-          heightRatio={heightRatio}
-        />
-      </div>
-      <RuntimeControls
-        uniforms={runtimeUniforms}
-        values={runtimeValues}
-        onValueChange={onRuntimeValueChange}
-      />
-    </>
-  );
-}
-
-export interface PreviewCanvasProps extends UseShdrPreviewOptions {
-  widthRatio: number;
-  heightRatio: number;
-}
-
-function PreviewCanvasSurface({
-  previewRef,
-  widthRatio,
-  heightRatio,
-}: PreviewCanvasSurfaceProps) {
-  return (
-    <div
-      className={s.root}
-      ref={previewRef}
-      style={
-        {
-          aspectRatio: `${widthRatio} / ${heightRatio}`,
-          "--preview-aspect-ratio": widthRatio / heightRatio,
-        } as CSSProperties
-      }
-    />
-  );
-}
-
-export function PreviewCanvas({
-  widthRatio,
-  heightRatio,
-  ...props
-}: PreviewCanvasProps) {
-  const { hostRef } = useShdrPreview(props);
-  return (
-    <PreviewCanvasSurface
-      previewRef={hostRef}
-      widthRatio={widthRatio}
-      heightRatio={heightRatio}
-    />
-  );
-}
-
-function ConnectedPreviewHeader() {
-  const playing = usePlaying();
-  const widthRatio = useWidthRatio();
-  const heightRatio = useHeightRatio();
-  const { setPlaying, setWidthRatio, setHeightRatio } = usePreviewActions();
-
-  return (
-    <PreviewHeader
-      playing={playing}
-      onPlayingChange={setPlaying}
-      widthRatio={widthRatio}
-      onWidthRatioChange={setWidthRatio}
-      heightRatio={heightRatio}
-      onHeightRatioChange={setHeightRatio}
-    />
-  );
-}
-
-interface ConnectedPreviewMainProps extends Omit<
-  PreviewMainProps,
-  "runtimeUniforms" | "playing" | "widthRatio" | "heightRatio"
-> {
+interface PreviewProps {
+  artifact: CompiledFragmentArtifact;
   appliedUniforms: readonly Uniform[];
+  onError: (error: unknown) => void;
 }
 
-function ConnectedPreviewMain({
+export default function Preview({
+  artifact,
   appliedUniforms,
-  ...props
-}: ConnectedPreviewMainProps) {
+  onError,
+}: PreviewProps) {
   const playing = usePlaying();
-  const widthRatio = useWidthRatio();
-  const heightRatio = useHeightRatio();
   const runtimeUniforms = useMemo(
     () => toRuntimeUniforms(appliedUniforms),
     [appliedUniforms],
   );
+  const {
+    hostRef,
+    runtimeUniforms: installedUniforms,
+    runtimeValues,
+    onRuntimeValueChange,
+  } = useShdrPreview({ artifact, runtimeUniforms, playing, onError });
 
-  return (
-    <PreviewMain
-      {...props}
-      runtimeUniforms={runtimeUniforms}
-      playing={playing}
-      widthRatio={widthRatio}
-      heightRatio={heightRatio}
-    />
-  );
-}
-
-function PreviewPane({ children }: { children: ReactNode }) {
   const mode = useDrawerMode();
 
+  const widthRatio = useWidthRatio();
+  const heightRatio = useHeightRatio();
+  const canvasStyle = {
+    "--preview-aspect-ratio": widthRatio / heightRatio,
+  } as CSSProperties;
+
   return (
-    <div className={s.pane} data-drawer-mode={mode}>
-      {children}
+    <div className="previewPane" data-drawer-mode={mode}>
+      <div className="previewPane__main">
+        <div
+          className="previewPane__canvas"
+          ref={hostRef}
+          style={canvasStyle}
+        />
+      </div>
+      <RuntimeControls
+        uniforms={installedUniforms}
+        values={runtimeValues}
+        onValueChange={onRuntimeValueChange}
+      />
+      <PreviewHeader />
     </div>
   );
 }
-
-const Parent = {
-  Pane: PreviewPane,
-  Header: ConnectedPreviewHeader,
-  Main: ConnectedPreviewMain,
-};
-export default Parent;

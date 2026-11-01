@@ -28,14 +28,11 @@ function Home() {
         />
       </AppPane>
       {artifact && (
-        <Preview.Pane>
-          <Preview.Main
-            artifact={artifact}
-            appliedUniforms={appliedUniforms}
-            onError={onPreviewError}
-          />
-          <Preview.Header />
-        </Preview.Pane>
+        <Preview
+          artifact={artifact}
+          appliedUniforms={appliedUniforms}
+          onError={onPreviewError}
+        />
       )}
     </AppLayout>
   );
