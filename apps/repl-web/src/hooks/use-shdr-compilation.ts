@@ -85,6 +85,8 @@ const initialCompilation = compileSource(initialSources, []);
 
 export interface UseShdrCompilationResult {
   artifact: CompiledFragmentArtifact | null;
+  /** Uniforms from the last successful apply, never the editor draft. */
+  appliedUniforms: readonly Uniform[];
   compileError: string | null;
   runtimeError: string | null;
   onChange: (document: ShaderDocument, source: string) => void;
@@ -104,6 +106,9 @@ export function useShdrCompilation(
     initialCompilation.error,
   );
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>(
+    [],
+  );
 
   const onChange = useCallback((document: ShaderDocument, source: string) => {
     if (document === "uniforms") return;
@@ -119,6 +124,13 @@ export function useShdrCompilation(
     if (!compilation.artifact) return;
 
     setRuntimeError(null);
+    // Copy the successful apply snapshot. Draft edits remain local to the
+    // editor and cannot change the working preview controls.
+    setAppliedUniforms(uniforms.map((uniform) => ({
+      ...uniform,
+      float: { ...uniform.float },
+      color: { ...uniform.color },
+    })));
     setArtifact(compilation.artifact);
   }, [uniforms]);
 
@@ -151,6 +163,7 @@ export function useShdrCompilation(
 
   return {
     artifact,
+    appliedUniforms,
     compileError,
     runtimeError,
     onChange,

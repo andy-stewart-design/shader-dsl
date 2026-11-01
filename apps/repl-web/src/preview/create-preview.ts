@@ -17,6 +17,8 @@ export interface PreviewHandle {
   readonly canvas: HTMLCanvasElement;
   readonly setShader: Renderer["setShader"];
   readonly setPlaying: Renderer["setPlaying"];
+  readonly setUniforms: Renderer["setUniforms"];
+  readonly resetUniforms: Renderer["resetUniforms"];
   readonly draw: Renderer["draw"];
   readonly cancelPendingShader: Renderer["cancelPendingShader"];
   readonly destroy: () => void;
@@ -126,6 +128,8 @@ export async function createPreview({
       canvas,
       setShader: activeRenderer.setShader.bind(activeRenderer),
       setPlaying: activeRenderer.setPlaying.bind(activeRenderer),
+      setUniforms: activeRenderer.setUniforms.bind(activeRenderer),
+      resetUniforms: activeRenderer.resetUniforms.bind(activeRenderer),
       draw: activeRenderer.draw.bind(activeRenderer),
       cancelPendingShader:
         activeRenderer.cancelPendingShader.bind(activeRenderer),

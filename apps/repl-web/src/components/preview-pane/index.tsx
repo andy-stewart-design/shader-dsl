@@ -1,9 +1,16 @@
-import { useId, type CSSProperties } from "react";
+import {
+  useId,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import {
   useShdrPreview,
   type UseShdrPreviewOptions,
 } from "#/hooks/use-shdr-preview";
 import s from "./style.module.css";
+import { useDrawerMode, usePreviewActions } from "./state";
+import { RuntimeControls } from "./runtime-controls";
 
 export interface PreviewHeaderProps {
   playing: boolean;
@@ -58,9 +65,15 @@ export function PreviewHeader({
   const label = playing ? "Pause" : "Play";
   const Icon = playing ? IconPause : IconPlay;
   const sizeLabelId = useId();
+  const { setDrawerMode } = usePreviewActions();
+
+  function onControlsClick() {
+    setDrawerMode((mode) => (mode === "controls" ? "closed" : "controls"));
+  }
 
   return (
     <div className={s.header}>
+      <button onClick={onControlsClick}>Controls</button>
       <div
         className={s.ratioControls}
         role="group"
@@ -132,19 +145,40 @@ export interface PreviewMainProps extends UseShdrPreviewOptions {
   heightRatio: number;
 }
 
+interface PreviewCanvasSurfaceProps {
+  previewRef: RefObject<HTMLDivElement | null>;
+  widthRatio: number;
+  heightRatio: number;
+}
+
+
 export function PreviewMain({
   widthRatio,
   heightRatio,
   ...props
 }: PreviewMainProps) {
+  const {
+    hostRef,
+    runtimeUniforms,
+    runtimeValues,
+    onRuntimeValueChange,
+  } = useShdrPreview(props);
+
   return (
-    <div className={s.main}>
-      <PreviewCanvas
-        {...props}
-        widthRatio={widthRatio}
-        heightRatio={heightRatio}
+    <>
+      <div className={s.main}>
+        <PreviewCanvasSurface
+          previewRef={hostRef}
+          widthRatio={widthRatio}
+          heightRatio={heightRatio}
+        />
+      </div>
+      <RuntimeControls
+        uniforms={runtimeUniforms}
+        values={runtimeValues}
+        onValueChange={onRuntimeValueChange}
       />
-    </div>
+    </>
   );
 }
 
@@ -153,13 +187,11 @@ export interface PreviewCanvasProps extends UseShdrPreviewOptions {
   heightRatio: number;
 }
 
-export function PreviewCanvas({
+function PreviewCanvasSurface({
+  previewRef,
   widthRatio,
   heightRatio,
-  ...props
-}: PreviewCanvasProps) {
-  const previewRef = useShdrPreview(props);
-
+}: PreviewCanvasSurfaceProps) {
   return (
     <div
       className={s.root}
@@ -174,5 +206,30 @@ export function PreviewCanvas({
   );
 }
 
-const Parent = { Header: PreviewHeader, Main: PreviewMain };
+export function PreviewCanvas({
+  widthRatio,
+  heightRatio,
+  ...props
+}: PreviewCanvasProps) {
+  const { hostRef } = useShdrPreview(props);
+  return (
+    <PreviewCanvasSurface
+      previewRef={hostRef}
+      widthRatio={widthRatio}
+      heightRatio={heightRatio}
+    />
+  );
+}
+
+function PreviewPane({ children }: { children: ReactNode }) {
+  const mode = useDrawerMode();
+
+  return (
+    <div className={s.pane} data-drawer-mode={mode}>
+      {children}
+    </div>
+  );
+}
+
+const Parent = { Pane: PreviewPane, Header: PreviewHeader, Main: PreviewMain };
 export default Parent;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "#/components/app-layout";
 import { AppPane } from "#/components/app-pane";
@@ -6,6 +6,7 @@ import Editor from "#/components/editor-pane";
 import Preview from "#/components/preview-pane";
 import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
 import type { Uniform } from "#/components/uniforms-pane/types";
+import { toRuntimeUniforms } from "#/components/preview-pane/uniform-controls";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -16,12 +17,18 @@ function Home() {
   const [uniforms, setUniforms] = useState<Uniform[]>([]);
   const {
     artifact,
+    appliedUniforms,
     compileError,
     runtimeError,
     onChange,
     onPreviewError,
     apply,
   } = useShdrCompilation(uniforms);
+
+  const runtimeUniforms = useMemo(
+    () => toRuntimeUniforms(appliedUniforms),
+    [appliedUniforms],
+  );
 
   return (
     <AppLayout>
@@ -37,27 +44,26 @@ function Home() {
           runtimeError={runtimeError}
         />
       </AppPane>
-      <AppPane>
-        {artifact && (
-          <>
-            <Preview.Header
-              playing={playing}
-              onPlayingChange={setPlaying}
-              widthRatio={widthRatio}
-              onWidthRatioChange={setWidthRatio}
-              heightRatio={heightRatio}
-              onHeightRatioChange={setHeightRatio}
-            />
-            <Preview.Main
-              artifact={artifact}
-              playing={playing}
-              onError={onPreviewError}
-              widthRatio={widthRatio}
-              heightRatio={heightRatio}
-            />
-          </>
-        )}
-      </AppPane>
+      {artifact && (
+        <Preview.Pane>
+          <Preview.Main
+            artifact={artifact}
+            runtimeUniforms={runtimeUniforms}
+            playing={playing}
+            onError={onPreviewError}
+            widthRatio={widthRatio}
+            heightRatio={heightRatio}
+          />
+          <Preview.Header
+            playing={playing}
+            onPlayingChange={setPlaying}
+            widthRatio={widthRatio}
+            onWidthRatioChange={setWidthRatio}
+            heightRatio={heightRatio}
+            onHeightRatioChange={setHeightRatio}
+          />
+        </Preview.Pane>
+      )}
     </AppLayout>
   );
 }
