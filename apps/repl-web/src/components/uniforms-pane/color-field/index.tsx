@@ -10,7 +10,7 @@ interface ColorFieldProps {
   onColorChange: (value: string) => void;
 }
 
-export function ColorField({
+export default function ColorField({
   idPrefix,
   uniformName,
   draft,
@@ -41,7 +41,7 @@ export function ColorField({
             onChange={(event) => onColorChange(event.currentTarget.value)}
           />
         </label>
-        <label className={s.hexField}>
+        <label className={s.colorHexField}>
           <span className={s.srOnly}>Hex color</span>
           <input
             className={s.input}

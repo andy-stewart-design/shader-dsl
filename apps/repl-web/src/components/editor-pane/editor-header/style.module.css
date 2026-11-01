@@ -1,6 +1,6 @@
 /* HEADER */
 
-.editorPane .editorPane__header {
+.header {
   display: flex;
   min-width: 0;
   border-bottom: 1px solid var(--editor-border);
@@ -8,7 +8,7 @@
   padding-inline: 1rem;
 }
 
-.editorPane .editorPane__tabList {
+.tabList {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -16,20 +16,20 @@
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.editorPane .editorPane__tabList::-webkit-scrollbar {
-  display: none;
-}
-
-.editorPane .editorPane__actions {
+.actions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   min-width: 0;
 }
 
-.editorPane .editorPane__tab {
+.tab {
   flex: 0 0 auto;
   position: relative;
   padding: 0.625rem 0.875rem;
@@ -40,30 +40,30 @@
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-}
 
-.editorPane .editorPane__tab[data-active] {
-  color: var(--editor-foreground);
-}
+  &[data-active] {
+    color: var(--editor-foreground);
 
-.editorPane .editorPane__tab[data-active]::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  background: var(--editor-foreground);
-  content: "";
-}
+    &::after {
+      position: absolute;
+      right: 0;
+      bottom: -1px;
+      left: 0;
+      height: 2px;
+      background: var(--editor-foreground);
+      content: "";
+    }
+  }
 
-.editorPane .editorPane__tab:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: -2px;
+  &:focus-visible {
+    outline: 2px solid var(--editor-focus);
+    outline-offset: -2px;
+  }
 }
 
 /* RUN BUTTON */
 
-.editorPane .editorPane__runButton {
+.runButton {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -76,29 +76,29 @@
   font-weight: 500;
   line-height: 1.4;
   cursor: pointer;
+
+  &:hover {
+    background: var(--editor-control-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--editor-focus);
+    outline-offset: 1px;
+  }
 }
 
-.editorPane .editorPane__runButton:hover {
-  background: var(--editor-control-hover);
-}
-
-.editorPane .editorPane__runButton:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 1px;
-}
-
-.editorPane .editorPane__shortcut {
+.shortcut {
   color: var(--editor-comment);
   white-space: nowrap;
-}
 
-.editorPane .editorPane__shortcut kbd {
-  font: inherit;
-  font-size: 0.6875rem;
+  kbd {
+    font: inherit;
+    font-size: 0.6875rem;
+  }
 }
 
 @media (max-width: 640px) {
-  .editorPane .editorPane__shortcut {
+  .shortcut {
     display: none;
   }
 }

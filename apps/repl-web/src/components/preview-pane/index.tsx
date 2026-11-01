@@ -11,7 +11,7 @@ import {
 import { toRuntimeUniforms } from "./uniform-controls";
 import PreviewHeader from "./preview-header";
 import RuntimeControls from "./runtime-controls";
-import "./style.component.css";
+import s from "./style.module.css";
 
 interface PreviewProps {
   artifact: CompiledFragmentArtifact;
@@ -45,10 +45,10 @@ export default function Preview({
   } as CSSProperties;
 
   return (
-    <div className="previewPane" data-drawer-mode={mode}>
-      <div className="previewPane__main">
+    <div className={s.pane} data-drawer-mode={mode}>
+      <div className={s.main}>
         <div
-          className="previewPane__canvas"
+          className={s.canvas}
           ref={hostRef}
           style={canvasStyle}
         />

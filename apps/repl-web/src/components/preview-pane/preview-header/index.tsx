@@ -5,7 +5,7 @@ import {
   usePreviewActions,
   useWidthRatio,
 } from "../../../stores/preview";
-import "./style.component.css";
+import s from "./style.module.css";
 
 interface RatioInputProps {
   name: string;
@@ -23,10 +23,10 @@ function RatioInput({ name, label, value, onChange }: RatioInputProps) {
   }, [value]);
 
   return (
-    <label className="previewPane__ratioField">
-      <span className="previewPane__srOnly">{label}</span>
+    <label className={s.ratioField}>
+      <span className={s.srOnly}>{label}</span>
       <input
-        className="previewPane__ratioInput"
+        className={s.ratioInput}
         name={name}
         type="number"
         min="0"
@@ -90,14 +90,14 @@ export default function PreviewHeader() {
   }
 
   return (
-    <div className="previewPane__header">
+    <div className={s.header}>
       <button onClick={onControlsClick}>Controls</button>
       <div
-        className="previewPane__ratioControls"
+        className={s.ratioControls}
         role="group"
         aria-labelledby={sizeLabelId}
       >
-        <span id={sizeLabelId} className="previewPane__ratioGroupLabel">
+        <span id={sizeLabelId} className={s.ratioGroupLabel}>
           Size
         </span>
         <RatioInput
@@ -106,7 +106,7 @@ export default function PreviewHeader() {
           value={widthRatio}
           onChange={setWidthRatio}
         />
-        <span className="previewPane__ratioSeparator" aria-hidden="true">
+        <span className={s.ratioSeparator} aria-hidden="true">
           ×
         </span>
         <RatioInput
@@ -116,9 +116,9 @@ export default function PreviewHeader() {
           onChange={setHeightRatio}
         />
       </div>
-      <div className="previewPane__vr" />
+      <div className={s.vr} />
       <button
-        className="previewPane__button"
+        className={s.button}
         type="button"
         aria-label={`${label} preview`}
         onClick={() => setPlaying(!playing)}

@@ -1,6 +1,6 @@
 /* STATUS */
 
-.editorPane .editorPane__status {
+.status {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -16,7 +16,7 @@
   pointer-events: none;
 }
 
-.editorPane .editorPane__error {
+.error {
   max-height: min(14rem, 35vh);
   min-height: 0;
   margin: 0;

@@ -1,10 +1,10 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { useDraftActions, useDraftUniforms } from "../../stores/draft";
-import { UniformsPane } from "../uniforms-pane";
+import UniformsPane from "../uniforms-pane";
 import CodeEditor from "./code-editor";
 import EditorHeader from "./editor-header";
 import EditorStatus from "./editor-status";
-import "./style.component.css";
+import s from "./style.module.css";
 
 export interface EditorProps {
   onApply: () => void;
@@ -21,17 +21,17 @@ export default function Editor({
   const { setUniforms } = useDraftActions();
 
   return (
-    <Tabs.Root className="editorPane" defaultValue="main">
+    <Tabs.Root className={s.pane} defaultValue="main">
       <EditorHeader onApply={onApply} />
-      <div className="editorPane__panels">
-        <Tabs.Panel className="editorPane__panel" value="main" keepMounted>
+      <div className={s.panels}>
+        <Tabs.Panel className={s.panel} value="main" keepMounted>
           <CodeEditor document="main" />
         </Tabs.Panel>
-        <Tabs.Panel className="editorPane__panel" value="utils" keepMounted>
+        <Tabs.Panel className={s.panel} value="utils" keepMounted>
           <CodeEditor document="utils" />
         </Tabs.Panel>
         <Tabs.Panel
-          className="editorPane__panel"
+          className={s.panel}
           value="uniforms"
           keepMounted
         >

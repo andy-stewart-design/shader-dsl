@@ -5,11 +5,11 @@ import {
   colorToValidHex,
   nameError,
   numberDraftError,
-} from "./helpers";
-import { ColorField } from "./color-field";
-import { FloatFields } from "./float-fields";
-import { TypeSelect } from "./type-select";
-import type { Uniform, UniformType } from "../../shared/uniforms";
+} from "../helpers";
+import ColorField from "../color-field";
+import FloatFields from "../float-fields";
+import TypeSelect from "../type-select";
+import type { Uniform, UniformType } from "../../../shared/uniforms";
 import s from "./style.module.css";
 
 interface UniformRowProps {
@@ -19,7 +19,7 @@ interface UniformRowProps {
   onRemove: () => void;
 }
 
-export function UniformRow({
+export default function UniformRow({
   uniform,
   duplicateName,
   onChange,
@@ -97,8 +97,13 @@ export function UniformRow({
 
   return (
     <div className={s.row} role="listitem">
-      <label className={s.field}>
-        <span className={s.fieldLabel}>Name</span>
+      <TypeSelect
+        value={uniform.type}
+        uniformName={uniform.name}
+        onChange={updateType}
+      />
+      <label className={s.name}>
+        <span className={s.label}>Name</span>
         <input
           className={s.input}
           id={`${idPrefix}-name`}
@@ -119,17 +124,11 @@ export function UniformRow({
         ) : null}
       </label>
 
-      <TypeSelect
-        value={uniform.type}
-        uniformName={uniform.name}
-        onChange={updateType}
-      />
+      <div>{/*{typeFields}*/}</div>
 
-      {typeFields}
-
-      <div className={s.removeButtonContainer}>
+      <div className={s.removeContainer}>
         <button
-          className={s.removeButton}
+          className={s.remove}
           type="button"
           aria-label={`Remove uniform ${uniform.name || "unnamed"}`}
           onClick={onRemove}

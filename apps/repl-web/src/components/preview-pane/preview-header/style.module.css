@@ -1,6 +1,6 @@
 /* HEADER */
 
-.previewPane .previewPane__header {
+.header {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -10,20 +10,20 @@
   border-block-start: 1px solid var(--editor-border);
 }
 
-.previewPane .previewPane__ratioControls {
+.ratioControls {
   display: flex;
   align-items: center;
   gap: 0.375rem;
   min-width: 0;
 }
 
-.previewPane .previewPane__ratioGroupLabel {
+.ratioGroupLabel {
   color: var(--editor-comment);
   font-size: 0.75rem;
   white-space: nowrap;
 }
 
-.previewPane .previewPane__ratioField {
+.ratioField {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -32,7 +32,7 @@
   white-space: nowrap;
 }
 
-.previewPane .previewPane__ratioInput {
+.ratioInput {
   block-size: 2rem;
   inline-size: 2.5rem;
   padding: 0.25rem 0.375rem;
@@ -44,20 +44,20 @@
   text-align: center;
   line-height: 1.4;
   -moz-appearance: textfield;
+
+  &:focus-visible {
+    outline: 2px solid var(--editor-focus);
+    outline-offset: 1px;
+  }
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
 }
 
-.previewPane .previewPane__ratioInput:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 1px;
-}
-
-.previewPane .previewPane__ratioInput::-webkit-inner-spin-button,
-.previewPane .previewPane__ratioInput::-webkit-outer-spin-button {
-  margin: 0;
-  -webkit-appearance: none;
-}
-
-.previewPane .previewPane__srOnly {
+.srOnly {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -69,18 +69,18 @@
   border: 0;
 }
 
-.previewPane .previewPane__ratioSeparator {
+.ratioSeparator {
   color: var(--editor-comment);
   user-select: none;
 }
 
-.previewPane .previewPane__vr {
+.vr {
   border-inline-start: 1px solid var(--editor-border);
   max-block-size: 2rem;
   height: 100%;
 }
 
-.previewPane .previewPane__button {
+.button {
   block-size: 2rem;
   inline-size: 2rem;
   background: var(--editor-control-background);
@@ -92,13 +92,13 @@
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
-}
 
-.previewPane .previewPane__button:hover {
-  background: var(--editor-control-hover);
-}
+  &:hover {
+    background: var(--editor-control-hover);
+  }
 
-.previewPane .previewPane__button:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 2px;
+  &:focus-visible {
+    outline: 2px solid var(--editor-focus);
+    outline-offset: 2px;
+  }
 }

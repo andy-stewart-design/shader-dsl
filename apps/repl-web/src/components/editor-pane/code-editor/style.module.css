@@ -1,6 +1,6 @@
 /* CODE EDITOR */
 
-.editorPane .editorPane__codeEditor {
+.codeEditor {
   height: 100%;
   min-height: 0;
   min-width: 0;

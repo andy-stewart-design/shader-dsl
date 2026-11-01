@@ -1,4 +1,4 @@
-import "./style.component.css";
+import s from "./style.module.css";
 
 export interface EditorStatusProps {
   compileError: string | null;
@@ -12,14 +12,14 @@ export default function EditorStatus({
   if (!compileError && !runtimeError) return null;
 
   return (
-    <div className="editorPane__status">
+    <div className={s.status}>
       {compileError ? (
-        <pre className="editorPane__error" role="alert">
+        <pre className={s.error} role="alert">
           {compileError}
         </pre>
       ) : null}
       {runtimeError ? (
-        <pre className="editorPane__error" role="alert">
+        <pre className={s.error} role="alert">
           Preview error: {runtimeError}
         </pre>
       ) : null}

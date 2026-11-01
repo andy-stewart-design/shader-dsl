@@ -4,7 +4,7 @@ import {
   useDraftSource,
   type DraftDocument,
 } from "../../../stores/draft";
-import "./style.component.css";
+import s from "./style.module.css";
 
 export interface CodeEditorProps {
   document: DraftDocument;
@@ -25,5 +25,5 @@ export default function CodeEditor({
     onChange: (nextSource) => setSource(document, nextSource),
   });
 
-  return <div className="editorPane__codeEditor" ref={editorRef} />;
+  return <div className={s.codeEditor} ref={editorRef} />;
 }

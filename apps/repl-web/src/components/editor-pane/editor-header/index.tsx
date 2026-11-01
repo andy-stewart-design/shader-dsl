@@ -1,6 +1,6 @@
 import { Tabs } from "@base-ui/react/tabs";
 import type { ComponentProps } from "react";
-import "./style.component.css";
+import s from "./style.module.css";
 
 interface EditorHeaderProps {
   onApply: () => void;
@@ -9,7 +9,7 @@ interface EditorHeaderProps {
 function RunButton({ onClick }: ComponentProps<"button">) {
   return (
     <button
-      className="editorPane__runButton"
+      className={s.runButton}
       type="button"
       onClick={onClick}
       aria-label="Evaluate"
@@ -17,7 +17,7 @@ function RunButton({ onClick }: ComponentProps<"button">) {
       title="Apply changes (Option + Return)"
     >
       <span>Run</span>
-      <span className="editorPane__shortcut" aria-hidden="true">
+      <span className={s.shortcut} aria-hidden="true">
         <kbd>⌥</kbd> + <kbd>↵</kbd>
       </span>
     </button>
@@ -26,19 +26,19 @@ function RunButton({ onClick }: ComponentProps<"button">) {
 
 export default function EditorHeader({ onApply }: EditorHeaderProps) {
   return (
-    <div className="editorPane__header">
-      <Tabs.List className="editorPane__tabList" activateOnFocus>
-        <Tabs.Tab className="editorPane__tab" value="main">
+    <div className={s.header}>
+      <Tabs.List className={s.tabList} activateOnFocus>
+        <Tabs.Tab className={s.tab} value="main">
           main
         </Tabs.Tab>
-        <Tabs.Tab className="editorPane__tab" value="utils">
+        <Tabs.Tab className={s.tab} value="utils">
           utils
         </Tabs.Tab>
-        <Tabs.Tab className="editorPane__tab" value="uniforms">
+        <Tabs.Tab className={s.tab} value="uniforms">
           uniforms
         </Tabs.Tab>
       </Tabs.List>
-      <div className="editorPane__actions">
+      <div className={s.actions}>
         <RunButton onClick={onApply} />
       </div>
     </div>

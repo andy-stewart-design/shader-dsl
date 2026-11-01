@@ -1,6 +1,6 @@
 import { Select } from "@base-ui/react/select";
 import { useId } from "react";
-import type { UniformType } from "../../shared/uniforms";
+import type { UniformType } from "../../../shared/uniforms";
 import s from "./style.module.css";
 
 const TYPE_OPTIONS: ReadonlyArray<{ label: string; value: UniformType }> = [
@@ -14,7 +14,7 @@ interface TypeSelectProps {
   onChange: (value: UniformType) => void;
 }
 
-export function TypeSelect({
+export default function TypeSelect({
   value,
   uniformName,
   onChange,
@@ -25,7 +25,7 @@ export function TypeSelect({
   const contextLabel = `Type for ${uniformName || "unnamed uniform"}`;
 
   return (
-    <div className={s.field}>
+    <div className={s.typeField}>
       <Select.Root<UniformType>
         value={value}
         items={TYPE_OPTIONS}
@@ -44,24 +44,30 @@ export function TypeSelect({
           aria-labelledby={`${typeLabelId} ${contextLabelId}`}
         >
           <Select.Value />
-          <Select.Icon className={s.selectIcon} aria-hidden="true">
+          <Select.Icon
+            className={s.selectIcon}
+            aria-hidden="true"
+          >
             ▾
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Positioner className={s.selectPositioner} sideOffset={4}>
-            <Select.Popup className={s.selectPopup}>
+          <Select.Positioner
+            className={s.typePositioner}
+            sideOffset={4}
+          >
+            <Select.Popup className={s.typePopup}>
               <Select.List>
                 {TYPE_OPTIONS.map((option) => (
                   <Select.Item
-                    className={s.selectItem}
+                    className={s.item}
                     key={option.value}
                     value={option.value}
                     label={option.label}
                   >
                     <Select.ItemText>{option.label}</Select.ItemText>
                     <Select.ItemIndicator
-                      className={s.selectIndicator}
+                      className={s.indicator}
                       aria-hidden="true"
                     >
                       ✓

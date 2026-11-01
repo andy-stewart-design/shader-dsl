@@ -42,7 +42,7 @@ function FloatInput({
     .join(" ");
 
   return (
-    <label className={s.field}>
+    <label className={s.floatField}>
       <span className={s.fieldLabel}>{label}</span>
       <input
         className={s.input}
@@ -60,7 +60,11 @@ function FloatInput({
         </span>
       ) : null}
       {additionalError ? (
-        <span className={s.error} id={additionalError.id} role="alert">
+        <span
+          className={s.error}
+          id={additionalError.id}
+          role="alert"
+        >
           {additionalError.message}
         </span>
       ) : null}
@@ -68,7 +72,7 @@ function FloatInput({
   );
 }
 
-export function FloatFields({
+export default function FloatFields({
   idPrefix,
   value,
   min,

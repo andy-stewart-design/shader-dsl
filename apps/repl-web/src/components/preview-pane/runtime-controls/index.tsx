@@ -1,5 +1,5 @@
 import type { RuntimeUniform } from "../uniform-controls";
-import "./style.component.css";
+import s from "./style.module.css";
 
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
@@ -14,7 +14,7 @@ export default function RuntimeControls({
 }: RuntimeControlsProps) {
   return (
     <div
-      className="previewPane__runtimeControls"
+      className={s.controls}
       aria-label="Runtime uniform controls"
     >
       <div>
