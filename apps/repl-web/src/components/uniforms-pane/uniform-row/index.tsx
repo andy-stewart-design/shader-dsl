@@ -140,7 +140,15 @@ export default function UniformRow({
             aria-label={`Remove uniform ${uniform.name || "unnamed"}`}
             onClick={onRemove}
           >
-            <span aria-hidden="true">×</span>
+            <span aria-hidden="true">
+              <svg viewBox="0 0 16 16" width={16} height={16} fill="none">
+                <path
+                  d="M4 4 L 12 12 M 12 4 L 4 12"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                />
+              </svg>
+            </span>
             <span className={s.srOnly}>Remove</span>
           </button>
         </div>

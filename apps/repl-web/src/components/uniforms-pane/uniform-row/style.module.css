@@ -24,8 +24,6 @@
 
   @media (width >= 1080px) {
     & > :is(.columnStart, .columnEnd) {
-      display: flex;
-      gap: 0.625rem;
       inline-size: unset;
     }
 
@@ -95,6 +93,9 @@
 }
 
 .remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   block-size: 2rem;
   inline-size: 2rem;
   border: 1px solid var(--editor-border);
