@@ -1,5 +1,3 @@
-/* COLOR FIELD */
-
 .colorField {
   display: flex;
   min-width: 0;
@@ -14,92 +12,8 @@
   line-height: 1.2;
 }
 
-.colorControls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.colorPickerLabel {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  block-size: 2rem;
-  inline-size: 2.25rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-
-  &:has(.colorPicker:focus-visible) {
-    outline: 2px solid var(--editor-focus);
-    outline-offset: 1px;
-  }
-}
-
-.colorPicker {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid var(--editor-focus);
-    outline-offset: 1px;
-  }
-}
-
-.colorHexField {
-  display: block;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.input {
-  width: 100%;
-  min-width: 0;
-  min-height: 2rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  background: var(--editor-control-background);
-  color: var(--editor-foreground);
-  font-size: 0.75rem;
-  line-height: 1.4;
-
-  &[aria-invalid="true"] {
-    border-color: var(--editor-invalid);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--editor-focus);
-    outline-offset: 1px;
-  }
-}
-
 .error {
   color: #ffb8f8;
   font-size: 0.6875rem;
   line-height: 1.25;
-}
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@container (max-width: 760px) {
-  .colorField {
-    grid-column: 1 / span 2;
-  }
 }

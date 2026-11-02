@@ -1,4 +1,14 @@
-import type { RuntimeUniform } from "../uniform-controls";
+import { useId, useState } from "react";
+import {
+  colorDraftError,
+  colorToValidHex,
+} from "#/components/uniforms-pane/helpers";
+import ColorInput from "#/components/core/color-input";
+import {
+  colorHexToVec3,
+  formatColorVec3,
+  type RuntimeUniform,
+} from "../uniform-controls";
 import s from "./style.module.css";
 
 interface RuntimeControlsProps {
@@ -30,6 +40,7 @@ export default function RuntimeControls({
               key={uniform.name}
               value={value}
               uniform={uniform}
+              uniformsSnapshot={uniforms}
               onValueChange={onValueChange}
             />
           );
@@ -52,23 +63,28 @@ function FloatUniformInput({
   onValueChange,
 }: FloatUniformInputProps) {
   const currentValue = typeof value === "number" ? value : uniform.defaultValue;
+  const labelId = `runtime-${useId().replaceAll(":", "")}-label`;
 
   return (
-    <label key={uniform.name}>
-      <span>
-        {uniform.name} <output>{currentValue.toFixed(2)}</output>
-      </span>
+    <div className={s.row}>
+      <div className={s.readout} id={labelId}>
+        <span>{uniform.name}</span>
+        <output>{currentValue.toFixed(2)}</output>
+      </div>
       <input
+        className={s.range}
         type="range"
         min={uniform.min}
         max={uniform.max}
         step="any"
-        value={typeof value === "number" ? value : uniform.defaultValue}
+        value={currentValue}
+        aria-label={`Adjust ${uniform.name}`}
+        aria-labelledby={labelId}
         onChange={(event) =>
           onValueChange(uniform.name, Number(event.currentTarget.value))
         }
       />
-    </label>
+    </div>
   );
 }
 
@@ -76,24 +92,55 @@ type ColorUniform = Extract<RuntimeUniform, { type: "color" }>;
 interface ColorUniformInputProps {
   value: string | number;
   uniform: ColorUniform;
+  uniformsSnapshot: readonly RuntimeUniform[];
   onValueChange: (name: string, value: number | string) => void;
 }
 
 function ColorUniformInput({
   value,
   uniform,
+  uniformsSnapshot,
   onValueChange,
 }: ColorUniformInputProps) {
+  const idPrefix = `runtime-${useId().replaceAll(":", "")}`;
+  const currentColor =
+    typeof value === "string" && colorHexToVec3(value)
+      ? (colorToValidHex(value) ?? uniform.defaultValue)
+      : uniform.defaultValue;
+  const [draft, setDraft] = useState(currentColor);
+  const [previousSnapshot, setPreviousSnapshot] = useState(uniformsSnapshot);
+
+  // A new installed snapshot is the reset boundary. Runtime edits keep the
+  // same snapshot identity, so they cannot replace a draft while it is typed.
+  if (previousSnapshot !== uniformsSnapshot) {
+    setPreviousSnapshot(uniformsSnapshot);
+    setDraft(currentColor);
+  }
+
+  const error = colorDraftError(draft);
+
   return (
-    <label key={uniform.name}>
-      {uniform.name}
-      <input
-        type="color"
-        value={typeof value === "string" ? value : uniform.defaultValue}
-        onChange={(event) =>
-          onValueChange(uniform.name, event.currentTarget.value)
-        }
+    <div className={s.row}>
+      <div className={s.readout}>
+        <span>{uniform.name}</span>
+        <output>{formatColorVec3(currentColor, 2)}</output>
+      </div>
+      <ColorInput
+        idPrefix={idPrefix}
+        uniformName={uniform.name}
+        draft={draft}
+        validColor={currentColor}
+        error={error}
+        onDraftChange={(nextDraft) => {
+          setDraft(nextDraft);
+          const valid = colorToValidHex(nextDraft);
+          if (valid) onValueChange(uniform.name, valid);
+        }}
+        onColorChange={(color) => {
+          setDraft(color);
+          onValueChange(uniform.name, color);
+        }}
       />
-    </label>
+    </div>
   );
 }

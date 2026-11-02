@@ -22,7 +22,29 @@ export type RuntimeUniform =
     };
 
 export type RuntimeUniformValue = number | string;
-export type RuntimeUniformValues = Readonly<Record<string, RuntimeUniformValue>>;
+export type RuntimeUniformValues = Readonly<
+  Record<string, RuntimeUniformValue>
+>;
+export type ColorVec3 = readonly [number, number, number];
+
+/** Converts a valid hex color to the exact normalized values sent to the GPU. */
+export function colorHexToVec3(value: string): ColorVec3 | null {
+  const hex = colorToValidHex(value);
+  if (!hex) return null;
+
+  const rgb = Number.parseInt(hex.slice(1), 16);
+  return [
+    ((rgb >> 16) & 0xff) / 255,
+    ((rgb >> 8) & 0xff) / 255,
+    (rgb & 0xff) / 255,
+  ];
+}
+
+export function formatColorVec3(value: string, precision = 3): string {
+  const color = colorHexToVec3(value);
+  if (!color) return "vec3(—)";
+  return `vec3(${color.map((channel) => channel.toFixed(precision)).join(", ")})`;
+}
 
 const F32_MAX = Math.fround(3.4028234663852886e38);
 
@@ -47,9 +69,7 @@ function fallbackRange(value: number): { min: number; max: number } {
   if (isFiniteFloat32(min) && isFiniteFloat32(max) && min < max)
     return { min, max };
   // Keep the control finite even for values near the largest f32 magnitude.
-  return value >= 0
-    ? { min: 0, max: value || 1 }
-    : { min: value, max: 0 };
+  return value >= 0 ? { min: 0, max: value || 1 } : { min: value, max: 0 };
 }
 
 /** Builds controls only from the uniform snapshot that was successfully applied. */
@@ -64,18 +84,21 @@ export function toRuntimeUniforms(
       const draftMin = finiteFloat(uniform.min);
       const draftMax = finiteFloat(uniform.max);
       const range =
-        draftMin !== undefined &&
-        draftMax !== undefined &&
-        draftMin < draftMax
-          ? { min: Math.min(draftMin, defaultValue), max: Math.max(draftMax, defaultValue) }
+        draftMin !== undefined && draftMax !== undefined && draftMin < draftMax
+          ? {
+              min: Math.min(draftMin, defaultValue),
+              max: Math.max(draftMax, defaultValue),
+            }
           : fallbackRange(defaultValue);
-      return [{
-        name: uniform.name,
-        type: "float",
-        defaultValue,
-        min: range.min,
-        max: range.max,
-      }];
+      return [
+        {
+          name: uniform.name,
+          type: "float",
+          defaultValue,
+          min: range.min,
+          max: range.max,
+        },
+      ];
     }
 
     const defaultValue = colorToValidHex(uniform.draft);
@@ -107,15 +130,8 @@ export function runtimeValuesToPatch(
     ) {
       patch[uniform.name] = value;
     } else if (uniform.type === "color" && typeof value === "string") {
-      const hex = colorToValidHex(value);
-      if (hex) {
-        const rgb = Number.parseInt(hex.slice(1), 16);
-        patch[uniform.name] = [
-          ((rgb >> 16) & 0xff) / 255,
-          ((rgb >> 8) & 0xff) / 255,
-          (rgb & 0xff) / 255,
-        ];
-      }
+      const color = colorHexToVec3(value);
+      if (color) patch[uniform.name] = color;
     }
   }
   return patch;
