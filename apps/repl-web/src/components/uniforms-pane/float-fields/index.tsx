@@ -60,11 +60,7 @@ function FloatInput({
         </span>
       ) : null}
       {additionalError ? (
-        <span
-          className={s.error}
-          id={additionalError.id}
-          role="alert"
-        >
+        <span className={s.error} id={additionalError.id} role="alert">
           {additionalError.message}
         </span>
       ) : null}
@@ -88,7 +84,7 @@ export default function FloatFields({
   const rangeErrorId = `${idPrefix}-range-error`;
 
   return (
-    <>
+    <div className={s.container}>
       <FloatInput
         idPrefix={idPrefix}
         label="Value"
@@ -117,6 +113,6 @@ export default function FloatFields({
         }
         onChange={onMaxChange}
       />
-    </>
+    </div>
   );
 }

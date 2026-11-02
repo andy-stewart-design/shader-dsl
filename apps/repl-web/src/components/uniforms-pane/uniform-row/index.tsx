@@ -97,45 +97,53 @@ export default function UniformRow({
 
   return (
     <div className={s.row} role="listitem">
-      <TypeSelect
-        value={uniform.type}
-        uniformName={uniform.name}
-        onChange={updateType}
-      />
-      <label className={s.name}>
-        <span className={s.label}>Name</span>
-        <input
-          className={s.input}
-          id={`${idPrefix}-name`}
-          type="text"
-          value={uniform.name}
-          aria-invalid={uniformNameError ? true : undefined}
-          aria-describedby={
-            uniformNameError ? `${idPrefix}-name-error` : undefined
-          }
-          onChange={(event) =>
-            onChange({ ...uniform, name: event.currentTarget.value })
-          }
+      <div className={s.columnStart}>
+        <TypeSelect
+          value={uniform.type}
+          uniformName={uniform.name}
+          onChange={updateType}
         />
-        {uniformNameError ? (
-          <span className={s.error} id={`${idPrefix}-name-error`} role="alert">
-            {uniformNameError}
-          </span>
-        ) : null}
-      </label>
+        <label className={s.name}>
+          <span className={s.label}>Name</span>
+          <input
+            className={s.input}
+            id={`${idPrefix}-name`}
+            type="text"
+            value={uniform.name}
+            aria-invalid={uniformNameError ? true : undefined}
+            aria-describedby={
+              uniformNameError ? `${idPrefix}-name-error` : undefined
+            }
+            onChange={(event) =>
+              onChange({ ...uniform, name: event.currentTarget.value })
+            }
+          />
+          {uniformNameError ? (
+            <span
+              className={s.error}
+              id={`${idPrefix}-name-error`}
+              role="alert"
+            >
+              {uniformNameError}
+            </span>
+          ) : null}
+        </label>
+      </div>
 
-      <div>{/*{typeFields}*/}</div>
+      <div className={s.columnEnd}>
+        <div className={s.typeFields}>{typeFields}</div>
 
-      <div className={s.removeContainer}>
-        <button
-          className={s.remove}
-          type="button"
-          aria-label={`Remove uniform ${uniform.name || "unnamed"}`}
-          onClick={onRemove}
-        >
-          <span aria-hidden="true">×</span>
-          <span className={s.srOnly}>Remove</span>
-        </button>
+        <div className={s.removeContainer}>
+          <button
+            className={s.remove}
+            type="button"
+            aria-label={`Remove uniform ${uniform.name || "unnamed"}`}
+            onClick={onRemove}
+          >
+            <span aria-hidden="true">×</span>
+            <span className={s.srOnly}>Remove</span>
+          </button>
+        </div>
       </div>
     </div>
   );

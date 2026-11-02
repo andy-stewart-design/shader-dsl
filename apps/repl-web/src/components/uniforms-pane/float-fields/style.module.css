@@ -1,4 +1,8 @@
 /* FLOAT FIELDS */
+.container {
+  display: flex;
+  gap: 0.625rem;
+}
 
 .floatField {
   display: flex;
