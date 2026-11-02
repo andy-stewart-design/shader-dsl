@@ -55,7 +55,9 @@ function FloatUniformInput({
 
   return (
     <label key={uniform.name}>
-      {uniform.name}
+      <span>
+        {uniform.name} <output>{currentValue.toFixed(2)}</output>
+      </span>
       <input
         type="range"
         min={uniform.min}
@@ -66,7 +68,6 @@ function FloatUniformInput({
           onValueChange(uniform.name, Number(event.currentTarget.value))
         }
       />
-      <output>{currentValue.toFixed(2)}</output>
     </label>
   );
 }
