@@ -9,6 +9,7 @@
   min-height: 0;
   min-width: 0;
   background: var(--color-surface-background-secondary);
+  border-inline-end: 1px solid var(--editor-border);
 }
 
 /* MAIN */

@@ -2,7 +2,8 @@
 
 .controls {
   overflow: clip;
-  background: black;
+  background: var(--color-surface-background-secondary);
+  border-block-start: 1px solid var(--editor-border);
 
   & > div {
     display: grid;

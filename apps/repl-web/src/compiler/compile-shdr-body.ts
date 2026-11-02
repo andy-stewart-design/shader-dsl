@@ -48,7 +48,7 @@ import type { ${SHADER_TYPE_IMPORTS.join(", ")} } from "shdr";
 `;
 const MAIN_BRIDGE = `
 
-export default createFragmentShader(({ coord, uniforms }) => {
+export default createFragmentShader(({ coord, uniforms, u }) => {
 `;
 const SOURCE_SUFFIX = "\n});";
 const UNIFORM_SOURCE_SUFFIX = "\n}, { uniforms });";

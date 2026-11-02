@@ -6,6 +6,7 @@
   justify-content: flex-end;
   gap: 1rem;
   min-width: 0;
+  background: var(--color-surface-background-secondary);
   padding-inline: 1rem;
   border-block-start: 1px solid var(--editor-border);
 }
