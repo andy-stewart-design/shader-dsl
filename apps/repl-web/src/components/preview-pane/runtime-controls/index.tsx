@@ -13,22 +13,21 @@ export default function RuntimeControls({
   onValueChange,
 }: RuntimeControlsProps) {
   return (
-    <div
-      className={s.controls}
-      aria-label="Runtime uniform controls"
-    >
+    <div className={s.controls} aria-label="Runtime uniform controls">
       <div>
         {uniforms.length === 0 ? <span>No applied uniforms.</span> : null}
         {uniforms.map((uniform) => {
           const value = values[uniform.name] ?? uniform.defaultValue;
           return uniform.type === "float" ? (
             <FloatUniformInput
+              key={uniform.name}
               value={value}
               uniform={uniform}
               onValueChange={onValueChange}
             />
           ) : (
             <ColorUniformInput
+              key={uniform.name}
               value={value}
               uniform={uniform}
               onValueChange={onValueChange}
