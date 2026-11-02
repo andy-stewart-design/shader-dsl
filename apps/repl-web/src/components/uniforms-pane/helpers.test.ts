@@ -58,8 +58,8 @@ test("converts float and color drafts to shader defaults", () => {
       name: "gain",
       type: "float",
       value: "0.5",
-      min: "100",
-      max: "-100",
+      min: "0",
+      max: "1",
     },
     {
       id: "color",

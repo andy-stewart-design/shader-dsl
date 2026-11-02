@@ -45,9 +45,21 @@ export function changeUniformType(
       };
 }
 
+export function parseF32(draft: string): number | undefined {
+  if (draft.trim() === "") return undefined;
+  const value = Number(draft);
+  return Number.isFinite(value) && Number.isFinite(Math.fround(value))
+    ? Object.is(value, -0)
+      ? 0
+      : value
+    : undefined;
+}
+
 export function numberDraftError(draft: string, label: string): string | null {
   if (draft.trim() === "") return `${label} is required.`;
-  if (!Number.isFinite(Number(draft))) return `${label} must be a number.`;
+  if (parseF32(draft) === undefined) {
+    return `${label} must be a finite f32 number.`;
+  }
   return null;
 }
 

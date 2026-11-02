@@ -5,6 +5,7 @@ import {
   colorToValidHex,
   nameError,
   numberDraftError,
+  parseF32,
 } from "../helpers";
 import ColorField from "../color-field";
 import FloatFields from "../float-fields";
@@ -33,19 +34,20 @@ export default function UniformRow({
     const valueError = numberDraftError(uniform.value, "Value");
     const minError = numberDraftError(uniform.min, "Min");
     const maxError = numberDraftError(uniform.max, "Max");
-    const valueNumber = Number(uniform.value);
-    const minNumber = Number(uniform.min);
-    const maxNumber = Number(uniform.max);
-    const hasValidRange = !minError && !maxError;
+    const valueNumber = parseF32(uniform.value);
+    const minNumber = parseF32(uniform.min);
+    const maxNumber = parseF32(uniform.max);
+    const hasValidRange = minNumber !== undefined && maxNumber !== undefined;
     const rangeError =
       hasValidRange && minNumber >= maxNumber
         ? "Min must be less than max."
         : null;
     const outOfRangeError =
-      !valueError && !rangeError && hasValidRange
-        ? valueNumber < minNumber || valueNumber > maxNumber
-          ? "Value is outside the selected range."
-          : null
+      valueNumber !== undefined &&
+      !rangeError &&
+      hasValidRange &&
+      (valueNumber < minNumber || valueNumber > maxNumber)
+        ? "Value is outside the selected range."
         : null;
 
     typeFields = (
