@@ -5,6 +5,7 @@ export type PreviewDrawerMode = "controls" | "closed";
 
 interface PreviewActions {
   setDrawerMode: StateSetter<PreviewDrawerMode>;
+  toggleDrawer: (mode: PreviewDrawerMode) => void;
   setPlaying: StateSetter<boolean>;
   setWidthRatio: StateSetter<number>;
   setHeightRatio: StateSetter<number>;
@@ -29,6 +30,11 @@ export const usePreviewStore = create<PreviewState>((set) => ({
         drawerMode:
           typeof value === "function" ? value(state.drawerMode) : value,
       })),
+    toggleDrawer: (value) => {
+      set((state) => ({
+        drawerMode: value === state.drawerMode ? "closed" : value,
+      }));
+    },
     setPlaying: (value) =>
       set((state) => ({
         playing: typeof value === "function" ? value(state.playing) : value,

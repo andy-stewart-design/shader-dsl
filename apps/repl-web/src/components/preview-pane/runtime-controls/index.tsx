@@ -10,6 +10,7 @@ import {
   type RuntimeUniform,
 } from "../uniform-controls";
 import s from "./style.module.css";
+import SizeInput from "../size-input";
 
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
@@ -22,10 +23,17 @@ export default function RuntimeControls({
   values,
   onValueChange,
 }: RuntimeControlsProps) {
+  const sizeLabelId = useId();
+
   return (
     <div className={s.controls} aria-label="Runtime uniform controls">
       <div>
-        {uniforms.length === 0 ? <span>No applied uniforms.</span> : null}
+        <div className={s.row} role="group" aria-labelledby={sizeLabelId}>
+          <div className={s.readout}>
+            <span id={sizeLabelId}>Canvas size</span>
+          </div>
+          <SizeInput />
+        </div>
         {uniforms.map((uniform) => {
           const value = values[uniform.name] ?? uniform.defaultValue;
           return uniform.type === "float" ? (

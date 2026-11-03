@@ -1,50 +1,5 @@
-import { useEffect, useId, useRef } from "react";
-import {
-  useHeightRatio,
-  usePlaying,
-  usePreviewActions,
-  useWidthRatio,
-} from "../../../stores/preview";
+import { usePlaying, usePreviewActions } from "../../../stores/preview";
 import s from "./style.module.css";
-
-interface RatioInputProps {
-  name: string;
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}
-
-function RatioInput({ name, label, value, onChange }: RatioInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (input && document.activeElement !== input) input.value = String(value);
-  }, [value]);
-
-  return (
-    <label className={s.ratioField}>
-      <span className={s.srOnly}>{label}</span>
-      <input
-        className={s.ratioInput}
-        name={name}
-        type="number"
-        min="0"
-        step="any"
-        inputMode="decimal"
-        defaultValue={value}
-        ref={inputRef}
-        onChange={(event) => {
-          const ratio = Number(event.currentTarget.value);
-          if (Number.isFinite(ratio) && ratio > 0) onChange(ratio);
-        }}
-        onBlur={(event) => {
-          event.currentTarget.value = String(value);
-        }}
-      />
-    </label>
-  );
-}
 
 function IconPlay() {
   return (
@@ -75,55 +30,43 @@ function IconPause() {
   );
 }
 
+function IconControls() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M11 5H17M3 15L9 15M8 5C8 6.65685 6.65685 8 5 8C3.34315 8 2 6.65685 2 5C2 3.34315 3.34315 2 5 2C6.65685 2 8 3.34315 8 5ZM18 15C18 16.6569 16.6569 18 15 18C13.3431 18 12 16.6569 12 15C12 13.3431 13.3431 12 15 12C16.6569 12 18 13.3431 18 15Z"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        stroke="white"
+      />
+    </svg>
+  );
+}
+
 export default function PreviewHeader() {
   const playing = usePlaying();
-  const widthRatio = useWidthRatio();
-  const heightRatio = useHeightRatio();
-  const { setDrawerMode, setPlaying, setWidthRatio, setHeightRatio } =
-    usePreviewActions();
+  const { toggleDrawer, setPlaying } = usePreviewActions();
   const label = playing ? "Pause" : "Play";
-  const Icon = playing ? IconPause : IconPlay;
-  const sizeLabelId = useId();
-
-  function onControlsClick() {
-    setDrawerMode((mode) => (mode === "controls" ? "closed" : "controls"));
-  }
+  const PlaybackIcon = playing ? IconPause : IconPlay;
 
   return (
     <div className={s.header}>
-      <button onClick={onControlsClick}>Controls</button>
-      <div
-        className={s.ratioControls}
-        role="group"
-        aria-labelledby={sizeLabelId}
-      >
-        <span id={sizeLabelId} className={s.ratioGroupLabel}>
-          Size
-        </span>
-        <RatioInput
-          name="widthRatio"
-          label="Width ratio"
-          value={widthRatio}
-          onChange={setWidthRatio}
-        />
-        <span className={s.ratioSeparator} aria-hidden="true">
-          ×
-        </span>
-        <RatioInput
-          name="heightRatio"
-          label="Height ratio"
-          value={heightRatio}
-          onChange={setHeightRatio}
-        />
-      </div>
-      <div className={s.vr} />
       <button
         className={s.button}
         type="button"
         aria-label={`${label} preview`}
         onClick={() => setPlaying(!playing)}
       >
-        <Icon />
+        <PlaybackIcon />
+      </button>
+
+      <button
+        className={s.button}
+        onClick={() => toggleDrawer("controls")}
+        aria-label="Controls"
+      >
+        <IconControls />
       </button>
     </div>
   );
