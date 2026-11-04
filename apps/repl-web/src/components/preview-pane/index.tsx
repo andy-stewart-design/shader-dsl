@@ -4,6 +4,7 @@ import { useShdrPreview } from "#/hooks/use-shdr-preview";
 import type { Uniform } from "../../shared/uniforms";
 import {
   useDrawerMode,
+  useFillPreview,
   useHeightRatio,
   usePlaying,
   useWidthRatio,
@@ -37,6 +38,7 @@ export default function Preview({
   } = useShdrPreview({ artifact, runtimeUniforms, playing, onError });
 
   const mode = useDrawerMode();
+  const fillPreview = useFillPreview();
 
   const widthRatio = useWidthRatio();
   const heightRatio = useHeightRatio();
@@ -45,13 +47,13 @@ export default function Preview({
   } as CSSProperties;
 
   return (
-    <div className={s.pane} data-drawer-mode={mode}>
+    <div
+      className={s.pane}
+      data-drawer-mode={mode}
+      data-fill-preview={fillPreview}
+    >
       <div className={s.main}>
-        <div
-          className={s.canvas}
-          ref={hostRef}
-          style={canvasStyle}
-        />
+        <div className={s.canvas} ref={hostRef} style={canvasStyle} />
       </div>
       <RuntimeControls
         uniforms={installedUniforms}

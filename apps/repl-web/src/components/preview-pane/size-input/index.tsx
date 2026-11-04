@@ -6,7 +6,11 @@ import {
 } from "../../../stores/preview";
 import s from "./style.module.css";
 
-export default function SizeInput() {
+interface SizeInputProps {
+  disabled?: boolean;
+}
+
+export default function SizeInput({ disabled = false }: SizeInputProps) {
   const widthRatio = useWidthRatio();
   const heightRatio = useHeightRatio();
   const { setWidthRatio, setHeightRatio } = usePreviewActions();
@@ -18,6 +22,7 @@ export default function SizeInput() {
         label="Canvas width ratio"
         value={widthRatio}
         onChange={setWidthRatio}
+        disabled={disabled}
       />
       <span className={s.separator} aria-hidden="true">
         ×
@@ -27,6 +32,7 @@ export default function SizeInput() {
         label="Canvas height ratio"
         value={heightRatio}
         onChange={setHeightRatio}
+        disabled={disabled}
       />
     </div>
   );
@@ -37,9 +43,16 @@ interface RatioInputProps {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  disabled: boolean;
 }
 
-function RatioInput({ name, label, value, onChange }: RatioInputProps) {
+function RatioInput({
+  name,
+  label,
+  value,
+  onChange,
+  disabled,
+}: RatioInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -59,6 +72,7 @@ function RatioInput({ name, label, value, onChange }: RatioInputProps) {
         inputMode="decimal"
         defaultValue={value}
         ref={inputRef}
+        disabled={disabled}
         onChange={(event) => {
           const ratio = Number(event.currentTarget.value);
           if (Number.isFinite(ratio) && ratio > 0) onChange(ratio);

@@ -9,6 +9,7 @@ interface PreviewActions {
   setPlaying: StateSetter<boolean>;
   setWidthRatio: StateSetter<number>;
   setHeightRatio: StateSetter<number>;
+  setFillPreview: StateSetter<boolean>;
 }
 
 interface PreviewState {
@@ -16,6 +17,7 @@ interface PreviewState {
   playing: boolean;
   widthRatio: number;
   heightRatio: number;
+  fillPreview: boolean;
   actions: PreviewActions;
 }
 
@@ -24,6 +26,7 @@ export const usePreviewStore = create<PreviewState>((set) => ({
   playing: true,
   widthRatio: 1,
   heightRatio: 1,
+  fillPreview: false,
   actions: {
     setDrawerMode: (value) =>
       set((state) => ({
@@ -49,6 +52,11 @@ export const usePreviewStore = create<PreviewState>((set) => ({
         heightRatio:
           typeof value === "function" ? value(state.heightRatio) : value,
       })),
+    setFillPreview: (value) =>
+      set((state) => ({
+        fillPreview:
+          typeof value === "function" ? value(state.fillPreview) : value,
+      })),
   },
 }));
 
@@ -57,5 +65,7 @@ export const usePlaying = () => usePreviewStore((state) => state.playing);
 export const useWidthRatio = () => usePreviewStore((state) => state.widthRatio);
 export const useHeightRatio = () =>
   usePreviewStore((state) => state.heightRatio);
+export const useFillPreview = () =>
+  usePreviewStore((state) => state.fillPreview);
 export const usePreviewActions = () =>
   usePreviewStore((state) => state.actions);

@@ -11,6 +11,7 @@ import {
 } from "../uniform-controls";
 import s from "./style.module.css";
 import SizeInput from "../size-input";
+import { useFillPreview, usePreviewActions } from "../../../stores/preview";
 
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
@@ -24,16 +25,38 @@ export default function RuntimeControls({
   onValueChange,
 }: RuntimeControlsProps) {
   const sizeLabelId = useId();
+  const fillPreviewId = useId();
+  const fillPreview = useFillPreview();
+  const { setFillPreview } = usePreviewActions();
 
   return (
     <div className={s.controls} aria-label="Runtime uniform controls">
       <div>
-        <div className={s.row} role="group" aria-labelledby={sizeLabelId}>
-          <div className={s.readout}>
-            <span id={sizeLabelId}>Canvas size</span>
+        <div className={s.row}>
+          <div className={s.readout} id={fillPreviewId}>
+            <span>Fill preview</span>
           </div>
-          <SizeInput />
+          <input
+            className={s.switch}
+            type="checkbox"
+            checked={fillPreview}
+            onChange={(event) => setFillPreview(event.currentTarget.checked)}
+          />
         </div>
+        <div className={s.row} role="group" aria-labelledby={sizeLabelId}>
+          <div className={s.readout} id={sizeLabelId}>
+            <span>Canvas size</span>
+          </div>
+          <SizeInput disabled={fillPreview} />
+        </div>
+        {/*<label className={s.checkbox}>
+          <span>Fill preview</span>
+          <input
+            type="checkbox"
+            checked={fillPreview}
+            onChange={(event) => setFillPreview(event.currentTarget.checked)}
+          />
+        </label>*/}
         {uniforms.map((uniform) => {
           const value = values[uniform.name] ?? uniform.defaultValue;
           return uniform.type === "float" ? (
