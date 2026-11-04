@@ -4,14 +4,15 @@ import {
   colorToValidHex,
 } from "#/components/uniforms-pane/helpers";
 import ColorInput from "#/components/core/color-input";
+import Switch from "#/components/core/switch";
+import { useFillPreview, usePreviewActions } from "#/stores/preview";
 import {
   colorHexToVec3,
   formatColorVec3,
   type RuntimeUniform,
 } from "../uniform-controls";
-import s from "./style.module.css";
 import SizeInput from "../size-input";
-import { useFillPreview, usePreviewActions } from "../../../stores/preview";
+import s from "./style.module.css";
 
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
@@ -36,12 +37,10 @@ export default function RuntimeControls({
           <label className={s.readout} htmlFor={fillPreviewId}>
             <span>Fill preview</span>
           </label>
-          <input
+          <Switch
             id={fillPreviewId}
-            className={s.switch}
-            type="checkbox"
             checked={fillPreview}
-            onChange={(event) => setFillPreview(event.currentTarget.checked)}
+            onSwitch={setFillPreview}
           />
         </div>
         <div className={s.row} role="group" aria-labelledby={sizeLabelId}>

@@ -1,0 +1,28 @@
+.switch {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  inline-size: 2.5rem;
+  block-size: 1.5rem;
+  padding-inline: 0.25rem;
+  border: 1px solid;
+  border-radius: 1em;
+  color: inherit;
+
+  &:checked {
+    left: 1em;
+    justify-content: flex-end;
+  }
+
+  &::before {
+    content: "";
+    display: inline-flex;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    border-radius: 50%;
+    background: currentcolor;
+  }
+}
