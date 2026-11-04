@@ -13,6 +13,7 @@ import {
 } from "../uniform-controls";
 import SizeInput from "../size-input";
 import s from "./style.module.css";
+import RangeSlider from "#/components/core/range-slider";
 
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
@@ -94,10 +95,9 @@ function FloatUniformInput({
         <label htmlFor={id}>{uniform.name}</label>
         <output>{currentValue.toFixed(2)}</output>
       </div>
-      <input
+      <RangeSlider
         id={id}
-        className={s.range}
-        type="range"
+        // className={s.range}
         min={uniform.min}
         max={uniform.max}
         step="any"

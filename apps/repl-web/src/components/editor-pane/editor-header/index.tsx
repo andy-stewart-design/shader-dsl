@@ -6,24 +6,6 @@ interface EditorHeaderProps {
   onApply: () => void;
 }
 
-function RunButton({ onClick }: ComponentProps<"button">) {
-  return (
-    <button
-      className={s.runButton}
-      type="button"
-      onClick={onClick}
-      aria-label="Evaluate"
-      aria-keyshortcuts="Alt+Enter"
-      title="Apply changes (Option + Return)"
-    >
-      <span>Run</span>
-      <span className={s.shortcut} aria-hidden="true">
-        <kbd>⌥</kbd> + <kbd>↵</kbd>
-      </span>
-    </button>
-  );
-}
-
 export default function EditorHeader({ onApply }: EditorHeaderProps) {
   return (
     <div className={s.header}>
@@ -39,8 +21,39 @@ export default function EditorHeader({ onApply }: EditorHeaderProps) {
         </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
-        <RunButton onClick={onApply} />
+        <HeaderButton label="Run" shorcutKeys={["⌥", "↵"]} onClick={onApply} />
+        <HeaderButton label="Save" shorcutKeys={["⌥", "S"]} />
       </div>
     </div>
+  );
+}
+
+interface HeaderButtonProps extends ComponentProps<"button"> {
+  label: string;
+  shorcutKeys?: string[];
+}
+
+function HeaderButton({ label, shorcutKeys, onClick }: HeaderButtonProps) {
+  return (
+    <button
+      className={s.runButton}
+      type="button"
+      onClick={onClick}
+      aria-label="Evaluate"
+      aria-keyshortcuts="Alt+Enter"
+      title="Apply changes (Option + Return)"
+    >
+      <span>{label}</span>
+      {shorcutKeys && (
+        <span className={s.shortcut} aria-hidden="true">
+          {shorcutKeys.map((key, i) => (
+            <>
+              <kbd>{key}</kbd>
+              {i < shorcutKeys.length - 1 && " + "}
+            </>
+          ))}
+        </span>
+      )}
+    </button>
   );
 }

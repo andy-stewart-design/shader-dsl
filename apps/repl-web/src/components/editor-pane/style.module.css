@@ -1,10 +1,12 @@
 /* PANE */
 
 .pane {
+  --editor-header-block-size: 3rem;
+
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 3rem minmax(0, 1fr);
+  grid-template-rows: var(--editor-header-block-size) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   min-width: 0;
