@@ -33,10 +33,11 @@ export default function RuntimeControls({
     <div className={s.controls} aria-label="Runtime uniform controls">
       <div>
         <div className={s.row}>
-          <div className={s.readout} id={fillPreviewId}>
+          <label className={s.readout} htmlFor={fillPreviewId}>
             <span>Fill preview</span>
-          </div>
+          </label>
           <input
+            id={fillPreviewId}
             className={s.switch}
             type="checkbox"
             checked={fillPreview}
@@ -49,14 +50,6 @@ export default function RuntimeControls({
           </div>
           <SizeInput disabled={fillPreview} />
         </div>
-        {/*<label className={s.checkbox}>
-          <span>Fill preview</span>
-          <input
-            type="checkbox"
-            checked={fillPreview}
-            onChange={(event) => setFillPreview(event.currentTarget.checked)}
-          />
-        </label>*/}
         {uniforms.map((uniform) => {
           const value = values[uniform.name] ?? uniform.defaultValue;
           return uniform.type === "float" ? (
@@ -94,15 +87,16 @@ function FloatUniformInput({
   onValueChange,
 }: FloatUniformInputProps) {
   const currentValue = typeof value === "number" ? value : uniform.defaultValue;
-  const labelId = `runtime-${useId().replaceAll(":", "")}-label`;
+  const id = `runtime-${useId().replaceAll(":", "")}`;
 
   return (
     <div className={s.row}>
-      <div className={s.readout} id={labelId}>
-        <span>{uniform.name}</span>
+      <div className={s.readout}>
+        <label htmlFor={id}>{uniform.name}</label>
         <output>{currentValue.toFixed(2)}</output>
       </div>
       <input
+        id={id}
         className={s.range}
         type="range"
         min={uniform.min}
@@ -110,7 +104,6 @@ function FloatUniformInput({
         step="any"
         value={currentValue}
         aria-label={`Adjust ${uniform.name}`}
-        aria-labelledby={labelId}
         onChange={(event) =>
           onValueChange(uniform.name, Number(event.currentTarget.value))
         }
