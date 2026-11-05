@@ -8,6 +8,7 @@ interface ColorInputProps {
   validColor: string;
   onColorChange: (value: string) => void;
   error: string | null;
+  className?: string;
 }
 
 export default function ColorInput({
@@ -18,13 +19,14 @@ export default function ColorInput({
   validColor,
   onColorChange,
   error,
+  className,
 }: ColorInputProps) {
   const colorId = `${idPrefix}-color`;
   const textId = `${idPrefix}-hex`;
   const errorId = `${idPrefix}-color-error`;
 
   return (
-    <div className={s.container}>
+    <div className={[s.container, className].filter(Boolean).join(" ")}>
       <label className={s.colorPicker} style={{ backgroundColor: validColor }}>
         <span className={s.srOnly}>Color swatch</span>
         <input

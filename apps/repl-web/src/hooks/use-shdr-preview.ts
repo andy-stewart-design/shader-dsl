@@ -179,7 +179,12 @@ export function useShdrPreview({
   const [runtimeState, setRuntimeState] = useState<{
     uniforms: readonly RuntimeUniform[];
     values: RuntimeUniformValues;
-  }>({ uniforms: runtimeUniforms, values: initialRuntimeValues });
+    runtimeControlsKey: number;
+  }>({
+    uniforms: runtimeUniforms,
+    values: initialRuntimeValues,
+    runtimeControlsKey: 0,
+  });
   const reportError = useEffectEvent((error: unknown) => {
     onError?.(error);
   });
@@ -189,7 +194,14 @@ export function useShdrPreview({
   ): void => {
     runtimeUniformsRef.current = uniforms;
     runtimeValuesRef.current = values;
-    setRuntimeState({ uniforms, values });
+    setRuntimeState((previous) => ({
+      uniforms,
+      values,
+      runtimeControlsKey:
+        previous.uniforms === uniforms
+          ? previous.runtimeControlsKey
+          : previous.runtimeControlsKey + 1,
+    }));
   };
   const runtimeValues = runtimeState.values;
 
@@ -400,6 +412,7 @@ export function useShdrPreview({
     hostRef,
     runtimeUniforms: runtimeState.uniforms,
     runtimeValues,
+    runtimeControlsKey: runtimeState.runtimeControlsKey,
     onRuntimeValueChange,
   };
 }

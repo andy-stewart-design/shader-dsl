@@ -62,16 +62,8 @@
   }
 }
 
-.runtimeColorField {
-  grid-column: auto;
-  max-width: 8rem;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-
-  :global(input[type="text"]) {
-    min-width: 5.5rem;
-  }
+.colorInput {
+  inline-size: 140px;
 }
 
 @container (max-width: 26rem) {

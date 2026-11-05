@@ -34,6 +34,7 @@ export default function Preview({
     hostRef,
     runtimeUniforms: installedUniforms,
     runtimeValues,
+    runtimeControlsKey,
     onRuntimeValueChange,
   } = useShdrPreview({ artifact, runtimeUniforms, playing, onError });
 
@@ -58,6 +59,7 @@ export default function Preview({
       <RuntimeControls
         uniforms={installedUniforms}
         values={runtimeValues}
+        runtimeControlsKey={runtimeControlsKey}
         onValueChange={onRuntimeValueChange}
       />
       <PreviewHeader />

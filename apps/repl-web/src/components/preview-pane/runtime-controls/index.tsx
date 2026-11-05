@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { Fragment, useId, useState, memo } from "react";
 import {
   colorDraftError,
   colorToValidHex,
@@ -18,12 +18,14 @@ import RangeSlider from "#/components/core/range-slider";
 interface RuntimeControlsProps {
   uniforms: readonly RuntimeUniform[];
   values: Readonly<Record<string, number | string>>;
+  runtimeControlsKey: number;
   onValueChange: (name: string, value: number | string) => void;
 }
 
 export default function RuntimeControls({
   uniforms,
   values,
+  runtimeControlsKey,
   onValueChange,
 }: RuntimeControlsProps) {
   const sizeLabelId = useId();
@@ -35,9 +37,10 @@ export default function RuntimeControls({
     <div className={s.controls} aria-label="Runtime uniform controls">
       <div>
         <div className={s.row}>
-          <label className={s.readout} htmlFor={fillPreviewId}>
-            <span>Fill preview</span>
-          </label>
+          <div className={s.readout}>
+            <label htmlFor={fillPreviewId}>Fill preview</label>
+            <output>{fillPreview.toString()}</output>
+          </div>
           <Switch
             id={fillPreviewId}
             checked={fillPreview}
@@ -50,25 +53,26 @@ export default function RuntimeControls({
           </div>
           <SizeInput disabled={fillPreview} />
         </div>
-        {uniforms.map((uniform) => {
-          const value = values[uniform.name] ?? uniform.defaultValue;
-          return uniform.type === "float" ? (
-            <FloatUniformInput
-              key={uniform.name}
-              value={value}
-              uniform={uniform}
-              onValueChange={onValueChange}
-            />
-          ) : (
-            <ColorUniformInput
-              key={uniform.name}
-              value={value}
-              uniform={uniform}
-              uniformsSnapshot={uniforms}
-              onValueChange={onValueChange}
-            />
-          );
-        })}
+        <Fragment key={runtimeControlsKey}>
+          {uniforms.map((uniform) => {
+            const value = values[uniform.name] ?? uniform.defaultValue;
+            return uniform.type === "float" ? (
+              <FloatUniformInput
+                key={uniform.name}
+                value={value}
+                uniform={uniform}
+                onValueChange={onValueChange}
+              />
+            ) : (
+              <ColorUniformInput
+                key={uniform.name}
+                value={value}
+                uniform={uniform}
+                onValueChange={onValueChange}
+              />
+            );
+          })}
+        </Fragment>
       </div>
     </div>
   );
@@ -115,14 +119,12 @@ type ColorUniform = Extract<RuntimeUniform, { type: "color" }>;
 interface ColorUniformInputProps {
   value: string | number;
   uniform: ColorUniform;
-  uniformsSnapshot: readonly RuntimeUniform[];
   onValueChange: (name: string, value: number | string) => void;
 }
 
 function ColorUniformInput({
   value,
   uniform,
-  uniformsSnapshot,
   onValueChange,
 }: ColorUniformInputProps) {
   const idPrefix = `runtime-${useId().replaceAll(":", "")}`;
@@ -131,14 +133,6 @@ function ColorUniformInput({
       ? (colorToValidHex(value) ?? uniform.defaultValue)
       : uniform.defaultValue;
   const [draft, setDraft] = useState(currentColor);
-  const [previousSnapshot, setPreviousSnapshot] = useState(uniformsSnapshot);
-
-  // A new installed snapshot is the reset boundary. Runtime edits keep the
-  // same snapshot identity, so they cannot replace a draft while it is typed.
-  if (previousSnapshot !== uniformsSnapshot) {
-    setPreviousSnapshot(uniformsSnapshot);
-    setDraft(currentColor);
-  }
 
   const error = colorDraftError(draft);
 
@@ -149,6 +143,7 @@ function ColorUniformInput({
         <output>{formatColorVec3(currentColor, 2)}</output>
       </div>
       <ColorInput
+        className={s.colorInput}
         idPrefix={idPrefix}
         uniformName={uniform.name}
         draft={draft}

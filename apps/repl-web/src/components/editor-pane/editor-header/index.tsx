@@ -1,5 +1,5 @@
 import { Tabs } from "@base-ui/react/tabs";
-import type { ComponentProps } from "react";
+import { Fragment, type ComponentProps } from "react";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -47,10 +47,10 @@ function HeaderButton({ label, shorcutKeys, onClick }: HeaderButtonProps) {
       {shorcutKeys && (
         <span className={s.shortcut} aria-hidden="true">
           {shorcutKeys.map((key, i) => (
-            <>
+            <Fragment key={key}>
               <kbd>{key}</kbd>
               {i < shorcutKeys.length - 1 && " + "}
-            </>
+            </Fragment>
           ))}
         </span>
       )}
