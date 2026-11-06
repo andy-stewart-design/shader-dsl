@@ -54,36 +54,51 @@
   isolation: isolate;
 }
 
-/* Atom-inspired editor defaults. Override on an editor host to customize colors.
-   Give the host a height to constrain the editor and enable internal scrolling. */
+/* Core Design Tokens */
 :root {
+  --color-surface-background-primary: #000000;
+  --color-surface-background-secondary: #0c0c0c;
+  --color-surface-background-tertiary: #131313;
+  --color-surface-background-quaternary: #181818;
+
+  --color-surface-border-subtle: #252525;
+
+  --color-surface-foreground-primary: #ededed;
+  --color-surface-foreground-secondary: #a1a1a1;
+  --color-surface-foreground-tertiary: #737373;
+  --color-surface-foreground-tertiary: #737373;
+  --color-surface-foreground-disabled: #454545;
+
+  --color-syntax-blue: #9fd9ff;
+  --color-syntax-purple: #c3b9ff;
+  --color-syntax-green: #dbe699;
+
   color-scheme: dark;
-  background-color: var(--editor-background);
-  color: var(--editor-foreground);
+  background-color: var(--color-surface-background-primary);
+  color: var(--color-surface-foreground-primary);
+}
 
-  --color-surface-background-primary: #111214;
-  --color-surface-background-secondary: #161719;
-  --color-surface-foreground-primary: #c5c8c6;
-
+/* Editor Design Tokens */
+:root {
   --editor-background: var(--color-surface-background-secondary);
-  --editor-foreground: #c5c8c6;
+  --editor-foreground: var(--color-surface-foreground-primary);
   --editor-font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     monospace;
   --editor-font-size: 14px;
   --editor-line-height: 1.6;
   --editor-padding: 8px;
-  --editor-focus: #85befd;
+  --editor-focus: transparent;
   --editor-focus-outline: none;
-  --editor-cursor: #d0d0d0;
-  --editor-border: #353535;
+  --editor-cursor: var(--color-surface-foreground-primary);
+  --editor-border: var(--color-surface-border-subtle);
   --editor-selection: #85befd40;
   --editor-selection-inactive: #85befd20;
   --editor-gutter-background: var(--editor-background);
-  --editor-gutter-foreground: #8b8e8b;
+  --editor-gutter-foreground: var(--color-surface-foreground-disabled);
   --editor-gutter-border: none;
   --editor-gutter-active-line-background: var(--editor-active-line);
-  --editor-active-line: #85befd0d;
+  --editor-active-line: rgb(255 255 255 / 0.03);
   --editor-bracket-match: #87c38a26;
   --editor-search-match: #f5ffa826;
   --editor-search-match-selected: #f5ffa852;
@@ -93,17 +108,16 @@
   --editor-control-background: #161719;
   --editor-control-hover: #85befd26;
   --editor-control-radius: 0.125rem;
-  --editor-keyword: #fd5ff1;
-  --editor-property: #c5c8c6;
-  --editor-function: #85befd;
-  --editor-type: #b9b6fc;
+  --editor-keyword: var(--color-surface-foreground-tertiary);
+  --editor-property: var(--color-surface-foreground-primary);
+  --editor-function: var(--color-syntax-blue);
+  --editor-type: var(--color-syntax-purple);
   --editor-string: #ffd7b1;
-  --editor-literal: #87c38a;
+  --editor-literal: var(--color-syntax-green);
   --editor-escape: #f5ffa8;
-  --editor-operator: #b9b6fc;
-  --editor-punctuation: #c5c8c6;
-  /* Lighter than palette 8 so comments remain readable on the background. */
-  --editor-comment: #8b8e8b;
+  --editor-operator: var(--color-syntax-purple);
+  --editor-punctuation: var(--color-surface-foreground-tertiary);
+  --editor-comment: var(--color-surface-foreground-disabled);
   --editor-meta: #b9b6fc;
-  --editor-invalid: #fd5ff1;
+  --editor-invalid: var(--color-surface-foreground-tertiary);
 }

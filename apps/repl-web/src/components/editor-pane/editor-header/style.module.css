@@ -29,7 +29,7 @@
   padding: 0.625rem 0.875rem;
   border: 0;
   background: transparent;
-  color: var(--editor-comment);
+  color: var(--color-surface-foreground-tertiary);
   font: inherit;
   font-size: 0.875rem;
   font-weight: 500;
@@ -64,7 +64,7 @@
   min-width: 0;
 }
 
-.runButton {
+.action {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -74,14 +74,14 @@
   border: 1px solid var(--editor-border);
   border-radius: var(--editor-control-radius);
   border-radius: 0.375rem;
-  background: var(--editor-control-background);
+  background: var(--color-surface-background-secondary);
   color: var(--editor-foreground);
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.4;
 
   &:hover {
-    background: var(--editor-control-hover);
+    background: var(--color-surface-background-tertiary);
   }
 
   &:focus-visible {

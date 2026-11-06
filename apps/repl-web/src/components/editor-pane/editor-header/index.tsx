@@ -36,7 +36,7 @@ interface HeaderButtonProps extends ComponentProps<"button"> {
 function HeaderButton({ label, shorcutKeys, onClick }: HeaderButtonProps) {
   return (
     <button
-      className={s.runButton}
+      className={s.action}
       type="button"
       onClick={onClick}
       aria-label="Evaluate"
