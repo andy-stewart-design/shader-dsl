@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, memo } from "react";
+import { Fragment, useId, useState } from "react";
 import {
   colorDraftError,
   colorToValidHex,

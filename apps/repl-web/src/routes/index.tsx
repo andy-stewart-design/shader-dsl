@@ -12,6 +12,7 @@ function Home() {
     appliedUniforms,
     compileError,
     runtimeError,
+    isEvaluationFlashing,
     onPreviewError,
     apply,
   } = useShdrCompilation();
@@ -20,6 +21,7 @@ function Home() {
     <AppLayout>
       <Editor
         onApply={apply}
+        isEvaluationFlashing={isEvaluationFlashing}
         compileError={compileError}
         runtimeError={runtimeError}
       />

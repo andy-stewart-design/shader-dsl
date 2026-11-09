@@ -8,11 +8,13 @@ import s from "./style.module.css";
 
 export interface CodeEditorProps {
   document: DraftDocument;
+  isEvaluationFlashing: boolean;
   ariaLabel?: string;
 }
 
 export default function CodeEditor({
   document,
+  isEvaluationFlashing,
   ariaLabel,
 }: CodeEditorProps) {
   const source = useDraftSource(document);
@@ -25,5 +27,11 @@ export default function CodeEditor({
     onChange: (nextSource) => setSource(document, nextSource),
   });
 
-  return <div className={s.codeEditor} ref={editorRef} />;
+  return (
+    <div
+      className={s.codeEditor}
+      ref={editorRef}
+      data-evaluated={isEvaluationFlashing}
+    />
+  );
 }

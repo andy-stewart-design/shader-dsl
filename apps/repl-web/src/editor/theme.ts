@@ -34,6 +34,10 @@ export const editorTheme = EditorView.theme(
     ".cm-selectionBackground": {
       backgroundColor: "var(--editor-selection-inactive)",
     },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground":
+      {
+        backgroundColor: "var(--editor-selection)",
+      },
     "&.cm-focused .cm-selectionBackground, .cm-content ::selection": {
       backgroundColor: "var(--editor-selection)",
     },

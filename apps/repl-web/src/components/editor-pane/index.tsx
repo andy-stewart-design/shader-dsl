@@ -8,12 +8,14 @@ import s from "./style.module.css";
 
 export interface EditorProps {
   onApply: () => void;
+  isEvaluationFlashing: boolean;
   compileError: string | null;
   runtimeError: string | null;
 }
 
 export default function Editor({
   onApply,
+  isEvaluationFlashing,
   compileError,
   runtimeError,
 }: EditorProps) {
@@ -25,10 +27,16 @@ export default function Editor({
       <EditorHeader onApply={onApply} />
       <div className={s.panels}>
         <Tabs.Panel className={s.panel} value="main" keepMounted>
-          <CodeEditor document="main" />
+          <CodeEditor
+            document="main"
+            isEvaluationFlashing={isEvaluationFlashing}
+          />
         </Tabs.Panel>
         <Tabs.Panel className={s.panel} value="utils" keepMounted>
-          <CodeEditor document="utils" />
+          <CodeEditor
+            document="utils"
+            isEvaluationFlashing={isEvaluationFlashing}
+          />
         </Tabs.Panel>
         <Tabs.Panel
           className={s.panel}

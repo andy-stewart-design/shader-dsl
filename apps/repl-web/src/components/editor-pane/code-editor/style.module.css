@@ -5,3 +5,12 @@
   min-height: 0;
   min-width: 0;
 }
+
+.codeEditor[data-evaluated="true"] :global(.cm-line) {
+  background: var(--color-surface-background-inverse) !important;
+  width: max-content;
+
+  & * {
+    color: var(--color-surface-foreground-inverse) !important;
+  }
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import {
   compileShdrBody,
@@ -82,6 +82,7 @@ function formatRuntimeError(error: unknown): string {
 
 const initialSources: Sources = { main: initialShaderSource, utils: "" };
 const initialCompilation = compileSource(initialSources, []);
+const evaluationFlashDuration = 200;
 
 export interface UseShdrCompilationResult {
   artifact: CompiledFragmentArtifact | null;
@@ -89,6 +90,7 @@ export interface UseShdrCompilationResult {
   appliedUniforms: readonly Uniform[];
   compileError: string | null;
   runtimeError: string | null;
+  isEvaluationFlashing: boolean;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
 }
@@ -105,8 +107,21 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>(
     [],
   );
+  const [isEvaluationFlashing, setIsEvaluationFlashing] = useState(false);
+  const evaluationFlashTimeout = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const apply = useCallback(() => {
+    setIsEvaluationFlashing(true);
+    if (evaluationFlashTimeout.current !== null) {
+      clearTimeout(evaluationFlashTimeout.current);
+    }
+    evaluationFlashTimeout.current = setTimeout(() => {
+      evaluationFlashTimeout.current = null;
+      setIsEvaluationFlashing(false);
+    }, evaluationFlashDuration);
+
     const draft = getDraftState();
     const sources: Sources = { main: draft.main, utils: draft.utils };
     const uniforms = draft.uniforms;
@@ -123,6 +138,15 @@ export function useShdrCompilation(): UseShdrCompilationResult {
 
   const onPreviewError = useCallback((error: unknown) => {
     setRuntimeError(formatRuntimeError(error));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (evaluationFlashTimeout.current !== null) {
+        clearTimeout(evaluationFlashTimeout.current);
+        evaluationFlashTimeout.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -153,6 +177,7 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     appliedUniforms,
     compileError,
     runtimeError,
+    isEvaluationFlashing,
     onPreviewError,
     apply,
   };

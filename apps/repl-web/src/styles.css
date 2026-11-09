@@ -60,6 +60,7 @@
   --color-surface-background-secondary: #0c0c0c;
   --color-surface-background-tertiary: #131313;
   --color-surface-background-quaternary: #181818;
+  --color-surface-background-inverse: var(--color-surface-foreground-primary);
 
   --color-surface-border-subtle: #252525;
 
@@ -68,10 +69,13 @@
   --color-surface-foreground-tertiary: #737373;
   --color-surface-foreground-tertiary: #737373;
   --color-surface-foreground-disabled: #454545;
+  --color-surface-foreground-inverse: var(--color-surface-background-primary);
 
+  --color-syntax-orange: #ffd5c4;
+  --color-syntax-green: #dbe699;
+  --color-syntax-teal: #a2f0e0;
   --color-syntax-blue: #9fd9ff;
   --color-syntax-purple: #c3b9ff;
-  --color-syntax-green: #dbe699;
 
   color-scheme: dark;
   background-color: var(--color-surface-background-primary);
@@ -92,8 +96,8 @@
   --editor-focus-outline: none;
   --editor-cursor: var(--color-surface-foreground-primary);
   --editor-border: var(--color-surface-border-subtle);
-  --editor-selection: #85befd40;
-  --editor-selection-inactive: #85befd20;
+  --editor-selection: #252525;
+  --editor-selection-inactive: var(--color-surface-background-quaternary);
   --editor-gutter-background: var(--editor-background);
   --editor-gutter-foreground: var(--color-surface-foreground-disabled);
   --editor-gutter-border: none;
@@ -111,8 +115,8 @@
   --editor-keyword: var(--color-surface-foreground-tertiary);
   --editor-property: var(--color-surface-foreground-primary);
   --editor-function: var(--color-syntax-blue);
-  --editor-type: var(--color-syntax-purple);
-  --editor-string: #ffd7b1;
+  --editor-type: var(--color-syntax-teal);
+  --editor-string: var(--color-syntax-orange);
   --editor-literal: var(--color-syntax-green);
   --editor-escape: #f5ffa8;
   --editor-operator: var(--color-syntax-purple);
