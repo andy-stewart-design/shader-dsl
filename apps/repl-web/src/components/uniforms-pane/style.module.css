@@ -1,3 +1,5 @@
+/* PANE */
+
 .pane {
   height: 100%;
   min-height: 0;
@@ -7,28 +9,11 @@
   color: var(--editor-foreground);
 }
 
-.intro {
+.actions {
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-block: 1rem;
-}
-
-.description,
-.emptyHint {
-  max-width: 42rem;
-  color: var(--editor-comment);
-  font-size: 0.75rem;
-}
-
-.newButton,
-.removeButton,
-.selectTrigger,
-.input {
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  background: var(--editor-control-background);
-  color: var(--editor-foreground);
 }
 
 .newButton {
@@ -38,207 +23,28 @@
   gap: 0.375rem;
   min-height: 2rem;
   padding: 0.25rem 0.625rem;
+  border: 1px solid var(--editor-border);
+  border-radius: var(--editor-control-radius);
+  background: var(--editor-control-background);
+  color: var(--editor-foreground);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-}
 
-.newButton:hover,
-.removeButton:hover,
-.selectTrigger:hover {
-  background: var(--editor-control-hover);
-}
+  &:hover {
+    background: var(--editor-control-hover);
+  }
 
-.newButton:focus-visible,
-.removeButton:focus-visible,
-.selectTrigger:focus-visible,
-.input:focus-visible,
-.colorPicker:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 1px;
+  &:focus-visible {
+    outline: 2px solid var(--editor-focus);
+    outline-offset: 1px;
+  }
 }
 
 .uniformList {
   min-width: 0;
   max-width: 72rem;
   margin-inline: auto;
-}
-
-.row {
-  display: flex;
-  gap: 0.625rem;
-  min-width: 0;
-  padding: 1rem 0;
-
-  &:not(:first-of-type) {
-    border-block-start: 1px dotted var(--editor-border);
-  }
-
-  & > * {
-    flex: 1 0 0;
-  }
-
-  & > div:last-child {
-    flex: 0 0 0;
-  }
-
-  & > :is(:nth-child(1), :nth-child(2)) {
-    flex: 0 0 6rem;
-  }
-}
-
-.field,
-.colorField {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.fieldLabel {
-  color: var(--editor-comment);
-  font-size: 0.6875rem;
-  line-height: 1.2;
-}
-
-.input,
-.selectTrigger {
-  min-width: 0;
-  min-height: 2rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.input {
-  width: 100%;
-}
-
-.input[aria-invalid="true"] {
-  border-color: var(--editor-invalid);
-}
-
-.selectTrigger {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  text-align: start;
-  cursor: pointer;
-}
-
-.selectIcon {
-  color: var(--editor-comment);
-  font-size: 0.7rem;
-}
-
-.selectPositioner {
-  z-index: 20;
-}
-
-.selectPopup {
-  min-width: var(--anchor-width);
-  padding: 0.25rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  background: var(--editor-panel-background);
-  box-shadow: 0 0.5rem 1.5rem #0008;
-  color: var(--editor-foreground);
-  font-size: 0.75rem;
-}
-
-.selectItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 2rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--editor-control-radius);
-  cursor: pointer;
-  outline: none;
-}
-
-.selectItem[data-highlighted] {
-  background: var(--editor-control-hover);
-}
-
-.selectIndicator {
-  color: var(--editor-focus);
-}
-
-.colorField {
-  grid-column: 3 / span 3;
-}
-
-.colorControls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.colorPickerLabel {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  block-size: 2rem;
-  inline-size: 2.25rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-}
-
-.colorPickerLabel:has(.colorPicker:focus-visible) {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 1px;
-}
-
-.colorPicker {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.hexField {
-  display: block;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.removeButtonContainer {
-  display: flex;
-  align-items: flex-end;
-}
-
-.removeButton {
-  /*display: grid;
-  align-self: start;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  color: var(--editor-comment);
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;*/
-  block-size: 2rem;
-  inline-size: 2rem;
-}
-
-.removeButton:hover {
-  color: var(--editor-foreground);
-}
-
-.error {
-  color: #ffb8f8;
-  font-size: 0.6875rem;
-  line-height: 1.25;
 }
 
 .emptyState {
@@ -251,30 +57,14 @@
   text-align: center;
 }
 
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.emptyHint {
+  max-width: 42rem;
+  color: var(--editor-comment);
+  font-size: 0.75rem;
 }
 
 @container (max-width: 760px) {
-  .intro {
+  .actions {
     flex-direction: column;
-  }
-
-  .row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-    padding-inline: 0;
-  }
-
-  .colorField {
-    grid-column: 1 / span 2;
   }
 }

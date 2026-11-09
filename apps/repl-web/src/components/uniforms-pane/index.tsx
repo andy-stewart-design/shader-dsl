@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { createUniform } from "./helpers";
-import { UniformRow } from "./uniform-row";
-import type { Uniform } from "./types";
+import UniformRow from "./uniform-row";
+import type { Uniform } from "../../shared/uniforms";
 import s from "./style.module.css";
 
 interface UniformsPaneProps {
@@ -9,7 +9,7 @@ interface UniformsPaneProps {
   onUniformsChange: (uniforms: Uniform[]) => void;
 }
 
-export function UniformsPane({
+export default function UniformsPane({
   uniforms,
   onUniformsChange,
 }: UniformsPaneProps) {
@@ -24,17 +24,21 @@ export function UniformsPane({
   const nextId = useRef(0);
 
   const addUniform = useCallback(() => {
-    const sequence = nextId.current;
-    nextId.current += 1;
-    const id = `uniform-${sequence}`;
-    setUniforms((current) => [
-      ...current,
-      createUniform(
-        id,
-        sequence,
-        current.map((uniform) => uniform.name),
-      ),
-    ]);
+    setUniforms((current) => {
+      let sequence = nextId.current;
+      const ids = new Set(current.map((uniform) => uniform.id));
+      while (ids.has(`uniform-${sequence}`)) sequence += 1;
+      nextId.current = sequence + 1;
+      const id = `uniform-${sequence}`;
+      return [
+        ...current,
+        createUniform(
+          id,
+          sequence,
+          current.map((uniform) => uniform.name),
+        ),
+      ];
+    });
   }, [setUniforms]);
 
   const updateUniform = useCallback(
@@ -57,22 +61,12 @@ export function UniformsPane({
 
   return (
     <div className={s.pane}>
-      {/*<div className={s.intro}>
-        <div>
-          <h2 className={s.heading}>Uniforms</h2>
-          <p className={s.description}>
-            Configure values for this shader preview. These controls are local
-            to the editor for now.
-          </p>
-        </div>
-        <button className={s.newButton} type="button" onClick={addUniform}>
-          <span aria-hidden="true">+</span>
-          New uniform
-        </button>
-      </div>*/}
-
       {uniforms.length > 0 ? (
-        <div className={s.uniformList} role="list" aria-label="Uniforms">
+        <div
+          className={s.uniformList}
+          role="list"
+          aria-label="Uniforms"
+        >
           {uniforms.map((uniform) => {
             const duplicateName =
               uniform.name.trim() !== "" &&
@@ -101,8 +95,12 @@ export function UniformsPane({
           </p>
         </div>
       )}
-      <div className={s.intro}>
-        <button className={s.newButton} type="button" onClick={addUniform}>
+      <div className={s.actions}>
+        <button
+          className={s.newButton}
+          type="button"
+          onClick={addUniform}
+        >
           <span aria-hidden="true">+</span>
           New uniform
         </button>
@@ -110,6 +108,3 @@ export function UniformsPane({
     </div>
   );
 }
-
-const Parent = { Main: UniformsPane };
-export default Parent;

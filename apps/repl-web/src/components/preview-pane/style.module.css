@@ -1,109 +1,20 @@
-/* HEADER */
+.pane {
+  --preview-header-block-size: 2.5rem;
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
-  min-width: 0;
-  padding-inline: 1rem;
-  border-bottom: 1px solid var(--editor-border);
-}
-
-.ratioControls {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  min-width: 0;
-}
-
-.ratioGroupLabel {
-  color: var(--editor-comment);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.ratioField {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: var(--editor-comment);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.ratioInput {
-  block-size: 2rem;
-  inline-size: 2.5rem;
-  padding: 0.25rem 0.375rem;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  background: var(--editor-control-background);
-  color: var(--editor-foreground);
-  font-size: 0.75rem;
-  text-align: center;
-  line-height: 1.4;
-  -moz-appearance: textfield;
-}
-
-.ratioInput:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 1px;
-}
-
-.ratioInput::-webkit-inner-spin-button,
-.ratioInput::-webkit-outer-spin-button {
-  margin: 0;
-  -webkit-appearance: none;
-}
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.ratioSeparator {
-  color: var(--editor-comment);
-  user-select: none;
-}
-
-.vr {
-  border-inline-start: 1px solid var(--editor-border);
-  max-block-size: 2rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 0 var(--preview-header-block-size);
   height: 100%;
-}
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-primary);
+  transition: grid-template-rows 250ms cubic-bezier(0.33, 1, 0.68, 1);
 
-.button {
-  block-size: 2rem;
-  inline-size: 2rem;
-  background: var(--editor-control-background);
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
-  color: var(--editor-foreground);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.4;
-  white-space: nowrap;
-  cursor: pointer;
+  &:not([data-drawer-mode="closed"]) {
+    grid-template-rows: minmax(0, 1fr) 25rem var(--preview-header-block-size);
+  }
 }
-
-.button:hover {
-  background: var(--editor-control-hover);
-}
-
-.button:focus-visible {
-  outline: 2px solid var(--editor-focus);
-  outline-offset: 2px;
-}
-
-/* MAIN */
 
 .main {
   container-type: size;
@@ -112,19 +23,35 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  padding-block: 3rem;
   padding-inline: 2rem;
-  padding-block-end: 3rem;
 
   @media (min-width: 800px) {
     padding-inline: 4rem;
   }
 }
 
-.root {
-  width: min(100cqw, calc(100cqh * var(--preview-aspect-ratio)));
-  height: auto;
+.canvas {
+  block-size: auto;
+  inline-size: min(100cqw, calc(100cqh * var(--preview-aspect-ratio)));
+  aspect-ratio: var(--preview-aspect-ratio);
   max-width: 100%;
   max-height: 100%;
   min-width: 0;
-  aspect-ratio: 1;
+}
+
+.pane[data-fill-preview="true"] {
+  .main {
+    grid-template-rows: minmax(0, 1fr);
+    padding: 0;
+  }
+
+  .canvas {
+    block-size: 100%;
+    inline-size: 100%;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
 }

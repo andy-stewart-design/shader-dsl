@@ -1,0 +1,19 @@
+.colorField {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  grid-column: 3 / span 3;
+}
+
+.fieldLabel {
+  color: var(--editor-comment);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+
+.error {
+  color: #ffb8f8;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}

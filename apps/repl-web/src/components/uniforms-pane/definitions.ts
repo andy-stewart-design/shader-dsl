@@ -1,6 +1,6 @@
 import type { ShaderUniformDefinition } from "../../compiler/uniform-definitions";
-import { colorToValidHex } from "./helpers.ts";
-import type { Uniform } from "./types.ts";
+import { colorToValidHex, parseF32 } from "./helpers.ts";
+import type { Uniform } from "../../shared/uniforms.ts";
 
 export type UniformConversionResult =
   | {
@@ -33,17 +33,39 @@ export function toShaderUniformDefinitions(
     names.add(name);
 
     if (uniform.type === "float") {
-      const value = parseF32(uniform.float.value);
+      const value = parseF32(uniform.value);
+      const min = parseF32(uniform.min);
+      const max = parseF32(uniform.max);
       if (value === undefined) {
         return invalid(
           `Uniform ${JSON.stringify(name)} must have a finite f32 value.`,
+        );
+      }
+      if (min === undefined) {
+        return invalid(
+          `Uniform ${JSON.stringify(name)} must have a finite f32 min.`,
+        );
+      }
+      if (max === undefined) {
+        return invalid(
+          `Uniform ${JSON.stringify(name)} must have a finite f32 max.`,
+        );
+      }
+      if (min >= max) {
+        return invalid(
+          `Uniform ${JSON.stringify(name)} min must be less than max.`,
+        );
+      }
+      if (value < min || value > max) {
+        return invalid(
+          `Uniform ${JSON.stringify(name)} value must be within its min and max.`,
         );
       }
       definitions.push({ name, type: "f32", default: value });
       continue;
     }
 
-    const color = colorToValidHex(uniform.color.draft);
+    const color = colorToValidHex(uniform.draft);
     if (!color) {
       return invalid(
         `Uniform ${JSON.stringify(name)} must have a valid 3- or 6-digit hex color.`,
@@ -67,16 +89,6 @@ const RESERVED_NAMES = new Set([
   "prototype",
   "constructor",
 ]);
-
-function parseF32(draft: string): number | undefined {
-  if (draft.trim() === "") return undefined;
-  const value = Number(draft);
-  return Number.isFinite(value) && Number.isFinite(Math.fround(value))
-    ? Object.is(value, -0)
-      ? 0
-      : value
-    : undefined;
-}
 
 function colorToRgb(hex: string): readonly [number, number, number] {
   const value = Number.parseInt(hex.slice(1), 16);

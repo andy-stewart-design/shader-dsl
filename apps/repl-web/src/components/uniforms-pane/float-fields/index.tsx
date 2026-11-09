@@ -42,7 +42,7 @@ function FloatInput({
     .join(" ");
 
   return (
-    <label className={s.field}>
+    <label className={s.floatField}>
       <span className={s.fieldLabel}>{label}</span>
       <input
         className={s.input}
@@ -68,7 +68,7 @@ function FloatInput({
   );
 }
 
-export function FloatFields({
+export default function FloatFields({
   idPrefix,
   value,
   min,
@@ -84,7 +84,7 @@ export function FloatFields({
   const rangeErrorId = `${idPrefix}-range-error`;
 
   return (
-    <>
+    <div className={s.container}>
       <FloatInput
         idPrefix={idPrefix}
         label="Value"
@@ -113,6 +113,6 @@ export function FloatFields({
         }
         onChange={onMaxChange}
       />
-    </>
+    </div>
   );
 }
