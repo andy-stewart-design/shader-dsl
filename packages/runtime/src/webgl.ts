@@ -35,6 +35,7 @@ import type {
   StaticRendererOptions,
   DynamicRendererOptions,
   LegacyRendererOptions,
+  RendererColorSpace,
 } from "./types.js";
 
 const VERTEX = `#version 300 es
@@ -43,6 +44,41 @@ void main() {
   vec2 position = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
   gl_Position = vec4(position * 2.0 - 1.0, 0.0, 1.0);
 }`;
+
+function setDrawingBufferColorSpace(
+  gl: WebGL2RenderingContext,
+  colorSpace: RendererColorSpace | undefined,
+): void {
+  if (colorSpace === undefined || !("drawingBufferColorSpace" in gl)) return;
+
+  try {
+    gl.drawingBufferColorSpace = colorSpace;
+  } catch {
+    // Older implementations may expose WebGL 2 without the color-space
+    // setter. Their default drawing buffer is sRGB.
+    if (colorSpace !== "display-p3") return;
+    try {
+      gl.drawingBufferColorSpace = "srgb";
+    } catch {
+      return;
+    }
+    return;
+  }
+
+  // Some implementations accept the assignment but keep the sRGB default.
+  // Treat that as an unsupported Display-P3 request rather than failing the
+  // preview.
+  if (
+    colorSpace === "display-p3" &&
+    gl.drawingBufferColorSpace !== "display-p3"
+  ) {
+    try {
+      gl.drawingBufferColorSpace = "srgb";
+    } catch {
+      // The browser's existing default remains sRGB.
+    }
+  }
+}
 interface Program {
   readonly program: WebGLProgram;
   readonly vertex: WebGLShader;
@@ -61,6 +97,7 @@ interface Program {
 export class WebGlRenderer extends CanvasRenderer {
   private program?: Program;
   private readonly vao: WebGLVertexArrayObject;
+  private readonly colorSpace: RendererColorSpace | undefined;
   private pendingTextureLoad?: AbortController;
   private constructor(
     canvas: HTMLCanvasElement,
@@ -70,6 +107,7 @@ export class WebGlRenderer extends CanvasRenderer {
   ) {
     super(canvas, "webgl", options);
     this.vao = vao;
+    this.colorSpace = options.colorSpace;
     canvas.addEventListener("webglcontextlost", this.contextLost);
   }
   static create<
@@ -224,12 +262,9 @@ export class WebGlRenderer extends CanvasRenderer {
       if (!this.current(generation)) return { status: "superseded" };
       const startedAt = requestedEpoch ?? performance.now();
       const values = this.uniformState.resolve(custom);
+      const visibleTime = this.installTime(startedAt);
       try {
-        this.submit(
-          candidate,
-          Math.max(0, (performance.now() - startedAt) / 1000),
-          values,
-        );
+        this.submit(candidate, visibleTime, values);
       } catch (error) {
         throw runtimeError("webgl", "draw", error);
       }
@@ -238,7 +273,7 @@ export class WebGlRenderer extends CanvasRenderer {
       this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) this.deleteProgram(previous);
-      this.installed(startedAt);
+      this.installed(startedAt, visibleTime);
       return {
         status: "installed",
         boundUniforms: this.program.boundUniforms,
@@ -254,12 +289,20 @@ export class WebGlRenderer extends CanvasRenderer {
       else textures?.dispose();
     }
   }
-  protected async performDraw(timestamp: number): Promise<void> {
+  protected size(): void {
+    super.size();
+    // Keep the requested output space after canvas resizes/context state
+    // changes. Unsupported Display-P3 continues to use the sRGB default.
+    setDrawingBufferColorSpace(this.gl, this.colorSpace);
+  }
+  protected async performDraw(timestamp: number): Promise<number> {
     const program = this.program;
     if (!program) throw new Error("No installed WebGL shader.");
+    const seconds = this.elapsed(timestamp);
     this.size();
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-    this.submit(program, this.elapsed(timestamp));
+    this.submit(program, seconds);
+    return seconds;
   }
   private submit(
     resource: Program,

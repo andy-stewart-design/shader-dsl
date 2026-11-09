@@ -36,6 +36,7 @@ import type {
   StaticRendererOptions,
   DynamicRendererOptions,
   LegacyRendererOptions,
+  RendererColorSpace,
 } from "./types.js";
 
 const VERTEX = `@vertex
@@ -48,6 +49,37 @@ const defaults = [
   { name: "mouse", binding: 1, bytes: 8 },
   { name: "time", binding: 2, bytes: 4 },
 ] as const;
+
+/** Configure through one path so reconfiguration retains the output color. */
+function configureCanvas(
+  context: GPUCanvasContext,
+  device: GPUDevice,
+  format: GPUTextureFormat,
+  colorSpace: RendererColorSpace | undefined,
+): RendererColorSpace | undefined {
+  const base = {
+    device,
+    format,
+    alphaMode: "opaque" as const,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  };
+  const configure = (requested?: RendererColorSpace): void => {
+    context.configure(
+      requested === undefined ? base : { ...base, colorSpace: requested },
+    );
+  };
+
+  try {
+    configure(colorSpace);
+    return colorSpace;
+  } catch (error) {
+    // Display-P3 is optional in WebGPU. A browser can expose WebGPU while
+    // rejecting that canvas color space, so retry with the API default.
+    if (colorSpace !== "display-p3") throw error;
+    configure("srgb");
+    return "srgb";
+  }
+}
 interface Resources {
   readonly pipeline: GPURenderPipeline;
   readonly textures: LoadedTextureResources;
@@ -76,6 +108,7 @@ export class WebGpuRenderer extends CanvasRenderer {
   private readonly context: GPUCanvasContext;
   private readonly format: GPUTextureFormat;
   private readonly device: GPUDevice;
+  private readonly colorSpace: RendererColorSpace | undefined;
   private pendingTextureLoad?: AbortController;
   // Error scopes belong to the device, not a Promise. Serialize every scoped
   // preparation and draw, including RAF/manual draws and replacement installs.
@@ -87,12 +120,14 @@ export class WebGpuRenderer extends CanvasRenderer {
     format: GPUTextureFormat,
     vertex: GPUShaderModule,
     options: RendererOptions,
+    colorSpace: RendererColorSpace | undefined,
   ) {
     super(canvas, "webgpu", options);
     this.context = context;
     this.device = device;
     this.format = format;
     this.vertex = vertex;
+    this.colorSpace = colorSpace;
     device.addEventListener("uncapturederror", this.uncaptured);
     void device.lost.then((info) => {
       if (this.disposed || this.lost) return;
@@ -131,6 +166,7 @@ export class WebGpuRenderer extends CanvasRenderer {
     let device: GPUDevice | undefined;
     let context: GPUCanvasContext | null = null;
     let renderer: WebGpuRenderer | undefined;
+    let configuredColorSpace: RendererColorSpace | undefined;
     try {
       checkArtifact(artifact, "webgpu");
       const custom = readCustomMetadata(artifact, "webgpu");
@@ -163,12 +199,12 @@ export class WebGpuRenderer extends CanvasRenderer {
         );
       const format = navigator.gpu.getPreferredCanvasFormat();
       try {
-        context.configure({
+        configuredColorSpace = configureCanvas(
+          context,
           device,
           format,
-          alphaMode: "opaque",
-          usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
+          options.colorSpace,
+        );
       } catch (error) {
         throw runtimeError("webgpu", "surface", error);
       }
@@ -180,6 +216,7 @@ export class WebGpuRenderer extends CanvasRenderer {
         format,
         vertex,
         options,
+        configuredColorSpace,
       );
       renderer.uniformState.creation(custom, options.uniforms);
       const abort = () => renderer?.dispose();
@@ -260,6 +297,8 @@ export class WebGpuRenderer extends CanvasRenderer {
   ): Promise<ShaderInstallResult> {
     if (!this.current(generation)) return { status: "superseded" };
     let candidate: Resources | undefined;
+    let previous: Resources | undefined;
+    let visibleChanged = false;
     try {
       candidate = await this.prepare(artifact, custom, resources);
       if (!this.current(generation)) return { status: "superseded" };
@@ -294,38 +333,67 @@ export class WebGpuRenderer extends CanvasRenderer {
       // A host patch can arrive while popErrorScope is pending. If so, submit
       // the candidate again with the latest values before committing it.
       const view = this.context.getCurrentTexture().createView();
+      previous = this.resources;
+      let visibleTime = this.committedTime();
       let values: Map<string, DynamicUniformValue>;
       while (true) {
         const version = this.uniformState.version();
         values = this.uniformState.resolve(custom);
-        await this.scoped("draw", () =>
-          this.submit(
-            candidate!,
-            view,
-            Math.max(0, (performance.now() - startedAt) / 1000),
-            values,
-          ),
-        );
-        if (!this.current(generation)) return { status: "superseded" };
+        visibleChanged = true;
+        await this.scoped("draw", () => {
+          // Resolve immediately before the visible submission, rather than
+          // before the asynchronous validation scope can yield.
+          visibleTime = this.installTime(startedAt);
+          this.submit(candidate!, view, visibleTime, values);
+        });
+        if (!this.current(generation)) {
+          if (previous && !this.disposed && !this.lost) {
+            await this.restore(previous);
+            visibleChanged = false;
+          }
+          return { status: "superseded" };
+        }
         if (this.uniformState.version() === version) break;
       }
-      const previous = this.resources;
       this.resources = candidate;
       this.uniformState.commit(custom, values);
       candidate = undefined;
       if (previous) destroy(previous);
-      this.installed(startedAt);
+      this.installed(startedAt, visibleTime);
       return {
         status: "installed",
         boundUniforms: this.resources.boundUniforms,
         warnings: this.resources.warnings,
       };
     } catch (error) {
+      // A candidate is submitted to the real canvas before its validation
+      // scope resolves. If it is superseded or fails after that point, put the
+      // last installed resource/frame back before releasing the candidate.
+      let restoreError: unknown;
+      if (visibleChanged && previous && !this.disposed && !this.lost) {
+        try {
+          await this.restore(previous);
+        } catch (failure) {
+          restoreError = failure;
+        }
+      }
+      if (restoreError) throw runtimeError("webgpu", "draw", restoreError);
       if (!this.current(generation)) return { status: "superseded" };
       throw runtimeError("webgpu", "shader", error);
     } finally {
       if (candidate) destroy(candidate);
     }
+  }
+  private async restore(previous: Resources): Promise<void> {
+    this.size();
+    await this.scoped("draw", () =>
+      this.submit(
+        previous,
+        this.context.getCurrentTexture().createView(),
+        this.committedTime(),
+        this.uniformState.current(),
+      ),
+    );
   }
   private async scoped(
     kind: "shader" | "draw",
@@ -546,7 +614,21 @@ export class WebGpuRenderer extends CanvasRenderer {
         ),
     };
   }
-  protected performDraw(timestamp: number): Promise<void> {
+  protected size(): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    super.size();
+    // Canvas resizing normally keeps a GPUCanvasContext configured, but
+    // reconfigure explicitly when the preview requested a non-default space.
+    // This keeps Display-P3 on browsers that require resize reconfiguration.
+    if (
+      this.colorSpace !== undefined &&
+      (this.canvas.width !== width || this.canvas.height !== height)
+    ) {
+      configureCanvas(this.context, this.device, this.format, this.colorSpace);
+    }
+  }
+  protected performDraw(_timestamp: number): Promise<number> {
     return this.enqueue(async () => {
       this.assertUsable();
       if (!this.resources)
@@ -555,15 +637,20 @@ export class WebGpuRenderer extends CanvasRenderer {
           "draw",
           "No installed WebGPU shader.",
         );
+      // Resolve the clock only once this draw reaches the serialized WebGPU
+      // queue. A preceding install/draw may have committed a newer time, and a
+      // pause may have happened while this draw was waiting in the queue.
+      const seconds = this.elapsed(performance.now());
       this.size();
       await this.scoped("draw", () =>
         this.submit(
           this.resources!,
           this.context.getCurrentTexture().createView(),
-          this.elapsed(timestamp),
+          seconds,
           this.uniformState.current(),
         ),
       );
+      return seconds;
     });
   }
   private submit(

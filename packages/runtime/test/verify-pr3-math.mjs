@@ -36,6 +36,25 @@ export default createFragmentShader(({ coord, uniforms }) => {
   const y = coord.y / uniforms.resolution.y;
   return vec4(sqrt(x) * 0.3 + exp(-y) * 0.1, clamp(pow(y, 2), 0.1, 0.9), tanh(x) * 0.5, 1);
 });`);
+const tanhDynamic = compile(
+  `import { createFragmentShader, defineUniforms, tanh, vec2, vec3, vec4 } from "shdr";
+export default defineUniforms((u) => ({ value: u.f32(0) })).createFragmentShader(({ coord, uniforms }) => {
+  const value = uniforms.value + coord.x * 0.0;
+  const scalar = tanh(value);
+  const vector2 = tanh(vec2(value, -value));
+  const vector3 = tanh(vec3(value, -value, value * 0.5));
+  const vector4 = tanh(vec4(value, -value, value * 0.5, -value * 0.5));
+  return vec4(
+    (scalar + 1) * 0.5,
+    (vector2.y + 1) * 0.5,
+    (vector3.z * 0.75 + vector4.w * 0.25 + 1) * 0.5,
+    1
+  );
+});`,
+);
+assert.match(tanhDynamic.glsl, /tanh\(clamp\(/);
+assert.match(tanhDynamic.wgsl, /tanh\(clamp\(/);
+assert.doesNotMatch(tanhDynamic.wgsl, /shdr_internal_safe_clamp/);
 const mixed = compile(
   `import { clamp, createFragmentShader, defineUniforms, pow, vec2, vec3, vec4 } from "shdr";
 export default defineUniforms((u) => ({ gain: u.f32(0.35) })).createFragmentShader(({ coord, uniforms }) => {
@@ -180,6 +199,54 @@ try {
       255,
     ];
   });
+  await page.evaluate(async (artifact) => {
+    await Promise.all([
+      window.glRenderer.setShader(artifact),
+      window.gpuRenderer.setShader(artifact),
+    ]);
+  }, tanhDynamic);
+  for (const value of [
+    -1e6,
+    -1000,
+    -100,
+    -89,
+    -80,
+    -1,
+    -1e-4,
+    0,
+    1e-4,
+    1,
+    80,
+    89,
+    100,
+    1000,
+    1e6,
+  ]) {
+    await page.evaluate(async (value) => {
+      await Promise.all(
+        [window.glRenderer, window.gpuRenderer].map(async (renderer) => {
+          renderer.setUniforms({ value });
+          return renderer.draw();
+        }),
+      );
+    }, value);
+    await expectPixels(
+      `bounded tanh ${value}`,
+      samples,
+      () => [
+        Math.round(255 * ((Math.tanh(value) + 1) * 0.5)),
+        Math.round(255 * ((Math.tanh(-value) + 1) * 0.5)),
+        Math.round(
+          255 *
+            ((Math.tanh(value * 0.5) * 0.75 +
+              Math.tanh(-value * 0.5) * 0.25 +
+              1) *
+              0.5),
+        ),
+        255,
+      ],
+    );
+  }
   await page.evaluate(async (artifact) => {
     await Promise.all([
       window.glRenderer.setShader(artifact),

@@ -218,6 +218,25 @@ function emitExpression(
       }
       if (
         expression.target.kind === "builtin-function" &&
+        expression.target.name === "tanh"
+      ) {
+        // Large finite f32 inputs can overflow native tanh implementations;
+        // tanh(±10) is already saturated at f32 precision.
+        const bounds =
+          expression.type.kind === "scalar"
+            ? ["-10.0", "10.0"]
+            : expression.type.kind === "vector"
+              ? [
+                  `vec${expression.type.size}(-10.0)`,
+                  `vec${expression.type.size}(10.0)`,
+                ]
+              : (() => {
+                  throw new Error("Texture handles cannot be tanh arguments.");
+                })();
+        args[0] = `clamp(${args[0]}, ${bounds[0]}, ${bounds[1]})`;
+      }
+      if (
+        expression.target.kind === "builtin-function" &&
         expression.type.kind === "vector"
       ) {
         const scalarArguments =

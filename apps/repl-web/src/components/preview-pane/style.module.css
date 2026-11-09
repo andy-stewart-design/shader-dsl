@@ -1,0 +1,57 @@
+.pane {
+  --preview-header-block-size: 2.5rem;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 0 var(--preview-header-block-size);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-primary);
+  transition: grid-template-rows 250ms cubic-bezier(0.33, 1, 0.68, 1);
+
+  &:not([data-drawer-mode="closed"]) {
+    grid-template-rows: minmax(0, 1fr) 25rem var(--preview-header-block-size);
+  }
+}
+
+.main {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-block: 3rem;
+  padding-inline: 2rem;
+
+  @media (min-width: 800px) {
+    padding-inline: 4rem;
+  }
+}
+
+.canvas {
+  block-size: auto;
+  inline-size: min(100cqw, calc(100cqh * var(--preview-aspect-ratio)));
+  aspect-ratio: var(--preview-aspect-ratio);
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+}
+
+.pane[data-fill-preview="true"] {
+  .main {
+    grid-template-rows: minmax(0, 1fr);
+    padding: 0;
+  }
+
+  .canvas {
+    block-size: 100%;
+    inline-size: 100%;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+}

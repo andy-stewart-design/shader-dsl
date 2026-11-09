@@ -6,6 +6,7 @@ export {
   type CompileArtifactSuccess,
 } from "./compile-fragment-artifact.js";
 export type { ShaderGraphDiagnostic } from "./diagnostics.js";
+export { SHADER_BUILTINS } from "./shader-builtin.js";
 export {
   checkShaderGraph,
   type ShaderVirtualGraphInput,

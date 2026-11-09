@@ -1,0 +1,30 @@
+/* PANE */
+
+.pane {
+  --editor-header-block-size: 3rem;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--editor-header-block-size) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface-background-secondary);
+  border-inline-end: 1px solid var(--editor-border);
+}
+
+/* MAIN */
+
+.panels {
+  min-height: 0;
+}
+
+.panel {
+  height: 100%;
+  min-height: 0;
+
+  &[hidden] {
+    display: none;
+  }
+}

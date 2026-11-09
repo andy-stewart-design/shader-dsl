@@ -165,4 +165,48 @@ describe("GLSL expression generation", () => {
     expect(coord).toContain("gl_FragCoord.z");
     expect(coord).toContain("gl_FragCoord.w");
   });
+
+  it("bounds native tanh for scalar and nested vector expressions", () => {
+    const vector = (
+      name: "vec2" | "vec3" | "vec4",
+      type: ShaderValueType,
+      values: readonly number[],
+    ): ShaderExpression => ({
+      kind: "call",
+      target: { kind: "constructor", name },
+      arguments: values.map(numeric),
+      type,
+      range,
+    });
+    const tanh = (
+      argument: ShaderExpression,
+      type: ShaderValueType,
+    ): ShaderExpression => ({
+      kind: "call",
+      target: { kind: "builtin-function", name: "tanh" },
+      arguments: [argument],
+      type,
+      range,
+    });
+
+    expect(generateGlslExpression(tanh(numeric(-1), f32)).code).toBe(
+      "tanh(clamp(-1.0, -10.0, 10.0))",
+    );
+    expect(
+      generateGlslExpression(tanh(vector("vec2", vec2, [0.0001, -80]), vec2))
+        .code,
+    ).toBe("tanh(clamp(vec2(0.0001, -80.0), vec2(-10.0), vec2(10.0)))");
+    const vec3 = { kind: "vector", scalar: "f32", size: 3 } as const;
+    expect(
+      generateGlslExpression(tanh(vector("vec3", vec3, [1, -0.0001, 89]), vec3))
+        .code,
+    ).toBe("tanh(clamp(vec3(1.0, -0.0001, 89.0), vec3(-10.0), vec3(10.0)))");
+    expect(
+      generateGlslExpression(
+        tanh(vector("vec4", vec4, [-1000, 0, 1, -1]), vec4),
+      ).code,
+    ).toBe(
+      "tanh(clamp(vec4(-1000.0, 0.0, 1.0, -1.0), vec4(-10.0), vec4(10.0)))",
+    );
+  });
 });

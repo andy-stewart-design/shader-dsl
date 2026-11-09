@@ -1,0 +1,110 @@
+import { useCallback, useRef } from "react";
+import { createUniform } from "./helpers";
+import UniformRow from "./uniform-row";
+import type { Uniform } from "../../shared/uniforms";
+import s from "./style.module.css";
+
+interface UniformsPaneProps {
+  uniforms: Uniform[];
+  onUniformsChange: (uniforms: Uniform[]) => void;
+}
+
+export default function UniformsPane({
+  uniforms,
+  onUniformsChange,
+}: UniformsPaneProps) {
+  const setUniforms = useCallback(
+    (update: Uniform[] | ((current: Uniform[]) => Uniform[])) => {
+      onUniformsChange(
+        typeof update === "function" ? update(uniforms) : update,
+      );
+    },
+    [onUniformsChange, uniforms],
+  );
+  const nextId = useRef(0);
+
+  const addUniform = useCallback(() => {
+    setUniforms((current) => {
+      let sequence = nextId.current;
+      const ids = new Set(current.map((uniform) => uniform.id));
+      while (ids.has(`uniform-${sequence}`)) sequence += 1;
+      nextId.current = sequence + 1;
+      const id = `uniform-${sequence}`;
+      return [
+        ...current,
+        createUniform(
+          id,
+          sequence,
+          current.map((uniform) => uniform.name),
+        ),
+      ];
+    });
+  }, [setUniforms]);
+
+  const updateUniform = useCallback(
+    (updated: Uniform) => {
+      setUniforms((current) =>
+        current.map((uniform) =>
+          uniform.id === updated.id ? updated : uniform,
+        ),
+      );
+    },
+    [setUniforms],
+  );
+
+  const removeUniform = useCallback(
+    (id: string) => {
+      setUniforms((current) => current.filter((uniform) => uniform.id !== id));
+    },
+    [setUniforms],
+  );
+
+  return (
+    <div className={s.pane}>
+      {uniforms.length > 0 ? (
+        <div
+          className={s.uniformList}
+          role="list"
+          aria-label="Uniforms"
+        >
+          {uniforms.map((uniform) => {
+            const duplicateName =
+              uniform.name.trim() !== "" &&
+              uniforms.some(
+                (other) =>
+                  other.id !== uniform.id &&
+                  other.name.trim() === uniform.name.trim(),
+              );
+
+            return (
+              <UniformRow
+                key={uniform.id}
+                uniform={uniform}
+                duplicateName={duplicateName}
+                onChange={updateUniform}
+                onRemove={() => removeUniform(uniform.id)}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <div className={s.emptyState}>
+          <p>No uniforms yet.</p>
+          <p className={s.emptyHint}>
+            Add a uniform to set up a local value, range, or color.
+          </p>
+        </div>
+      )}
+      <div className={s.actions}>
+        <button
+          className={s.newButton}
+          type="button"
+          onClick={addUniform}
+        >
+          <span aria-hidden="true">+</span>
+          New uniform
+        </button>
+      </div>
+    </div>
+  );
+}

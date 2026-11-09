@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "dev": "tsdown --watch",
+    "dev": "tsdown --watch --no-clean",
     "check": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "pretest": "playwright install chromium",
     "test": "vitest run --config ../../vitest.config.ts --root .",

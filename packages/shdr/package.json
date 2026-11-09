@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "dev": "tsdown --watch",
+    "dev": "tsdown --watch --no-clean",
     "check": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },

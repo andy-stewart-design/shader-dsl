@@ -1,0 +1,127 @@
+/* 1. Use a more-intuitive box-sizing model */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 2. Remove default margin */
+*:not(dialog) {
+  margin: 0;
+}
+
+/* 3. Enable keyword animations */
+@media (prefers-reduced-motion: no-preference) {
+  :where(html) {
+    interpolate-size: allow-keywords;
+  }
+}
+
+:where(body) {
+  line-height: 1.5; /* 4. Increase line-height */
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased; /* 5. Improve text rendering */
+}
+
+/* 6. Improve media defaults */
+:where(img, picture, video, canvas, svg) {
+  display: block;
+  max-width: 100%;
+}
+
+/* 7. Inherit fonts for form controls */
+:where(input, button, textarea, select) {
+  font: inherit;
+}
+
+/* 8. Avoid text overflows */
+:where(p, h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: break-word;
+}
+
+/* 9. Improve line wrapping */
+:where(p) {
+  text-wrap: pretty;
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  text-wrap: balance;
+  line-height: 1.2;
+}
+
+/* 10. Create a root stacking context */
+:where(main) {
+  isolation: isolate;
+}
+
+/* Core Design Tokens */
+:root {
+  --color-surface-background-primary: #000000;
+  --color-surface-background-secondary: #0c0c0c;
+  --color-surface-background-tertiary: #131313;
+  --color-surface-background-quaternary: #181818;
+  --color-surface-background-inverse: var(--color-surface-foreground-primary);
+
+  --color-surface-border-subtle: #252525;
+
+  --color-surface-foreground-primary: #ededed;
+  --color-surface-foreground-secondary: #a1a1a1;
+  --color-surface-foreground-tertiary: #737373;
+  --color-surface-foreground-tertiary: #737373;
+  --color-surface-foreground-disabled: #454545;
+  --color-surface-foreground-inverse: var(--color-surface-background-primary);
+
+  --color-syntax-orange: #ffd5c4;
+  --color-syntax-green: #dbe699;
+  --color-syntax-teal: #a2f0e0;
+  --color-syntax-blue: #9fd9ff;
+  --color-syntax-purple: #c3b9ff;
+
+  color-scheme: dark;
+  background-color: var(--color-surface-background-primary);
+  color: var(--color-surface-foreground-primary);
+}
+
+/* Editor Design Tokens */
+:root {
+  --editor-background: var(--color-surface-background-secondary);
+  --editor-foreground: var(--color-surface-foreground-primary);
+  --editor-font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  --editor-font-size: 14px;
+  --editor-line-height: 1.6;
+  --editor-padding: 8px;
+  --editor-focus: transparent;
+  --editor-focus-outline: none;
+  --editor-cursor: var(--color-surface-foreground-primary);
+  --editor-border: var(--color-surface-border-subtle);
+  --editor-selection: #252525;
+  --editor-selection-inactive: var(--color-surface-background-quaternary);
+  --editor-gutter-background: var(--editor-background);
+  --editor-gutter-foreground: var(--color-surface-foreground-disabled);
+  --editor-gutter-border: none;
+  --editor-gutter-active-line-background: var(--editor-active-line);
+  --editor-active-line: rgb(255 255 255 / 0.03);
+  --editor-bracket-match: #87c38a26;
+  --editor-search-match: #f5ffa826;
+  --editor-search-match-selected: #f5ffa852;
+  --editor-search-border: #f5ffa8;
+  --editor-selection-match: #87c38a26;
+  --editor-panel-background: #161719;
+  --editor-control-background: #161719;
+  --editor-control-hover: #85befd26;
+  --editor-control-radius: 0.125rem;
+  --editor-keyword: var(--color-surface-foreground-tertiary);
+  --editor-property: var(--color-surface-foreground-primary);
+  --editor-function: var(--color-syntax-blue);
+  --editor-type: var(--color-syntax-teal);
+  --editor-string: var(--color-syntax-orange);
+  --editor-literal: var(--color-syntax-green);
+  --editor-escape: #f5ffa8;
+  --editor-operator: var(--color-syntax-purple);
+  --editor-punctuation: var(--color-surface-foreground-tertiary);
+  --editor-comment: var(--color-surface-foreground-disabled);
+  --editor-meta: #b9b6fc;
+  --editor-invalid: var(--color-surface-foreground-tertiary);
+}
