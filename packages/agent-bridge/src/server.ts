@@ -3,12 +3,9 @@ import {
   type Server as HttpServer,
 } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { WebSocketServer, type WebSocket } from "ws";
 import { bridgeResultToMcp, normalizeResult } from "./results.js";
 import {
@@ -21,7 +18,6 @@ import {
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
   isRecord,
-  isJsonValue,
   jsonSize,
   safeJson,
   type BridgeCatalog,
@@ -52,11 +48,19 @@ export type BridgeServer = {
   close(): Promise<void>;
 };
 
-const emptySchema = {
-  type: "object",
-  properties: {},
-  additionalProperties: false,
-} as const;
+const connectionInfoSchema = z.object({}).strict();
+const sessionSchema = z.object({ sessionId: z.string() }).strict();
+const describeToolSchema = z
+  .object({ sessionId: z.string(), name: z.string() })
+  .strict();
+const callToolSchema = z
+  .object({
+    sessionId: z.string(),
+    catalogVersion: z.number().int(),
+    name: z.string(),
+    arguments: z.any(),
+  })
+  .strict();
 
 export async function startBridgeServer(
   options: BridgeServerOptions,
@@ -239,121 +243,101 @@ export async function startBridgeServer(
   }
 
   async function attachMcp(transport: StdioServerTransport): Promise<void> {
-    const server = new Server(
+    const server = new McpServer(
       { name: "shdr-agent-bridge", version: "0.0.0" },
       { capabilities: { tools: {} } },
     );
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: "bridge_get_connection_info",
-          description:
-            "Get the loopback pairing information and effective safety limits.",
-          inputSchema: emptySchema,
-        },
-        {
-          name: "bridge_list_tools",
-          description: "List tools exposed by the paired page.",
-          inputSchema: {
-            type: "object",
-            properties: { sessionId: { type: "string" } },
-            required: ["sessionId"],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: "bridge_describe_tool",
-          description: "Describe one tool exposed by the paired page.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              sessionId: { type: "string" },
-              name: { type: "string" },
-            },
-            required: ["sessionId", "name"],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: "bridge_call_tool",
-          description: "Call a declared tool on the paired page.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              sessionId: { type: "string" },
-              catalogVersion: { type: "integer" },
-              name: { type: "string" },
-              arguments: {},
-            },
-            required: ["sessionId", "catalogVersion", "name", "arguments"],
-            additionalProperties: false,
-          },
-        },
-      ],
-    }));
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const name = request.params.name;
-      const args = (request.params.arguments ?? {}) as unknown;
-      try {
-        if (name === "bridge_get_connection_info")
-          return textMcp(connectionInfo());
-        if (name === "bridge_list_tools") {
-          const input = args as any;
-          if (!catalog || !sessionId)
-            return errorMcp("not_connected", "no page is paired");
-          if (input.sessionId !== sessionId)
-            return errorMcp("stale_session", "session is no longer current");
-          return textMcp({
-            sessionId,
-            catalogVersion: catalog.catalogVersion,
-            tools: catalog.tools,
-          });
-        }
-        if (name === "bridge_describe_tool") {
-          const input = args as any;
-          if (!catalog || !sessionId)
-            return errorMcp("not_connected", "no page is paired");
-          if (input.sessionId !== sessionId)
-            return errorMcp("stale_session", "session is no longer current");
-          const tool = catalog.tools.find((item) => item.name === input.name);
-          return tool
-            ? textMcp(tool)
-            : errorMcp("unknown_tool", "unknown tool");
-        }
-        if (name === "bridge_call_tool") {
-          const input = args as any;
-          if (!catalog || !sessionId || owner?.readyState !== 1)
-            return errorMcp("not_connected", "no page is paired");
-          if (input.sessionId !== sessionId)
-            return errorMcp("stale_session", "session is no longer current");
-          if (input.catalogVersion !== catalog.catalogVersion)
-            return errorMcp("stale_catalog", "catalog version is stale");
-          const tool = catalog.tools.find((item) => item.name === input.name);
-          if (!tool) return errorMcp("unknown_tool", "unknown tool");
-          const valid = validateInput(tool.inputSchema, input.arguments);
-          if (!valid.ok) return errorMcp("invalid_arguments", valid.message);
-          try {
-            return bridgeResultToMcp(
-              await callPage(input.name, input.arguments),
-            );
-          } catch (error) {
-            return errorMcp(
-              error instanceof Error && error.message.includes("timeout")
-                ? "timeout"
-                : "handler_error",
-              error instanceof Error ? error.message : "page request failed",
-            );
-          }
-        }
-        return errorMcp("unknown_tool", "unknown bridge operation");
-      } catch (error) {
-        return errorMcp(
-          "bridge_error",
-          error instanceof Error ? error.message : "bridge operation failed",
-        );
-      }
-    });
+    server.registerTool(
+      "bridge_get_connection_info",
+      {
+        description:
+          "Get the loopback pairing information and effective safety limits.",
+        inputSchema: connectionInfoSchema,
+      },
+      async () => handleMcpTool("bridge_get_connection_info", {}),
+    );
+    server.registerTool(
+      "bridge_list_tools",
+      {
+        description: "List tools exposed by the paired page.",
+        inputSchema: sessionSchema,
+      },
+      async (input) => handleMcpTool("bridge_list_tools", input),
+    );
+    server.registerTool(
+      "bridge_describe_tool",
+      {
+        description: "Describe one tool exposed by the paired page.",
+        inputSchema: describeToolSchema,
+      },
+      async (input) => handleMcpTool("bridge_describe_tool", input),
+    );
+    server.registerTool(
+      "bridge_call_tool",
+      {
+        description: "Call a declared tool on the paired page.",
+        inputSchema: callToolSchema,
+      },
+      async (input) => handleMcpTool("bridge_call_tool", input),
+    );
     await server.connect(transport);
+  }
+
+  async function handleMcpTool(name: string, args: unknown) {
+    try {
+      if (name === "bridge_get_connection_info")
+        return textMcp(connectionInfo());
+      if (name === "bridge_list_tools") {
+        const input = args as any;
+        if (!catalog || !sessionId)
+          return errorMcp("not_connected", "no page is paired");
+        if (input.sessionId !== sessionId)
+          return errorMcp("stale_session", "session is no longer current");
+        return textMcp({
+          sessionId,
+          catalogVersion: catalog.catalogVersion,
+          tools: catalog.tools,
+        });
+      }
+      if (name === "bridge_describe_tool") {
+        const input = args as any;
+        if (!catalog || !sessionId)
+          return errorMcp("not_connected", "no page is paired");
+        if (input.sessionId !== sessionId)
+          return errorMcp("stale_session", "session is no longer current");
+        const tool = catalog.tools.find((item) => item.name === input.name);
+        return tool ? textMcp(tool) : errorMcp("unknown_tool", "unknown tool");
+      }
+      if (name === "bridge_call_tool") {
+        const input = args as any;
+        if (!catalog || !sessionId || owner?.readyState !== 1)
+          return errorMcp("not_connected", "no page is paired");
+        if (input.sessionId !== sessionId)
+          return errorMcp("stale_session", "session is no longer current");
+        if (input.catalogVersion !== catalog.catalogVersion)
+          return errorMcp("stale_catalog", "catalog version is stale");
+        const tool = catalog.tools.find((item) => item.name === input.name);
+        if (!tool) return errorMcp("unknown_tool", "unknown tool");
+        const valid = validateInput(tool.inputSchema, input.arguments);
+        if (!valid.ok) return errorMcp("invalid_arguments", valid.message);
+        try {
+          return bridgeResultToMcp(await callPage(input.name, input.arguments));
+        } catch (error) {
+          return errorMcp(
+            error instanceof Error && error.message.includes("timeout")
+              ? "timeout"
+              : "handler_error",
+            error instanceof Error ? error.message : "page request failed",
+          );
+        }
+      }
+      return errorMcp("unknown_tool", "unknown bridge operation");
+    } catch (error) {
+      return errorMcp(
+        "bridge_error",
+        error instanceof Error ? error.message : "bridge operation failed",
+      );
+    }
   }
 
   function callPage(toolName: string, input: JsonValue): Promise<BridgeResult> {
