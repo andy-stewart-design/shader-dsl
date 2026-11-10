@@ -25,9 +25,7 @@ import {
   jsonSize,
   safeJson,
   type BridgeCatalog,
-  type BridgeError,
   type BridgeResult,
-  type CatalogTool,
   type JsonValue,
 } from "./protocol.js";
 

@@ -8,12 +8,9 @@ import {
   BRIDGE_CATALOG_VERSION,
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
-  isRecord,
   jsonSize,
   type BridgeConnectionState,
-  type BridgeResult,
   type BridgeTool,
-  type JsonValue,
 } from "./protocol.js";
 
 export type { BridgeConnectionState, BridgeTool } from "./protocol.js";
