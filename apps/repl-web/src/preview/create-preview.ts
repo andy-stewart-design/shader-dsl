@@ -1,5 +1,5 @@
 import { ShdrRuntimeError } from "@shdr/runtime/errors";
-import type { Renderer } from "@shdr/runtime/types";
+import type { Renderer, RendererOptions } from "@shdr/runtime/types";
 import { createWebGlRenderer } from "@shdr/runtime/webgl";
 import { createWebGpuRenderer } from "@shdr/runtime/webgpu";
 import type { CompiledFragmentArtifact } from "shdr";
@@ -11,6 +11,24 @@ export interface CreatePreviewOptions {
   readonly onError?: (error: ShdrRuntimeError) => void;
   readonly signal?: AbortSignal;
 }
+
+export interface PreviewRendererFactories {
+  readonly webgpu: (
+    canvas: HTMLCanvasElement,
+    artifact: CompiledFragmentArtifact,
+    options?: RendererOptions,
+  ) => Promise<Renderer>;
+  readonly webgl: (
+    canvas: HTMLCanvasElement,
+    artifact: CompiledFragmentArtifact,
+    options?: RendererOptions,
+  ) => Promise<Renderer>;
+}
+
+const defaultFactories: PreviewRendererFactories = {
+  webgpu: createWebGpuRenderer,
+  webgl: createWebGlRenderer,
+};
 
 export interface PreviewHandle {
   readonly backend: "webgpu" | "webgl";
@@ -42,13 +60,16 @@ function makeCanvas(parent: HTMLElement): HTMLCanvasElement {
   return canvas;
 }
 
-export async function createPreview({
-  parent,
-  artifact,
-  playing,
-  onError,
-  signal,
-}: CreatePreviewOptions): Promise<PreviewHandle> {
+export async function createPreview(
+  {
+    parent,
+    artifact,
+    playing,
+    onError,
+    signal,
+  }: CreatePreviewOptions,
+  factories: PreviewRendererFactories = defaultFactories,
+): Promise<PreviewHandle> {
   const abortController = new AbortController();
   let canvas = makeCanvas(parent);
   let renderer: Renderer | undefined;
@@ -93,7 +114,7 @@ export async function createPreview({
     let backend: PreviewHandle["backend"];
 
     try {
-      const created = await createWebGpuRenderer(canvas, artifact, options);
+      const created = await factories.webgpu(canvas, artifact, options);
       if (destroyed || abortController.signal.aborted) {
         created.dispose();
         throw abortedError("webgpu");
@@ -108,7 +129,7 @@ export async function createPreview({
 
       removeCanvas();
       canvas = makeCanvas(parent);
-      const created = await createWebGlRenderer(canvas, artifact, options);
+      const created = await factories.webgl(canvas, artifact, options);
       if (destroyed || abortController.signal.aborted) {
         created.dispose();
         throw abortedError("webgl");

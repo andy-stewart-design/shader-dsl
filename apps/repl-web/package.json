@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:preview-probe": "vite --config test/preview-probe/vite.config.ts",
+    "build:preview-probe": "vite build --config test/preview-probe/vite.config.ts",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",

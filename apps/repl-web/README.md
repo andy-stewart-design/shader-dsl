@@ -2,6 +2,20 @@ Welcome to your new TanStack Start app!
 
 # Getting Started
 
+## Manual preview/capture probe
+
+Run the standalone Vite probe (fixed at <http://localhost:5174/>):
+
+```bash
+pnpm --filter repl-web dev:preview-probe
+```
+
+It uses the actual compiler, preview runtime, and `captureCanvas` primitive. Choose **Auto**, **WebGPU (strict)**, or **WebGL (forced fixture)**, then use **Capture PNG** or the download link. A standalone build is written to `apps/repl-web/dist/preview-probe/`:
+
+```bash
+pnpm --filter repl-web build:preview-probe
+```
+
 From the monorepo root, install dependencies and run this application:
 
 ```bash

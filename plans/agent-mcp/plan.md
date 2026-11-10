@@ -43,7 +43,7 @@ New commands below are **proposed additions**, not commands currently present:
 | Added by | New command | Intended boundary |
 | --- | --- | --- |
 | 1.1 | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`; `pnpm --filter agent-bridge-demo dev`, `check`, `build`, `preview` | Generic package types/build and Node tests; scaffold and serve the minimal standalone demo app. `dev`/`preview` are local serving commands, not hosted proof. |
-| 1.2 | `pnpm --filter repl-web test:preview-capture`, `build:preview-probe` | Local real-canvas probe and deployable probe artifact. |
+| 1.2 | `pnpm --filter repl-web dev:preview-probe`, `build:preview-probe` | User-assisted real-canvas probe at localhost:5174 and an independently hostable build; no automated browser harness. |
 | 2.3 | `pnpm --filter agent-bridge-demo test:browser`, `check`, `build`; package `test`, `check`, `build` | Demo-app conformance/browser harness plus generic package regression checks; not a substitute for hosted permission testing. |
 | 3.1 | `pnpm --filter repl-web test` | Explicit package Vitest config covering existing and new source/unit tests. |
 | 3.2 | `pnpm --filter repl-web test:browser` | Real editor/controller/browser integration checks, extended in later steps. |
@@ -157,22 +157,22 @@ Review boundary: reusable canvas encoding utility and an isolated fixture using 
 Expected files:
 
 - `apps/repl-web/src/preview/capture-canvas.ts` — bounded canvas export primitive reusable in 4.2.
+- `apps/repl-web/src/preview/create-preview.ts` — optional renderer-factory injection for probe-only backend selection; existing callers/default fallback are unchanged.
 - `apps/repl-web/test/preview-probe/{index.html,main.ts,vite.config.ts}` — actual `createPreview`/compiler fixture, not a replacement renderer.
-- `apps/repl-web/verify-preview-capture.mjs`, `package.json` — proposed capture/probe-build commands and approved Playwright dependency.
-- `pnpm-lock.yaml` and scoped generated-output ignores if required.
+- `apps/repl-web/package.json`, `README.md` — manual dev/probe-build commands and usage; no Playwright dependency or browser harness.
 
 Tasks:
 
-- [ ] Implement asynchronous bounded PNG export with explicit unsupported/encoding/limit errors and no permanent changes to playback or runtime controls.
-- [ ] Build a fixture from the actual preview factory and known asymmetric shader output so dimensions and nonempty/correct pixels can be checked rather than merely accepting a PNG header.
-- [ ] Add a browser verifier exercising WebGL and WebGPU using test-only backend selection, draw-before-export, disposal/error paths, and unchanged production fallback rules.
-- [ ] Produce an independently hostable probe build; document that software/headless backends do not establish target-device support.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Implement asynchronous bounded PNG export with explicit unsupported/encoding/limit errors and no permanent changes to playback or runtime controls.
+- [x] Build a fixture from the actual preview factory and known asymmetric shader output so dimensions and nonempty/correct pixels can be checked rather than merely accepting a PNG header.
+- [x] Provide manual WebGL/WebGPU selection, draw-before-export, visible capture/errors, and normal cleanup without changing production fallback rules; use user feedback rather than a new browser verifier.
+- [x] Produce an independently hostable probe build; use real user hardware feedback rather than inferring support from software/headless or build results.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: new `pnpm --filter repl-web test:preview-capture` and `build:preview-probe`, plus existing app `check`/`build`. With approved browser prerequisites, verify decoded dimensions/pixel distinctions and error cleanup on actual canvases.
-- Manual: on target Chrome/hardware, run the approved probe for each backend and confirm a correctly rendered export; hosted transport is tested separately in 1.3. If a backend is unavailable or export fails, record the blocker rather than substituting a viewport screenshot or silently changing fallback.
+- Automated: `pnpm --filter repl-web check`, `lint`, `build:preview-probe`, and `build`. These prove types/lint/bundling only, not GPU pixels or export success.
+- Manual: run `pnpm --filter repl-web dev:preview-probe` and open `http://localhost:5174/` on target Chrome/hardware. Select strict WebGPU and forced WebGL in turn, compare the live canvas with the exported PNG, check reported dimensions/backend, and try capture/download. Record unsupported backends or export failures rather than accepting fallback as WebGPU proof. No automated browser harness; hosted transport is still Step 1.3.
 
 Completion gate: the existing preview rendering path exports usable images on the intended backends, or affected work stops for a transport/capture decision. No broad runtime changes are smuggled into the probe.
 Evidence location: [evidence/step-1.2.md](evidence/step-1.2.md).
@@ -438,7 +438,7 @@ Expected files:
 
 - `apps/repl-web/src/agent/{snapshot,tools,apply-controller}.ts`.
 - `apps/repl-web/src/preview/capture-canvas.ts`, `src/hooks/use-shdr-preview.ts`, provider wiring as needed.
-- Snapshot/race tests, `apps/repl-web/test/verify-authoring.mjs`, `verify-preview-capture.mjs`.
+- Snapshot/race tests, `apps/repl-web/test/verify-authoring.mjs`, and the existing manual preview probe.
 
 Tasks:
 
@@ -450,7 +450,7 @@ Tasks:
 
 Verification:
 
-- Automated: app unit/browser/preview-capture/check/lint/build plus generic result-conversion regressions. Test-only backend injection may exercise both renderers but cannot change production fallback semantics or become a tool.
+- Automated: app unit/browser/check/lint/build and `build:preview-probe`, plus generic result-conversion regressions. The existing preview probe remains user-assisted; test-only backend injection cannot change production fallback semantics or become a tool.
 - Manual: real deployed REPL and target Chrome/Pi, with local app servers stopped: change a visually distinctive sketch and definitions, Apply, request guarded capture, and have Pi describe the actual image. Check backend/dimensions/revision metadata and both backend exports; unsupported hardware is a blocker, not a pass.
 
 Completion gate: Pi can complete AC23's core loop and AC20/AC21's capture behaviors hold, including real model-visible images from the application canvas rather than the whole tab.

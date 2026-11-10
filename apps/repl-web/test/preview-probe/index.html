@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shdr preview capture probe</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; padding: 24px; background: #15171b; color: #f4f5f7; }
+      main { max-width: 1100px; margin: 0 auto; }
+      .controls, .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      button, select { font: inherit; padding: 7px 10px; }
+      .status { min-height: 1.5em; color: #b9c7da; }
+      .panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+      .panel { min-width: 0; }
+      .surface { width: 100%; aspect-ratio: 16 / 9; background: #08090b; border: 1px solid #39404c; }
+      .surface canvas, .surface img { width: 100%; height: 100%; display: block; object-fit: contain; }
+      pre { overflow: auto; padding: 12px; background: #20242b; }
+      a { color: #9ed0ff; }
+      @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shdr PNG capture probe</h1>
+      <p>Actual <code>createPreview</code> and <code>compileShdrBody</code> with a paused, asymmetric color pattern.</p>
+      <div class="controls">
+        <label for="backend">Backend test:</label>
+        <select id="backend">
+          <option value="auto">Auto (default WebGPU → WebGL fallback)</option>
+          <option value="webgpu">WebGPU (strict)</option>
+          <option value="webgl">WebGL (forced fixture)</option>
+        </select>
+        <button id="capture" type="button">Capture PNG</button>
+        <a id="download" hidden download="shdr-preview.png">Download PNG</a>
+      </div>
+      <p id="status" class="status" role="status"></p>
+      <div class="meta">
+        <span id="backend-label">Backend: —</span>
+        <span id="dimensions">Canvas: —</span>
+      </div>
+      <div class="panels">
+        <section class="panel">
+          <h2>Live preview</h2>
+          <div id="preview" class="surface"></div>
+        </section>
+        <section class="panel">
+          <h2>Exported image</h2>
+          <div id="exported" class="surface"></div>
+        </section>
+      </div>
+      <h2>Shader body</h2>
+      <pre id="source"></pre>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
