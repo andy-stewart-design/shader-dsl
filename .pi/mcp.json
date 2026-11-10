@@ -5,11 +5,10 @@
       "args": [
         "/Users/andy/Documents/Development/shader-dsl/packages/agent-bridge/dist/bin.mjs",
         "--allowed-origin",
-        "http://localhost:5173",
+        "https://agent-bridge-demo-mu.vercel.app",
         "--site-url",
-        "http://localhost:5173/"
-      ],
-      "exposure": "direct"
+        "https://agent-bridge-demo-mu.vercel.app/"
+      ]
     }
   }
 }

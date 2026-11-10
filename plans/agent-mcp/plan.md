@@ -59,7 +59,7 @@ These finalize non-product protocol details the spec explicitly delegates to pla
 - Use protocol version 1, opaque session identities, request IDs scoped to a session, and versioned catalogs. Authenticate before accepting a catalog. The page exposes handlers, not arbitrary JavaScript evaluation.
 - Use the explicit result envelope `{ bridgeResultVersion: 1, content: [...], metadata?: JSON }`, with text entries `{ type: 'text', text }` and image entries `{ type: 'image', mimeType, data }`. Version 1 accepts PNG/JPEG base64, with PNG for REPL capture. Other JSON is ordinary data. Convert images to MCP image content and metadata to readable accompanying text; do not rely on structured content alone for image visibility or fetch image URLs.
 - Default bounds: 5-minute pairing lifetime; 5-second first-message authentication deadline; 30-second request deadline; 4 KiB unauthenticated messages; 8 MiB authenticated messages; 4 MiB decoded bytes per image; 4 unauthenticated sockets; 8 pending calls; 64 tools and 512 KiB serialized catalog per session. Check total envelope/message size as well as per-image limits. Document effective limits in connection info; do not introduce unbounded queues. Source/schema/image-limit failures are explicit, not truncation.
-- Pairing credentials use 256 bits of cryptographic randomness. Consume the pairing token once, keep resume credentials only in memory, rotate them on successful resume, and allow a 30-second interrupted-transport lease. Explicit disconnect, helper termination, navigation/reload, or lease expiry ends that authority. A reconnect never replays a mutation.
+- Pairing credentials use 256 bits of cryptographic randomness. Consume the initial pairing token once; keep only a short-lived, revocable resume credential in page `sessionStorage`, scoped to the exact origin, configured loopback endpoint, and session, and rotate it on successful resume. The five-minute initial pairing lifetime is unrelated to an active connection; the interrupted-transport lease is 30 seconds from disconnection and requires fresh pairing after expiry, not simply because the initial pairing link has expired. Same-origin refresh in the same tab may resume while the same helper runs, but explicit disconnect, helper termination/restart, navigation/origin change, or lease expiry ends that authority. Startup performs no port scanning. A reconnect never replays a mutation or edit.
 - Bind `127.0.0.1` on port 0, validate the exact configured HTTPS origin and a configured site URL under that origin, and send credentials in the first WebSocket message. Explicitly configured HTTP `localhost`/`127.0.0.1` origins are allowed for quick manual development only; they do not satisfy the hosted gate. Pairing URL fragments are read and removed before connection; no credential in query strings or routine logs. Reject arbitrary endpoint hosts, `null`/missing Origin, and silent owner replacement.
 - REPL writes use full source strings and full supplied uniform-list replacement. Wire definition fields preserve editable strings: float `{ id?, name, type: 'float', value, min, max }`, color `{ id?, name, type: 'color', value }`. Here `value` means the authored default, never a live runtime override. Reads return IDs and current editable strings, including invalid manual drafts; writes require valid supplied definitions, preserve existing valid IDs, generate IDs for additions, and derive UI color caches internally.
 
@@ -190,11 +190,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Obtain explicit user/site-operator approval to serve the built demo app/probe on the supplied HTTPS origin and apply any required demo-app CSP; do not invent a hosting configuration or deploy automatically. No actual HTTPS URL is supplied by this plan.
-- [ ] Have Pi launch the built helper and return a pairing link through `bridge_get_connection_info`; connect Chrome to the approved hosted demo app with local app dev servers stopped.
-- [ ] Exercise grant/deny/reset behavior where the target browser exposes Local Network Access permission, inspect effective CSP/console failures, and verify fragment cleanup and disconnect.
-- [ ] Ask Pi to call the demo app's initial read/generated-image tools and describe a distinctive image it receives as actual image content; repeat canvas export on the separately hosted 1.2 preview probe so HTTP-only exports and the demo's generated image are not treated as hosted real-renderer proof.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence without tokens or copied credential-bearing links.
+- [x] Obtain explicit user/site-operator approval to serve the built demo app/probe on the supplied HTTPS origin and apply any required demo-app CSP; do not invent a hosting configuration or deploy automatically. No actual HTTPS URL is supplied by this plan.
+- [x] Have Pi launch the built helper and return a pairing link through `bridge_get_connection_info`; connect Chrome to the approved hosted demo app with local app dev servers stopped.
+- [x] Exercise grant/deny/reset behavior where the target browser exposes Local Network Access permission, inspect effective CSP/console failures, and verify fragment cleanup and disconnect.
+- [x] Ask Pi to call the demo app's initial read/generated-image tools and describe a distinctive image it receives as actual image content; repeat canvas export on the separately hosted 1.2 preview probe so HTTP-only exports and the demo's generated image are not treated as hosted real-renderer proof.
+- [x] Satisfy the verification and completion gate below, and record concise evidence without tokens or copied credential-bearing links.
 
 Verification:
 
@@ -241,7 +241,7 @@ Evidence location: [evidence/step-2.1.md](evidence/step-2.1.md).
 
 ### Step 2.2 — Isolate sessions and uncertain request outcomes
 
-Requirements / acceptance: R5, R6, R8, R16; AC8/AC9/AC11 (generic complete portions). Application recovery is completed in 5.1.
+Requirements / acceptance: R5, R6, R8, R16, R17; AC8/AC9/AC11/AC24 (generic lifecycle portions). Application recovery is completed in 5.1.
 Depends on: 2.1.
 Review boundary: session/request lifecycle and resource cleanup, not agent task tracking.
 
@@ -253,22 +253,22 @@ Expected files:
 
 Tasks:
 
-- [ ] Implement ownership leases, memory-only resume/rotation, explicit revocation, page-instance identity, bounded reconnect/backoff, and per-tab singleton ownership.
-- [ ] Complete request deadlines/cancellation, finite pending/unauthenticated limits, catalog teardown, process/socket cleanup, and stale-response rejection with no automatic mutation replay.
-- [ ] Add fake-clock and real-loopback tests for second tabs/helpers, token reuse, reconnect races, expiry, shutdown, repeated connect/disconnect, late results, and an already-executing mutation whose response is lost.
+- [ ] Implement ownership leases, scoped `sessionStorage` resume/rotation, explicit revocation and clearing, fresh page/catalog identity on refresh, bounded reconnect/backoff, and per-tab singleton ownership. Resume only the exact origin/session/loopback endpoint; do not scan ports or persist sketch/source/runtime state.
+- [ ] Complete request deadlines/cancellation, finite pending/unauthenticated limits, catalog teardown, process/socket cleanup, and stale-response rejection with no automatic mutation or edit replay.
+- [ ] Add modest focused fake-clock/loopback tests using the existing seams for second tabs/helpers, token/resume reuse, same-origin refresh without a new link, reconnect races, expiry, shutdown, explicit-disconnect clearing, helper restart requiring pairing, late results, and an already-executing mutation whose response is lost.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: package `test`, `check`, `build`; prove a late response cannot satisfy another request/session, a second owner cannot replace the first, resources settle at deadlines, and an uncertain mutation is reported as uncertain rather than rolled back or replayed.
-- Manual: no client behavior is inferred from these tests; actual browser reload/permission behavior is exercised in 2.3 and 5.1.
+- Automated: package `test`, `check`, `build`; prove a late response cannot satisfy another request/session, a second owner cannot replace the first, same-origin refresh resumes only with scoped `sessionStorage` authorization, explicit disconnect clears/revokes it, helper restart and expired leases require fresh pairing, resources settle at deadlines, and an uncertain mutation is reported as uncertain rather than rolled back or replayed.
+- Manual: no client behavior is inferred from these tests; the AC24 browser happy/negative flow is exercised in 2.3 and the composed recovery regression is exercised in 5.1.
 
-Completion gate: ownership, teardown, reconnect, and uncertainty semantics compose under failure without leaked authority or unbounded pending work.
+Completion gate: ownership, teardown, refresh resume, revocation, and uncertainty semantics compose under failure without leaked authority or unbounded pending work. This is the Step 2.2 owner for the generic AC24 lifecycle contract; conformance evidence is completed in 2.3 at [evidence/step-2.3.md](evidence/step-2.3.md).
 Evidence location: [evidence/step-2.2.md](evidence/step-2.2.md).
 
 ### Step 2.3 — Prove reuse with an unrelated conformance page
 
-Requirements / acceptance: R2, R3, R7, R9, R16; AC3, AC7 (generic browser portion), AC8/AC9 (browser-library portions).
+Requirements / acceptance: R2, R3, R7, R9, R16, R17; AC3, AC7 (generic browser portion), AC8/AC9/AC24 (browser-library portions).
 Depends on: 2.2.
 Review boundary: the standalone non-shader demo app, its browser conformance harness, and generic public-library usability.
 
@@ -281,16 +281,16 @@ Expected files:
 Tasks:
 
 - [ ] Add a simple text-state mutation to the standalone demo app, retaining its read and generated-image tools, through only the public `@shdr/agent-bridge/browser` entrypoint.
-- [ ] Make the demo app's `test:browser` harness check pairing-fragment cleanup, tab ownership, reload/re-pair, handler teardown, and unchanged page state on discovery/disconnect.
+- [ ] Make the demo app's `test:browser` harness check pairing-fragment cleanup, tab ownership, same-origin refresh/resume, explicit-disconnect clearing, helper-restart fresh-pairing behavior, handler teardown, and unchanged page state on discovery/disconnect.
 - [ ] Demonstrate the unrelated demo app through the same helper without shader-specific code changes and inspect generic package imports for application coupling; the generic package must not depend on the app at runtime.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
 - Automated: demo app `test:browser`, `check`, `build`, plus package `test`, `check`, and `build`; use real sockets/browser lifecycle but label local harness results as such. The app browser harness owns conformance checks; the generic package has no browser harness or fixture-build command.
-- Manual: with explicit approval to host the built demo app and with Pi access, pair the unrelated app and read, mutate, and inspect its distinctive image; verify no REPL-specific bridge modifications were needed. The actual HTTPS URL remains to be supplied.
+- Manual: with explicit approval to host the built demo app and with Pi access, pair the unrelated app, refresh the same origin without a new link, read state and inspect its distinctive image, then test explicit disconnect plus refresh staying unpaired, helper restart requiring fresh pairing, and an interrupted mutation not being replayed while catalog/page identity is refreshed. Verify no REPL-specific bridge modifications were needed. Use the approved hosted demo target recorded in Step 1.3, or obtain approval for a replacement.
 
-Completion gate: AC3's unrelated-site read/mutation/model-visible image works through the same library/helper and the demo app's browser lifecycle checks pass.
+Completion gate: AC3's unrelated-site read/mutation/model-visible image works through the same library/helper, the demo app's browser lifecycle checks pass, and the AC24 manual happy/negative flow is recorded in this existing 2.3 evidence location.
 Evidence location: [evidence/step-2.3.md](evidence/step-2.3.md).
 
 Phase exit gate: run the package unit/build checks, the demo app `test:browser`/`check`/`build`, and the unrelated hosted conformance journey after 2.3. Review generic source boundaries and session failure evidence together. Record the result in `evidence/step-2.3.md` before Phase 3; a static page or app scaffold without live invocation/image proof is insufficient.
@@ -466,7 +466,7 @@ Review boundary: integration regressions, artifact boundaries, compatibility doc
 
 ### Step 5.1 — Exercise failure recovery and unchanged behavior end to end
 
-Requirements / acceptance: R3–R8, R12–R16; AC5–AC11 (composite complete portions), AC15/AC16/AC18/AC19/AC21/AC22 (integrated regression portions).
+Requirements / acceptance: R3–R8, R12–R17; AC5–AC11 (composite complete portions), AC15/AC16/AC18/AC19/AC21/AC22/AC24 (integrated regression portions).
 Depends on: 4.2.
 Review boundary: close integration gaps in existing helper/library/provider code with focused regression tests; no new transport or authorization model.
 
@@ -478,16 +478,16 @@ Expected files:
 
 Tasks:
 
-- [ ] Exercise two helpers/tabs, credential expiration/reuse, mid-update/mid-Apply disconnect, reload/navigation, helper shutdown, reconnection leases, and stale late responses against real page state.
-- [ ] Assert loss of a response does not replay a mutation or claim rollback; rereads identify the actual draft/applied state before further authoring.
-- [ ] Verify pairing/read/disconnect preserve drafts and runtime controls, catalog exclusions remain intact, and failed captures/Apply never mislabel an older preview.
+- [ ] Exercise two helpers/tabs, credential expiration/reuse, same-origin refresh resume, mid-update/mid-Apply disconnect, navigation, explicit disconnect, helper shutdown/restart, reconnection leases, and stale late responses against real page state.
+- [ ] Assert loss of a response does not replay a mutation or claim rollback; refresh creates fresh catalog/page identity and agents reread actual app state before further authoring, while cached revisions are not trusted merely because resume succeeded.
+- [ ] Verify pairing/read/disconnect leave the current draft and runtime controls unchanged. Refresh restores only the connection and retains normal app reload behavior without adding sketch/source/runtime persistence; catalog exclusions remain intact and failed captures/Apply never mislabel an older preview.
 - [ ] Add regression tests with fixes, then run relevant existing workspace/runtime regressions at this major boundary with approved browser prerequisites.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
 - Automated: generic package targeted unit/check/build commands, demo app `test:browser`/`check`/`build`, REPL app unit/browser/check/lint/build commands, workspace `pnpm check`/`pnpm build`, and existing `pnpm --filter @shdr/runtime test` with approved download/browser prerequisites. Compare baseline failures explicitly; an unexplained failure or an unapproved waiver cannot close this gate.
-- Manual: deployed REPL recovery with pending edits/Apply/capture, browser permission denial/retry, and disconnect while manual controls differ from defaults. Confirm no new persistence or forbidden tools.
+- Manual: deployed REPL recovery with pending edits/Apply/capture, same-origin refresh resume, browser permission denial/retry, explicit disconnect plus refresh, helper restart, and disconnect while manual controls differ from defaults. Confirm only the scoped resume credential uses `sessionStorage`; there is no sketch/source/runtime persistence or forbidden tool.
 
 Completion gate: safety/failure criteria hold in the composed application, not just mocks, and required regressions pass or the gate remains blocked for explicit resolution.
 Evidence location: [evidence/step-5.1.md](evidence/step-5.1.md).
@@ -521,7 +521,7 @@ Evidence location: [evidence/step-5.2.md](evidence/step-5.2.md).
 
 ### Step 5.3 — Verify client compatibility and final deployed acceptance
 
-Requirements / acceptance: R1–R16; AC1/AC2/AC4/AC7/AC12/AC13/AC20/AC22/AC23 (final human-facing portions, including actual model-visible image delivery for AC12); other criteria use the owning gates below.
+Requirements / acceptance: R1–R17; AC1/AC2/AC4/AC7/AC12/AC13/AC20/AC22/AC23/AC24 (final human-facing portions, including actual model-visible image delivery for AC12); other criteria use the owning gates below.
 Depends on: 5.2 and approved image-capable Pi/Claude Code/Codex plus hosted access.
 Review boundary: client configuration examples, final live compatibility proof, and concise user documentation; no client-specific bridge fork.
 
@@ -560,9 +560,9 @@ Each row identifies the full owning gate; partial checks listed in earlier steps
 | AC4 | 5.2 artifact gate and 5.3 client gate | Same installed helper works with Pi, Claude Code, and Codex including model-visible images. | [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md) |
 | AC5 | 1.1/2.2 transport proof, composed in 5.1 | Two helpers get isolated loopback ports; stdout/logging remain safe. | [step-1.1](evidence/step-1.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md) |
 | AC6 | 1.1/2.1 rejection proof, composed in 5.1 | Wrong origin/token and pre-auth calls never gain authority or change state. | [step-1.1](evidence/step-1.1.md), [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md) |
-| AC7 | 3.3 and final 5.3 browser check | REPL fragment credentials are removed and absent from ordinary logs/storage. | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md) |
+| AC7 | 3.3 and final 5.3 browser check | Initial pairing credentials are removed from the fragment and absent from logs/durable storage; only scoped resume credentials may remain in sessionStorage. | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md) |
 | AC8 | 2.2/2.3 lifecycle proof, composed in 5.1 | A second owner cannot replace the first; disconnect/re-pair preserves draft with new identity. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
-| AC9 | 2.2/2.3 lifecycle proof, composed in 5.1 | Reload/navigation/disconnect and late messages do not transfer authority or fabricate success. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
+| AC9 | 2.2/2.3 lifecycle proof, composed in 5.1 | Same-origin refresh may resume only with valid scoped authorization; navigation/disconnect/helper restart/expiry and late messages do not transfer authority or fabricate success. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
 | AC10 | 2.1, composed in 5.1 | Current session/catalog/schema is enforced before handler mutation. | [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md) |
 | AC11 | 2.1/2.2 bounds proof, composed in 5.1 | Resource/time limits, cancellation uncertainty, and no mutation replay hold. | [step-2.1](evidence/step-2.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md) |
 | AC12 | 2.1 conversion, 5.2 installed proof, and 5.3 live model gate | JSON and image envelopes convert correctly; malformed content fails without fetching URLs; configured clients/models actually receive and inspect the image. | [step-2.1](evidence/step-2.1.md), [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md) |
@@ -577,6 +577,7 @@ Each row identifies the full owning gate; partial checks listed in earlier steps
 | AC21 | 4.2, regression in 5.1 | Missing/mismatched/unexportable/oversized capture fails explicitly. | [step-4.2](evidence/step-4.2.md), [step-5.1](evidence/step-5.1.md) |
 | AC22 | 3.3/4.1 boundaries, final 5.1/5.3 checks | No excluded capabilities; connection/read/disconnect preserve controls and Apply preserves documented defaults behavior. | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md), [step-5.3](evidence/step-5.3.md) |
 | AC23 | Phase 4 core loop and Phase 5 final gate | Pi completes deployed authoring/definition editing/Apply/diagnose/visual review through the installed integration. | [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md) |
+| AC24 | Phase 2.2 lifecycle contract, 2.3 manual conformance, regression in 5.1 | Pair once, resume after same-origin refresh without a new link, reread fresh page/catalog state, and reject resume after explicit disconnect/helper restart/expiry; interrupted mutations are not replayed. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
 
 Final gates do not replace focused tests with a single broad green command. A successful build, fake renderer, standalone demo app, installed artifact, and live model journey prove different things. All required owning gates must be assessed; any blocked, skipped, or failed gate remains uncompleted and is reported in its evidence note.
 
@@ -585,14 +586,14 @@ Final gates do not replace focused tests with a single broad green command. A su
 - All changes are reversible code/config increments; no persistent sketch migration or publication is included. Preserve the developer's live draft before any manual test reload/navigation, using approved manual copying rather than inventing a save feature.
 - Revert each step with its associated contract consumers/tests. In particular, do not split the 3.1 store/caller migration, 3.2 editor/caller migration, or 4.1 Apply/preview/caller migration. Revert dependent consumers before removing shared package exports or dependencies.
 - The generic package/probes can remain disconnected while REPL integration is reverted. Removing the connection provider must leave manual sketching and Run functional. Remove dependencies only after checking remaining imports/configurations.
-- To recover from helper failure, terminate the helper, revoke the session, and pair afresh. Do not reuse logged/copied credentials or replay pending writes. Reread draft/applied revisions after an uncertain mutation before deciding what to retry.
+- To recover from helper failure, terminate/restart the helper, revoke the session, and pair afresh. Do not reuse logged/copied credentials or replay pending writes. After refresh/resume or an uncertain mutation, rediscover the catalog and reread draft/applied revisions before deciding what to retry.
 - Deployment/CSP/config rollback belongs to the approved site operator and must restore the actual previous policy, not a guessed default. Agent configuration tests use isolated settings where possible and restore any explicitly approved persistent changes.
 - Packing/temp installs are disposable verification artifacts, not release points. Any future publication, permanent installation, or production rollout requires separate authorization and its own recovery considerations.
 
 ## Planned deferred checks
 
 - Safari/Firefox, other browser versions, and enterprise policy environments beyond the selected target are outside this plan; do not imply support from Chrome results.
-- WebMCP/extension/debugging transports, cross-machine access, simultaneous multi-agent editing, persistent pairing, and deterministic animation/GPU readback remain deferred per the spec.
+- WebMCP/extension/debugging transports, cross-machine access, simultaneous multi-agent editing, durable pairing/account trust beyond the browser tab/session, and deterministic animation/GPU readback remain deferred per the spec.
 - Registry publication and production rollout are not gates in this plan. Packed/installed and approved hosted acceptance are required, but do not grant release authority.
 - No spec acceptance criterion is intentionally deferred. Missing hosted access, browser/backend support, model/client availability, or installation approval blocks its owning gate; it is not converted into completed acceptance.
 
