@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "agent-bridge": {
+      "command": "node",
+      "args": [
+        "/Users/andy/Documents/Development/shader-dsl/packages/agent-bridge/dist/bin.mjs",
+        "--allowed-origin",
+        "http://localhost:5173",
+        "--site-url",
+        "http://localhost:5173/"
+      ],
+      "exposure": "direct"
+    }
+  }
+}

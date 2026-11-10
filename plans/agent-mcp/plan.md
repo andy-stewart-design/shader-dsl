@@ -17,7 +17,7 @@ This plan is an execution contract. Scope, steps, IDs, dependencies, expected fi
 - Run each phase exit gate after its final step's checks and before dependent phases or requesting supervised approval to advance. Record the outcome in the indicated existing step note, not as mutable plan status.
 - Authoring this plan does not authorize implementation, dependency installation, browser downloads, agent configuration changes, live model calls, deployment, publication, or production changes. Execution must obtain the appropriate approval before those actions. Use temporary configurations/homes and disposable fixtures where possible.
 - No Chrome extension, WebMCP, remote debugging, hosted relay, arbitrary evaluation tool, task orchestrator, or custom per-action approval UI is added. The helper is a foreground process launched by the agent, not an installed daemon.
-- A real deployed HTTPS target, permission to serve the probes, and access to the target Chrome/Pi setup are prerequisites for Step 1.3. None is established by repository inspection. The requesting user must supply an approved target and access; deployment/header changes additionally require the relevant site operator's approval. Do not invent a production URL or host configuration.
+- A real deployed HTTPS target for the Phase 1 demo app/probe, permission to serve it, and access to the target Chrome/Pi setup are prerequisites for Step 1.3. None is established by repository inspection, and no actual HTTPS URL has been supplied. The requesting user must supply an approved target and access; deployment/header changes additionally require the relevant site operator's approval. Do not invent a production URL or host configuration.
 - Local test servers are verification infrastructure, not an end-user prerequisite. HTTP/fake-WebSocket tests cannot satisfy hosted HTTPS/Local Network Access gates. Synthetic images cannot satisfy real REPL canvas capture.
 
 ### Observed starting point and command discipline
@@ -42,9 +42,9 @@ New commands below are **proposed additions**, not commands currently present:
 
 | Added by | New command | Intended boundary |
 | --- | --- | --- |
-| 1.1 | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`, `build:fixtures` | Generic package types/build, Node tests, and buildable static connection fixture. |
+| 1.1 | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`; `pnpm --filter agent-bridge-demo dev`, `check`, `build`, `preview` | Generic package types/build and Node tests; scaffold and serve the minimal standalone demo app. `dev`/`preview` are local serving commands, not hosted proof. |
 | 1.2 | `pnpm --filter repl-web test:preview-capture`, `build:preview-probe` | Local real-canvas probe and deployable probe artifact. |
-| 2.3 | `pnpm --filter @shdr/agent-bridge test:browser` | Browser-library/conformance tests; not a substitute for hosted permission testing. |
+| 2.3 | `pnpm --filter agent-bridge-demo test:browser`, `check`, `build`; package `test`, `check`, `build` | Demo-app conformance/browser harness plus generic package regression checks; not a substitute for hosted permission testing. |
 | 3.1 | `pnpm --filter repl-web test` | Explicit package Vitest config covering existing and new source/unit tests. |
 | 3.2 | `pnpm --filter repl-web test:browser` | Real editor/controller/browser integration checks, extended in later steps. |
 | 5.2 | `pnpm --filter @shdr/agent-bridge test:packed` | Isolated packed/installed entrypoint and CLI checks, not publication. |
@@ -60,7 +60,7 @@ These finalize non-product protocol details the spec explicitly delegates to pla
 - Use the explicit result envelope `{ bridgeResultVersion: 1, content: [...], metadata?: JSON }`, with text entries `{ type: 'text', text }` and image entries `{ type: 'image', mimeType, data }`. Version 1 accepts PNG/JPEG base64, with PNG for REPL capture. Other JSON is ordinary data. Convert images to MCP image content and metadata to readable accompanying text; do not rely on structured content alone for image visibility or fetch image URLs.
 - Default bounds: 5-minute pairing lifetime; 5-second first-message authentication deadline; 30-second request deadline; 4 KiB unauthenticated messages; 8 MiB authenticated messages; 4 MiB decoded bytes per image; 4 unauthenticated sockets; 8 pending calls; 64 tools and 512 KiB serialized catalog per session. Check total envelope/message size as well as per-image limits. Document effective limits in connection info; do not introduce unbounded queues. Source/schema/image-limit failures are explicit, not truncation.
 - Pairing credentials use 256 bits of cryptographic randomness. Consume the pairing token once, keep resume credentials only in memory, rotate them on successful resume, and allow a 30-second interrupted-transport lease. Explicit disconnect, helper termination, navigation/reload, or lease expiry ends that authority. A reconnect never replays a mutation.
-- Bind `127.0.0.1` on port 0, validate exact configured HTTPS origin and a configured site URL under that origin, and send credentials in the first WebSocket message. Pairing URL fragments are read and removed before connection; no credential in query strings or routine logs. Reject arbitrary endpoint hosts, `null`/missing Origin, and silent owner replacement.
+- Bind `127.0.0.1` on port 0, validate the exact configured HTTPS origin and a configured site URL under that origin, and send credentials in the first WebSocket message. Explicitly configured HTTP `localhost`/`127.0.0.1` origins are allowed for quick manual development only; they do not satisfy the hosted gate. Pairing URL fragments are read and removed before connection; no credential in query strings or routine logs. Reject arbitrary endpoint hosts, `null`/missing Origin, and silent owner replacement.
 - REPL writes use full source strings and full supplied uniform-list replacement. Wire definition fields preserve editable strings: float `{ id?, name, type: 'float', value, min, max }`, color `{ id?, name, type: 'color', value }`. Here `value` means the authored default, never a live runtime override. Reads return IDs and current editable strings, including invalid manual drafts; writes require valid supplied definitions, preserve existing valid IDs, generate IDs for additions, and derive UI color caches internally.
 
 ## Phase overview and delivery boundary
@@ -68,8 +68,8 @@ These finalize non-product protocol details the spec explicitly delegates to pla
 | Phase | Outcome | Dependencies | Exit gate |
 | --- | --- | --- | --- |
 | 0 | Reproducible baseline and known live prerequisites | Existing repository and specification | Baseline/access findings recorded; no unknown prerequisite silently assumed. |
-| 1 | Safe thin hosted bridge plus early real-canvas feasibility proof | Phase 0 | Approved HTTPS page calls a tool and delivers an image to Pi; actual renderer canvases export on target backends. |
-| 2 | Reusable validated bridge with isolated lifecycle behavior | Phase 1 gate | Unrelated conformance page reads/mutates/returns images through the same package; failure/session tests compose. |
+| 1 | Safe thin hosted bridge plus early real-canvas feasibility proof | Phase 0 | The approved HTTPS demo app calls a tool and delivers an image to Pi; the separate real REPL renderer probe exports on target backends. |
+| 2 | Reusable validated bridge with isolated lifecycle behavior | Phase 1 gate | The standalone unrelated demo app reads/mutates/returns images through the same package; failure/session tests compose. |
 | 3 | Safe live REPL reading and authoring | Phase 2 gate | Source and definition edits are atomic, revision-checked, visible, undoable, and reachable through explicit pairing. |
 | 4 | Complete visual authoring/review loop | Phase 3 gate | Pi edits, applies, receives diagnostics and the correct real preview image on the deployed REPL. |
 | 5 | Hardened, installable, multi-client integration | Phase 4 gate | Lifecycle regressions, packed artifacts, and Pi/Claude Code/Codex acceptance all meet the spec. |
@@ -96,10 +96,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Inspect current worktree, manifests, build/test configs, preview/editor boundaries, and existing source tests without changing unrelated work.
-- [ ] Run approved existing baseline checks; record actual failures and dependency/build prerequisites without treating them as new bridge regressions or automatic waivers.
-- [ ] Identify the user-approved HTTPS fixture/REPL target, deployment/header owner, Chrome version, image-capable Pi setup, and browser-download/model-call permissions. Record unavailable prerequisites as blockers for affected live gates.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Inspect current worktree, manifests, build/test configs, preview/editor boundaries, and existing source tests without changing unrelated work.
+- [x] Run approved existing baseline checks; record actual failures and dependency/build prerequisites without treating them as new bridge regressions or automatic waivers.
+- [x] Identify the user-approved HTTPS fixture/REPL target, deployment/header owner, Chrome version, image-capable Pi setup, and browser-download/model-call permissions. Record unavailable prerequisites as blockers for affected live gates.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
@@ -115,36 +115,37 @@ Phase exit gate: assess the baseline note after Step 0.1. Deterministic implemen
 
 Outcome: a narrow, authenticated end-to-end path works against hosted HTTPS, and real renderer canvas export has no hidden architectural blocker.
 Depends on: Phase 0 gate; live actions additionally require its explicit access/approval prerequisites.
-Review boundary: secure minimum bridge, static probe, and isolated preview export helper. No REPL authoring tools, broad UI refactor, or production deployment automation.
+Review boundary: secure minimum bridge, standalone demo app, and isolated preview export helper. No REPL authoring tools, broad UI refactor, or production deployment automation.
 
 ### Step 1.1 — Build a secure thin MCP-to-page slice
 
 Requirements / acceptance: R2–R5, R7–R9; AC2 (stdio/pairing-info portion), AC5–AC7 (transport/core security portions), AC10/AC12 (thin-path portions). Full lifecycle/results coverage belongs to Phase 2 and hosted UX to 1.3.
 Depends on: 0.1.
-Review boundary: one runnable package with one authenticated browser session and fixture calls, not a full REPL integration.
+Review boundary: one runnable package plus one minimal standalone demo app with one authenticated browser session and initial read/image calls, not a full REPL integration.
 
 Expected files:
 
 - `packages/agent-bridge/package.json`, `tsconfig.json`, `tsdown.config.ts`, `README.md` — new explicit exports, executable, scripts, and setup.
 - `packages/agent-bridge/src/{protocol,schema,results,browser,server,bin}.ts` — minimal shared contract, validators, result conversion, transport, and CLI.
-- `packages/agent-bridge/test/{protocol,transport,results}.test.ts` — deterministic safety/composition tests.
-- `packages/agent-bridge/test/fixtures/connection/{index.html,main.ts}`, `test/fixtures/vite.config.ts` — buildable non-shader probe; fixture build output stays untracked.
+- `packages/agent-bridge/test/{protocol,transport,results}.test.ts` — deterministic generic safety/composition tests; no package-local static fixture.
+- `apps/agent-bridge-demo/package.json`, `index.html`, `tsconfig*.json`, `vite.config.ts`, `src/main.tsx`, `src/App.tsx`, and existing styles — integrate the user-scaffolded React TypeScript Vite app using only the `@shdr/agent-bridge/browser` public entrypoint, with `dev`, `check`, `build`, and `preview` scripts. The generic bridge remains framework-independent.
 - `pnpm-lock.yaml` and narrowly scoped ignore/config entries if required — dependency resolution and generated-output exclusions only.
 
 Tasks:
 
-- [ ] Add the package/entrypoints and minimal version-1 contracts using the planning defaults; select supported dependency versions and keep browser/server imports separate.
-- [ ] Implement stdio connection info, random loopback binding, exact-origin/first-message token authentication, singleton ownership, session identity, and bounded frames/authentication before accepting any catalog.
-- [ ] Implement generic list/describe/call with schema checks, ordinary JSON, real MCP image conversion, and a fixture with harmless read/image handlers. Pairing itself invokes nothing.
-- [ ] Add focused real-loopback/stdio tests for two helper ports, wrong/missing/null origin, wrong/expired token, pre-auth registration, invalid arguments, output framing, and credential redaction before any hosted use.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Add the package/entrypoints and minimal version-1 contracts using the planning defaults; select supported dependency versions and keep browser/server imports separate.
+- [x] Integrate the user-scaffolded React TypeScript Vite app at `apps/agent-bridge-demo`, named `agent-bridge-demo`, with no shaders or agent harness; import `@shdr/agent-bridge/browser` and register only initial read and generated-image tools.
+- [x] Implement stdio connection info, random loopback binding, exact-origin/first-message token authentication, singleton ownership, session identity, and bounded frames/authentication before accepting any catalog.
+- [x] Implement generic list/describe/call with schema checks, ordinary JSON, real MCP image conversion, and keep the demo app's initial handlers harmless and application-owned. Pairing itself invokes nothing.
+- [x] Keep a small generic smoke suite for loopback/stdio composition, port isolation, origin rejection, schemas, pairing behavior, and result conversion. Use user-assisted manual testing for the demo instead of building a browser harness in this step; the broader rejection/lifecycle matrix remains in Phase 2.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: new package `check`, `build`, `test`, `build:fixtures`. Spawn the built CLI through an MCP test client and pair a synthetic page; assert parsed MCP-only stdout, rejected unauthenticated calls, no secret logs, port isolation, and image blocks rather than base64 text.
-- Manual: not sufficient to claim browser feasibility; inspect the built fixture/README only. Real browser/model proof is 1.3.
+- Automated: package `check`, `build`, and the existing focused smoke `test`, plus demo app `check`/`lint`/`build`. Keep built-CLI text/image and generic validation smoke coverage; do not build an exhaustive browser/security harness here or claim that smoke tests establish the full later matrix.
+- Manual: follow the demo README with the user: start Vite, configure Pi for the exact local origin, obtain/open a pairing link, read state, request the generated image, and disconnect/re-pair. Record the actual outcome before closing this step. Local success is not hosted/browser-policy proof; deployment needs explicit approval and the real HTTPS/model gate remains 1.3.
 
-Completion gate: the runnable built helper and library compose locally, essential authentication is tested, and text/image output is structurally correct. An import-only scaffold or fake image string does not pass.
+Completion gate: the helper/library and demo build, focused smoke checks pass, and user-assisted local pairing/read/image/disconnect has been observed. Record manual blockers honestly rather than expanding the harness. This prototype gate is not production hardening or hosted acceptance.
 Evidence location: [evidence/step-1.1.md](evidence/step-1.1.md).
 
 ### Step 1.2 — Probe actual REPL renderer canvas export
@@ -178,7 +179,7 @@ Evidence location: [evidence/step-1.2.md](evidence/step-1.2.md).
 
 ### Step 1.3 — Validate hosted pairing and model-visible images
 
-Requirements / acceptance: R1, R3–R5, R9, R16; AC1/AC2/AC7 (hosted fixture portions), AC4 (Pi fixture portion), AC12 (live image portion). Actual REPL behavior remains owned by 3.3–5.3.
+Requirements / acceptance: R1, R3–R5, R9, R16; AC1/AC2/AC7 (hosted demo-app portions), AC4 (Pi demo-app portion), AC12 (live image portion). Actual REPL behavior remains owned by 3.3–5.3.
 Depends on: 1.1, 1.2, and approved HTTPS/header/Chrome/Pi access.
 Review boundary: live feasibility proof and minimal reproducible documentation, not production release or app integration.
 
@@ -189,27 +190,27 @@ Expected files:
 
 Tasks:
 
-- [ ] Obtain explicit approval to serve the built probe on the supplied HTTPS origin and apply any required fixture CSP; do not invent a hosting configuration or deploy automatically.
-- [ ] Have Pi launch the built helper and return a pairing link through `bridge_get_connection_info`; connect Chrome with local app dev servers stopped.
+- [ ] Obtain explicit user/site-operator approval to serve the built demo app/probe on the supplied HTTPS origin and apply any required demo-app CSP; do not invent a hosting configuration or deploy automatically. No actual HTTPS URL is supplied by this plan.
+- [ ] Have Pi launch the built helper and return a pairing link through `bridge_get_connection_info`; connect Chrome to the approved hosted demo app with local app dev servers stopped.
 - [ ] Exercise grant/deny/reset behavior where the target browser exposes Local Network Access permission, inspect effective CSP/console failures, and verify fragment cleanup and disconnect.
-- [ ] Ask Pi to call the probe and describe a distinctive generated image it receives as actual image content; repeat canvas export on the hosted preview probe to avoid treating HTTP-only results as hosted proof.
+- [ ] Ask Pi to call the demo app's initial read/generated-image tools and describe a distinctive image it receives as actual image content; repeat canvas export on the separately hosted 1.2 preview probe so HTTP-only exports and the demo's generated image are not treated as hosted real-renderer proof.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence without tokens or copied credential-bearing links.
 
 Verification:
 
-- Automated: rerun package checks/tests/builds and the canvas probe checks after any fixes; no new application dependencies may be assumed.
-- Manual: approved HTTPS page + image-capable Pi + target Chrome, no extension/debugging/local REPL server; pair, call, inspect image, deny/reset/retry permission as available, and disconnect. Record browser version, effective CSP, observable outcomes, and any actual operator approval reference, not raw secrets.
+- Automated: rerun package checks/tests/builds, the demo app `check`/`build`, and the separate canvas probe checks after any fixes; no new application dependencies may be assumed.
+- Manual: approved HTTPS demo app + image-capable Pi + target Chrome, no extension/debugging/local REPL server; pair, call, inspect image, deny/reset/retry permission as available, and disconnect. Record browser version, effective CSP, observable outcomes, and any actual operator approval reference, not raw secrets.
 
-Completion gate: real deployed-page tool use and image perception work with acceptable connection UX; permission failure/recovery is understood, and the renderer export gate passes. A packet trace, localhost-only demo, or unviewed base64 result does not pass.
+Completion gate: real deployed demo-app tool use and image perception work with acceptable connection UX; permission failure/recovery is understood, and the separate REPL renderer export gate passes. A packet trace, localhost-only demo, or unviewed base64 result does not pass.
 Evidence location: [evidence/step-1.3.md](evidence/step-1.3.md).
 
-Phase exit gate: after 1.3, compose the built helper/library with the approved HTTPS fixture and review the 1.2 backend proof. All required checks must pass before Phase 2 or REPL authoring implementation proceeds. If browser policy, pairing, or export fails, stop and request an agreed architectural change; do not silently add an extension, TLS workaround, or unsupported-backend exception. Record the gate in `evidence/step-1.3.md`.
+Phase exit gate: after 1.3, compose the built helper/library with the explicitly approved HTTPS demo app and review the separate 1.2 real-renderer proof. All required checks must pass before Phase 2 or REPL authoring implementation proceeds. If browser policy, pairing, or export fails, stop and request an agreed architectural change; do not silently add an extension, TLS workaround, or unsupported-backend exception. Record the gate in `evidence/step-1.3.md`.
 
 ## Phase 2 — Establish the reusable bridge
 
 Outcome: a generic, bounded protocol and lifecycle work beyond the initial probe.
 Depends on: Phase 1 gate.
-Review boundary: generic package and unrelated fixtures only; no shader-authoring logic.
+Review boundary: generic package and the unrelated standalone demo app only; no shader-authoring logic.
 
 ### Step 2.1 — Complete catalog, validation, and result contracts
 
@@ -269,30 +270,30 @@ Evidence location: [evidence/step-2.2.md](evidence/step-2.2.md).
 
 Requirements / acceptance: R2, R3, R7, R9, R16; AC3, AC7 (generic browser portion), AC8/AC9 (browser-library portions).
 Depends on: 2.2.
-Review boundary: non-shader fixture, browser harness, and generic public-library usability.
+Review boundary: the standalone non-shader demo app, its browser conformance harness, and generic public-library usability.
 
 Expected files:
 
-- `packages/agent-bridge/test/fixtures/conformance/{index.html,main.ts}` and `test/fixtures/vite.config.ts`.
-- `packages/agent-bridge/test/verify-browser.mjs`, `package.json` — proposed browser suite using approved Playwright prerequisites.
+- `apps/agent-bridge-demo/src/main.ts` and minimal app files — add the harmless text-state mutation while retaining initial read/generated-image tools.
+- `apps/agent-bridge-demo/test/verify-browser.mjs`, `package.json` — proposed `test:browser` conformance suite using approved Playwright prerequisites; this app owns the browser harness.
 - `packages/agent-bridge/README.md`.
 
 Tasks:
 
-- [ ] Add a separately served fixture with text-state read/mutation and generated image tools through only the public browser entrypoint.
-- [ ] Add browser checks for pairing-fragment cleanup, tab ownership, reload/re-pair, handler teardown, and unchanged page state on discovery/disconnect.
-- [ ] Demonstrate the second page through the same helper without shader-specific code changes and inspect generic source imports for application coupling.
+- [ ] Add a simple text-state mutation to the standalone demo app, retaining its read and generated-image tools, through only the public `@shdr/agent-bridge/browser` entrypoint.
+- [ ] Make the demo app's `test:browser` harness check pairing-fragment cleanup, tab ownership, reload/re-pair, handler teardown, and unchanged page state on discovery/disconnect.
+- [ ] Demonstrate the unrelated demo app through the same helper without shader-specific code changes and inspect generic package imports for application coupling; the generic package must not depend on the app at runtime.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: package `test`, `test:browser`, `check`, `build`, `build:fixtures`; use real sockets/browser lifecycle but label local harness results as such.
-- Manual: with approved HTTPS hosting and Pi access, pair the unrelated fixture and read, mutate, and inspect its distinctive image; verify no REPL-specific bridge modifications were needed.
+- Automated: demo app `test:browser`, `check`, `build`, plus package `test`, `check`, and `build`; use real sockets/browser lifecycle but label local harness results as such. The app browser harness owns conformance checks; the generic package has no browser harness or fixture-build command.
+- Manual: with explicit approval to host the built demo app and with Pi access, pair the unrelated app and read, mutate, and inspect its distinctive image; verify no REPL-specific bridge modifications were needed. The actual HTTPS URL remains to be supplied.
 
-Completion gate: AC3's unrelated-site read/mutation/model-visible image works with the same library/helper and the browser lifecycle checks pass.
+Completion gate: AC3's unrelated-site read/mutation/model-visible image works through the same library/helper and the demo app's browser lifecycle checks pass.
 Evidence location: [evidence/step-2.3.md](evidence/step-2.3.md).
 
-Phase exit gate: run the package unit/browser/build checks and unrelated hosted conformance journey after 2.3. Review generic source boundaries and session failure evidence together. Record the result in `evidence/step-2.3.md` before Phase 3; a second static HTML page without live invocation/image proof is insufficient.
+Phase exit gate: run the package unit/build checks, the demo app `test:browser`/`check`/`build`, and the unrelated hosted conformance journey after 2.3. Review generic source boundaries and session failure evidence together. Record the result in `evidence/step-2.3.md` before Phase 3; a static page or app scaffold without live invocation/image proof is insufficient.
 
 ## Phase 3 — Enable safe REPL authoring
 
@@ -473,7 +474,7 @@ Expected files:
 
 - Existing `packages/agent-bridge/src/*` and protocol/session/browser tests only for demonstrated integration defects.
 - Existing `apps/repl-web/src/agent/*`, editor/preview integration only for demonstrated defects.
-- `packages/agent-bridge/test/verify-browser.mjs`, `apps/repl-web/test/verify-authoring.mjs` and focused regression tests.
+- `apps/agent-bridge-demo/test/verify-browser.mjs`, `apps/repl-web/test/verify-authoring.mjs` and focused regression tests.
 
 Tasks:
 
@@ -485,7 +486,7 @@ Tasks:
 
 Verification:
 
-- Automated: both packages' targeted unit/browser/check/build commands, app lint, workspace `pnpm check`/`pnpm build`, and existing `pnpm --filter @shdr/runtime test` with approved download/browser prerequisites. Compare baseline failures explicitly; an unexplained failure or an unapproved waiver cannot close this gate.
+- Automated: generic package targeted unit/check/build commands, demo app `test:browser`/`check`/`build`, REPL app unit/browser/check/lint/build commands, workspace `pnpm check`/`pnpm build`, and existing `pnpm --filter @shdr/runtime test` with approved download/browser prerequisites. Compare baseline failures explicitly; an unexplained failure or an unapproved waiver cannot close this gate.
 - Manual: deployed REPL recovery with pending edits/Apply/capture, browser permission denial/retry, and disconnect while manual controls differ from defaults. Confirm no new persistence or forbidden tools.
 
 Completion gate: safety/failure criteria hold in the composed application, not just mocks, and required regressions pass or the gate remains blocked for explicit resolution.
@@ -555,7 +556,7 @@ Each row identifies the full owning gate; partial checks listed in earlier steps
 | --- | --- | --- | --- |
 | AC1 | 3.3 plus 5.3 final deployed gate | Normal hosted REPL use and explicit pairing work without local app server/extension/debugging or automatic edits. | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md) |
 | AC2 | 1.3 plus 5.3 final client gate | MCP-provided pairing info, real HTTPS/CSP/local-network denial and retry behavior work without breaking the site. | [step-1.3](evidence/step-1.3.md), [step-5.3](evidence/step-5.3.md) |
-| AC3 | Phase 2 exit / 2.3 | Unrelated site reads, mutates, and delivers an image to the model without bridge changes. | [step-2.3](evidence/step-2.3.md) |
+| AC3 | Phase 2 exit / 2.3 | The standalone unrelated demo app reads, mutates, and delivers an image to the model without bridge changes. | [step-2.3](evidence/step-2.3.md) |
 | AC4 | 5.2 artifact gate and 5.3 client gate | Same installed helper works with Pi, Claude Code, and Codex including model-visible images. | [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md) |
 | AC5 | 1.1/2.2 transport proof, composed in 5.1 | Two helpers get isolated loopback ports; stdout/logging remain safe. | [step-1.1](evidence/step-1.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md) |
 | AC6 | 1.1/2.1 rejection proof, composed in 5.1 | Wrong origin/token and pre-auth calls never gain authority or change state. | [step-1.1](evidence/step-1.1.md), [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md) |
@@ -577,7 +578,7 @@ Each row identifies the full owning gate; partial checks listed in earlier steps
 | AC22 | 3.3/4.1 boundaries, final 5.1/5.3 checks | No excluded capabilities; connection/read/disconnect preserve controls and Apply preserves documented defaults behavior. | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md), [step-5.3](evidence/step-5.3.md) |
 | AC23 | Phase 4 core loop and Phase 5 final gate | Pi completes deployed authoring/definition editing/Apply/diagnose/visual review through the installed integration. | [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md) |
 
-Final gates do not replace focused tests with a single broad green command. A successful build, fake renderer, browser fixture, installed artifact, and live model journey prove different things. All required owning gates must be assessed; any blocked, skipped, or failed gate remains uncompleted and is reported in its evidence note.
+Final gates do not replace focused tests with a single broad green command. A successful build, fake renderer, standalone demo app, installed artifact, and live model journey prove different things. All required owning gates must be assessed; any blocked, skipped, or failed gate remains uncompleted and is reported in its evidence note.
 
 ## Rollback and recovery
 

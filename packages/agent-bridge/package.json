@@ -1,0 +1,47 @@
+{
+  "name": "@shdr/agent-bridge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "shdr-agent-bridge": "./dist/bin.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.mts",
+      "import": "./dist/protocol.mjs"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.mts",
+      "import": "./dist/browser.mjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsdown",
+    "check": "tsc --noEmit",
+    "pretest": "tsdown",
+    "test": "vitest run --config ../../vitest.config.ts --root ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.1",
+    "ajv": "^8.18.0",
+    "ws": "^8.18.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.1",
+    "tsdown": "^0.22.5",
+    "typescript": "7.0.2"
+  }
+}
