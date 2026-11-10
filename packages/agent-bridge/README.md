@@ -13,14 +13,25 @@ shdr-agent-bridge --allowed-origin https://example.invalid --site-url https://ex
 The helper binds only to `127.0.0.1` on an ephemeral port. Call `bridge_get_connection_info` over MCP to receive the short-lived pairing URL. The URL contains credentials only in its fragment; it is not logged or sent in the WebSocket URL. A page should call `consumePairingLink()` from `@shdr/agent-bridge/browser`, remove the fragment immediately, and pass the returned link to `connectAgentBridge`.
 
 ```ts
-import { connectAgentBridge, consumePairingLink } from "@shdr/agent-bridge/browser";
+import {
+  connectAgentBridge,
+  consumePairingLink,
+} from "@shdr/agent-bridge/browser";
 
-const bridge = connectAgentBridge({ tools: [{
-  name: "read_state",
-  description: "Read application state",
-  inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  handler: async () => ({ ready: true }),
-}] });
+const bridge = connectAgentBridge({
+  tools: [
+    {
+      name: "read_state",
+      description: "Read application state",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      handler: async () => ({ ready: true }),
+    },
+  ],
+});
 const link = consumePairingLink();
 if (link) await bridge.connect(link);
 ```

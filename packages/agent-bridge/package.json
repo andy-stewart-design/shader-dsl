@@ -24,10 +24,14 @@
       "import": "./dist/server.mjs"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsdown",
     "check": "tsc --noEmit",
+    "format": "prettier --write src test \"*.{ts,json,md}\"",
     "pretest": "tsdown",
     "test": "vitest run --config ../../vitest.config.ts --root ."
   },
