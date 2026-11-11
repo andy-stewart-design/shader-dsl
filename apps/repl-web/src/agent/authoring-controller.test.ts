@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createAuthoringController } from "./authoring-controller.ts";
+import { EditorRegistry } from "../editor/authoring-adapter.ts";
 import { createDraftStore } from "../stores/draft.ts";
 
 function makeController() {
@@ -238,6 +239,181 @@ test("definition replacement supports CRUD, preserves IDs, and derives colors", 
     controller.read().uniforms.map((uniform) => uniform.id),
     [tint.id],
   );
+});
+
+test("preflights every requested editor before changing any document", () => {
+  const { store } = makeController();
+  const registry = new EditorRegistry();
+  let main = store.getState().main;
+  let utils = store.getState().utils;
+  registry.register({
+    document: "main",
+    isReady: () => true,
+    read: () => main,
+    prepareReplace: (next) => ({
+      document: "main",
+      current: main,
+      apply: () => {
+        main = next;
+      },
+      rollback: () => {},
+    }),
+  });
+  registry.register({
+    document: "utils",
+    isReady: () => false,
+    read: () => utils,
+    prepareReplace: (next) => ({
+      document: "utils",
+      current: utils,
+      apply: () => {
+        utils = next;
+      },
+      rollback: () => {},
+    }),
+  });
+
+  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const before = controller.read();
+  const result = controller.update({
+    expectedRevision: before.revision,
+    main: "new main",
+    utils: "new utils",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(main, before.main);
+  assert.equal(utils, before.utils);
+  assert.deepEqual(controller.read(), before);
+});
+
+test("visible editor replacements commit once and preserve omitted documents", () => {
+  const { store } = makeController();
+  const registry = new EditorRegistry();
+  let main = store.getState().main;
+  let utils = store.getState().utils;
+  for (const document of ["main", "utils"] as const) {
+    registry.register({
+      document,
+      isReady: () => true,
+      read: () => (document === "main" ? main : utils),
+      prepareReplace: (next) => {
+        const current = document === "main" ? main : utils;
+        return {
+          document,
+          current,
+          apply: () => {
+            if (document === "main") main = next;
+            else utils = next;
+          },
+          rollback: () => {
+            if (document === "main") main = current;
+            else utils = current;
+          },
+        };
+      },
+    });
+  }
+  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const seen: number[] = [];
+  const unsubscribe = store.subscribe((state) => seen.push(state.revision));
+  const result = controller.update({
+    expectedRevision: 0,
+    main: "agent main",
+  });
+  unsubscribe();
+  assert.equal(result.ok, true);
+  assert.equal(main, "agent main");
+  assert.equal(utils, "");
+  assert.deepEqual(seen, [1]);
+  assert.equal(controller.read().main, main);
+});
+
+test("restores staged documents when a later editor dispatch fails", () => {
+  const { store } = makeController();
+  const registry = new EditorRegistry();
+  let main = store.getState().main;
+  let utils = store.getState().utils;
+  const originalMain = main;
+  const originalUtils = utils;
+  let mainApplied = false;
+  let utilsApplied = false;
+  for (const document of ["main", "utils"] as const) {
+    registry.register({
+      document,
+      isReady: () => true,
+      read: () => (document === "main" ? main : utils),
+      prepareReplace: (next) => {
+        const current = document === "main" ? main : utils;
+        return {
+          document,
+          current,
+          apply: () => {
+            if (document === "main") {
+              main = next;
+              mainApplied = true;
+            } else {
+              utils = next;
+              utilsApplied = true;
+              throw new Error("synthetic dispatch failure");
+            }
+          },
+          rollback: () => {
+            if (document === "main") main = current;
+            else utils = current;
+          },
+        };
+      },
+    });
+  }
+  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const result = controller.update({
+    expectedRevision: 0,
+    main: "staged main",
+    utils: "staged utils",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(mainApplied, true);
+  assert.equal(utilsApplied, true);
+  assert.equal(main, originalMain);
+  assert.equal(utils, originalUtils);
+  assert.equal(controller.read().revision, 0);
+});
+
+test("does not roll back visible documents when a committed observer throws", () => {
+  const { store } = makeController();
+  const registry = new EditorRegistry();
+  let main = store.getState().main;
+  registry.register({
+    document: "main",
+    isReady: () => true,
+    read: () => main,
+    prepareReplace: (next) => {
+      const current = main;
+      return {
+        document: "main",
+        current,
+        apply: () => {
+          main = next;
+        },
+        rollback: () => {
+          main = current;
+        },
+      };
+    },
+  });
+  const unsubscribe = store.subscribe(() => {
+    throw new Error("observer failure");
+  });
+  const controller = createAuthoringController(store, { editorRegistry: registry });
+  assert.throws(
+    () => controller.update({ expectedRevision: 0, main: "published" }),
+    /observer failure/,
+  );
+  unsubscribe();
+  assert.equal(main, "published");
+  assert.equal(store.getState().main, "published");
+  assert.equal(store.getState().revision, 1);
 });
 
 test("rejects duplicate IDs, duplicate/reserved names, invalid numbers, ranges, and colors", () => {

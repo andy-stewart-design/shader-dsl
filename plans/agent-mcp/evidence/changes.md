@@ -33,3 +33,7 @@ The scope rationale is protocol correctness and lifecycle recovery in 2.2 before
 ## Manual-first Step 2.3
 
 The user explicitly asked, “Is 2.3 when we'll do manual testing?” and then confirmed, “ok, let's do 2.3”. This authorizes the bounded Step 2.3 demo implementation and user-assisted manual-first verification only: no approval was invented for later phases, deployment, or MCP configuration changes. The planned demo browser harness and `test:browser` command are removed; package checks plus demo check/lint/build and the user's hosted/manual conformance flow are the verification boundary.
+
+## Step 3.2 manual-first verification adjustment
+
+The user's current Step 3.2 request reiterates the global manual-first/quick workflow and asks for a practical browser exercise without starting Step 3.3. Accordingly, the proposed `test:browser`/`verify-authoring.mjs` harness references were replaced with the existing native Node 24 unit tests, real CodeMirror `EditorState` history checks, and a small `dev:authoring-probe`/`build:authoring-probe` fixture at `http://localhost:5175/`. The fixture uses the actual `createEditor`, adapter, registry, and controller with two visible editors and buttons for apply, undo/redo, stale conflict, and unmount/mount. This changes verification method only; it does not invent a publish, deployment, MCP, provider, or approval decision, and the final DOM/manual checkbox remains open.

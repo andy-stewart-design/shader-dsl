@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shdr authoring transaction probe</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; padding: 24px; background: #15171b; color: #f4f5f7; }
+      main { max-width: 1100px; margin: 0 auto; }
+      .controls, .status { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      button { font: inherit; padding: 7px 10px; }
+      .status { min-height: 2em; color: #b9c7da; }
+      .editors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .panel { min-width: 0; min-height: 300px; }
+      .editor { height: 300px; border: 1px solid #39404c; }
+      .editor .cm-editor { height: 100%; }
+      code, pre { background: #20242b; padding: 2px 5px; }
+      pre { overflow: auto; padding: 12px; }
+      @media (max-width: 760px) { .editors { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Visible authoring transaction probe</h1>
+      <p>Uses the production CodeMirror editor, adapter, registry, and controller without MCP or debug globals.</p>
+      <div class="controls">
+        <button id="apply" type="button">Apply sample agent edit</button>
+        <button id="undo" type="button">Undo main</button>
+        <button id="redo" type="button">Redo main</button>
+        <button id="conflict" type="button">Try stale conflict</button>
+        <button id="unmount" type="button">Unmount utils</button>
+        <button id="mount" type="button">Mount utils</button>
+      </div>
+      <p id="status" class="status" role="status"></p>
+      <div class="editors">
+        <section class="panel"><h2>Main</h2><div id="main-editor" class="editor"></div></section>
+        <section class="panel"><h2>Utils</h2><div id="utils-editor" class="editor"></div></section>
+      </div>
+      <h2>Current draft snapshot</h2>
+      <pre id="snapshot"></pre>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

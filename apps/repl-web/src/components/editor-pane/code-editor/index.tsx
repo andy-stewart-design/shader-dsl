@@ -1,5 +1,9 @@
 import { useCodeEditor } from "../../../hooks/use-code-editor";
 import {
+  createEditorAdapter,
+  editorRegistry,
+} from "../../../editor/authoring-adapter";
+import {
   useDraftActions,
   useDraftSource,
   type DraftDocument,
@@ -24,7 +28,13 @@ export default function CodeEditor({
     ariaLabel:
       ariaLabel ??
       (document === "main" ? "Main shader source" : "Utils shader source"),
-    onChange: (nextSource) => setSource(document, nextSource),
+    onChange: ({ doc, programmatic }) => {
+      if (!programmatic && !editorRegistry.isBatching) {
+        setSource(document, doc);
+      }
+    },
+    onReady: (handle) =>
+      editorRegistry.register(createEditorAdapter(document, handle)),
   });
 
   return (

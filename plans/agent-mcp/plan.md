@@ -46,7 +46,7 @@ New commands below are **proposed additions**, not commands currently present:
 | 1.2 | `pnpm --filter repl-web dev:preview-probe`, `build:preview-probe` | User-assisted real-canvas probe at localhost:5174 and an independently hostable build; no automated browser harness. |
 | 2.3 | `pnpm --filter agent-bridge-demo check`, `lint`, `build`; package `test`, `check`, `build` when needed | Demo-app build checks plus user-assisted manual browser conformance; not a substitute for hosted permission testing. |
 | 3.1 | `pnpm --filter repl-web test` | Explicit package Vitest config covering existing and new source/unit tests. |
-| 3.2 | `pnpm --filter repl-web test:browser` | Real editor/controller/browser integration checks, extended in later steps. |
+| 3.2 | `pnpm --filter repl-web test`, `build:authoring-probe` | Existing native Node unit tests plus the manual real-editor fixture; no browser harness. |
 | 5.2 | `pnpm --filter @shdr/agent-bridge test:packed` | Isolated packed/installed entrypoint and CLI checks, not publication. |
 
 ### Planning defaults for shared contracts
@@ -339,23 +339,23 @@ Review boundary: editor handle/consumers and coherent command dispatch, not tran
 
 Expected files:
 
-- `apps/repl-web/src/editor/{create-editor,extensions}.ts`, `src/hooks/use-code-editor.ts`.
+- `apps/repl-web/src/editor/{create-editor,extensions,authoring-adapter}.ts`, `src/hooks/use-code-editor.ts`.
 - `apps/repl-web/src/components/editor-pane/code-editor/index.tsx`.
-- `apps/repl-web/src/agent/authoring-controller.ts`, related controller/editor tests.
-- `apps/repl-web/test/verify-authoring.mjs`, `package.json` — proposed browser integration command and fixtures as needed.
+- `apps/repl-web/src/agent/authoring-controller.ts`, `src/editor/create-editor.test.ts`, related controller/editor tests.
+- `apps/repl-web/test/authoring-probe/{index.html,main.ts,vite.config.ts}`, `package.json` — small manual Vite fixture and scoped dev/build scripts; no browser harness.
 
 Tasks:
 
-- [ ] Expose controlled document read/replace readiness through the editor handle and hook; route programmatic edits through history-preserving CodeMirror transactions.
-- [ ] Coordinate both mounted documents with the atomic authoring command, suppressing intermediate store notifications/feedback loops and rejecting commands before mutation if an editor cannot participate.
-- [ ] Track manual edits and undo/redo as real draft changes; maintain coherent final revisions and leave omitted documents untouched.
-- [ ] Add real-editor tests for source-plus-definition updates, manual conflict races, undo/redo, tab switching, and unmount/teardown rather than verifying only abstract editor state.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Expose controlled document read/replace readiness through the editor handle and hook; route programmatic edits through history-preserving CodeMirror transactions.
+- [x] Coordinate both mounted documents with the atomic authoring command, suppressing intermediate store notifications/feedback loops and rejecting commands before mutation if an editor cannot participate.
+- [x] Track manual edits and undo/redo as real draft changes; maintain coherent final revisions and leave omitted documents untouched.
+- [x] Add real CodeMirror `EditorState` history/annotation checks, injectable multi-document ports, failure/unready/conflict tests, and a manual fixture using actual `EditorView` instances for visible source-plus-definition updates and undo/redo.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: app `test`, new `test:browser`, `check`/`lint`/`build`. Assert visible CodeMirror text equals draft state after writes and undo/redo, source replacements are in history, stale/failed multi-field updates change nothing, and observers do not see partial command state.
-- Manual: edit main/utils from the controller harness, undo in the visible editor, then type manually and confirm an older expected revision is rejected. No transport/debug-global dependency is required for production.
+- Automated: existing app `test` (native Node 24 `node:test`), `check`, `lint`, `build`, and the scoped `build:authoring-probe`. The unit suite checks real CodeMirror history annotations/undo/redo plus injectable multi-document preflight, one-notification atomicity, rollback, conflict, and failure behavior; it does not claim DOM visibility.
+- Manual: run `dev:authoring-probe` at `http://localhost:5175/`, edit main/utils, use **Apply sample agent edit**, **Undo main**, **Redo main**, **Try stale conflict**, and **Unmount/Mount utils**. Confirm visible text, one coherent revision, conflict/no-op behavior, and unmount rejection. No transport/debug-global dependency is required for production.
 
 Completion gate: a real editor/controller command is visible, undoable, revision-safe, and coherent across fields. Handle contracts and their hook/component consumers land/revert together.
 Evidence location: [evidence/step-3.2.md](evidence/step-3.2.md).
@@ -371,7 +371,7 @@ Expected files:
 - `apps/repl-web/src/agent/{provider,tools,context}.ts` and `src/agent/authoring-controller.ts`.
 - `apps/repl-web/src/components/agent-connection/index.tsx`, supporting connection hook.
 - `apps/repl-web/src/routes/index.tsx`, `package.json`, `README.md`.
-- `apps/repl-web/test/verify-authoring.mjs`, agent provider tests; `pnpm-lock.yaml` for the workspace dependency.
+- `apps/repl-web/test/authoring-probe/*`, agent provider tests; `pnpm-lock.yaml` for the workspace dependency.
 
 Tasks:
 
@@ -409,7 +409,7 @@ Expected files:
 - `apps/repl-web/src/hooks/{use-shdr-compilation,use-shdr-preview}.ts`.
 - `apps/repl-web/src/preview/create-preview.ts`, `src/routes/index.tsx`, affected editor/preview/status consumers.
 - `apps/repl-web/src/compiler/compile-shdr-body.ts` only for preserving existing diagnostic data, not language changes.
-- Apply/controller tests and `apps/repl-web/test/verify-authoring.mjs`.
+- Apply/controller tests and the manual `apps/repl-web/test/authoring-probe` fixture.
 
 Tasks:
 
@@ -422,7 +422,7 @@ Tasks:
 
 Verification:
 
-- Automated: app `test`/`test:browser`/`check`/`lint`/`build`. Delay install/draw and assert Apply remains pending; verify old preview and identity survive failures; superseded callbacks cannot become current success. Run the existing focused scheduler regression if scheduling seams are touched.
+- Automated: app `test`/`check`/`lint`/`build` plus the manual authoring-probe build. Delay install/draw and assert Apply remains pending; verify old preview and identity survive failures; superseded callbacks cannot become current success. Run the existing focused scheduler regression if scheduling seams are touched.
 - Manual: Pi applies valid/invalid deployed drafts while a user makes a newer edit; observe precise revision outcomes, unchanged manual controls, and documented successful-Apply defaults. No image correlation is inferred until 4.2.
 
 Completion gate: compile, install, and draw are independently observable, errors preserve the correct previous preview, and manual/agent paths share the same completed behavior without half-migrated consumers.
@@ -438,7 +438,7 @@ Expected files:
 
 - `apps/repl-web/src/agent/{snapshot,tools,apply-controller}.ts`.
 - `apps/repl-web/src/preview/capture-canvas.ts`, `src/hooks/use-shdr-preview.ts`, provider wiring as needed.
-- Snapshot/race tests, `apps/repl-web/test/verify-authoring.mjs`, and the existing manual preview probe.
+- Snapshot/race tests, the manual `apps/repl-web/test/authoring-probe` fixture, and the existing manual preview probe.
 
 Tasks:
 
@@ -474,7 +474,7 @@ Expected files:
 
 - Existing `packages/agent-bridge/src/*` and protocol/session/browser tests only for demonstrated integration defects.
 - Existing `apps/repl-web/src/agent/*`, editor/preview integration only for demonstrated defects.
-- `apps/repl-web/test/verify-authoring.mjs` and focused regression tests.
+- `apps/repl-web/test/authoring-probe` and focused regression tests.
 
 Tasks:
 

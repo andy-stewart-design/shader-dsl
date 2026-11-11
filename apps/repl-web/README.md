@@ -16,6 +16,20 @@ It uses the actual compiler, preview runtime, and `captureCanvas` primitive. Cho
 pnpm --filter repl-web build:preview-probe
 ```
 
+## Manual authoring transaction probe
+
+Run the small real-CodeMirror controller probe at <http://localhost:5175/>:
+
+```bash
+pnpm --filter repl-web dev:authoring-probe
+```
+
+Click **Apply sample agent edit** and confirm both visible documents change together and the revision advances once. **Undo main** and **Redo main** should change the visible main editor and the draft snapshot consistently. **Try stale conflict** first makes a visible manual-style edit, then rejects the stale controller request without another change. **Unmount utils** makes a source update requiring Utils reject without changing Main; **Mount utils** restores the port. The production editor component uses the same `EditorHandle`, adapter, and registry wiring; this probe adds no MCP or debug global. Build it independently with:
+
+```bash
+pnpm --filter repl-web build:authoring-probe
+```
+
 From the monorepo root, install dependencies and run this application:
 
 ```bash
