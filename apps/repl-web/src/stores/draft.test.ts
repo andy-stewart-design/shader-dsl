@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach } from "node:test";
 import test from "node:test";
-import { getDraftState, useDraftStore } from "./draft.ts";
+import { createDraftStore, getDraftState, useDraftStore } from "./draft.ts";
 import { initialShaderSource } from "../shared/initial-source.ts";
 
 function resetDraftStore() {
-  useDraftStore.setState({ main: initialShaderSource, utils: "", uniforms: [] });
+  useDraftStore.setState({
+    main: initialShaderSource,
+    utils: "",
+    uniforms: [],
+    revision: 0,
+  });
 }
 
 beforeEach(resetDraftStore);
@@ -16,11 +21,11 @@ test("draft store defaults keep sources and uniforms isolated", () => {
   assert.equal(state.main, initialShaderSource);
   assert.equal(state.utils, "");
   assert.deepEqual(state.uniforms, []);
+  assert.equal(state.revision, 0);
 });
 
-test("draft source and uniform actions update independently", () => {
+test("manual source and definition edits advance one revision each", () => {
   const { actions } = useDraftStore.getState();
-  const originalMain = getDraftState().main;
   const uniform = {
     id: "uniform-test",
     name: "gain",
@@ -31,11 +36,37 @@ test("draft source and uniform actions update independently", () => {
   };
 
   actions.setSource("utils", "const helper = 1;");
-  actions.setUniforms(() => [uniform]);
-  assert.equal(getDraftState().main, originalMain);
+  assert.equal(getDraftState().revision, 1);
+  actions.setUniforms([uniform]);
+  assert.equal(getDraftState().revision, 2);
+  assert.equal(getDraftState().main, initialShaderSource);
   assert.equal(getDraftState().utils, "const helper = 1;");
   assert.deepEqual(getDraftState().uniforms, [uniform]);
+});
 
-  actions.setSource("utils", "");
-  actions.setUniforms([]);
+test("invalid intermediate drafts still advance and true noops do not", () => {
+  const { actions } = useDraftStore.getState();
+  const invalid = {
+    id: "uniform-test",
+    name: "not valid yet",
+    type: "float" as const,
+    value: "pending",
+    min: "",
+    max: "",
+  };
+
+  actions.setUniforms([invalid]);
+  assert.equal(getDraftState().revision, 1);
+  actions.setUniforms([invalid]);
+  actions.setSource("main", initialShaderSource);
+  assert.equal(getDraftState().revision, 1);
+});
+
+test("factory stores are isolated for controller-oriented tests", () => {
+  const first = createDraftStore();
+  const second = createDraftStore();
+  first.getState().actions.setSource("main", "first");
+  assert.equal(first.getState().revision, 1);
+  assert.equal(second.getState().revision, 0);
+  assert.equal(second.getState().main, initialShaderSource);
 });

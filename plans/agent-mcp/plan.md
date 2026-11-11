@@ -313,15 +313,15 @@ Expected files:
 - `apps/repl-web/src/agent/{authoring-schema,authoring-controller}.ts` — definition wire mapping and transactional command boundary.
 - `apps/repl-web/src/components/uniforms-pane/index.tsx`, `helpers.ts`, and `definitions.ts` — existing CRUD/validation consumers only; preserve supported manual authoring behavior.
 - `apps/repl-web/src/stores/draft.test.ts`, `src/agent/authoring-controller.test.ts`, relevant existing uniform tests.
-- `apps/repl-web/vitest.config.ts`, `package.json`, and scoped test typing configuration if needed — proposed test script covering current/new source tests.
+- `apps/repl-web/package.json`, `src/agent/authoring-schema.json` — package-local native Node test script and published JSON schema; no Vitest wiring is needed because the existing source tests already use `node:test` and Node 24 runs the TypeScript sources directly.
 
 Tasks:
 
-- [ ] Add draft revisions and a synchronous commit boundary, routing all existing source/definition/manual actions through consistent revision semantics without introducing Apply or runtime changes.
-- [ ] Implement semantic definition wire mapping, raw invalid-draft reads, generated/preserved IDs, derived color caches, complete supplied-list replacement, and existing float/color validation.
-- [ ] Validate the full requested command before committing; reject stale revisions and invalid supplied definitions atomically while preserving omitted fields and permitting uncompiled source edits.
-- [ ] Add package-local test coverage for existing source tests plus omission, invalid/stale updates, ID handling, raw drafts, and revision behavior; do not claim root test coverage.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Add draft revisions and a synchronous commit boundary, routing all existing source/definition/manual actions through consistent revision semantics without introducing Apply or runtime changes.
+- [x] Implement semantic definition wire mapping, raw invalid-draft reads, generated/preserved IDs, derived color caches, complete supplied-list replacement, and existing float/color validation.
+- [x] Validate the full requested command before committing; reject stale revisions and invalid supplied definitions atomically while preserving omitted fields and permitting uncompiled source edits.
+- [x] Add package-local test coverage for existing source tests plus omission, invalid/stale updates, ID handling, raw drafts, and revision behavior; do not claim root test coverage.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 

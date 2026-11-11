@@ -55,6 +55,14 @@ pnpm --filter repl-web check
 pnpm format --write
 ```
 
+## Tests
+
+Run the package's native Node test suite, including all `src/**/*.test.ts` tests:
+
+```bash
+pnpm --filter repl-web test
+```
+
 ## Deploy with Nitro
 
 This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
