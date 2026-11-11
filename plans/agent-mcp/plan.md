@@ -253,10 +253,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Implement ownership leases, scoped `sessionStorage` resume/rotation, explicit revocation and clearing, fresh page/catalog identity on refresh, bounded reconnect/backoff, and per-tab singleton ownership. Resume only the exact origin/session/loopback endpoint; do not scan ports or persist sketch/source/runtime state.
-- [ ] Complete request deadlines/cancellation, finite pending/unauthenticated limits, catalog teardown, process/socket cleanup, and stale-response rejection with no automatic mutation or edit replay.
-- [ ] Add modest focused fake-clock/loopback tests using the existing seams for second tabs/helpers, token/resume reuse, same-origin refresh without a new link, reconnect races, expiry, shutdown, explicit-disconnect clearing, helper restart requiring pairing, late results, and an already-executing mutation whose response is lost.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Implement ownership leases, scoped `sessionStorage` resume/rotation, explicit revocation and clearing, fresh page/catalog identity on refresh, bounded reconnect/backoff, and per-tab singleton ownership. Resume only the exact origin/session/loopback endpoint; do not scan ports or persist sketch/source/runtime state.
+- [x] Complete request deadlines/cancellation, finite pending/unauthenticated limits, catalog teardown, process/socket cleanup, and stale-response rejection with no automatic mutation or edit replay.
+- [x] Add modest focused fake-clock/loopback tests using the existing seams for second tabs/helpers, token/resume reuse, same-origin refresh without a new link, reconnect races, expiry, shutdown, explicit-disconnect clearing, helper restart requiring pairing, late results, and an already-executing mutation whose response is lost.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 

@@ -8,6 +8,9 @@ export const LIMITS = {
   pairingLifetimeMs: 5 * 60_000,
   authenticationTimeoutMs: 5_000,
   requestTimeoutMs: 30_000,
+  resumeLeaseMs: 30_000,
+  reconnectInitialDelayMs: 250,
+  reconnectMaxDelayMs: 2_000,
   unauthenticatedFrameBytes: 4 * 1024,
   authenticatedFrameBytes: 8 * 1024 * 1024,
   imageBytes: 4 * 1024 * 1024,
@@ -66,7 +69,24 @@ export type BridgeCatalog = {
 };
 
 export type BridgeWireMessage =
-  | { type: "auth"; token: string }
+  | {
+      type: "auth";
+      token: string;
+      resumable?: boolean;
+      pageId?: string;
+      pageUrl?: string;
+    }
+  | {
+      type: "resume";
+      protocolVersion: 1;
+      sessionId: string;
+      resumeToken: string;
+      pageId: string;
+      pageUrl: string;
+    }
+  | { type: "disconnect"; sessionId: string }
+  | { type: "cancel"; sessionId: string; requestId: string }
+  | { type: "auth_error"; protocolVersion: 1; error: BridgeError }
   | BridgeCatalog
   | {
       type: "request";
@@ -79,11 +99,20 @@ export type BridgeWireMessage =
   | {
       type: "response";
       requestId: string;
+      sessionId?: string;
+      catalogVersion?: number;
       ok: boolean;
       result?: BridgeResult;
       error?: BridgeError;
     }
-  | { type: "auth_ok"; protocolVersion: 1; sessionId: string }
+  | {
+      type: "auth_ok";
+      protocolVersion: 1;
+      sessionId: string;
+      pageId?: string;
+      resumeToken?: string;
+      resumeLeaseMs?: number;
+    }
   | {
       type: "catalog_ok";
       protocolVersion: 1;

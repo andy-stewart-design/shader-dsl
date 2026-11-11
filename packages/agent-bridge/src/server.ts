@@ -4,7 +4,7 @@ import {
 } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
@@ -13,11 +13,11 @@ import {
   normalizeResult,
 } from "./results.js";
 import { validateInput, validateCatalog } from "./schema.js";
+import { SessionLease } from "./session.js";
 import {
   BRIDGE_CATALOG_VERSION,
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
-  isBridgeResult,
   isRecord,
   jsonSize,
   safeJson,
@@ -35,17 +35,36 @@ type Pending = {
   resolve: (result: BridgeResult) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  signal?: AbortSignal;
+  abort?: () => void;
+  sessionId: string;
+  catalogVersion: number;
+  resumable: boolean;
+  socket: WebSocket;
+};
+
+type ActivePage = {
+  socket: WebSocket;
+  sessionId: string;
+  pageId?: string;
+  pageUrl?: string;
+  resumable: boolean;
+  resumeDigest?: Buffer;
+};
+
+type ConnectionInfo = {
+  port: number;
+  status: "unpaired" | "connected" | "interrupted";
+  pairingUrl?: string;
+  sessionId?: string;
+  leaseExpiresAt?: number;
+  limits: typeof LIMITS;
 };
 
 export type BridgeServer = {
   port: number;
-  connectionInfo(): {
-    port: number;
-    pairingUrl?: string;
-    sessionId?: string;
-    limits: typeof LIMITS;
-  };
-  attachMcp(transport: StdioServerTransport): Promise<void>;
+  connectionInfo(): ConnectionInfo;
+  attachMcp(transport: Transport): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -67,21 +86,36 @@ export async function startBridgeServer(
   options: BridgeServerOptions,
 ): Promise<BridgeServer> {
   validateConfiguration(options);
-  let token = randomBytes(32).toString("base64url");
-  let tokenDigest = createHash("sha256").update(token).digest();
-  let expiresAt = Date.now() + LIMITS.pairingLifetimeMs;
+  let token = "";
+  let tokenDigest = Buffer.alloc(32);
+  let expiresAt = 0;
   let tokenUsed = false;
+  let shuttingDown = false;
+  let closePromise: Promise<void> | undefined;
+  let mcpServer: McpServer | undefined;
+
   const issuePairingCredential = () => {
     token = randomBytes(32).toString("base64url");
     tokenDigest = createHash("sha256").update(token).digest();
     expiresAt = Date.now() + LIMITS.pairingLifetimeMs;
     tokenUsed = false;
   };
-  let owner: WebSocket | undefined;
-  let sessionId: string | undefined;
+  issuePairingCredential();
+
+  let active: ActivePage | undefined;
   let catalog: BridgeCatalog | undefined;
   const pending = new Map<string, Pending>();
   const sockets = new Set<WebSocket>();
+  const authenticatedSockets = new Set<WebSocket>();
+  const authTimers = new Map<WebSocket, ReturnType<typeof setTimeout>>();
+  const lease = new SessionLease<{ digest: Buffer }>({
+    onExpire: () => {
+      // An expired lease is a revocation boundary. A new pairing credential is
+      // intentionally not exposed until connectionInfo is requested.
+      issuePairingCredential();
+    },
+  });
+
   const http: HttpServer = createHttpServer((_request, response) => {
     response.writeHead(404);
     response.end();
@@ -97,9 +131,12 @@ export async function startBridgeServer(
   };
   http.on("upgrade", (request, socket, head) => {
     const origin = request.headers.origin;
+    const unauthenticated = [...sockets].filter(
+      (candidate) => !authenticatedSockets.has(candidate),
+    ).length;
     if (
       origin !== options.allowedOrigin ||
-      sockets.size >= LIMITS.unauthenticatedSockets
+      unauthenticated >= LIMITS.unauthenticatedSockets
     ) {
       rejectUpgrade(socket);
       return;
@@ -109,30 +146,153 @@ export async function startBridgeServer(
     );
   });
 
+  const publicError = (code: string): string =>
+    PUBLIC_ERROR_MESSAGES[code] ?? "bridge request failed";
+
+  const send = (ws: WebSocket, value: unknown) => {
+    if (ws.readyState === 1) ws.send(JSON.stringify(value));
+  };
+
+  const cancelPending = (requestId: string, error: Error, notify = true) => {
+    const call = pending.get(requestId);
+    if (!call) return;
+    pending.delete(requestId);
+    clearTimeout(call.timer);
+    if (call.signal && call.abort)
+      call.signal.removeEventListener("abort", call.abort);
+    if (
+      notify &&
+      call.resumable &&
+      call.socket === active?.socket &&
+      active.sessionId === call.sessionId &&
+      call.socket.readyState === 1
+    ) {
+      send(call.socket, {
+        type: "cancel",
+        sessionId: call.sessionId,
+        requestId,
+      });
+    }
+    call.reject(error);
+  };
+
+  const cancelAll = (error: Error, notify = true) => {
+    for (const requestId of [...pending.keys()])
+      cancelPending(requestId, error, notify);
+  };
+
+  const releasePage = (ws: WebSocket, error?: Error, explicit = false) => {
+    clearTimeout(authTimers.get(ws));
+    authTimers.delete(ws);
+    sockets.delete(ws);
+    authenticatedSockets.delete(ws);
+    if (active?.socket !== ws) return;
+
+    const old = active;
+    cancelAll(
+      error ??
+        new BridgeProtocolError(
+          explicit ? "not_connected" : "not_connected",
+          "page disconnected; outcome may be uncertain",
+        ),
+      true,
+    );
+    active = undefined;
+    catalog = undefined;
+    if (
+      !explicit &&
+      old.resumable &&
+      old.pageId &&
+      old.pageUrl &&
+      old.resumeDigest &&
+      !shuttingDown
+    ) {
+      lease.suspend({
+        sessionId: old.sessionId,
+        pageId: old.pageId,
+        pageUrl: old.pageUrl,
+        credential: { digest: old.resumeDigest },
+      });
+    } else {
+      lease.revoke();
+      issuePairingCredential();
+    }
+  };
+
+  const sendAuthError = (ws: WebSocket, code: string, message: string) => {
+    send(ws, {
+      type: "auth_error",
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
+      error: { code, message },
+    });
+    ws.close(1008, "authentication failed");
+  };
+
+  const normalizePageUrl = (value: unknown): string | undefined => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 4096)
+      return undefined;
+    try {
+      const url = new URL(value);
+      if (url.origin !== options.allowedOrigin || url.username || url.password)
+        return undefined;
+      return url.href;
+    } catch {
+      return undefined;
+    }
+  };
+  const validPageId = (value: unknown): value is string =>
+    typeof value === "string" && value.length > 0 && value.length <= 256;
+
+  const establish = (
+    ws: WebSocket,
+    input: {
+      pageId?: string;
+      pageUrl?: string;
+      resumable: boolean;
+      resumeDigest?: Buffer;
+    },
+  ) => {
+    const sessionId = randomBytes(18).toString("base64url");
+    const next: ActivePage = {
+      socket: ws,
+      sessionId,
+      pageId: input.pageId,
+      pageUrl: input.pageUrl,
+      resumable: input.resumable,
+      resumeDigest: input.resumeDigest,
+    };
+    active = next;
+    catalog = undefined;
+    authenticatedSockets.add(ws);
+    const authOk: Record<string, unknown> = {
+      type: "auth_ok",
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
+      sessionId,
+    };
+    if (input.resumable) {
+      const resumeToken = randomBytes(32).toString("base64url");
+      next.resumeDigest = createHash("sha256").update(resumeToken).digest();
+      authOk.pageId = input.pageId;
+      authOk.resumeToken = resumeToken;
+      authOk.resumeLeaseMs = LIMITS.resumeLeaseMs;
+    }
+    send(ws, authOk);
+  };
+
   wss.on("connection", (ws: WebSocket) => {
     sockets.add(ws);
     let authenticated = false;
     let closed = false;
     const authTimer = setTimeout(() => {
-      if (!authenticated || (owner === ws && !catalog))
+      if (!authenticated || (active?.socket === ws && !catalog))
         ws.close(1008, "authentication timeout");
     }, LIMITS.authenticationTimeoutMs);
-    const close = (error?: Error) => {
+    authTimers.set(ws, authTimer);
+
+    const close = (error?: Error, explicit = false) => {
       if (closed) return;
       closed = true;
-      clearTimeout(authTimer);
-      sockets.delete(ws);
-      if (owner === ws) {
-        owner = undefined;
-        sessionId = undefined;
-        catalog = undefined;
-        issuePairingCredential();
-        for (const call of pending.values()) {
-          clearTimeout(call.timer);
-          call.reject(error ?? new Error("page disconnected"));
-        }
-        pending.clear();
-      }
+      releasePage(ws, error, explicit);
     };
     ws.on("close", () => close());
     ws.on("error", () => close(new Error("page transport failed")));
@@ -154,42 +314,113 @@ export async function startBridgeServer(
         ws.close(1007, "malformed message");
         return;
       }
+
       if (!authenticated) {
-        if (
-          !isRecord(message) ||
-          message.type !== "auth" ||
-          typeof message.token !== "string"
-        ) {
-          ws.close(1008, "authentication required");
+        if (!isRecord(message) || typeof message.type !== "string") {
+          sendAuthError(ws, "invalid_message", "authentication required");
           return;
         }
-        if (
-          Date.now() > expiresAt ||
-          tokenUsed ||
-          !constantTimeToken(message.token, tokenDigest)
-        ) {
-          ws.close(1008, "authentication failed");
+        if (message.type === "auth") {
+          // Do not consume a credential while an active owner exists.
+          if (active) {
+            sendAuthError(
+              ws,
+              "session_conflict",
+              "another page is already paired",
+            );
+            return;
+          }
+          if (
+            Date.now() > expiresAt ||
+            tokenUsed ||
+            typeof message.token !== "string" ||
+            !constantTimeToken(message.token, tokenDigest)
+          ) {
+            sendAuthError(ws, "authentication_failed", "authentication failed");
+            return;
+          }
+          const resumable = message.resumable === true;
+          let pageId: string | undefined;
+          let pageUrl: string | undefined;
+          if (resumable) {
+            pageId = validPageId(message.pageId) ? message.pageId : undefined;
+            pageUrl = normalizePageUrl(message.pageUrl);
+            if (!validPageId(pageId) || !pageUrl) {
+              sendAuthError(ws, "invalid_message", "invalid page binding");
+              return;
+            }
+          } else if (
+            (message.resumable !== undefined && message.resumable !== false) ||
+            message.pageId !== undefined ||
+            message.pageUrl !== undefined
+          ) {
+            sendAuthError(
+              ws,
+              "invalid_message",
+              "invalid authentication message",
+            );
+            return;
+          }
+          tokenUsed = true;
+          authenticated = true;
+          lease.revoke();
+          establish(ws, { pageId, pageUrl, resumable });
           return;
         }
-        if (owner) {
-          ws.close(1008, "another page is already paired");
+        if (message.type === "resume") {
+          if (active) {
+            sendAuthError(
+              ws,
+              "session_conflict",
+              "another page is already paired",
+            );
+            return;
+          }
+          const old = lease.current;
+          const pageUrl = normalizePageUrl(message.pageUrl);
+          const candidate =
+            old &&
+            message.protocolVersion === BRIDGE_PROTOCOL_VERSION &&
+            typeof message.sessionId === "string" &&
+            message.sessionId === old.sessionId &&
+            validPageId(message.pageId) &&
+            pageUrl === old.pageUrl &&
+            typeof message.resumeToken === "string" &&
+            constantTimeToken(message.resumeToken, old.credential.digest);
+          if (!candidate) {
+            sendAuthError(ws, "invalid_resume", "resume is not valid");
+            return;
+          }
+          // Consume only after all scope and credential checks pass.
+          lease.take();
+          authenticated = true;
+          establish(ws, {
+            pageId: validPageId(message.pageId) ? message.pageId : undefined,
+            pageUrl,
+            resumable: true,
+          });
           return;
         }
-        tokenUsed = true;
-        authenticated = true;
-        sessionId = randomBytes(18).toString("base64url");
-        owner = ws;
-        ws.send(
-          JSON.stringify({
-            type: "auth_ok",
-            protocolVersion: BRIDGE_PROTOCOL_VERSION,
-            sessionId,
-          }),
-        );
+        sendAuthError(ws, "authentication_required", "authentication required");
         return;
       }
-      if (owner !== ws || !sessionId) {
+
+      if (!active || active.socket !== ws || !active.sessionId) {
         ws.close(1008, "stale session");
+        return;
+      }
+      const sessionId = active.sessionId;
+      if (isRecord(message) && message.type === "disconnect") {
+        if (message.sessionId !== sessionId) {
+          ws.close(1008, "stale session");
+          return;
+        }
+        releasePage(
+          ws,
+          new BridgeProtocolError("not_connected", "page disconnected"),
+          true,
+        );
+        ws.close(1000, "disconnected");
         return;
       }
       if (isRecord(message) && message.type === "catalog") {
@@ -205,9 +436,9 @@ export async function startBridgeServer(
               "unsupported_protocol",
               "unsupported bridge protocol",
             );
-          if (!catalog) {
+          if (!catalog)
             validateCatalog(message, sessionId, BRIDGE_CATALOG_VERSION);
-          } else {
+          else {
             if (message.sessionId !== sessionId)
               throw new BridgeProtocolError("stale_session", "stale session");
             if (requestedVersion !== catalog.catalogVersion + 1)
@@ -227,43 +458,30 @@ export async function startBridgeServer(
                     : "invalid_message",
                   "invalid catalog",
                 );
-          if (sessionId) {
-            ws.send(
-              JSON.stringify({
-                type: "catalog_error",
-                protocolVersion: BRIDGE_PROTOCOL_VERSION,
-                sessionId,
-                catalogVersion: requestedVersion,
-                error: { code: bridgeError.code, message: bridgeError.message },
-              }),
-            );
-          }
-          return;
-        }
-        // Outstanding work belongs to the old catalog, never the replacement.
-        if (catalog) {
-          for (const call of pending.values()) {
-            clearTimeout(call.timer);
-            call.reject(
-              new BridgeProtocolError(
-                "stale_catalog",
-                "catalog changed; outcome may be uncertain",
-              ),
-            );
-          }
-          pending.clear();
-        }
-        // Validation is complete before replacing the current catalog.
-        catalog = message;
-        clearTimeout(authTimer);
-        ws.send(
-          JSON.stringify({
-            type: "catalog_ok",
+          send(ws, {
+            type: "catalog_error",
             protocolVersion: BRIDGE_PROTOCOL_VERSION,
             sessionId,
-            catalogVersion: catalog.catalogVersion,
-          }),
-        );
+            catalogVersion: requestedVersion,
+            error: { code: bridgeError.code, message: bridgeError.message },
+          });
+          return;
+        }
+        if (catalog)
+          cancelAll(
+            new BridgeProtocolError(
+              "stale_catalog",
+              "catalog changed; outcome may be uncertain",
+            ),
+          );
+        catalog = message;
+        clearTimeout(authTimers.get(ws));
+        send(ws, {
+          type: "catalog_ok",
+          protocolVersion: BRIDGE_PROTOCOL_VERSION,
+          sessionId,
+          catalogVersion: catalog.catalogVersion,
+        });
         return;
       }
       if (!catalog) {
@@ -271,7 +489,7 @@ export async function startBridgeServer(
         return;
       }
       if (isRecord(message) && message.type === "response")
-        handleResponse(message);
+        handleResponse(message, ws);
       else ws.close(1008, "unexpected message");
     });
   });
@@ -285,22 +503,38 @@ export async function startBridgeServer(
     throw new Error("failed to bind loopback bridge");
   const port = address.port;
 
-  function connectionInfo() {
-    const active = owner && sessionId ? { sessionId } : {};
-    const result: {
-      port: number;
-      pairingUrl?: string;
-      sessionId?: string;
-      limits: typeof LIMITS;
-    } = { port, ...active, limits: LIMITS };
-    if (!owner) {
-      if (tokenUsed || Date.now() > expiresAt) issuePairingCredential();
-      result.pairingUrl = makePairingUrl(options.siteUrl, port, token);
+  function connectionInfo(): ConnectionInfo {
+    const current = active;
+    if (current) {
+      return {
+        port,
+        status: "connected",
+        sessionId: current.sessionId,
+        limits: LIMITS,
+      };
     }
-    return result;
+    const suspended = lease.current;
+    if (suspended) {
+      return {
+        port,
+        status: "interrupted",
+        sessionId: suspended.sessionId,
+        leaseExpiresAt: suspended.expiresAt,
+        limits: LIMITS,
+      };
+    }
+    if (tokenUsed || Date.now() > expiresAt) issuePairingCredential();
+    return {
+      port,
+      status: "unpaired",
+      pairingUrl: makePairingUrl(options.siteUrl, port, token),
+      limits: LIMITS,
+    };
   }
 
-  async function attachMcp(transport: StdioServerTransport): Promise<void> {
+  async function attachMcp(transport: Transport): Promise<void> {
+    if (mcpServer || shuttingDown)
+      throw new Error("bridge is already attached or closed");
     const server = new McpServer(
       { name: "shdr-agent-bridge", version: "0.0.0" },
       { capabilities: { tools: {} } },
@@ -309,10 +543,11 @@ export async function startBridgeServer(
       "bridge_get_connection_info",
       {
         description:
-          "Get the loopback pairing information and effective safety limits.",
+          "Get loopback pairing information and effective safety limits.",
         inputSchema: connectionInfoSchema,
       },
-      async () => handleMcpTool("bridge_get_connection_info", {}),
+      async (_input, extra) =>
+        handleMcpTool("bridge_get_connection_info", {}, extra.signal),
     );
     server.registerTool(
       "bridge_list_tools",
@@ -320,7 +555,8 @@ export async function startBridgeServer(
         description: "List tools exposed by the paired page.",
         inputSchema: sessionSchema,
       },
-      async (input) => handleMcpTool("bridge_list_tools", input),
+      async (input, extra) =>
+        handleMcpTool("bridge_list_tools", input, extra.signal),
     );
     server.registerTool(
       "bridge_describe_tool",
@@ -328,7 +564,8 @@ export async function startBridgeServer(
         description: "Describe one tool exposed by the paired page.",
         inputSchema: describeToolSchema,
       },
-      async (input) => handleMcpTool("bridge_describe_tool", input),
+      async (input, extra) =>
+        handleMcpTool("bridge_describe_tool", input, extra.signal),
     );
     server.registerTool(
       "bridge_call_tool",
@@ -336,37 +573,49 @@ export async function startBridgeServer(
         description: "Call a declared tool on the paired page.",
         inputSchema: callToolSchema,
       },
-      async (input) => handleMcpTool("bridge_call_tool", input),
+      async (input, extra) =>
+        handleMcpTool("bridge_call_tool", input, extra.signal),
     );
+    mcpServer = server;
+    const protocol = server.server;
+    const previousClose = protocol.onclose;
+    protocol.onclose = () => {
+      previousClose?.();
+      void close();
+    };
     await server.connect(transport);
   }
 
-  async function handleMcpTool(name: string, args: unknown) {
+  async function handleMcpTool(
+    name: string,
+    args: unknown,
+    signal?: AbortSignal,
+  ) {
     try {
       if (name === "bridge_get_connection_info")
         return textMcp(connectionInfo());
       if (name === "bridge_list_tools") {
         const input = args as any;
-        if (!catalog || !sessionId)
+        if (!catalog || !active)
           return errorMcp("not_connected", "no page is paired");
-        if (input.sessionId !== sessionId)
+        if (input.sessionId !== active.sessionId)
           return errorMcp("stale_session", "session is no longer current");
         return textMcp({
-          sessionId,
+          sessionId: active.sessionId,
           catalogVersion: catalog.catalogVersion,
           tools: catalog.tools,
         });
       }
       if (name === "bridge_describe_tool") {
         const input = args as any;
-        if (!catalog || !sessionId)
+        if (!catalog || !active)
           return errorMcp("not_connected", "no page is paired");
-        if (input.sessionId !== sessionId)
+        if (input.sessionId !== active.sessionId)
           return errorMcp("stale_session", "session is no longer current");
         const tool = catalog.tools.find((item) => item.name === input.name);
         return tool
           ? textMcp({
-              sessionId,
+              sessionId: active.sessionId,
               catalogVersion: catalog.catalogVersion,
               ...tool,
             })
@@ -374,9 +623,9 @@ export async function startBridgeServer(
       }
       if (name === "bridge_call_tool") {
         const input = args as any;
-        if (!catalog || !sessionId || owner?.readyState !== 1)
+        if (!catalog || !active || active.socket.readyState !== 1)
           return errorMcp("not_connected", "no page is paired");
-        if (input.sessionId !== sessionId)
+        if (input.sessionId !== active.sessionId)
           return errorMcp("stale_session", "session is no longer current");
         if (input.catalogVersion !== catalog.catalogVersion)
           return errorMcp("stale_catalog", "catalog version is stale");
@@ -385,15 +634,13 @@ export async function startBridgeServer(
         const valid = validateInput(tool.inputSchema, input.arguments);
         if (!valid.ok) return errorMcp("invalid_arguments", valid.message);
         try {
-          return bridgeResultToMcp(await callPage(input.name, input.arguments));
+          return bridgeResultToMcp(
+            await callPage(input.name, input.arguments, signal),
+          );
         } catch (error) {
           const code =
-            error instanceof BridgeProtocolError
-              ? error.code
-              : error instanceof Error && error.message.includes("timeout")
-                ? "timeout"
-                : "handler_error";
-          return errorMcp(code, publicErrorMessage(error, code));
+            error instanceof BridgeProtocolError ? error.code : "handler_error";
+          return errorMcp(code, publicError(code));
         }
       }
       return errorMcp("unknown_tool", "unknown bridge operation");
@@ -405,10 +652,21 @@ export async function startBridgeServer(
     }
   }
 
-  function callPage(toolName: string, input: JsonValue): Promise<BridgeResult> {
-    if (!owner || !sessionId || !catalog)
+  function callPage(
+    toolName: string,
+    input: JsonValue,
+    signal?: AbortSignal,
+  ): Promise<BridgeResult> {
+    if (!active || !catalog || active.socket.readyState !== 1)
       return Promise.reject(
         new BridgeProtocolError("not_connected", "not connected"),
+      );
+    if (signal?.aborted)
+      return Promise.reject(
+        new BridgeProtocolError(
+          "cancelled",
+          "tool cancelled; outcome may be uncertain",
+        ),
       );
     if (pending.size >= LIMITS.pendingCalls)
       return Promise.reject(
@@ -418,7 +676,7 @@ export async function startBridgeServer(
     const message = {
       type: "request",
       requestId,
-      sessionId,
+      sessionId: active.sessionId,
       catalogVersion: catalog.catalogVersion,
       toolName,
       input,
@@ -431,32 +689,81 @@ export async function startBridgeServer(
         ),
       );
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(requestId);
-        reject(
+      const timer = setTimeout(
+        () =>
+          cancelPending(
+            requestId,
+            new BridgeProtocolError(
+              "timeout",
+              "request timeout; outcome may be uncertain",
+            ),
+          ),
+        LIMITS.requestTimeoutMs,
+      );
+      const abort = () =>
+        cancelPending(
+          requestId,
           new BridgeProtocolError(
-            "timeout",
-            "request timeout; outcome may be uncertain",
+            "cancelled",
+            "tool cancelled; outcome may be uncertain",
           ),
         );
-      }, LIMITS.requestTimeoutMs);
-      pending.set(requestId, { resolve, reject, timer });
+      const item: Pending = {
+        resolve,
+        reject,
+        timer,
+        signal,
+        abort,
+        sessionId: active!.sessionId,
+        catalogVersion: catalog!.catalogVersion,
+        resumable: active!.resumable,
+        socket: active!.socket,
+      };
+      pending.set(requestId, item);
+      if (signal) signal.addEventListener("abort", abort, { once: true });
       try {
-        owner!.send(JSON.stringify(message));
-      } catch (error) {
-        clearTimeout(timer);
-        pending.delete(requestId);
-        reject(error instanceof Error ? error : new Error("send failed"));
+        send(active!.socket, message);
+      } catch {
+        cancelPending(
+          requestId,
+          new BridgeProtocolError(
+            "not_connected",
+            "request send failed; outcome may be uncertain",
+          ),
+          false,
+        );
       }
     });
   }
 
-  function handleResponse(message: any) {
+  function handleResponse(message: any, ws: WebSocket) {
     if (!isRecord(message) || typeof message.requestId !== "string") return;
     const call = pending.get(message.requestId);
-    if (!call) return;
+    if (
+      !call ||
+      call.socket !== ws ||
+      active?.socket !== ws ||
+      active.sessionId !== call.sessionId
+    )
+      return;
     pending.delete(message.requestId);
     clearTimeout(call.timer);
+    if (call.signal && call.abort)
+      call.signal.removeEventListener("abort", call.abort);
+    if (
+      call.resumable
+        ? message.sessionId !== call.sessionId ||
+          message.catalogVersion !== call.catalogVersion
+        : (message.sessionId !== undefined &&
+            message.sessionId !== call.sessionId) ||
+          (message.catalogVersion !== undefined &&
+            message.catalogVersion !== call.catalogVersion)
+    ) {
+      call.reject(
+        new BridgeProtocolError("stale_session", "stale page response"),
+      );
+      return;
+    }
     if (typeof message.ok !== "boolean") {
       call.reject(
         new BridgeProtocolError("invalid_message", "malformed tool response"),
@@ -507,23 +814,44 @@ export async function startBridgeServer(
     )
       ? message.error.code
       : "handler_error";
-    call.reject(new BridgeProtocolError(code, PUBLIC_ERROR_MESSAGES[code]!));
+    call.reject(new BridgeProtocolError(code, publicError(code)));
   }
 
-  return {
-    port,
-    connectionInfo,
-    attachMcp,
-    close: async () => {
-      for (const call of pending.values()) {
-        clearTimeout(call.timer);
-        call.reject(new Error("bridge closed"));
+  function close(): Promise<void> {
+    if (closePromise) return closePromise;
+    shuttingDown = true;
+    closePromise = Promise.resolve().then(async () => {
+      lease.revoke();
+      cancelAll(
+        new BridgeProtocolError(
+          "not_connected",
+          "bridge closed; outcome may be uncertain",
+        ),
+        false,
+      );
+      for (const timer of authTimers.values()) clearTimeout(timer);
+      authTimers.clear();
+      for (const ws of sockets) {
+        try {
+          ws.terminate();
+        } catch {
+          /* already closed */
+        }
       }
-      pending.clear();
-      for (const ws of sockets) ws.close();
+      sockets.clear();
+      authenticatedSockets.clear();
+      active = undefined;
+      catalog = undefined;
+      await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => http.close(() => resolve()));
-    },
-  };
+      const attached = mcpServer;
+      mcpServer = undefined;
+      await attached?.close();
+    });
+    return closePromise;
+  }
+
+  return { port, connectionInfo, attachMcp, close };
 }
 
 function validateConfiguration(options: BridgeServerOptions) {
@@ -544,7 +872,12 @@ function validateConfiguration(options: BridgeServerOptions) {
     throw new Error(
       "--allowed-origin must be an exact HTTPS origin (HTTP is allowed only for localhost development)",
     );
-  if (site.origin !== origin.origin || site.username || site.password)
+  if (
+    site.origin !== origin.origin ||
+    site.username ||
+    site.password ||
+    site.hash
+  )
     throw new Error("--site-url must be within --allowed-origin");
 }
 
@@ -577,6 +910,7 @@ class BridgeProtocolError extends Error {
 
 const PUBLIC_ERROR_MESSAGES: Record<string, string> = {
   timeout: "tool timed out; outcome may be uncertain",
+  cancelled: "tool cancelled; outcome may be uncertain",
   handler_error: "tool handler failed",
   not_connected: "page disconnected; outcome may be uncertain",
   stale_session: "session is no longer current",
@@ -587,10 +921,6 @@ const PUBLIC_ERROR_MESSAGES: Record<string, string> = {
   unsupported_protocol: "unsupported bridge protocol or result version",
   payload_limit: "payload exceeds the configured limit",
 };
-
-function publicErrorMessage(_error: unknown, code: string): string {
-  return PUBLIC_ERROR_MESSAGES[code] ?? "bridge request failed";
-}
 
 function textMcp(value: unknown) {
   return { content: [{ type: "text" as const, text: safeJson(value) }] };

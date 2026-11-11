@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LIMITS } from "../src/protocol.js";
 import { connectAgentBridge, consumePairingLink } from "../src/browser.js";
 
 class FakeSocket {
@@ -61,6 +62,7 @@ class FakeSocket {
 const originalWindow = (globalThis as any).window;
 const originalWebSocket = (globalThis as any).WebSocket;
 afterEach(() => {
+  vi.useRealTimers();
   (globalThis as any).window = originalWindow;
   (globalThis as any).WebSocket = originalWebSocket;
   FakeSocket.instances = [];
@@ -77,6 +79,66 @@ function makeTool(
 }
 
 describe("browser entrypoint", () => {
+  it("bounds pending handlers and releases deadline slots even if work ignores cancellation", async () => {
+    vi.useFakeTimers();
+    (globalThis as any).window = {
+      location: { origin: "https://bridge.example.test" },
+    };
+    (globalThis as any).WebSocket = FakeSocket;
+    const signals: AbortSignal[] = [];
+    const bridge = connectAgentBridge({
+      tools: [
+        makeTool("hold", { type: "object" }, (_input, context) => {
+          signals.push(context.signal);
+          return new Promise(() => {});
+        }),
+      ],
+    });
+    const connecting = bridge.connect(
+      "https://bridge.example.test/#bridgePort=1&bridgeToken=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
+    );
+    const socket = FakeSocket.instances[0]!;
+    socket.open();
+    await connecting;
+    const request = (id: string) =>
+      socket.emit("message", {
+        data: JSON.stringify({
+          type: "request",
+          requestId: id,
+          sessionId: "session-a",
+          catalogVersion: 1,
+          toolName: "hold",
+          input: {},
+        }),
+      });
+    for (let i = 0; i < LIMITS.pendingCalls; i++) request(String(i));
+    request("overflow");
+    expect(signals).toHaveLength(LIMITS.pendingCalls);
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      error: { code: "payload_limit" },
+    });
+    await vi.advanceTimersByTimeAsync(LIMITS.requestTimeoutMs);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    expect(
+      socket.sent
+        .map((raw) => JSON.parse(raw))
+        .filter((message) => message.error?.code === "timeout"),
+    ).toHaveLength(LIMITS.pendingCalls);
+    request("after-timeout");
+    expect(signals).toHaveLength(LIMITS.pendingCalls + 1);
+    socket.emit("message", {
+      data: JSON.stringify({
+        type: "cancel",
+        sessionId: "session-a",
+        requestId: "after-timeout",
+      }),
+    });
+    expect(signals.at(-1)?.aborted).toBe(true);
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      error: { code: "cancelled" },
+    });
+    bridge.disconnect();
+  });
   it("consumes credentials immediately and pairing does not invoke tools", async () => {
     const page = {
       href: "https://bridge.example.test/app#keep=1&bridgePort=1234&bridgeToken=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",

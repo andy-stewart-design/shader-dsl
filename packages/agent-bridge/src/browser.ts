@@ -19,7 +19,6 @@ import {
   type BridgeConnectionState,
   type BridgeResult,
   type BridgeTool,
-  type CatalogTool,
 } from "./protocol.js";
 
 export type { BridgeConnectionState, BridgeTool } from "./protocol.js";
@@ -41,6 +40,8 @@ type SocketLike = {
 };
 
 const OPEN = 1;
+const RESUME_STORAGE_KEY = "agent-bridge:resume:v1";
+const owners = new WeakMap<object, object>();
 
 class BridgeClientError extends Error {
   constructor(
@@ -52,9 +53,26 @@ class BridgeClientError extends Error {
   }
 }
 
+type ResumeGrant = {
+  version: 1;
+  origin: string;
+  pageUrl: string;
+  endpoint: string;
+  sessionId: string;
+  resumeToken: string;
+  pageId: string;
+  resumeLeaseMs: number;
+};
+
+function browserWindow(): any | undefined {
+  return typeof window === "undefined" ? undefined : window;
+}
+
+/** Consume the one-time pairing fragment without retaining its credentials. */
 export function consumePairingLink(): string | undefined {
-  if (typeof window === "undefined" || !window.location) return undefined;
-  const original = window.location.href;
+  const pageWindow = browserWindow();
+  if (!pageWindow?.location) return undefined;
+  const original = pageWindow.location.href;
   const url = new URL(original);
   const fragment = new URLSearchParams(
     url.hash.startsWith("#") ? url.hash.slice(1) : url.hash,
@@ -64,7 +82,11 @@ export function consumePairingLink(): string | undefined {
   fragment.delete("bridgePort");
   fragment.delete("bridgeToken");
   url.hash = fragment.toString();
-  window.history.replaceState(null, "", url.href);
+  try {
+    pageWindow.history?.replaceState?.(null, "", url.href);
+  } catch {
+    // A restricted history object must not make pairing unusable.
+  }
   return original;
 }
 
@@ -80,10 +102,38 @@ export function connectAgentBridge(options: {
     currentTools.map((tool) => [tool.name, tool]),
   );
 
-  let state: BridgeConnectionState = { status: "disconnected" };
+  const pageWindow = browserWindow();
+  const ownerToken = {};
+  let ownsWindow = true;
+  if (pageWindow) {
+    const previous = owners.get(pageWindow);
+    if (previous) ownsWindow = false;
+    else owners.set(pageWindow, ownerToken);
+  }
+
+  const pageId = randomId();
+  const pageUrl = cleanPageUrl(pageWindow);
+  const storage = usableSessionStorage(pageWindow);
+  let state: BridgeConnectionState = ownsWindow
+    ? { status: "disconnected" }
+    : {
+        status: "error",
+        error: {
+          code: "owner_conflict",
+          message: "another bridge controller owns this page",
+        },
+      };
   let socket: SocketLike | undefined;
   let sessionId: string | undefined;
   let catalogVersion: number = BRIDGE_CATALOG_VERSION;
+  let resumeCapable = false;
+  let resumeGrant: ResumeGrant | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let reconnectDeadline = 0;
+  let reconnectDelay: number = LIMITS.reconnectInitialDelayMs;
+  let stopped = !ownsWindow;
+  let pageLifecycleDropped = false;
+  let autoResumeTimer: ReturnType<typeof setTimeout> | undefined;
   let pendingCatalog:
     | {
         version: number;
@@ -93,57 +143,701 @@ export function connectAgentBridge(options: {
         reject: (error: Error) => void;
       }
     | undefined;
-  const pending = new Map<
-    string,
-    {
-      resolve: () => void;
-      reject: (error: Error) => void;
-      timer: ReturnType<typeof setTimeout>;
-    }
-  >();
+
+  type ActiveRequest = {
+    controller: AbortController;
+    timer: ReturnType<typeof setTimeout>;
+    done: boolean;
+    finish: (error?: BridgeClientError, result?: BridgeResult) => void;
+  };
+  const activeRequests = new Map<string, ActiveRequest>();
 
   const setState = (next: BridgeConnectionState) => {
     state = next;
     try {
       options.onStateChange?.(next);
     } catch {
-      // State observers are application code and must not break the transport.
+      // State observers are application code and must not affect the bridge.
     }
   };
-  const failPending = (error: Error) => {
-    for (const item of pending.values()) {
-      clearTimeout(item.timer);
-      item.reject(error);
+  const releaseOwner = () => {
+    if (pageWindow && owners.get(pageWindow) === ownerToken) {
+      owners.delete(pageWindow);
+      ownsWindow = false;
     }
-    pending.clear();
-    if (pendingCatalog) {
-      clearTimeout(pendingCatalog.timer);
-      pendingCatalog.reject(error);
-      pendingCatalog = undefined;
+  };
+  const removeLifecycleListeners = () => {
+    try {
+      pageWindow?.removeEventListener?.("pagehide", onPageLifecycle);
+      pageWindow?.removeEventListener?.("unload", onPageLifecycle);
+    } catch {
+      // Some test/browser window shims do not implement removal.
+    }
+  };
+  const readGrant = (): ResumeGrant | undefined => {
+    if (!storage) return undefined;
+    let value: unknown;
+    try {
+      value = JSON.parse(storage.getItem(RESUME_STORAGE_KEY) ?? "null");
+    } catch {
+      return undefined;
+    }
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      value.origin !== pageWindow?.location?.origin ||
+      value.pageUrl !== pageUrl ||
+      typeof value.endpoint !== "string" ||
+      !/^ws:\/\/127\.0\.0\.1:\d+$/.test(value.endpoint) ||
+      typeof value.sessionId !== "string" ||
+      !value.sessionId ||
+      typeof value.resumeToken !== "string" ||
+      !value.resumeToken ||
+      typeof value.pageId !== "string" ||
+      !value.pageId ||
+      typeof value.resumeLeaseMs !== "number" ||
+      !Number.isSafeInteger(value.resumeLeaseMs) ||
+      value.resumeLeaseMs <= 0 ||
+      value.resumeLeaseMs > LIMITS.resumeLeaseMs
+    )
+      return undefined;
+    const port = Number(
+      value.endpoint.slice(value.endpoint.lastIndexOf(":") + 1),
+    );
+    if (port < 1 || port > 65535) return undefined;
+    return value as unknown as ResumeGrant;
+  };
+  const clearGrant = (expected?: ResumeGrant) => {
+    if (!storage) return;
+    if (expected) {
+      const current = readGrant();
+      if (
+        !current ||
+        current.sessionId !== expected.sessionId ||
+        current.resumeToken !== expected.resumeToken
+      )
+        return;
+    }
+    try {
+      storage.removeItem(RESUME_STORAGE_KEY);
+    } catch {
+      // Storage can become unavailable while a document is being torn down.
+    }
+  };
+  const saveGrant = (
+    endpoint: string,
+    newSessionId: string,
+    token: string,
+    lease: number,
+  ): ResumeGrant | undefined => {
+    if (!storage || !pageWindow?.location?.origin) return undefined;
+    const grant: ResumeGrant = {
+      version: 1,
+      origin: pageWindow.location.origin,
+      pageUrl,
+      endpoint,
+      sessionId: newSessionId,
+      resumeToken: token,
+      pageId,
+      resumeLeaseMs: lease,
+    };
+    try {
+      storage.setItem(RESUME_STORAGE_KEY, JSON.stringify(grant));
+      return grant;
+    } catch {
+      return undefined;
+    }
+  };
+  const rejectCatalog = (error: Error) => {
+    if (!pendingCatalog) return;
+    const request = pendingCatalog;
+    pendingCatalog = undefined;
+    clearTimeout(request.timer);
+    request.reject(error);
+  };
+  const abortActive = (error?: BridgeClientError, send = false) => {
+    for (const [requestId, request] of [...activeRequests]) {
+      request.controller.abort();
+      if (send && error && !request.done) request.finish(error);
+      else {
+        request.done = true;
+        clearTimeout(request.timer);
+        activeRequests.delete(requestId);
+      }
     }
   };
 
-  function close(error?: Error, expected = socket) {
-    if (socket !== expected) return;
+  function onPageLifecycle() {
+    if (stopped) return;
+    pageLifecycleDropped = true;
+    stopped = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
     const current = socket;
     socket = undefined;
     sessionId = undefined;
-    failPending(
+    resumeCapable = false;
+    abortActive(undefined, false);
+    rejectCatalog(new BridgeClientError("not_connected", "page unloaded"));
+    if (current && current.readyState < 2) {
+      try {
+        current.close();
+      } catch {
+        // best effort during page teardown
+      }
+    }
+    releaseOwner();
+  }
+
+  if (pageWindow?.addEventListener && ownsWindow) {
+    pageWindow.addEventListener("pagehide", onPageLifecycle);
+    pageWindow.addEventListener("unload", onPageLifecycle);
+  }
+
+  const failTerminal = (error: Error, expectedGrant?: ResumeGrant) => {
+    stopped = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+    clearGrant(expectedGrant);
+    abortActive(undefined, false);
+    rejectCatalog(error);
+    releaseOwner();
+    removeLifecycleListeners();
+    setState({
+      status: "error",
+      error: { code: errorCode(error), message: error.message },
+    });
+  };
+
+  const closeTransport = (
+    error?: Error,
+    allowResume = true,
+    expected?: SocketLike,
+  ) => {
+    if (expected && socket !== expected) return;
+    const current = socket;
+    socket = undefined;
+    sessionId = undefined;
+    catalogVersion = BRIDGE_CATALOG_VERSION;
+    abortActive(undefined, false);
+    rejectCatalog(
       error ?? new BridgeClientError("not_connected", "bridge disconnected"),
     );
-    if (current && current.readyState < 2) current.close();
-    if (state.status !== "disconnected")
-      setState(
-        error
-          ? {
-              status: "error",
-              error: { code: errorCode(error), message: error.message },
-            }
-          : { status: "disconnected" },
+    if (current && current.readyState < 2) {
+      try {
+        current.close();
+      } catch {
+        // closing a failed socket is best effort
+      }
+    }
+    if (
+      allowResume &&
+      resumeCapable &&
+      resumeGrant &&
+      !stopped &&
+      !pageLifecycleDropped
+    ) {
+      reconnectDeadline = Date.now() + resumeGrant.resumeLeaseMs;
+      reconnectDelay = LIMITS.reconnectInitialDelayMs;
+      setState({ status: "connecting" });
+      scheduleResume();
+    } else if (state.status !== "disconnected") {
+      setState({ status: "disconnected" });
+    }
+  };
+
+  function scheduleResume() {
+    if (
+      reconnectTimer ||
+      stopped ||
+      pageLifecycleDropped ||
+      !resumeGrant ||
+      Date.now() >= reconnectDeadline
+    ) {
+      if (resumeGrant && Date.now() >= reconnectDeadline)
+        failTerminal(
+          new BridgeClientError(
+            "resume_expired",
+            "bridge resume lease expired",
+          ),
+          resumeGrant,
+        );
+      return;
+    }
+    const delay = Math.min(
+      reconnectDelay,
+      Math.max(0, reconnectDeadline - Date.now()),
+    );
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      const grant = readGrant();
+      if (!grant) {
+        failTerminal(
+          new BridgeClientError(
+            "resume_expired",
+            "bridge resume credential is unavailable",
+          ),
+          resumeGrant,
+        );
+        return;
+      }
+      resumeGrant = grant;
+      reconnectDelay = Math.min(reconnectDelay * 2, LIMITS.reconnectMaxDelayMs);
+      void startSocket(
+        { endpoint: grant.endpoint, resume: grant },
+        "auto",
+      ).catch(() => undefined);
+    }, delay);
+  }
+
+  function failAttempt(
+    candidate: SocketLike,
+    error: Error,
+    intent: "manual" | "auto",
+    terminal: boolean,
+    reject?: (error: Error) => void,
+  ) {
+    if (socket && socket !== candidate) {
+      reject?.(error);
+      return;
+    }
+    if (socket === candidate) socket = undefined;
+    sessionId = undefined;
+    abortActive(undefined, false);
+    rejectCatalog(error);
+    try {
+      if (candidate.readyState < 2) candidate.close();
+    } catch {
+      // ignore close errors
+    }
+    if (reject) reject(error);
+    if (terminal) {
+      failTerminal(error, intent === "auto" ? resumeGrant : undefined);
+      return;
+    }
+    if (intent === "auto" && resumeGrant && !stopped) {
+      resumeCapable = true;
+      setState({ status: "connecting" });
+      scheduleResume();
+    } else {
+      failTerminal(error);
+    }
+  }
+
+  function startSocket(
+    connection: {
+      endpoint: string;
+      token?: string;
+      resume?: ResumeGrant;
+    },
+    intent: "manual" | "auto",
+  ): Promise<void> {
+    if (stopped || !ownsWindow)
+      return Promise.reject(
+        new BridgeClientError(
+          "owner_conflict",
+          "bridge controller is not active",
+        ),
       );
+    const WebSocketCtor = (globalThis as any).WebSocket;
+    if (typeof WebSocketCtor !== "function") {
+      const error = new BridgeClientError(
+        "not_connected",
+        "WebSocket is unavailable",
+      );
+      if (intent === "auto") failTerminal(error, resumeGrant);
+      return Promise.reject(error);
+    }
+    let candidate: SocketLike;
+    try {
+      candidate = new WebSocketCtor(connection.endpoint) as SocketLike;
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error : new Error("bridge connection failed");
+      if (intent === "auto")
+        failAttempt({} as SocketLike, reason, intent, false);
+      return Promise.reject(reason);
+    }
+    socket = candidate;
+    setState({ status: "connecting" });
+
+    let settled = false;
+    let authRejected = false;
+    let authTimer: ReturnType<typeof setTimeout> | undefined;
+    let resolveConnection!: () => void;
+    let rejectConnection!: (error: Error) => void;
+    const result = new Promise<void>((resolve, reject) => {
+      resolveConnection = resolve;
+      rejectConnection = reject;
+    });
+    const finish = (error?: Error) => {
+      if (settled) {
+        if (error && socket === candidate) {
+          closeTransport(error, false, candidate);
+          failTerminal(error, resumeGrant);
+        }
+        return;
+      }
+      settled = true;
+      clearTimeout(authTimer);
+      if (error) {
+        const terminal =
+          intent === "auto" &&
+          (authRejected ||
+            errorCode(error) === "auth_error" ||
+            errorCode(error) === "resume_rejected" ||
+            errorCode(error) === "resume_expired" ||
+            errorCode(error) === "owner_conflict");
+        failAttempt(candidate, error, intent, terminal, rejectConnection);
+      } else resolveConnection();
+    };
+
+    try {
+      authTimer = setTimeout(
+        () =>
+          finish(new BridgeClientError("timeout", "authentication timed out")),
+        LIMITS.authenticationTimeoutMs,
+      );
+      candidate.addEventListener("open", () => {
+        if (socket !== candidate) return;
+        try {
+          const auth = connection.resume
+            ? {
+                type: "resume",
+                protocolVersion: BRIDGE_PROTOCOL_VERSION,
+                sessionId: connection.resume.sessionId,
+                resumeToken: connection.resume.resumeToken,
+                pageId,
+                pageUrl,
+              }
+            : storage
+              ? {
+                  type: "auth",
+                  token: connection.token,
+                  resumable: true,
+                  pageId,
+                  pageUrl,
+                }
+              : { type: "auth", token: connection.token };
+          candidate.send(JSON.stringify(auth));
+        } catch {
+          finish(
+            new BridgeClientError(
+              "not_connected",
+              "authentication send failed",
+            ),
+          );
+        }
+      });
+      candidate.addEventListener("message", (event: { data: unknown }) => {
+        if (socket !== candidate) return;
+        let message: any;
+        try {
+          if (wireByteLength(event.data) > LIMITS.authenticatedFrameBytes)
+            throw new BridgeClientError(
+              "payload_limit",
+              "message exceeds payload limit",
+            );
+          message = parseEventData(event.data);
+        } catch (error) {
+          finish(
+            error instanceof BridgeClientError
+              ? error
+              : new BridgeClientError(
+                  "invalid_message",
+                  "malformed bridge message",
+                ),
+          );
+          return;
+        }
+        if (!isRecord(message) || typeof message.type !== "string") {
+          finish(
+            new BridgeClientError(
+              "invalid_message",
+              "malformed bridge message",
+            ),
+          );
+          return;
+        }
+        if (message.type === "auth_error") {
+          const code = isWireError(message.error)
+            ? message.error.code
+            : "auth_error";
+          // A refresh can reach the helper just before its previous socket closes.
+          authRejected = code !== "session_conflict";
+          const text = isWireError(message.error)
+            ? message.error.message
+            : "bridge authentication failed";
+          finish(new BridgeClientError(code, text));
+          return;
+        }
+        if (message.type === "auth_ok") {
+          if (sessionId !== undefined || state.status !== "connecting") {
+            finish(
+              new BridgeClientError(
+                "invalid_message",
+                "unexpected authentication acknowledgement",
+              ),
+            );
+            return;
+          }
+          if (
+            message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
+            typeof message.sessionId !== "string" ||
+            !message.sessionId ||
+            (message.pageId !== undefined && message.pageId !== pageId)
+          ) {
+            finish(
+              new BridgeClientError(
+                "unsupported_protocol",
+                "unsupported bridge protocol",
+              ),
+            );
+            return;
+          }
+          if (
+            connection.resume &&
+            message.sessionId === connection.resume.sessionId
+          ) {
+            finish(
+              new BridgeClientError(
+                "resume_rejected",
+                "bridge did not issue a fresh session",
+              ),
+            );
+            return;
+          }
+          sessionId = message.sessionId;
+          catalogVersion = BRIDGE_CATALOG_VERSION;
+          const token =
+            typeof message.resumeToken === "string" &&
+            message.resumeToken.length > 0
+              ? message.resumeToken
+              : undefined;
+          const lease =
+            typeof message.resumeLeaseMs === "number" &&
+            Number.isSafeInteger(message.resumeLeaseMs) &&
+            message.resumeLeaseMs > 0 &&
+            message.resumeLeaseMs <= LIMITS.resumeLeaseMs
+              ? message.resumeLeaseMs
+              : LIMITS.resumeLeaseMs;
+          if (token && storage) {
+            resumeGrant = saveGrant(
+              connection.endpoint,
+              sessionId,
+              token,
+              lease,
+            );
+            resumeCapable = !!resumeGrant;
+          } else {
+            if (connection.resume) clearGrant(connection.resume);
+            resumeGrant = undefined;
+            resumeCapable = false;
+          }
+          const catalog = makeCatalog(
+            currentTools,
+            sessionId,
+            BRIDGE_CATALOG_VERSION,
+          );
+          if (jsonSize(catalog) > LIMITS.catalogBytes) {
+            finish(
+              new BridgeClientError(
+                "payload_limit",
+                "tool catalog exceeds the limit",
+              ),
+            );
+            return;
+          }
+          try {
+            candidate.send(JSON.stringify(catalog));
+          } catch {
+            finish(
+              new BridgeClientError("not_connected", "catalog send failed"),
+            );
+          }
+          return;
+        }
+        if (message.type === "catalog_ok") {
+          if (
+            message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
+            message.sessionId !== sessionId ||
+            !Number.isSafeInteger(message.catalogVersion)
+          ) {
+            finish(
+              new BridgeClientError(
+                "invalid_message",
+                "malformed catalog acknowledgement",
+              ),
+            );
+            return;
+          }
+          if (!pendingCatalog) {
+            if (
+              state.status !== "connecting" ||
+              message.catalogVersion !== BRIDGE_CATALOG_VERSION
+            ) {
+              finish(
+                new BridgeClientError(
+                  "stale_catalog",
+                  "unexpected catalog version",
+                ),
+              );
+              return;
+            }
+            catalogVersion = message.catalogVersion;
+            setState({
+              status: "connected",
+              sessionId: sessionId!,
+              catalogVersion,
+            });
+            finish();
+            return;
+          }
+          if (message.catalogVersion !== pendingCatalog.version) {
+            const request = pendingCatalog;
+            pendingCatalog = undefined;
+            clearTimeout(request.timer);
+            request.reject(
+              new BridgeClientError(
+                "stale_catalog",
+                "catalog acknowledgement is stale",
+              ),
+            );
+            return;
+          }
+          const request = pendingCatalog;
+          pendingCatalog = undefined;
+          clearTimeout(request.timer);
+          abortActive(
+            new BridgeClientError(
+              "stale_catalog",
+              "catalog changed; tool outcome is uncertain",
+            ),
+            true,
+          );
+          currentTools = [...request.tools];
+          toolMap.clear();
+          for (const tool of request.tools) toolMap.set(tool.name, tool);
+          catalogVersion = request.version;
+          setState({
+            status: "connected",
+            sessionId: sessionId!,
+            catalogVersion,
+          });
+          request.resolve();
+          return;
+        }
+        if (message.type === "catalog_error") {
+          if (
+            message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
+            message.sessionId !== sessionId ||
+            !isWireError(message.error)
+          ) {
+            finish(
+              new BridgeClientError(
+                "invalid_message",
+                "malformed catalog error",
+              ),
+            );
+            return;
+          }
+          if (
+            pendingCatalog &&
+            message.catalogVersion === pendingCatalog.version
+          ) {
+            const request = pendingCatalog;
+            pendingCatalog = undefined;
+            clearTimeout(request.timer);
+            request.reject(
+              new BridgeClientError(
+                message.error.code,
+                "catalog update rejected",
+              ),
+            );
+          }
+          return;
+        }
+        if (message.type === "cancel") {
+          if (
+            message.sessionId === sessionId &&
+            typeof message.requestId === "string"
+          ) {
+            const request = activeRequests.get(message.requestId);
+            if (request && !request.done) {
+              request.controller.abort();
+              request.finish(
+                new BridgeClientError(
+                  "cancelled",
+                  "tool cancellation outcome is uncertain",
+                ),
+              );
+            }
+          }
+          return;
+        }
+        if (message.type === "request") {
+          void handleRequest(candidate, message, toolMap);
+          return;
+        }
+        if (
+          message.type === "response" &&
+          typeof message.requestId === "string"
+        )
+          return;
+        finish(
+          new BridgeClientError("invalid_message", "unexpected bridge message"),
+        );
+      });
+      candidate.addEventListener("error", () => {
+        if (!settled)
+          finish(
+            new BridgeClientError("not_connected", "bridge WebSocket error"),
+          );
+        else
+          closeTransport(
+            new BridgeClientError("not_connected", "bridge WebSocket error"),
+            true,
+            candidate,
+          );
+      });
+      candidate.addEventListener("close", () => {
+        if (!settled) {
+          finish(
+            new BridgeClientError("not_connected", "bridge WebSocket closed"),
+          );
+          return;
+        }
+        closeTransport(undefined, true, candidate);
+      });
+    } catch (error) {
+      finish(
+        error instanceof Error ? error : new Error("bridge connection failed"),
+      );
+    }
+    return result;
   }
 
   async function connect(pairingLink: string): Promise<void> {
+    if (pageWindow) {
+      const existing = owners.get(pageWindow);
+      if (existing && existing !== ownerToken)
+        throw new BridgeClientError(
+          "owner_conflict",
+          "another bridge controller owns this page",
+        );
+      if (!ownsWindow) {
+        owners.set(pageWindow, ownerToken);
+        ownsWindow = true;
+        pageWindow.addEventListener?.("pagehide", onPageLifecycle);
+        pageWindow.addEventListener?.("unload", onPageLifecycle);
+      }
+    }
+    stopped = false;
+    pageLifecycleDropped = false;
+    if (autoResumeTimer) {
+      clearTimeout(autoResumeTimer);
+      autoResumeTimer = undefined;
+    }
     if (state.status === "connected" || state.status === "connecting")
       throw new Error("bridge is already connected");
     let parsed: { websocketUrl: string; token: string };
@@ -158,265 +852,18 @@ export function connectAgentBridge(options: {
       });
       throw error;
     }
-    setState({ status: "connecting" });
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      let next: SocketLike | undefined;
-      let authTimer: ReturnType<typeof setTimeout> | undefined;
-      const done = (error?: Error) => {
-        if (settled) {
-          if (error) close(error, next);
-          return;
-        }
-        settled = true;
-        clearTimeout(authTimer);
-        if (error) {
-          close(error, next);
-          reject(error);
-        } else resolve();
-      };
-      try {
-        const WebSocketCtor = (globalThis as any).WebSocket;
-        if (typeof WebSocketCtor !== "function")
-          throw new Error("WebSocket is unavailable");
-        const candidate = new WebSocketCtor(parsed.websocketUrl) as SocketLike;
-        next = candidate;
-        socket = candidate;
-        authTimer = setTimeout(
-          () =>
-            done(new BridgeClientError("timeout", "authentication timed out")),
-          LIMITS.authenticationTimeoutMs,
-        );
-        candidate.addEventListener("open", () => {
-          if (socket !== candidate) return;
-          try {
-            candidate.send(
-              JSON.stringify({ type: "auth", token: parsed.token }),
-            );
-          } catch {
-            done(
-              new BridgeClientError(
-                "not_connected",
-                "authentication send failed",
-              ),
-            );
-          }
-        });
-        candidate.addEventListener("message", (event: { data: unknown }) => {
-          if (socket !== candidate) return;
-          let message: any;
-          try {
-            if (wireByteLength(event.data) > LIMITS.authenticatedFrameBytes) {
-              done(
-                new BridgeClientError(
-                  "payload_limit",
-                  "message exceeds payload limit",
-                ),
-              );
-              return;
-            }
-            message = parseEventData(event.data);
-          } catch {
-            done(
-              new BridgeClientError(
-                "invalid_message",
-                "malformed bridge message",
-              ),
-            );
-            return;
-          }
-          if (!isRecord(message) || typeof message.type !== "string") {
-            done(
-              new BridgeClientError(
-                "invalid_message",
-                "malformed bridge message",
-              ),
-            );
-            return;
-          }
-          if (message.type === "auth_ok") {
-            if (state.status !== "connecting" || sessionId !== undefined) {
-              done(
-                new BridgeClientError(
-                  "invalid_message",
-                  "unexpected authentication acknowledgement",
-                ),
-              );
-              return;
-            }
-            if (
-              message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
-              typeof message.sessionId !== "string" ||
-              message.sessionId.length === 0
-            ) {
-              done(
-                new BridgeClientError(
-                  "unsupported_protocol",
-                  "unsupported bridge protocol",
-                ),
-              );
-              return;
-            }
-            sessionId = message.sessionId;
-            const catalog = makeCatalog(
-              currentTools,
-              sessionId,
-              BRIDGE_CATALOG_VERSION,
-            );
-            if (jsonSize(catalog) > LIMITS.catalogBytes) {
-              done(
-                new BridgeClientError(
-                  "payload_limit",
-                  "tool catalog exceeds the limit",
-                ),
-              );
-              return;
-            }
-            try {
-              candidate.send(JSON.stringify(catalog));
-            } catch {
-              done(
-                new BridgeClientError("not_connected", "catalog send failed"),
-              );
-            }
-            return;
-          }
-          if (message.type === "catalog_ok") {
-            if (
-              message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
-              message.sessionId !== sessionId ||
-              !Number.isSafeInteger(message.catalogVersion)
-            ) {
-              done(
-                new BridgeClientError(
-                  "invalid_message",
-                  "malformed catalog acknowledgement",
-                ),
-              );
-              return;
-            }
-            if (!pendingCatalog) {
-              if (
-                state.status !== "connecting" ||
-                message.catalogVersion !== BRIDGE_CATALOG_VERSION
-              ) {
-                done(
-                  new BridgeClientError(
-                    "stale_catalog",
-                    "unexpected catalog version",
-                  ),
-                );
-                return;
-              }
-              catalogVersion = message.catalogVersion;
-              setState({
-                status: "connected",
-                sessionId: sessionId!,
-                catalogVersion,
-              });
-              done();
-              return;
-            }
-            if (message.catalogVersion !== pendingCatalog.version) {
-              const request = pendingCatalog;
-              pendingCatalog = undefined;
-              clearTimeout(request.timer);
-              request.reject(
-                new BridgeClientError(
-                  "stale_catalog",
-                  "catalog acknowledgement is stale",
-                ),
-              );
-              return;
-            }
-            const request = pendingCatalog;
-            pendingCatalog = undefined;
-            clearTimeout(request.timer);
-            currentTools = [...request.tools];
-            toolMap.clear();
-            for (const tool of request.tools) toolMap.set(tool.name, tool);
-            catalogVersion = request.version;
-            setState({
-              status: "connected",
-              sessionId: sessionId!,
-              catalogVersion,
-            });
-            request.resolve();
-            return;
-          }
-          if (message.type === "catalog_error") {
-            if (
-              message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
-              message.sessionId !== sessionId ||
-              !isWireError(message.error)
-            ) {
-              done(
-                new BridgeClientError(
-                  "invalid_message",
-                  "malformed catalog error",
-                ),
-              );
-              return;
-            }
-            if (
-              pendingCatalog &&
-              message.catalogVersion === pendingCatalog.version
-            ) {
-              const request = pendingCatalog;
-              pendingCatalog = undefined;
-              clearTimeout(request.timer);
-              request.reject(
-                new BridgeClientError(
-                  message.error.code,
-                  "catalog update rejected",
-                ),
-              );
-            }
-            return;
-          }
-          if (message.type === "request") {
-            void handleRequest(candidate, message, toolMap);
-            return;
-          }
-          if (
-            message.type === "response" &&
-            typeof message.requestId === "string"
-          ) {
-            handleResponse(message);
-            return;
-          }
-          done(
-            new BridgeClientError(
-              "invalid_message",
-              "unexpected bridge message",
-            ),
-          );
-        });
-        candidate.addEventListener("error", () =>
-          done(
-            new BridgeClientError("not_connected", "bridge WebSocket error"),
-          ),
-        );
-        candidate.addEventListener("close", () => {
-          if (!settled)
-            done(
-              new BridgeClientError("not_connected", "bridge WebSocket closed"),
-            );
-          else close(undefined, candidate);
-        });
-      } catch (error) {
-        done(
-          error instanceof Error
-            ? error
-            : new Error("bridge connection failed"),
-        );
-      }
-    });
+    stopped = false;
+    pageLifecycleDropped = false;
+    resumeGrant = undefined;
+    resumeCapable = false;
+    return startSocket(
+      { endpoint: parsed.websocketUrl, token: parsed.token },
+      "manual",
+    ) as Promise<void>;
   }
 
   async function updateTools(tools: readonly BridgeTool[]): Promise<void> {
     const publicTools = tools.map(({ handler: _handler, ...tool }) => tool);
-    // This is deliberately before any socket/state mutation.
     validateCatalogTools(publicTools);
     const nextVersion = catalogVersion + 1;
     if (!socket || !sessionId || state.status !== "connected")
@@ -439,7 +886,8 @@ export function connectAgentBridge(options: {
           "timeout",
           "catalog update timed out; reconnect to rediscover tools",
         );
-        close(error);
+        rejectCatalog(error);
+        closeTransport(error, true);
       }, LIMITS.requestTimeoutMs);
       pendingCatalog = {
         version: nextVersion,
@@ -470,14 +918,28 @@ export function connectAgentBridge(options: {
       isRecord(message) && typeof message.requestId === "string"
         ? message.requestId
         : undefined;
+    const requestSession =
+      isRecord(message) && typeof message.sessionId === "string"
+        ? message.sessionId
+        : undefined;
+    const requestCatalog =
+      isRecord(message) && Number.isSafeInteger(message.catalogVersion)
+        ? message.catalogVersion
+        : undefined;
     const respond = (payload: Record<string, unknown>) => {
       if (!requestId || socket !== next || next.readyState !== OPEN) return;
-      let bounded: Record<string, unknown> = payload;
+      const withMetadata: Record<string, unknown> = { ...payload };
+      if (requestSession !== undefined) withMetadata.sessionId = requestSession;
+      if (requestCatalog !== undefined)
+        withMetadata.catalogVersion = requestCatalog;
+      let bounded = withMetadata;
       try {
-        if (jsonSize(payload) > LIMITS.authenticatedFrameBytes) {
+        if (jsonSize(withMetadata) > LIMITS.authenticatedFrameBytes) {
           bounded = {
             type: "response",
             requestId,
+            sessionId: requestSession,
+            catalogVersion: requestCatalog,
             ok: false,
             error: {
               code: "payload_limit",
@@ -487,7 +949,7 @@ export function connectAgentBridge(options: {
         }
         next.send(JSON.stringify(bounded));
       } catch {
-        // A malformed callback result cannot crash the page event loop.
+        // Never let an application result escape into the page event loop.
       }
     };
     if (
@@ -557,8 +1019,58 @@ export function connectAgentBridge(options: {
       });
       return;
     }
+    if (activeRequests.has(requestId)) {
+      respond({
+        type: "response",
+        requestId,
+        ok: false,
+        error: {
+          code: "invalid_message",
+          message: "duplicate request identifier",
+        },
+      });
+      return;
+    }
+    if (activeRequests.size >= LIMITS.pendingCalls) {
+      respond({
+        type: "response",
+        requestId,
+        ok: false,
+        error: {
+          code: "payload_limit",
+          message: "too many tool requests are pending",
+        },
+      });
+      return;
+    }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LIMITS.requestTimeoutMs);
+    let entry!: ActiveRequest;
+    const finish = (error?: BridgeClientError, result?: BridgeResult) => {
+      if (entry.done) return;
+      entry.done = true;
+      clearTimeout(entry.timer);
+      if (activeRequests.get(requestId) === entry)
+        activeRequests.delete(requestId);
+      if (error)
+        respond({
+          type: "response",
+          requestId,
+          ok: false,
+          error: { code: error.code, message: error.message },
+        });
+      else respond({ type: "response", requestId, ok: true, result });
+    };
+    const timer = setTimeout(() => {
+      controller.abort();
+      finish(
+        new BridgeClientError(
+          "timeout",
+          "tool timed out; outcome may be uncertain",
+        ),
+      );
+    }, LIMITS.requestTimeoutMs);
+    entry = { controller, timer, done: false, finish };
+    activeRequests.set(requestId, entry);
     try {
       let value: unknown;
       try {
@@ -566,87 +1078,113 @@ export function connectAgentBridge(options: {
           signal: controller.signal,
         });
       } catch {
-        respond({
-          type: "response",
-          requestId,
-          ok: false,
-          error: {
-            code: controller.signal.aborted ? "timeout" : "handler_error",
-            message: controller.signal.aborted
-              ? "tool timed out; outcome may be uncertain"
-              : "tool handler failed",
-          },
-        });
+        if (!entry.done) {
+          finish(
+            new BridgeClientError(
+              controller.signal.aborted ? "timeout" : "handler_error",
+              controller.signal.aborted
+                ? "tool timed out; outcome may be uncertain"
+                : "tool handler failed",
+            ),
+          );
+        }
         return;
       }
-      let result: BridgeResult;
+      if (entry.done) return;
       try {
-        result = normalizeResult(value);
+        finish(undefined, normalizeResult(value));
       } catch (error) {
         const code =
           error instanceof BridgeResultError ? error.code : "invalid_message";
-        respond({
-          type: "response",
-          requestId,
-          ok: false,
-          error: {
-            code,
-            message:
-              code === "payload_limit"
-                ? "tool result exceeds the payload limit"
-                : "tool returned an invalid result",
-          },
-        });
-        return;
-      }
-      respond({ type: "response", requestId, ok: true, result });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  function handleResponse(message: any) {
-    const call = pending.get(message.requestId);
-    if (!call) return;
-    pending.delete(message.requestId);
-    clearTimeout(call.timer);
-    if (!isRecord(message) || typeof message.ok !== "boolean") {
-      call.reject(
-        new BridgeClientError("invalid_message", "malformed tool response"),
-      );
-      return;
-    }
-    if (message.ok) {
-      try {
-        if (!normalizeResult(message.result)) throw new Error("invalid result");
-        call.resolve();
-      } catch {
-        call.reject(
+        finish(
           new BridgeClientError(
-            "invalid_message",
-            "page returned an invalid result",
+            code,
+            code === "payload_limit"
+              ? "tool result exceeds the payload limit"
+              : "tool returned an invalid result",
           ),
         );
       }
-      return;
+    } finally {
+      if (activeRequests.get(requestId) === entry)
+        activeRequests.delete(requestId);
     }
-    if (!isWireError(message.error)) {
-      call.reject(
-        new BridgeClientError("invalid_message", "malformed tool error"),
-      );
-      return;
-    }
-    call.reject(
-      new BridgeClientError(message.error.code, message.error.message),
-    );
   }
 
-  return {
-    connect,
-    disconnect: () => close(),
-    getState: () => state,
-    updateTools,
+  const disconnect = () => {
+    if (
+      pageWindow &&
+      owners.get(pageWindow) &&
+      owners.get(pageWindow) !== ownerToken
+    )
+      return;
+    stopped = true;
+    pageLifecycleDropped = true;
+    if (autoResumeTimer) clearTimeout(autoResumeTimer);
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    autoResumeTimer = undefined;
+    reconnectTimer = undefined;
+    if (resumeGrant) clearGrant(resumeGrant);
+    else if (ownsWindow) clearGrant();
+    abortActive(undefined, false);
+    rejectCatalog(
+      new BridgeClientError("not_connected", "bridge disconnected"),
+    );
+    const current = socket;
+    const oldSession = sessionId;
+    socket = undefined;
+    sessionId = undefined;
+    resumeCapable = false;
+    if (current && current.readyState === OPEN && oldSession) {
+      try {
+        current.send(
+          JSON.stringify({ type: "disconnect", sessionId: oldSession }),
+        );
+      } catch {
+        // local revocation still happens when the transport is unavailable
+      }
+    }
+    if (current && current.readyState < 2) {
+      try {
+        current.close();
+      } catch {
+        // best effort
+      }
+    }
+    removeLifecycleListeners();
+    releaseOwner();
+    setState({ status: "disconnected" });
   };
+
+  // A reload is the only navigation for which a stored grant is eligible.
+  // Delaying one turn lets an explicit pairing-link connect win the race.
+  const stored = readGrant();
+  const navigationType = (() => {
+    try {
+      return pageWindow?.performance?.getEntriesByType?.("navigation")?.[0]
+        ?.type;
+    } catch {
+      return undefined;
+    }
+  })();
+  if (ownsWindow && stored && navigationType === "reload") {
+    resumeGrant = stored;
+    resumeCapable = true;
+    autoResumeTimer = setTimeout(() => {
+      autoResumeTimer = undefined;
+      if (stopped || socket || !resumeGrant) return;
+      reconnectDeadline = Date.now() + resumeGrant.resumeLeaseMs;
+      reconnectDelay = LIMITS.reconnectInitialDelayMs;
+      void startSocket(
+        { endpoint: resumeGrant.endpoint, resume: resumeGrant },
+        "auto",
+      ).catch(() => undefined);
+    }, 0);
+  } else if (ownsWindow) {
+    clearGrant();
+  }
+
+  return { connect, disconnect, getState: () => state, updateTools };
 }
 
 function makeCatalog(
@@ -688,12 +1226,61 @@ function parseEventData(data: unknown): unknown {
   return JSON.parse(String(data));
 }
 
+function randomId(): string {
+  try {
+    const cryptoObject = (globalThis as any).crypto;
+    if (cryptoObject?.randomUUID) return cryptoObject.randomUUID();
+    if (cryptoObject?.getRandomValues) {
+      const bytes = new Uint8Array(16);
+      cryptoObject.getRandomValues(bytes);
+      return Array.from(bytes, (byte) =>
+        byte.toString(16).padStart(2, "0"),
+      ).join("");
+    }
+  } catch {
+    // Fall through to a non-secret per-document identifier.
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function cleanPageUrl(pageWindow: any): string {
+  try {
+    const url = new URL(
+      pageWindow?.location?.href ??
+        `${pageWindow?.location?.origin ?? "http://localhost"}/`,
+    );
+    const fragment = new URLSearchParams(
+      url.hash.startsWith("#") ? url.hash.slice(1) : url.hash,
+    );
+    fragment.delete("bridgePort");
+    fragment.delete("bridgeToken");
+    url.hash = fragment.toString();
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
+function usableSessionStorage(pageWindow: any): Storage | undefined {
+  if (!pageWindow) return undefined;
+  try {
+    const candidate = pageWindow.sessionStorage as Storage;
+    if (!candidate || typeof candidate.getItem !== "function") return undefined;
+    const probe = `${RESUME_STORAGE_KEY}:probe`;
+    candidate.setItem(probe, "1");
+    candidate.removeItem(probe);
+    return candidate;
+  } catch {
+    return undefined;
+  }
+}
+
 function parsePairingLink(link: string): {
   websocketUrl: string;
   token: string;
 } {
-  if (typeof window === "undefined")
-    throw new Error("pairing is only available in a browser");
+  const pageWindow = browserWindow();
+  if (!pageWindow) throw new Error("pairing is only available in a browser");
   let url: URL;
   try {
     url = new URL(link);
@@ -704,7 +1291,7 @@ function parsePairingLink(link: string): {
     url.protocol === "http:" &&
     ["localhost", "127.0.0.1"].includes(url.hostname);
   if (
-    url.origin !== window.location.origin ||
+    url.origin !== pageWindow.location.origin ||
     (!localDevelopment && url.protocol !== "https:") ||
     url.username ||
     url.password
@@ -712,12 +1299,11 @@ function parsePairingLink(link: string): {
     throw new Error(
       "pairing link origin does not match this HTTPS or localhost page",
     );
-  const port = url.hash
-    ? new URLSearchParams(url.hash.slice(1)).get("bridgePort")
-    : null;
-  const token = url.hash
-    ? new URLSearchParams(url.hash.slice(1)).get("bridgeToken")
-    : null;
+  const params = url.hash
+    ? new URLSearchParams(url.hash.slice(1))
+    : new URLSearchParams();
+  const port = params.get("bridgePort");
+  const token = params.get("bridgeToken");
   if (
     !port ||
     !token ||
@@ -728,5 +1314,5 @@ function parsePairingLink(link: string): {
     throw new Error("pairing link is missing bridge credentials");
   if (!/^[A-Za-z0-9_-]{40,}$/.test(token))
     throw new Error("invalid pairing credential");
-  return { websocketUrl: `ws://127.0.0.1:${port}`, token };
+  return { websocketUrl: `ws://127.0.0.1:${Number(port)}`, token };
 }
