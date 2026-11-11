@@ -198,6 +198,7 @@ h1 em {
 }
 
 .connection-panel,
+.message-section,
 .tools-section {
   border-top: 1px solid var(--line);
   padding: 42px 0 48px;
@@ -338,6 +339,29 @@ h2 {
 .tool-count {
   color: var(--muted);
   margin: 8px 0 0;
+}
+
+.message-state {
+  background: var(--white);
+  border: 1px solid var(--line);
+  max-width: 760px;
+  padding: 22px 24px;
+}
+
+.message-value {
+  font-size: clamp(20px, 3vw, 30px);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+
+.message-operation {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-bottom: 0;
+  text-transform: uppercase;
 }
 
 .tool-grid {

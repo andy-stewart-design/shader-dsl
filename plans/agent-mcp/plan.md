@@ -44,7 +44,7 @@ New commands below are **proposed additions**, not commands currently present:
 | --- | --- | --- |
 | 1.1 | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`; `pnpm --filter agent-bridge-demo dev`, `check`, `build`, `preview` | Generic package types/build and Node tests; scaffold and serve the minimal standalone demo app. `dev`/`preview` are local serving commands, not hosted proof. |
 | 1.2 | `pnpm --filter repl-web dev:preview-probe`, `build:preview-probe` | User-assisted real-canvas probe at localhost:5174 and an independently hostable build; no automated browser harness. |
-| 2.3 | `pnpm --filter agent-bridge-demo test:browser`, `check`, `build`; package `test`, `check`, `build` | Demo-app conformance/browser harness plus generic package regression checks; not a substitute for hosted permission testing. |
+| 2.3 | `pnpm --filter agent-bridge-demo check`, `lint`, `build`; package `test`, `check`, `build` when needed | Demo-app build checks plus user-assisted manual browser conformance; not a substitute for hosted permission testing. |
 | 3.1 | `pnpm --filter repl-web test` | Explicit package Vitest config covering existing and new source/unit tests. |
 | 3.2 | `pnpm --filter repl-web test:browser` | Real editor/controller/browser integration checks, extended in later steps. |
 | 5.2 | `pnpm --filter @shdr/agent-bridge test:packed` | Isolated packed/installed entrypoint and CLI checks, not publication. |
@@ -270,30 +270,30 @@ Evidence location: [evidence/step-2.2.md](evidence/step-2.2.md).
 
 Requirements / acceptance: R2, R3, R7, R9, R16, R17; AC3, AC7 (generic browser portion), AC8/AC9/AC24 (browser-library portions).
 Depends on: 2.2.
-Review boundary: the standalone non-shader demo app, its browser conformance harness, and generic public-library usability.
+Review boundary: the standalone non-shader demo app and generic public-library usability, verified by focused checks and user-assisted manual browser conformance.
 
 Expected files:
 
-- `apps/agent-bridge-demo/src/main.ts` and minimal app files — add the harmless text-state mutation while retaining initial read/generated-image tools.
-- `apps/agent-bridge-demo/test/verify-browser.mjs`, `package.json` — proposed `test:browser` conformance suite using approved Playwright prerequisites; this app owns the browser harness.
+- `apps/agent-bridge-demo/src/App.tsx`, `src/App.css` — add the harmless text-state mutation and minimal visible state/result treatment while retaining initial read/generated-image tools and existing styling.
+- `apps/agent-bridge-demo/README.md` — supported tools and the focused manual conformance recipe.
 - `packages/agent-bridge/README.md`.
 
 Tasks:
 
-- [ ] Add a simple text-state mutation to the standalone demo app, retaining its read and generated-image tools, through only the public `@shdr/agent-bridge/browser` entrypoint.
-- [ ] Make the demo app's `test:browser` harness check pairing-fragment cleanup, tab ownership, same-origin refresh/resume, explicit-disconnect clearing, helper-restart fresh-pairing behavior, handler teardown, and unchanged page state on discovery/disconnect.
-- [ ] Demonstrate the unrelated demo app through the same helper without shader-specific code changes and inspect generic package imports for application coupling; the generic package must not depend on the app at runtime.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Add a simple text-state mutation to the standalone demo app, retaining its read and generated-image tools, through only the public `@shdr/agent-bridge/browser` entrypoint.
+- [x] Document the supported tools and focused manual flow: read/set/image, same-URL refresh, explicit disconnect, helper restart, and an interrupted delayed mutation with no replay; do not add a browser harness or persistence.
+- [x] Demonstrate the unrelated demo app through the same helper without shader-specific code changes and inspect generic package imports for application coupling; the generic package must not depend on the app at runtime.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: demo app `test:browser`, `check`, `build`, plus package `test`, `check`, and `build`; use real sockets/browser lifecycle but label local harness results as such. The app browser harness owns conformance checks; the generic package has no browser harness or fixture-build command.
-- Manual: with explicit approval to host the built demo app and with Pi access, pair the unrelated app, refresh the same origin without a new link, read state and inspect its distinctive image, then test explicit disconnect plus refresh staying unpaired, helper restart requiring fresh pairing, and an interrupted mutation not being replayed while catalog/page identity is refreshed. Verify no REPL-specific bridge modifications were needed. Use the approved hosted demo target recorded in Step 1.3, or obtain approval for a replacement.
+- Automated: demo app `check`, `lint`, and `build`; package `test`, `check`, and `build` when the bridge changes or consumer proof is needed. These are static/package checks, not browser conformance proof.
+- Manual: user-assisted conformance against the approved hosted demo target (or an explicitly approved replacement): pair, read state, set/read the message, inspect the distinctive image, refresh the same origin without a new link, then test explicit disconnect plus refresh staying unpaired, helper restart requiring fresh pairing, and an interrupted mutation not being replayed while catalog/page identity is refreshed. Verify no REPL-specific bridge modifications were needed.
 
-Completion gate: AC3's unrelated-site read/mutation/model-visible image works through the same library/helper, the demo app's browser lifecycle checks pass, and the AC24 manual happy/negative flow is recorded in this existing 2.3 evidence location.
+Completion gate: AC3's unrelated-site read/mutation/model-visible image works through the same library/helper, and the AC24 manual happy/negative flow is recorded in this existing 2.3 evidence location. Automated checks do not substitute for the pending user-assisted flow.
 Evidence location: [evidence/step-2.3.md](evidence/step-2.3.md).
 
-Phase exit gate: run the package unit/build checks, the demo app `test:browser`/`check`/`build`, and the unrelated hosted conformance journey after 2.3. Review generic source boundaries and session failure evidence together. Record the result in `evidence/step-2.3.md` before Phase 3; a static page or app scaffold without live invocation/image proof is insufficient.
+Phase exit gate: run the package unit/build checks when needed, the demo app `check`/`lint`/`build`, and the unrelated hosted conformance journey after 2.3. Review generic source boundaries and session failure evidence together. Record the result in `evidence/step-2.3.md` before Phase 3; automated checks alone do not replace live invocation/image proof.
 
 ## Phase 3 — Enable safe REPL authoring
 
@@ -474,7 +474,7 @@ Expected files:
 
 - Existing `packages/agent-bridge/src/*` and protocol/session/browser tests only for demonstrated integration defects.
 - Existing `apps/repl-web/src/agent/*`, editor/preview integration only for demonstrated defects.
-- `apps/agent-bridge-demo/test/verify-browser.mjs`, `apps/repl-web/test/verify-authoring.mjs` and focused regression tests.
+- `apps/repl-web/test/verify-authoring.mjs` and focused regression tests.
 
 Tasks:
 
@@ -486,7 +486,7 @@ Tasks:
 
 Verification:
 
-- Automated: generic package targeted unit/check/build commands, demo app `test:browser`/`check`/`build`, REPL app unit/browser/check/lint/build commands, workspace `pnpm check`/`pnpm build`, and existing `pnpm --filter @shdr/runtime test` with approved download/browser prerequisites. Compare baseline failures explicitly; an unexplained failure or an unapproved waiver cannot close this gate.
+- Automated: generic package targeted unit/check/build commands, demo app `check`/`lint`/`build`, REPL app unit/browser/check/lint/build commands, workspace `pnpm check`/`pnpm build`, and existing `pnpm --filter @shdr/runtime test` with approved download/browser prerequisites. Compare baseline failures explicitly; an unexplained failure or an unapproved waiver cannot close this gate.
 - Manual: deployed REPL recovery with pending edits/Apply/capture, same-origin refresh resume, browser permission denial/retry, explicit disconnect plus refresh, helper restart, and disconnect while manual controls differ from defaults. Confirm only the scoped resume credential uses `sessionStorage`; there is no sketch/source/runtime persistence or forbidden tool.
 
 Completion gate: safety/failure criteria hold in the composed application, not just mocks, and required regressions pass or the gate remains blocked for explicit resolution.

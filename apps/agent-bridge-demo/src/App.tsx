@@ -20,18 +20,117 @@ const emptyInputSchema = {
   additionalProperties: false,
 } as const
 
+const setMessageInputSchema = {
+  type: 'object',
+  properties: {
+    message: { type: 'string', minLength: 1, maxLength: 500, pattern: '\\S' },
+    delayMs: { type: 'integer', minimum: 0, maximum: 10_000 },
+  },
+  required: ['message'],
+  additionalProperties: false,
+}
+
+type DemoMessageState = {
+  message: string
+  revision: number
+  lastOperation: string
+}
+
+type StateListener = () => void
+
+const initialMessage = 'A small page for checking bridge connectivity and image delivery.'
+let messageState: DemoMessageState = {
+  message: initialMessage,
+  revision: 0,
+  lastOperation: 'No message mutation yet.',
+}
+const messageStateListeners = new Set<StateListener>()
+
+function getMessageState() {
+  return messageState
+}
+
+function subscribeToMessageState(listener: StateListener) {
+  messageStateListeners.add(listener)
+  return () => messageStateListeners.delete(listener)
+}
+
+function setMessageState(message: string) {
+  const revision = messageState.revision + 1
+  messageState = {
+    message,
+    revision,
+    lastOperation: `demo_set_message applied at revision ${revision}.`,
+  }
+  for (const listener of messageStateListeners) {
+    listener()
+  }
+  return messageState
+}
+
+function publicMessageState(state = getMessageState()) {
+  const { message, revision } = state
+  return { message, revision }
+}
+
+function waitForDelay(delayMs: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const cleanup = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer)
+        timer = undefined
+      }
+      signal.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      reject(new Error('The message update was cancelled.'))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    timer = setTimeout(() => {
+      cleanup()
+      if (signal.aborted) {
+        reject(new Error('The message update was cancelled.'))
+      } else {
+        resolve()
+      }
+    }, delayMs)
+
+    if (signal.aborted) onAbort()
+  })
+}
+
 const demoTools: readonly BridgeTool[] = [
   {
     name: 'demo_get_state',
     description:
-      'Read the current, static state of the Agent Bridge Demo. This tool does not change the page.',
+      'Read the current visible message and revision of the Agent Bridge Demo. This tool does not change the page.',
     inputSchema: emptyInputSchema,
     handler: () => ({
       title: 'Agent Bridge Demo',
-      message: 'A small read-only page for checking bridge connectivity and image delivery.',
+      ...publicMessageState(),
       demoState: 'ready',
-      capabilities: ['read-only state', 'generated PNG image'],
+      capabilities: ['read/write message', 'generated PNG image'],
     }),
+  },
+  {
+    name: 'demo_set_message',
+    description:
+      'Set the page-local visible message and return its new revision. An optional bounded delay is only for interrupted-call manual testing.',
+    inputSchema: setMessageInputSchema,
+    handler: async (input, { signal }) => {
+      const { message, delayMs = 0 } = input as { message: string; delayMs?: number }
+      if (!message.trim()) throw new Error('Message must contain a non-space character.')
+      await waitForDelay(delayMs, signal)
+      if (signal.aborted) throw new Error('The message update was cancelled.')
+      return {
+        title: 'Agent Bridge Demo',
+        ...publicMessageState(setMessageState(message)),
+      }
+    },
   },
   {
     name: 'demo_capture_image',
@@ -93,7 +192,6 @@ const demoTools: readonly BridgeTool[] = [
   },
 ]
 
-type StateListener = () => void
 const stateListeners = new Set<StateListener>()
 let bridgeState: BridgeConnectionState
 
@@ -121,12 +219,21 @@ function useBridgeState() {
   return useSyncExternalStore(subscribeToBridge, getBridgeState, getBridgeState)
 }
 
+function useDemoMessageState() {
+  return useSyncExternalStore(
+    subscribeToMessageState,
+    getMessageState,
+    getMessageState,
+  )
+}
+
 type AppProps = {
   initialPairingLink?: string
 }
 
 function App({ initialPairingLink }: AppProps) {
   const state = useBridgeState()
+  const messageState = useDemoMessageState()
   const [pairingLink, setPairingLink] = useState('')
   const [formMessage, setFormMessage] = useState<string | undefined>()
   const autoConnectStarted = useRef(false)
@@ -245,13 +352,27 @@ function App({ initialPairingLink }: AppProps) {
         )}
       </section>
 
+      <section className="message-section" aria-labelledby="message-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">02 — PAGE-LOCAL MESSAGE</p>
+            <h2 id="message-title">A visible mutable value</h2>
+          </div>
+          <p className="tool-count">Revision {messageState.revision}</p>
+        </div>
+        <div className="message-state" aria-live="polite">
+          <p className="message-value">{messageState.message}</p>
+          <p className="message-operation">{messageState.lastOperation}</p>
+        </div>
+      </section>
+
       <section className="tools-section" aria-labelledby="tools-title">
         <div className="section-heading">
           <div>
-            <p className="section-label">02 — AVAILABLE TOOLS</p>
+            <p className="section-label">03 — AVAILABLE TOOLS</p>
             <h2 id="tools-title">Only what this demo needs</h2>
           </div>
-          <p className="tool-count">{demoTools.length} tools · read-only</p>
+          <p className="tool-count">{demoTools.length} tools · read, write, image</p>
         </div>
         <div className="tool-grid">
           {demoTools.map((tool, index) => (
@@ -267,7 +388,7 @@ function App({ initialPairingLink }: AppProps) {
 
       <footer className="site-footer">
         <span>APPLICATION-OWNED CAPABILITIES</span>
-        <span>NO MUTATION TOOLS</span>
+        <span>PAGE-LOCAL MESSAGE</span>
         <span>PNG OUTPUT</span>
       </footer>
     </main>
