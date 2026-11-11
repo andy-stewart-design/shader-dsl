@@ -1,7 +1,8 @@
 /** Wire and public contracts for the generic page bridge. */
 export const BRIDGE_PROTOCOL_VERSION = 1 as const;
-export const BRIDGE_RESULT_VERSION = 1 as const;
+/** The first catalog version sent during authentication. Replacements increment it. */
 export const BRIDGE_CATALOG_VERSION = 1 as const;
+export const BRIDGE_RESULT_VERSION = 1 as const;
 
 export const LIMITS = {
   pairingLifetimeMs: 5 * 60_000,
@@ -82,7 +83,20 @@ export type BridgeWireMessage =
       result?: BridgeResult;
       error?: BridgeError;
     }
-  | { type: "auth_ok"; sessionId: string };
+  | { type: "auth_ok"; protocolVersion: 1; sessionId: string }
+  | {
+      type: "catalog_ok";
+      protocolVersion: 1;
+      sessionId: string;
+      catalogVersion: number;
+    }
+  | {
+      type: "catalog_error";
+      protocolVersion: 1;
+      sessionId: string;
+      catalogVersion: number;
+      error: BridgeError;
+    };
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -90,30 +104,53 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function jsonSize(value: unknown): number {
   const text = JSON.stringify(value);
+  if (text === undefined) throw new Error("value is not JSON serializable");
   return typeof TextEncoder === "undefined"
     ? text.length
     : new TextEncoder().encode(text).byteLength;
 }
 
+export function wireByteLength(value: unknown): number {
+  if (typeof value === "string") return jsonUtf8Bytes(value);
+  if (value instanceof ArrayBuffer) return value.byteLength;
+  if (ArrayBuffer.isView(value)) return value.byteLength;
+  return jsonUtf8Bytes(String(value));
+}
+
+function jsonUtf8Bytes(value: string): number {
+  return typeof TextEncoder === "undefined"
+    ? unescape(encodeURIComponent(value)).length
+    : new TextEncoder().encode(value).byteLength;
+}
+
 export function isBridgeResult(value: unknown): value is BridgeResult {
   if (
     !isRecord(value) ||
-    value.bridgeResultVersion !== 1 ||
+    value.bridgeResultVersion !== BRIDGE_RESULT_VERSION ||
     !Array.isArray(value.content)
   )
     return false;
   if (value.metadata !== undefined && !isJsonValue(value.metadata))
     return false;
-  return value.content.every((part) => {
-    if (!isRecord(part) || (part.type !== "text" && part.type !== "image"))
-      return false;
-    if (part.type === "text") return typeof part.text === "string";
-    return (
-      (part.mimeType === "image/png" || part.mimeType === "image/jpeg") &&
-      typeof part.data === "string" &&
-      isBase64(part.data)
-    );
-  });
+  if (
+    !value.content.every((part) => {
+      if (!isRecord(part) || (part.type !== "text" && part.type !== "image"))
+        return false;
+      if (part.type === "text") return typeof part.text === "string";
+      return (
+        (part.mimeType === "image/png" || part.mimeType === "image/jpeg") &&
+        typeof part.data === "string" &&
+        isBase64(part.data) &&
+        decodedBase64Bytes(part.data) <= LIMITS.imageBytes
+      );
+    })
+  )
+    return false;
+  try {
+    return jsonSize(value) <= LIMITS.authenticatedFrameBytes;
+  } catch {
+    return false;
+  }
 }
 
 export function isJsonValue(value: unknown): value is JsonValue {
@@ -124,14 +161,26 @@ export function isJsonValue(value: unknown): value is JsonValue {
   return isRecord(value) && Object.values(value).every(isJsonValue);
 }
 
+/** Strict, canonical RFC 4648 base64 (empty image payloads are not useful). */
 export function isBase64(value: string): boolean {
-  return (
-    value.length > 0 &&
-    value.length % 4 === 0 &&
-    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-      value,
-    )
-  );
+  if (
+    !value.length ||
+    value.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  )
+    return false;
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  if (value.endsWith("=="))
+    return (alphabet.indexOf(value[value.length - 3]!) & 15) === 0;
+  if (value.endsWith("="))
+    return (alphabet.indexOf(value[value.length - 2]!) & 3) === 0;
+  return true;
+}
+
+export function decodedBase64Bytes(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.max(0, (value.length * 3) / 4 - padding);
 }
 
 export function safeJson(value: unknown): string {

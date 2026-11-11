@@ -226,10 +226,10 @@ Expected files:
 
 Tasks:
 
-- [ ] Complete versioned catalogs, unique-name checks, explicit session/catalog arguments, schema retrieval, catalog invalidation, and validation on both helper and page boundaries.
-- [ ] Complete all error categories, text/JSON/image metadata handling, bounded catalogs/messages/images, and rejection of unsupported envelope versions/MIME/base64 or remote schema/image loading.
-- [ ] Test removed/unknown tools, stale catalogs, malformed messages, nested argument validation, plain-object/envelope distinction, and boundary-size outcomes without invoking handlers on rejection.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Complete versioned catalogs, unique-name checks, explicit session/catalog arguments, schema retrieval, catalog invalidation, and validation on both helper and page boundaries.
+- [x] Complete all error categories, text/JSON/image metadata handling, bounded catalogs/messages/images, and rejection of unsupported envelope versions/MIME/base64 or remote schema/image loading.
+- [x] Test removed/unknown tools, stale catalogs, malformed messages, nested argument validation, plain-object/envelope distinction, and boundary-size outcomes without invoking handlers on rejection.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 

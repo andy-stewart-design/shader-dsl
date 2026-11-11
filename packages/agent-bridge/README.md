@@ -54,4 +54,16 @@ Ask the agent for `bridge_get_connection_info`, open its pairing URL, and allow 
 
 The page removes pairing credentials from the URL fragment before connecting. Page refresh currently requires pairing again. To check image delivery, discover the page's tools and invoke its image tool; receiving base64 in text alone is not success. Localhost results do not replace testing the real HTTPS origin and its browser permissions/CSP.
 
-This is the thin bridge slice: initial pairing tokens are single-use and the helper owns one page session. Full reconnect/resume semantics, cancellation propagation, catalog replacement, and application-specific authoring remain later-phase work.
+## Catalogs, validation, and results
+
+Protocol version 1 is distinct from the catalog version. The first authenticated catalog is version 1. `await bridge.updateTools(nextTools)` validates the entire replacement before sending it, increments the catalog version, and replaces browser handlers only after the helper acknowledges it. Invalid or overlapping replacements reject without changing the active catalog. A lost acknowledgement closes the connection at the request deadline rather than leaving an unbounded pending update.
+
+`bridge_list_tools({ sessionId })` discovers the current catalog/version. `bridge_describe_tool({ sessionId, name })` returns the current version and schema. `bridge_call_tool` requires the exact `sessionId` and `catalogVersion`; stale, removed, and schema-invalid calls are rejected before dispatch. Replacing a catalog invalidates outstanding calls from its previous version; an already-running mutation may still finish, so reread state rather than replaying it.
+
+Schemas use JSON Schema 2020-12, synchronous validation at both boundaries, and local references only. Catalogs have unique names and are bounded to 64 tools/512 KiB. Malformed protocol messages and unsupported versions fail explicitly. No remote schema or image URL is fetched.
+
+Plain JSON remains readable text, even if it contains a `data` field. The reserved `bridgeResultVersion` property selects the strict result-envelope contract; unsupported versions or malformed content are errors, not ordinary JSON. Images require runtime-validated PNG/JPEG MIME, canonical base64, and at most 4 MiB of decoded binary per image. The entire serialized result/message is bounded to 8 MiB, including text, metadata, and multiple images. Metadata accompanies actual MCP image blocks as readable text.
+
+Errors distinguish missing/stale sessions, stale catalogs, unknown tools, invalid arguments/messages, unsupported versions, payload limits, handler failures, and timeouts. Arbitrary handler exception text is not forwarded; page error categories are allowlisted and mapped to bounded generic messages. Return application diagnostics as intentional structured JSON data instead of throwing secrets into error messages.
+
+Initial pairing tokens remain single-use and the helper owns one page session. Refresh resume/sessionStorage, full cancellation/lifecycle recovery, and application-specific authoring remain later steps; catalog replacement does not add those capabilities.

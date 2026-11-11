@@ -7,16 +7,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { WebSocketServer, type WebSocket } from "ws";
-import { bridgeResultToMcp, normalizeResult } from "./results.js";
 import {
-  compileInputSchema,
-  validateInput,
-  validateToolName,
-} from "./schema.js";
+  BridgeResultError,
+  bridgeResultToMcp,
+  normalizeResult,
+} from "./results.js";
+import { validateInput, validateCatalog } from "./schema.js";
 import {
   BRIDGE_CATALOG_VERSION,
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
+  isBridgeResult,
   isRecord,
   jsonSize,
   safeJson,
@@ -113,7 +114,8 @@ export async function startBridgeServer(
     let authenticated = false;
     let closed = false;
     const authTimer = setTimeout(() => {
-      if (!authenticated) ws.close(1008, "authentication timeout");
+      if (!authenticated || (owner === ws && !catalog))
+        ws.close(1008, "authentication timeout");
     }, LIMITS.authenticationTimeoutMs);
     const close = (error?: Error) => {
       if (closed) return;
@@ -175,7 +177,6 @@ export async function startBridgeServer(
         }
         tokenUsed = true;
         authenticated = true;
-        clearTimeout(authTimer);
         sessionId = randomBytes(18).toString("base64url");
         owner = ws;
         ws.send(
@@ -191,25 +192,82 @@ export async function startBridgeServer(
         ws.close(1008, "stale session");
         return;
       }
-      if (!catalog) {
-        if (!isCatalog(message) || message.sessionId !== sessionId) {
-          ws.close(1008, "catalog required");
-          return;
-        }
+      if (isRecord(message) && message.type === "catalog") {
+        const requestedVersion =
+          typeof message.catalogVersion === "number"
+            ? message.catalogVersion
+            : catalog
+              ? catalog.catalogVersion + 1
+              : BRIDGE_CATALOG_VERSION;
         try {
-          validateCatalog(message);
-        } catch {
-          ws.close(1008, "invalid catalog");
+          if (message.protocolVersion !== BRIDGE_PROTOCOL_VERSION)
+            throw new BridgeProtocolError(
+              "unsupported_protocol",
+              "unsupported bridge protocol",
+            );
+          if (!catalog) {
+            validateCatalog(message, sessionId, BRIDGE_CATALOG_VERSION);
+          } else {
+            if (message.sessionId !== sessionId)
+              throw new BridgeProtocolError("stale_session", "stale session");
+            if (requestedVersion !== catalog.catalogVersion + 1)
+              throw new BridgeProtocolError(
+                "stale_catalog",
+                "catalog version is not the next version",
+              );
+            validateCatalog(message, sessionId, requestedVersion);
+          }
+        } catch (error) {
+          const bridgeError =
+            error instanceof BridgeProtocolError
+              ? error
+              : new BridgeProtocolError(
+                  error instanceof Error && error.message.includes("limit")
+                    ? "payload_limit"
+                    : "invalid_message",
+                  "invalid catalog",
+                );
+          if (sessionId) {
+            ws.send(
+              JSON.stringify({
+                type: "catalog_error",
+                protocolVersion: BRIDGE_PROTOCOL_VERSION,
+                sessionId,
+                catalogVersion: requestedVersion,
+                error: { code: bridgeError.code, message: bridgeError.message },
+              }),
+            );
+          }
           return;
         }
+        // Outstanding work belongs to the old catalog, never the replacement.
+        if (catalog) {
+          for (const call of pending.values()) {
+            clearTimeout(call.timer);
+            call.reject(
+              new BridgeProtocolError(
+                "stale_catalog",
+                "catalog changed; outcome may be uncertain",
+              ),
+            );
+          }
+          pending.clear();
+        }
+        // Validation is complete before replacing the current catalog.
         catalog = message;
+        clearTimeout(authTimer);
         ws.send(
           JSON.stringify({
             type: "catalog_ok",
+            protocolVersion: BRIDGE_PROTOCOL_VERSION,
             sessionId,
             catalogVersion: catalog.catalogVersion,
           }),
         );
+        return;
+      }
+      if (!catalog) {
+        ws.close(1008, "catalog required");
         return;
       }
       if (isRecord(message) && message.type === "response")
@@ -306,7 +364,13 @@ export async function startBridgeServer(
         if (input.sessionId !== sessionId)
           return errorMcp("stale_session", "session is no longer current");
         const tool = catalog.tools.find((item) => item.name === input.name);
-        return tool ? textMcp(tool) : errorMcp("unknown_tool", "unknown tool");
+        return tool
+          ? textMcp({
+              sessionId,
+              catalogVersion: catalog.catalogVersion,
+              ...tool,
+            })
+          : errorMcp("unknown_tool", "unknown tool");
       }
       if (name === "bridge_call_tool") {
         const input = args as any;
@@ -323,12 +387,13 @@ export async function startBridgeServer(
         try {
           return bridgeResultToMcp(await callPage(input.name, input.arguments));
         } catch (error) {
-          return errorMcp(
-            error instanceof Error && error.message.includes("timeout")
-              ? "timeout"
-              : "handler_error",
-            error instanceof Error ? error.message : "page request failed",
-          );
+          const code =
+            error instanceof BridgeProtocolError
+              ? error.code
+              : error instanceof Error && error.message.includes("timeout")
+                ? "timeout"
+                : "handler_error";
+          return errorMcp(code, publicErrorMessage(error, code));
         }
       }
       return errorMcp("unknown_tool", "unknown bridge operation");
@@ -342,9 +407,13 @@ export async function startBridgeServer(
 
   function callPage(toolName: string, input: JsonValue): Promise<BridgeResult> {
     if (!owner || !sessionId || !catalog)
-      return Promise.reject(new Error("not connected"));
+      return Promise.reject(
+        new BridgeProtocolError("not_connected", "not connected"),
+      );
     if (pending.size >= LIMITS.pendingCalls)
-      return Promise.reject(new Error("too many pending calls"));
+      return Promise.reject(
+        new BridgeProtocolError("payload_limit", "too many pending calls"),
+      );
     const requestId = randomBytes(12).toString("base64url");
     const message = {
       type: "request",
@@ -355,11 +424,21 @@ export async function startBridgeServer(
       input,
     };
     if (jsonSize(message) > LIMITS.authenticatedFrameBytes)
-      return Promise.reject(new Error("request exceeds payload limit"));
+      return Promise.reject(
+        new BridgeProtocolError(
+          "payload_limit",
+          "request exceeds payload limit",
+        ),
+      );
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(requestId);
-        reject(new Error("request timeout; outcome may be uncertain"));
+        reject(
+          new BridgeProtocolError(
+            "timeout",
+            "request timeout; outcome may be uncertain",
+          ),
+        );
       }, LIMITS.requestTimeoutMs);
       pending.set(requestId, { resolve, reject, timer });
       try {
@@ -373,18 +452,62 @@ export async function startBridgeServer(
   }
 
   function handleResponse(message: any) {
-    if (typeof message.requestId !== "string") return;
+    if (!isRecord(message) || typeof message.requestId !== "string") return;
     const call = pending.get(message.requestId);
     if (!call) return;
     pending.delete(message.requestId);
     clearTimeout(call.timer);
-    try {
-      if (message.ok && isValidResult(message.result))
-        call.resolve(normalizeResult(message.result));
-      else call.reject(new Error("page tool failed"));
-    } catch {
-      call.reject(new Error("page returned an invalid result"));
+    if (typeof message.ok !== "boolean") {
+      call.reject(
+        new BridgeProtocolError("invalid_message", "malformed tool response"),
+      );
+      return;
     }
+    if (message.ok) {
+      if (
+        !isRecord(message.result) ||
+        !Object.prototype.hasOwnProperty.call(
+          message.result,
+          "bridgeResultVersion",
+        )
+      ) {
+        call.reject(
+          new BridgeProtocolError(
+            "invalid_message",
+            "page returned an invalid result",
+          ),
+        );
+        return;
+      }
+      try {
+        call.resolve(normalizeResult(message.result));
+      } catch (error) {
+        call.reject(
+          new BridgeProtocolError(
+            error instanceof BridgeResultError ? error.code : "invalid_message",
+            "page returned an invalid result",
+          ),
+        );
+      }
+      return;
+    }
+    if (
+      !isRecord(message.error) ||
+      typeof message.error.code !== "string" ||
+      typeof message.error.message !== "string"
+    ) {
+      call.reject(
+        new BridgeProtocolError("invalid_message", "malformed tool error"),
+      );
+      return;
+    }
+    const code = Object.prototype.hasOwnProperty.call(
+      PUBLIC_ERROR_MESSAGES,
+      message.error.code,
+    )
+      ? message.error.code
+      : "handler_error";
+    call.reject(new BridgeProtocolError(code, PUBLIC_ERROR_MESSAGES[code]!));
   }
 
   return {
@@ -442,46 +565,31 @@ function constantTimeToken(candidate: string, expectedDigest: Buffer): boolean {
   );
 }
 
-function isCatalog(value: unknown): value is BridgeCatalog {
-  return (
-    isRecord(value) &&
-    value.type === "catalog" &&
-    value.protocolVersion === 1 &&
-    typeof value.sessionId === "string" &&
-    typeof value.catalogVersion === "number" &&
-    Array.isArray(value.tools)
-  );
-}
-
-function validateCatalog(catalog: BridgeCatalog) {
-  if (
-    catalog.catalogVersion !== BRIDGE_CATALOG_VERSION ||
-    catalog.tools.length > LIMITS.tools
-  )
-    throw new Error("invalid catalog");
-  const names = new Set<string>();
-  for (const tool of catalog.tools) {
-    if (
-      !isRecord(tool) ||
-      !validateToolName(tool.name) ||
-      names.has(tool.name) ||
-      typeof tool.description !== "string" ||
-      !isRecord(tool.inputSchema)
-    )
-      throw new Error("invalid catalog tool");
-    names.add(tool.name);
-    compileInputSchema(tool.inputSchema);
+class BridgeProtocolError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BridgeProtocolError";
   }
-  if (jsonSize(catalog) > LIMITS.catalogBytes)
-    throw new Error("catalog too large");
 }
 
-function isValidResult(value: unknown): value is BridgeResult {
-  return (
-    isRecord(value) &&
-    value.bridgeResultVersion === 1 &&
-    Array.isArray(value.content)
-  );
+const PUBLIC_ERROR_MESSAGES: Record<string, string> = {
+  timeout: "tool timed out; outcome may be uncertain",
+  handler_error: "tool handler failed",
+  not_connected: "page disconnected; outcome may be uncertain",
+  stale_session: "session is no longer current",
+  stale_catalog: "catalog changed; rediscover tools; outcome may be uncertain",
+  unknown_tool: "unknown tool",
+  invalid_arguments: "input does not match the declared schema",
+  invalid_message: "malformed page response",
+  unsupported_protocol: "unsupported bridge protocol or result version",
+  payload_limit: "payload exceeds the configured limit",
+};
+
+function publicErrorMessage(_error: unknown, code: string): string {
+  return PUBLIC_ERROR_MESSAGES[code] ?? "bridge request failed";
 }
 
 function textMcp(value: unknown) {
