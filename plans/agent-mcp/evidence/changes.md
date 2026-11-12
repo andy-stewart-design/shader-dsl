@@ -37,3 +37,7 @@ The user explicitly asked, “Is 2.3 when we'll do manual testing?” and then c
 ## Step 3.2 manual-first verification adjustment
 
 The user's current Step 3.2 request reiterates the global manual-first/quick workflow and asks for a practical browser exercise without starting Step 3.3. Accordingly, the proposed `test:browser`/`verify-authoring.mjs` harness references were replaced with the existing native Node 24 unit tests, real CodeMirror `EditorState` history checks, and a small `dev:authoring-probe`/`build:authoring-probe` fixture at `http://localhost:5175/`. The fixture uses the actual `createEditor`, adapter, registry, and controller with two visible editors and buttons for apply, undo/redo, stale conflict, and unmount/mount. This changes verification method only; it does not invent a publish, deployment, MCP, provider, or approval decision, and the final DOM/manual checkbox remains open.
+
+## Step 3.3 manual-first verification adjustment
+
+The user authorized Step 3.3 with the same quick/manual-first method and explicitly reserved deployed Pi/MCP checks for user assistance. The planned browser-harness wording was therefore implemented as native Node authoring-tool/provider-boundary tests plus app `check`/`lint`/`build`; `plans/agent-mcp/evidence/step-3.3.md` records the exact pending deployed workflow instead of claiming approval or browser evidence. The production REPL remains Nitro/TanStack Start rather than a guessed static deployment, and no deployment or Pi configuration write was performed by this implementation.

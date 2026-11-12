@@ -43,7 +43,8 @@ const UPDATE_KEYS = new Set(["expectedRevision", "main", "utils", "uniforms"]);
  * Synchronous authoring boundary. Without a registry it remains a store-only
  * seam for isolated tests; with one, requested source fields are dispatched to
  * the mounted CodeMirror documents before one coherent draft commit. It is
- * intentionally not registered with a transport or exposed on window.
+ * The controller itself has no window surface; the app provider supplies the
+ * generic bridge registration separately.
  */
 export function createAuthoringController(
   store: DraftStore = useDraftStore,

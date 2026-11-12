@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "#/components/app-layout";
+import AgentConnection from "#/components/agent-connection";
+import { AgentProvider } from "#/agent/provider";
 import Editor from "#/components/editor-pane";
 import Preview from "#/components/preview-pane";
 import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
@@ -18,20 +20,23 @@ function Home() {
   } = useShdrCompilation();
 
   return (
-    <AppLayout>
-      <Editor
-        onApply={apply}
-        isEvaluationFlashing={isEvaluationFlashing}
-        compileError={compileError}
-        runtimeError={runtimeError}
-      />
-      {artifact && (
-        <Preview
-          artifact={artifact}
-          appliedUniforms={appliedUniforms}
-          onError={onPreviewError}
+    <AgentProvider>
+      <AgentConnection />
+      <AppLayout>
+        <Editor
+          onApply={apply}
+          isEvaluationFlashing={isEvaluationFlashing}
+          compileError={compileError}
+          runtimeError={runtimeError}
         />
-      )}
-    </AppLayout>
+        {artifact && (
+          <Preview
+            artifact={artifact}
+            appliedUniforms={appliedUniforms}
+            onError={onPreviewError}
+          />
+        )}
+      </AppLayout>
+    </AgentProvider>
   );
 }

@@ -1,0 +1,85 @@
+.connection {
+  position: fixed;
+  z-index: 10;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: min(28rem, calc(100vw - 1.5rem));
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-surface-border-subtle);
+  border-radius: 0.5rem;
+  background: var(--color-surface-background-tertiary);
+  color: var(--color-surface-foreground-primary);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+  font-size: 0.75rem;
+}
+
+.heading,
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.heading {
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.status {
+  color: var(--color-surface-foreground-secondary);
+  font-weight: 400;
+}
+
+.status[data-status="connected"] {
+  color: var(--color-syntax-green);
+}
+
+.status[data-status="error"] {
+  color: var(--color-syntax-orange);
+}
+
+.form {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.form label {
+  color: var(--color-surface-foreground-tertiary);
+}
+
+.controls input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--color-surface-border-subtle);
+  border-radius: 0.25rem;
+  background: var(--color-surface-background-secondary);
+  color: inherit;
+  font-size: 0.75rem;
+}
+
+.controls button,
+.disconnect {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--color-surface-border-subtle);
+  border-radius: 0.25rem;
+  background: var(--color-surface-background-secondary);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.controls button:disabled {
+  color: var(--color-surface-foreground-disabled);
+  cursor: default;
+}
+
+.disconnect {
+  margin-top: 0.5rem;
+}
+
+.message {
+  margin-top: 0.45rem;
+  color: var(--color-syntax-orange);
+}

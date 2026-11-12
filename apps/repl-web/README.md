@@ -37,6 +37,20 @@ pnpm install
 pnpm --filter repl-web dev
 ```
 
+## Agent authoring connection
+
+The page exposes only `get_authoring_context`, `get_sketch`, and `update_sketch`. Pairing and reads do not edit the draft; updates use the production CodeMirror authoring controller and its revision checks. Run remains the explicit human apply action (Option/Alt+Return), and the connection panel is in the upper-right of the REPL.
+
+For the approved deployed REPL, use the existing Nitro/Vercel deployment workflow (this is a server-rendered Nitro app; do not deploy a guessed static `dist` directory). In Pi, from the repository root, register the local helper with the deployed origin:
+
+```bash
+pi mcp add -l agent-bridge -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://repl-web-beryl.vercel.app --site-url https://repl-web-beryl.vercel.app
+```
+
+Pi's registration is cwd-local in `.pi/mcp.json`; it does not search a parent directory. After registration, run `/reload`, then request a fresh pairing link and open the approved deployed URL. For a local manual check, configure the helper's allowed origin explicitly as `http://localhost:3000` instead; this README does not modify Pi configuration.
+
+The deployed response headers must allow the bridge WebSocket connection to the local helper (the effective CSP needs `connect-src ws://127.0.0.1:*`, alongside the site's existing sources). Apply that as an approved host/header change in the deployment workflow; do not add a blanket production host exception. The initial pairing fragment is removed before the app renders and is not copied to app state, URL history, logs, telemetry, or durable storage. The bridge may retain only its own scoped same-origin refresh resume credential in `sessionStorage`.
+
 # Building For Production
 
 To build this application for production:

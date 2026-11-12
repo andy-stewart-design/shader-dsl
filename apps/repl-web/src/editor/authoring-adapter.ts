@@ -44,19 +44,47 @@ export function createEditorAdapter(
  */
 export class EditorRegistry {
   private readonly entries = new Map<DraftDocument, EditorAdapter>();
+  private readonly listeners = new Set<() => void>();
   private batchDepth = 0;
 
   register(adapter: EditorAdapter): () => void {
     this.entries.set(adapter.document, adapter);
+    this.notify();
     return () => {
       if (this.entries.get(adapter.document) === adapter) {
         this.entries.delete(adapter.document);
+        this.notify();
       }
     };
   }
 
   get(document: DraftDocument): EditorAdapter | undefined {
     return this.entries.get(document);
+  }
+
+  /** Subscribe to editor mount/unmount changes without exposing transport state. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** Both visible source editors must be mounted before pairing is enabled. */
+  areReady(): boolean {
+    return this.isReady("main") && this.isReady("utils");
+  }
+
+  private isReady(document: DraftDocument): boolean {
+    const adapter = this.entries.get(document);
+    if (!adapter) return false;
+    try {
+      return adapter.isReady();
+    } catch {
+      return false;
+    }
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
   }
 
   /** True while a controller is dispatching a multi-editor command. */
