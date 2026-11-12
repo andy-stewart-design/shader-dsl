@@ -5,9 +5,9 @@
       "args": [
         "/Users/andy/Documents/Development/shader-dsl/packages/agent-bridge/dist/bin.mjs",
         "--allowed-origin",
-        "https://agent-bridge-demo-mu.vercel.app",
+        "https://shdr-repl.vercel.app",
         "--site-url",
-        "https://agent-bridge-demo-mu.vercel.app/"
+        "https://shdr-repl.vercel.app/"
       ]
     }
   }

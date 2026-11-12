@@ -17,10 +17,13 @@ function Home() {
     isEvaluationFlashing,
     onPreviewError,
     apply,
+    applyController,
+    applyPortRef,
+    onInitialFrame,
   } = useShdrCompilation();
 
   return (
-    <AgentProvider>
+    <AgentProvider applyController={applyController}>
       <AgentConnection />
       <AppLayout>
         <Editor
@@ -34,6 +37,8 @@ function Home() {
             artifact={artifact}
             appliedUniforms={appliedUniforms}
             onError={onPreviewError}
+            applyPortRef={applyPortRef}
+            onInitialFrame={onInitialFrame}
           />
         )}
       </AppLayout>

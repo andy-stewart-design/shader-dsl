@@ -26,13 +26,14 @@ export const AUTHORING_TOOL_NAMES = [
   "get_authoring_context",
   "get_sketch",
   "update_sketch",
+  "apply_sketch",
 ] as const;
 
-/** Stable, deliberately narrow catalog for Phase 3 authoring. */
+/** Stable, deliberately narrow authoring catalog; Apply is conditional on a real controller. */
 export function createAuthoringTools(
   controller: AuthoringController,
 ): readonly BridgeTool[] {
-  return [
+  const tools: BridgeTool[] = [
     {
       name: "get_authoring_context",
       description:
@@ -43,9 +44,10 @@ export function createAuthoringTools(
     {
       name: "get_sketch",
       description:
-        "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and honest pre-Phase-4 preview status. This operation does not mutate the page.",
+        "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and correlated applied/diagnostic status. This operation does not mutate the page.",
       inputSchema: emptySchema,
-      handler: () => toJson(sketchFromSnapshot(controller.read())),
+      handler: () =>
+        toJson(sketchFromSnapshot(controller.read(), controller.getApplyState?.())),
     },
     {
       name: "update_sketch",
@@ -58,6 +60,27 @@ export function createAuthoringTools(
         ),
     },
   ];
+  if (controller.apply) {
+    tools.push({
+      name: "apply_sketch",
+      description:
+        "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
+      inputSchema: {
+        type: "object",
+        properties: { expectedRevision: { type: "integer", minimum: 0 } },
+        required: ["expectedRevision"],
+        additionalProperties: false,
+      },
+      handler: async (input, context) => {
+        const expectedRevision = (input as { expectedRevision?: unknown }).expectedRevision;
+        if (typeof expectedRevision !== "number") {
+          return toJson({ ok: false, error: { code: "stale", message: "expectedRevision is required." }, diagnostics: [] });
+        }
+        return toJson(await controller.apply!({ expectedRevision, signal: context.signal }));
+      },
+    });
+  }
+  return tools;
 }
 
 function updateSketch(
@@ -68,7 +91,7 @@ function updateSketch(
   if (!result.ok) return result;
   return {
     ok: true as const,
-    sketch: sketchFromSnapshot(result.snapshot),
+    sketch: sketchFromSnapshot(result.snapshot, controller.getApplyState?.()),
   };
 }
 

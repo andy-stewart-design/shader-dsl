@@ -17,6 +17,7 @@ import {
   type AuthoringControllerOptions,
 } from "./authoring-controller.ts";
 import type { AuthoringController } from "./controller-types.ts";
+import type { ApplyController } from "./apply-controller.ts";
 import { createAuthoringTools } from "./tools.ts";
 import { editorRegistry, type EditorRegistry } from "../editor/authoring-adapter.ts";
 import { useDraftStore } from "../stores/draft.ts";
@@ -33,6 +34,7 @@ export interface AgentProviderProps {
   readonly editorRegistry?: EditorRegistry;
   readonly bridgeFactory?: AgentBridgeFactory;
   readonly controller?: AuthoringController;
+  readonly applyController?: ApplyController;
 }
 
 export interface AgentConnectionContextValue {
@@ -51,6 +53,7 @@ export function AgentProvider({
   editorRegistry: registry = editorRegistry,
   bridgeFactory = connectAgentBridge,
   controller: suppliedController,
+  applyController,
 }: AgentProviderProps) {
   const bridgeRef = useRef<AgentBridge | null>(null);
   const controllerRef = useRef<AuthoringController | null>(
@@ -72,11 +75,20 @@ export function AgentProvider({
   useEffect(() => {
     if (!editorsReady || bridgeRef.current) return;
 
-    const controller =
+    const authoringController: AuthoringController =
       controllerRef.current ??
       createAuthoringController(useDraftStore, {
         editorRegistry: registry,
       } satisfies AuthoringControllerOptions);
+    const controller: AuthoringController =
+      applyController && !authoringController.apply
+        ? {
+            ...authoringController,
+            apply: applyController.apply,
+            getApplyState: applyController.getState,
+            subscribeApply: applyController.subscribe,
+          }
+        : authoringController;
     controllerRef.current = controller;
     const bridge = bridgeFactory({
       tools: createAuthoringTools(controller),
@@ -93,7 +105,7 @@ export function AgentProvider({
         // one-time pairing credential.
       });
     }
-  }, [bridgeFactory, editorsReady, registry]);
+  }, [applyController, bridgeFactory, editorsReady, registry]);
 
   const connect = useCallback(async (pairingLink: string) => {
     const trimmed = pairingLink.trim();

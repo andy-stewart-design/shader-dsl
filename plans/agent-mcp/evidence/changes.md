@@ -41,3 +41,7 @@ The user's current Step 3.2 request reiterates the global manual-first/quick wor
 ## Step 3.3 manual-first verification adjustment
 
 The user authorized Step 3.3 with the same quick/manual-first method and explicitly reserved deployed Pi/MCP checks for user assistance. The planned browser-harness wording was therefore implemented as native Node authoring-tool/provider-boundary tests plus app `check`/`lint`/`build`; `plans/agent-mcp/evidence/step-3.3.md` records the exact pending deployed workflow instead of claiming approval or browser evidence. The production REPL remains Nitro/TanStack Start rather than a guessed static deployment, and no deployment or Pi configuration write was performed by this implementation.
+
+## Step 4.1 tool boundary clarification
+
+Step 4.1 keeps the existing three authoring tools and adds only `apply_sketch` when the production renderer-backed Apply operation exists. Correlated diagnostics and applied identity are returned by `apply_sketch` and reflected in `get_sketch`/`get_authoring_context`; no separate `get_diagnostics` tool or Phase 4.2 capture/runtime tool was added. This follows the execution handoff's explicit narrow catalog boundary while retaining structured diagnostics.

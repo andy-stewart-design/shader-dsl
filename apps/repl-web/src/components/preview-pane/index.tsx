@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import { useShdrPreview } from "#/hooks/use-shdr-preview";
 import type { Uniform } from "../../shared/uniforms";
+import type { ApplyPreviewPort } from "../../agent/apply-controller";
 import {
   useDrawerMode,
   useFillPreview,
@@ -18,12 +19,16 @@ interface PreviewProps {
   artifact: CompiledFragmentArtifact;
   appliedUniforms: readonly Uniform[];
   onError: (error: unknown) => void;
+  applyPortRef?: { current: ApplyPreviewPort | null };
+  onInitialFrame?: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
 }
 
 export default function Preview({
   artifact,
   appliedUniforms,
   onError,
+  applyPortRef,
+  onInitialFrame,
 }: PreviewProps) {
   const playing = usePlaying();
   const runtimeUniforms = useMemo(
@@ -36,7 +41,14 @@ export default function Preview({
     runtimeValues,
     runtimeControlsKey,
     onRuntimeValueChange,
-  } = useShdrPreview({ artifact, runtimeUniforms, playing, onError });
+  } = useShdrPreview({
+    artifact,
+    runtimeUniforms,
+    playing,
+    onError,
+    applyPortRef,
+    onInitialFrame,
+  });
 
   const mode = useDrawerMode();
   const fillPreview = useFillPreview();

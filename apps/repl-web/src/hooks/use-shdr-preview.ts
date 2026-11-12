@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import { createPreview, type PreviewHandle } from "../preview/create-preview";
+import type { ApplyPreviewPort } from "../agent/apply-controller.ts";
 import {
   defaultRuntimeValues,
   runtimeValuesToPatch,
@@ -15,6 +16,9 @@ export interface UseShdrPreviewOptions {
   runtimeUniforms?: readonly RuntimeUniform[];
   playing?: boolean;
   onError?: (error: unknown) => void;
+  /** App-local awaitable Apply seam; never exposed as a bridge primitive. */
+  applyPortRef?: { current: ApplyPreviewPort | null };
+  onInitialFrame?: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
 }
 
 type PreviewLifecycle = {
@@ -41,6 +45,34 @@ type PreviewLifecycle = {
   requestedArtifact?: CompiledFragmentArtifact;
   requestedPlaying?: boolean;
 };
+
+function raceWithAbort<T>(
+  promise: Promise<T>,
+  signals: readonly AbortSignal[],
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signals.forEach((signal) => signal.removeEventListener("abort", abort));
+    const abort = () => {
+      cleanup();
+      reject(new Error("Preview operation aborted."));
+    };
+    if (signals.some((signal) => signal.aborted)) {
+      abort();
+      return;
+    }
+    signals.forEach((signal) => signal.addEventListener("abort", abort, { once: true }));
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
 
 function isActive(
   lifecycle: PreviewLifecycle,
@@ -166,6 +198,8 @@ export function useShdrPreview({
   runtimeUniforms = [],
   playing = true,
   onError,
+  applyPortRef,
+  onInitialFrame,
 }: UseShdrPreviewOptions) {
   const hostRef = useRef<HTMLDivElement>(null);
   const latestArtifactRef = useRef(artifact);
@@ -217,6 +251,11 @@ export function useShdrPreview({
         lifecycle.installedRuntimeUniforms = runtimeUniforms;
         lifecycle.installedRuntimeValues = defaults;
         publishRuntimeState(runtimeUniforms, defaults);
+      } else if (lifecycle.handle && lifecycle.rendererArtifact) {
+        lifecycle.installedRuntimeUniforms = runtimeUniforms;
+        lifecycle.installedRuntimeValues = defaults;
+        publishRuntimeState(runtimeUniforms, defaults);
+        applyRuntimeValues(lifecycle, reportError);
       }
     }
   }, [runtimeUniforms]);
@@ -270,6 +309,50 @@ export function useShdrPreview({
     // Used by the small helpers above to reject stale renderer lifecycles.
     lifecycle.current = lifecycle;
     lifecycleRef.current = lifecycle;
+
+    const port: ApplyPreviewPort = {
+      async installAndDraw(nextArtifact, options) {
+        const handle = lifecycle.handle;
+        if (!isActive(lifecycle, lifecycleRef.current) || !handle) {
+          throw new Error("Preview renderer is not ready.");
+        }
+        if (options.signal.aborted) throw new Error("Apply was cancelled.");
+        const generation = ++lifecycle.generation;
+        const result = await raceWithAbort(
+          handle.setShader(nextArtifact),
+          [options.signal, lifecycle.abortController.signal],
+        );
+        if (
+          options.signal.aborted ||
+          !isActive(lifecycle, lifecycleRef.current) ||
+          generation !== lifecycle.generation ||
+          result.status !== "installed"
+        ) {
+          throw new Error("Preview installation was superseded.");
+        }
+        lifecycle.rendererArtifact = nextArtifact;
+        lifecycle.requestedArtifact = nextArtifact;
+        options.onDrawing?.();
+        if (options.signal.aborted) throw new Error("Apply was cancelled.");
+        await raceWithAbort(handle.draw(), [
+          options.signal,
+          lifecycle.abortController.signal,
+        ]);
+        if (
+          options.signal.aborted ||
+          !isActive(lifecycle, lifecycleRef.current) ||
+          generation !== lifecycle.generation
+        ) throw new Error("Preview draw was superseded.");
+        installRuntimeSnapshot(
+          lifecycle,
+          nextArtifact,
+          lifecycle.latestRuntimeUniforms,
+          lifecycle.latestRuntimeValues,
+        );
+        return { backend: lifecycle.handle!.backend };
+      },
+    };
+    if (applyPortRef) applyPortRef.current = port;
 
     const initialize = (): void => {
       if (
@@ -332,6 +415,7 @@ export function useShdrPreview({
               : initializingRuntimeValues,
           );
           applyRuntimeValues(lifecycle, reportError);
+          onInitialFrame?.({ backend: handle.backend, artifact: initializedArtifact });
           const latestPlaying = latestPlayingRef.current;
           if (latestPlaying !== initialPlaying)
             updatePlaying(lifecycle, latestPlaying, reportError);
@@ -387,10 +471,11 @@ export function useShdrPreview({
       if (lifecycle.frame !== undefined) cancelAnimationFrame(lifecycle.frame);
       resizeObserver?.disconnect();
       lifecycle.abortController.abort();
+      if (applyPortRef?.current === port) applyPortRef.current = null;
       lifecycle.handle?.destroy();
       lifecycle.handle = undefined;
     };
-  }, []);
+  }, [applyPortRef, onInitialFrame]);
 
   function onRuntimeValueChange(name: string, value: RuntimeUniformValue): void {
     if (!runtimeUniformsRef.current.some((uniform) => uniform.name === name))

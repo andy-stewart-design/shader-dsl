@@ -379,7 +379,7 @@ Tasks:
 - [x] Supply curated language/uniform/Apply context, raw draft reads, and honest current preview status; do not invent applied revision certainty before Phase 4 wires it.
 - [x] Add token/link entry, status, permission/error recovery, fragment/history cleanup, and disconnect; guard browser-only work from SSR, preserve normal unpaired app behavior, and test that credentials never enter durable storage or ordinary helper/app logs and telemetry.
 - [x] Document the effective deployed CSP requirement; use only an approved host/header change, not an invented host-specific config or blanket production deployment.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
@@ -413,11 +413,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Snapshot expected draft revisions and preserve document/range and backend/kind diagnostics; expose `apply_sketch`/`get_diagnostics` only with their real contracts.
-- [ ] Wire explicit compile/install/draw states, attempt identity, and last successfully applied revision through hook/controller/renderer completion rather than React state-update timing.
-- [ ] Preserve the installed preview on compile/replacement failure, reject stale Apply before installation, and reject superseded completions without overwriting newer status.
-- [ ] Migrate manual Run and all affected consumers atomically; retain existing reset-to-definition-default behavior and fallback rules.
-- [ ] Add deferred/fake-renderer race tests and real-renderer checks for current-draft divergence, compile failure, runtime failure, draw completion, disposal, and supersession.
+- [x] Snapshot expected draft revisions and preserve document/range and backend/kind diagnostics; expose `apply_sketch`/`get_diagnostics` only with their real contracts.
+- [x] Wire explicit compile/install/draw states, attempt identity, and last successfully applied revision through hook/controller/renderer completion rather than React state-update timing.
+- [x] Preserve the installed preview on compile/replacement failure, reject stale Apply before installation, and reject superseded completions without overwriting newer status.
+- [x] Migrate manual Run and all affected consumers atomically; retain existing reset-to-definition-default behavior and fallback rules.
+- [x] Add deferred/fake-renderer race tests and real-renderer checks for current-draft divergence, compile failure, runtime failure, draw completion, disposal, and supersession.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:

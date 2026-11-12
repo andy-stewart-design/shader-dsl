@@ -1,23 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import {
-  compileShdrBody,
-  type CompileShdrDiagnostic,
-} from "../compiler/compile-shdr-body";
+  createApplyController,
+  type ApplyCompileResult,
+  type ApplyController,
+  type ApplyDiagnostic,
+  type ApplyPreviewPort,
+  type ApplyState,
+} from "../agent/apply-controller.ts";
+import { compileShdrBody, type CompileShdrDiagnostic } from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions";
 import { getDraftState } from "../stores/draft";
 import { cloneUniforms, type Uniform } from "../shared/uniforms";
+import type { DraftSnapshot } from "../agent/authoring-controller.ts";
+import { readUniformDefinitions, type UniformDefinitionInput } from "../agent/authoring-schema.ts";
 
-type Compilation = {
-  artifact: CompiledFragmentArtifact | null;
-  error: string | null;
-};
-
-type Sources = {
+interface Sources {
   main: string;
   utils: string;
-};
+}
 
 function sourceLocation(
   source: string,
@@ -30,7 +32,7 @@ function sourceLocation(
   return `Line ${line}, column ${column}`;
 }
 
-function formatCompileError(
+export function formatCompileDiagnostics(
   sources: Sources,
   diagnostics: readonly CompileShdrDiagnostic[],
 ): string {
@@ -38,136 +40,155 @@ function formatCompileError(
     .map((diagnostic) => {
       const document = diagnostic.document;
       const source = document === "uniforms" ? "" : sources[document];
-      const label =
-        document === "main"
-          ? "Main"
-          : document === "utils"
-            ? "Utils"
-            : "Uniforms";
-      const location = `${label}: ${sourceLocation(source, diagnostic.range)}: `;
-      return `${location}${diagnostic.code}: ${diagnostic.message}`;
+      const label = document === "main" ? "Main" : document === "utils" ? "Utils" : "Uniforms";
+      return `${label}: ${sourceLocation(source, diagnostic.range)}: ${diagnostic.code}: ${diagnostic.message}`;
     })
     .join("\n");
 }
 
-function compileSource(
-  sources: Sources,
-  uniforms: readonly Uniform[],
-): Compilation {
-  const converted = toShaderUniformDefinitions(uniforms);
-  if (!converted.ok) return { artifact: null, error: converted.error };
+function toDraftUniforms(inputs: readonly UniformDefinitionInput[]): Uniform[] {
+  return inputs.map((uniform, index) =>
+    uniform.type === "float"
+      ? { id: uniform.id ?? `uniform-${index}`, name: uniform.name, type: "float", value: uniform.value, min: uniform.min, max: uniform.max }
+      : { id: uniform.id ?? `uniform-${index}`, name: uniform.name, type: "color", draft: uniform.value, valid: uniform.value },
+  );
+}
 
+function compileSnapshot(snapshot: DraftSnapshot): ApplyCompileResult {
+  const converted = toShaderUniformDefinitions(toDraftUniforms(snapshot.uniforms));
+  if (!converted.ok) {
+    return {
+      ok: false,
+      diagnostics: [{ code: "uniform", message: converted.error, document: "uniforms" }],
+    };
+  }
+  const result = compileShdrBody(snapshot.main, snapshot.utils, converted.definitions);
+  if (!result.ok) {
+    return {
+      ok: false,
+      diagnostics: result.diagnostics.map((diagnostic) => ({
+        code: diagnosticCode(diagnostic),
+        message: diagnostic.message,
+        document: diagnostic.document,
+        range: diagnostic.range,
+      })),
+    };
+  }
+  return { ok: true, artifact: result.artifact };
+}
+
+export function compileDraftSnapshot(snapshot: DraftSnapshot): ApplyCompileResult {
   try {
-    const result = compileShdrBody(
-      sources.main,
-      sources.utils,
-      converted.definitions,
-    );
-    if (!result.ok) {
-      return {
-        artifact: null,
-        error: formatCompileError(sources, result.diagnostics),
-      };
-    }
-    return { artifact: result.artifact, error: null };
+    return compileSnapshot(snapshot);
   } catch (error) {
-    return { artifact: null, error: formatRuntimeError(error) };
+    return {
+      ok: false,
+      diagnostics: [{ code: "syntax", message: error instanceof Error ? error.message : String(error) }],
+    };
   }
 }
 
-function formatRuntimeError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+function diagnosticCode(diagnostic: CompileShdrDiagnostic): ApplyDiagnostic["code"] {
+  const text = `${diagnostic.code} ${diagnostic.message}`.toLowerCase();
+  return text.includes("type") ? "type" : "syntax";
 }
 
-const initialSources: Sources = { main: initialShaderSource, utils: "" };
-const initialCompilation = compileSource(initialSources, []);
-const evaluationFlashDuration = 200;
+const initialSnapshot: DraftSnapshot = {
+  revision: 0,
+  main: initialShaderSource,
+  utils: "",
+  uniforms: [],
+};
+const initialCompilation = compileDraftSnapshot(initialSnapshot);
 
 export interface UseShdrCompilationResult {
   artifact: CompiledFragmentArtifact | null;
-  /** Uniforms from the last successful apply, never the editor draft. */
   appliedUniforms: readonly Uniform[];
   compileError: string | null;
   runtimeError: string | null;
+  applyState: ApplyState;
+  applyController: ApplyController;
+  applyPortRef: { current: ApplyPreviewPort | null };
+  onInitialFrame: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
   isEvaluationFlashing: boolean;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
 }
 
-/** Applies the latest store draft only on an explicit manual shader apply. */
+/** Manual Run and agent Apply share this awaitable compile/install/draw pipeline. */
 export function useShdrCompilation(): UseShdrCompilationResult {
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
-    initialCompilation.artifact,
+    initialCompilation.ok ? initialCompilation.artifact : null,
   );
   const [compileError, setCompileError] = useState<string | null>(
-    initialCompilation.error,
+    initialCompilation.ok ? null : initialCompilation.diagnostics.map((item) => item.message).join("\n"),
   );
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
-  const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>(
-    [],
-  );
+  const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>([]);
   const [isEvaluationFlashing, setIsEvaluationFlashing] = useState(false);
-  const evaluationFlashTimeout = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const [applyState, setApplyState] = useState<ApplyState>({
+    phase: "idle",
+    attemptId: 0,
+    appliedRevision: null,
+    diagnostics: [],
+  });
+  const [applyPortRef] = useState<{ current: ApplyPreviewPort | null }>(() => ({ current: null }));
+  const [artifactRevision] = useState(() => ({ value: 0 }));
+  const [controller] = useState<ApplyController>(() => createApplyController({
+      readDraft: () => {
+        const draft = getDraftState();
+        return {
+          revision: draft.revision,
+          main: draft.main,
+          utils: draft.utils,
+          uniforms: readUniformDefinitions(draft.uniforms),
+        };
+      },
+      compile: compileDraftSnapshot,
+      preview: applyPortRef,
+      onApplied: (snapshot, nextArtifact) => {
+        artifactRevision.value = snapshot.revision;
+        setArtifact(nextArtifact);
+        setAppliedUniforms(cloneUniforms(toDraftUniforms(snapshot.uniforms)));
+        setCompileError(null);
+        setRuntimeError(null);
+      },
+  }));
+
+  useEffect(() => controller.subscribe(() => setApplyState(controller.getState())), [controller]);
 
   const apply = useCallback(() => {
+    const expectedRevision = getDraftState().revision;
     setIsEvaluationFlashing(true);
-    if (evaluationFlashTimeout.current !== null) {
-      clearTimeout(evaluationFlashTimeout.current);
-    }
-    evaluationFlashTimeout.current = setTimeout(() => {
-      evaluationFlashTimeout.current = null;
+    void controller.apply({ expectedRevision }).then((result) => {
       setIsEvaluationFlashing(false);
-    }, evaluationFlashDuration);
-
-    const draft = getDraftState();
-    const sources: Sources = { main: draft.main, utils: draft.utils };
-    const uniforms = draft.uniforms;
-    const compilation = compileSource(sources, uniforms);
-    setCompileError(compilation.error);
-    if (!compilation.artifact) return;
-
-    setRuntimeError(null);
-    // Copy the successful apply snapshot. Draft edits remain local to the
-    // editor and cannot change the working preview controls.
-    setAppliedUniforms(cloneUniforms(uniforms));
-    setArtifact(compilation.artifact);
-  }, []);
+      if (!result.ok) {
+        if (result.error.code === "syntax" || result.error.code === "type" || result.error.code === "uniform") {
+          setCompileError(result.diagnostics.map((item) => item.message).join("\n"));
+        } else {
+          setRuntimeError(result.diagnostics.map((item) => item.message).join("\n"));
+        }
+      }
+    });
+  }, [controller]);
 
   const onPreviewError = useCallback((error: unknown) => {
-    setRuntimeError(formatRuntimeError(error));
+    setRuntimeError(error instanceof Error ? error.message : String(error));
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (evaluationFlashTimeout.current !== null) {
-        clearTimeout(evaluationFlashTimeout.current);
-        evaluationFlashTimeout.current = null;
-      }
-    };
-  }, []);
+  const onInitialFrame = useCallback(
+    (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => {
+      controller.confirmInitial(artifactRevision.value, info.backend);
+    },
+    [artifactRevision, controller],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (
-        event.key !== "Enter" ||
-        !event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey ||
-        event.repeat ||
-        event.isComposing ||
-        event.keyCode === 229
-      )
-        return;
-
+      if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
       event.stopPropagation();
       apply();
     };
-
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [apply]);
@@ -177,6 +198,10 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     appliedUniforms,
     compileError,
     runtimeError,
+    applyState,
+    applyController: controller,
+    applyPortRef,
+    onInitialFrame,
     isEvaluationFlashing,
     onPreviewError,
     apply,
