@@ -1,6 +1,12 @@
 export const PNG_MIME_TYPE = "image/png" as const;
 export const DEFAULT_MAX_DECODED_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_CAPTURE_TIMEOUT_MS = 5_000;
+export const DEFAULT_MAX_DIMENSION = 512;
+export const MIN_CAPTURE_DIMENSION = 64;
+export const MAX_CAPTURE_DIMENSION = 2_048;
+export const MAX_CAPTURE_PIXELS = MAX_CAPTURE_DIMENSION * MAX_CAPTURE_DIMENSION;
+
+export type CaptureMaxDimension = number | "native";
 
 export type CaptureCanvasErrorCode =
   | "zero-size"
@@ -24,6 +30,8 @@ export class CaptureCanvasError extends Error {
 export interface CaptureCanvasOptions {
   readonly maxDecodedBytes?: number;
   readonly timeoutMs?: number;
+  /** Maximum output edge; native preserves the source dimensions explicitly. */
+  readonly maxDimension?: CaptureMaxDimension;
 }
 
 export interface CapturedCanvasPng {
@@ -47,6 +55,7 @@ export function captureCanvas(
   {
     maxDecodedBytes = DEFAULT_MAX_DECODED_BYTES,
     timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+    maxDimension = "native",
   }: CaptureCanvasOptions = {},
 ): Promise<CapturedCanvasPng> {
   const width = canvas.width;
@@ -64,6 +73,27 @@ export function captureCanvas(
       new CaptureCanvasError("size", "The PNG byte limit must be positive."),
     );
   }
+  if (
+    maxDimension !== "native" &&
+    (!Number.isSafeInteger(maxDimension) ||
+      maxDimension < MIN_CAPTURE_DIMENSION ||
+      maxDimension > MAX_CAPTURE_DIMENSION)
+  ) {
+    return Promise.reject(
+      new CaptureCanvasError(
+        "size",
+        `maxDimension must be an integer from ${MIN_CAPTURE_DIMENSION} to ${MAX_CAPTURE_DIMENSION}, or "native".`,
+      ),
+    );
+  }
+  if (maxDimension === "native" && width * height > MAX_CAPTURE_PIXELS) {
+    return Promise.reject(
+      new CaptureCanvasError(
+        "size",
+        `Native capture is limited to ${MAX_CAPTURE_PIXELS} pixels.`,
+      ),
+    );
+  }
   if (typeof canvas.toBlob !== "function") {
     return Promise.reject(
       new CaptureCanvasError("unsupported", "This browser does not support canvas.toBlob()."),
@@ -73,6 +103,53 @@ export function captureCanvas(
     return Promise.reject(
       new CaptureCanvasError("timeout", "The capture timeout must be positive."),
     );
+  }
+
+  const scale =
+    maxDimension === "native"
+      ? 1
+      : Math.min(1, maxDimension / Math.max(width, height));
+  const outputWidth = Math.max(1, Math.floor(width * scale));
+  const outputHeight = Math.max(1, Math.floor(height * scale));
+  let encoderCanvas = canvas;
+  if (outputWidth !== width || outputHeight !== height) {
+    const ownerDocument =
+      canvas.ownerDocument ??
+      (typeof document === "undefined" ? undefined : document);
+    if (!ownerDocument) {
+      return Promise.reject(
+        new CaptureCanvasError(
+          "unsupported",
+          "A browser document is required to downsample this canvas.",
+        ),
+      );
+    }
+    const temporaryCanvas = ownerDocument.createElement("canvas");
+    temporaryCanvas.width = outputWidth;
+    temporaryCanvas.height = outputHeight;
+    const context = temporaryCanvas.getContext("2d");
+    if (!context) {
+      return Promise.reject(
+        new CaptureCanvasError(
+          "unsupported",
+          "The browser does not support a 2D canvas for PNG downsampling.",
+        ),
+      );
+    }
+    try {
+      context.drawImage(canvas, 0, 0, outputWidth, outputHeight);
+    } catch (error) {
+      return Promise.reject(
+        new CaptureCanvasError(
+          isTaintedError(error) ? "tainted" : "encoding",
+          isTaintedError(error)
+            ? "The canvas is tainted and cannot be downsampled."
+            : `PNG downsampling failed: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        ),
+      );
+    }
+    encoderCanvas = temporaryCanvas;
   }
 
   return new Promise<CapturedCanvasPng>((resolve, reject) => {
@@ -95,7 +172,7 @@ export function captureCanvas(
     };
 
     try {
-      canvas.toBlob((blob) => {
+      encoderCanvas.toBlob((blob) => {
         if (settled) return;
         if (blob === null) {
           fail(
@@ -127,7 +204,12 @@ export function captureCanvas(
         }
         settled = true;
         window.clearTimeout(timer);
-        resolve({ blob, width, height, mimeType: PNG_MIME_TYPE });
+        resolve({
+          blob,
+          width: encoderCanvas.width,
+          height: encoderCanvas.height,
+          mimeType: PNG_MIME_TYPE,
+        });
       }, PNG_MIME_TYPE);
     } catch (error) {
       fail(

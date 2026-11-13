@@ -107,6 +107,44 @@ test("production lifecycle/canvas references are not serialized as capture ident
   await expectCode(port.capture({ expectedAppliedRevision: 4 }), "identity-mismatch");
 });
 
+test("the production port defaults to 512, supports custom bounds, and preserves explicit native capture", async () => {
+  const source = sourceState();
+  source.replace({ ...source.read()!, width: 1209, height: 805 });
+  const requested: string[] = [];
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async (_canvas, options) => {
+      requested.push(String(options.maxDimension));
+      return options.maxDimension === "native"
+        ? encoded({ width: 1209, height: 805 })
+        : encoded({ width: 512, height: 340 });
+    },
+  });
+  const bounded = await port.capture({ expectedAppliedRevision: 4 });
+  const native = await port.capture({ expectedAppliedRevision: 4, maxDimension: "native" });
+  assert.deepEqual([bounded.width, bounded.height], [512, 340]);
+  assert.deepEqual([native.width, native.height], [1209, 805]);
+  assert.deepEqual(requested, ["512", "native"]);
+  assert.deepEqual([bounded.canvasWidth, bounded.canvasHeight], [1209, 805]);
+});
+
+test("invalid maxDimension is rejected before the encoder runs", async () => {
+  const source = sourceState();
+  let called = false;
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => {
+      called = true;
+      return encoded();
+    },
+  });
+  await expectCode(
+    port.capture({ expectedAppliedRevision: 4, maxDimension: 32 }),
+    "invalid-input",
+  );
+  assert.equal(called, false);
+});
+
 test("draft edits do not mislabel capture: expected applied identity remains authoritative", async () => {
   const source = sourceState();
   const port = createCapturePreviewPort({

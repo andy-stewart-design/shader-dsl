@@ -442,8 +442,8 @@ Expected files:
 
 Tasks:
 
-- [ ] Register `capture_preview` against the active renderer handle and a draw/export boundary, with expected applied revision guarding before and after capture.
-- [ ] Return the shared image envelope and consistent applied revision, backend, actual dimensions, and read-only uniform snapshot; do not expose runtime setters or permanent playback changes.
+- [ ] Register `capture_preview` against the active renderer handle and a draw/export boundary, with expected applied revision guarding before and after capture; default the encoded PNG to a bounded 512-pixel longest edge while retaining explicit native capture.
+- [ ] Return the shared image envelope and distinguish encoded PNG dimensions from native canvas identity dimensions, alongside consistent applied revision/backend and read-only uniform snapshot; do not expose runtime setters or permanent playback changes.
 - [ ] Test missing/tainted/disposed canvases, export/size errors, resize/backend replacement, and apply-during-capture without returning stale or mislabeled success.
 - [ ] Extend the real app browser journey and run Pi's deployed source/definition edit, Apply, diagnose, inspect-image, and review loop on the supported renderer backends.
 - [ ] Satisfy the verification and completion gate below, and record concise evidence.

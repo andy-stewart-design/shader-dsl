@@ -90,15 +90,28 @@ export function createAuthoringTools(
     tools.push({
       name: "capture_preview",
       description:
-        "Capture the active applied preview canvas as a model-visible PNG. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.",
+        "Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or \"native\" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.",
       inputSchema: {
         type: "object",
-        properties: { expectedAppliedRevision: { type: "integer", minimum: 0 } },
+        properties: {
+          expectedAppliedRevision: { type: "integer", minimum: 0 },
+          maxDimension: {
+            oneOf: [
+              { type: "integer", minimum: 64, maximum: 2048 },
+              { const: "native" },
+            ],
+            default: 512,
+          },
+        },
         required: ["expectedAppliedRevision"],
         additionalProperties: false,
       },
       handler: async (input, context) => {
-        const expectedAppliedRevision = (input as { expectedAppliedRevision?: unknown }).expectedAppliedRevision;
+        const request = input as {
+          expectedAppliedRevision?: unknown;
+          maxDimension?: unknown;
+        };
+        const expectedAppliedRevision = request.expectedAppliedRevision;
         if (typeof expectedAppliedRevision !== "number") {
           return toJson({
             ok: false,
@@ -115,6 +128,9 @@ export function createAuthoringTools(
         try {
           const captured = await port.capture({
             expectedAppliedRevision,
+            ...(request.maxDimension === undefined
+              ? {}
+              : { maxDimension: request.maxDimension as "native" | number }),
             signal: context.signal,
           });
           const data = await blobToBase64(captured.blob);
@@ -131,12 +147,14 @@ export function createAuthoringTools(
               identity: {
                 appliedRevision: captured.appliedRevision,
                 backend: captured.backend,
-                width: captured.width,
-                height: captured.height,
+                width: captured.canvasWidth,
+                height: captured.canvasHeight,
               },
               backend: captured.backend,
               width: captured.width,
               height: captured.height,
+              canvasWidth: captured.canvasWidth,
+              canvasHeight: captured.canvasHeight,
               uniforms: captured.uniforms,
             },
           });

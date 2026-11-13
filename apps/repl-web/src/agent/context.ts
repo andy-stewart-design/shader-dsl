@@ -49,6 +49,8 @@ export interface AuthoringContext {
     readonly status: ApplyState["phase"] | "not-tracked-before-phase-4";
     readonly appliedRevision: number | null;
     readonly capture: "capture_preview" | "not-registered";
+    readonly captureDefaultMaxDimension: 512;
+    readonly captureNativeOption: "maxDimension: 'native'";
     readonly attemptId?: number;
     readonly draftRevision?: number;
     readonly backend?: "webgpu" | "webgl";
@@ -89,6 +91,8 @@ export function createAuthoringContext(
     preview: {
       ...previewFromApplyState(apply),
       capture: captureRegistered ? "capture_preview" : "not-registered",
+      captureDefaultMaxDimension: 512,
+      captureNativeOption: "maxDimension: 'native'",
     },
   };
 }

@@ -24,7 +24,7 @@ The user's instruction to keep this quick and dirty and help with manual testing
 
 ## Same-origin refresh resume contract
 
-The user asked when refresh persistence should be implemented; the recommendation was Phase 2, Step 2.2, with `sessionStorage` resume before Step 2.3 conformance. When asked whether the plan/spec needed updating, the user replied: “do it”. This records agreement to update the governing plan/spec only; it does not authorize implementation, publishing, deployment, or commits.
+The user asked when refresh persistence should be implemented; the recommendation was Phase 2, Step 2.2, with `sessionStorage` resume before Step 2.3 conformance. When asked whether the plan/spec needed updating, the user replied: “do it”. This records agreement to update the governing plan/spec only; it does not authorize implementation, publishing, deployment, or MCP configuration changes.
 
 The agreed behavior is a short-lived, revocable resume credential in `sessionStorage` after one initial pairing. A same-origin refresh in the same tab may reconnect automatically while the same helper is running, without a fresh pairing link. Explicit disconnect clears and revokes it; helper restart, navigation/origin change, or expiry requires fresh pairing. The initial five-minute pairing link remains unrelated to an active connection, and the existing 30-second transport-resume lease may remain. Refresh creates fresh page/catalog identity, requires rediscovery and rereading, does not transfer or replay in-flight calls/edits, and is not sketch/source/runtime persistence. The credential is not the original pairing token, is not treated as proof of a physical tab, and is not placed in localStorage, cookies, URLs, logs, or durable account trust.
 
@@ -45,3 +45,7 @@ The user authorized Step 3.3 with the same quick/manual-first method and explici
 ## Step 4.1 tool boundary clarification
 
 Step 4.1 keeps the existing three authoring tools and adds only `apply_sketch` when the production renderer-backed Apply operation exists. Correlated diagnostics and applied identity are returned by `apply_sketch` and reflected in `get_sketch`/`get_authoring_context`; no separate `get_diagnostics` tool or Phase 4.2 capture/runtime tool was added. This follows the execution handoff's explicit narrow catalog boundary while retaining structured diagnostics.
+
+## Step 4.2 bounded preview capture default
+
+The user explicitly approved lowering the default capture resolution: “Yeah, I think it makes sense to default to a lower resolution capture to be safe”. Step 4.2 now uses optional `maxDimension` (integer 64–2048 or explicit `"native"`), defaults to 512 at the `capture_preview`/production port boundary, and keeps the generic `captureCanvas` helper's native default for the standalone probe. Metadata distinguishes encoded PNG `width`/`height` from native `identity` and `canvasWidth`/`canvasHeight`; no provider payload root cause or deployment approval is inferred.

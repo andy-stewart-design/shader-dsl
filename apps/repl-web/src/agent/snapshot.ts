@@ -3,11 +3,16 @@ import {
   CaptureCanvasError,
   DEFAULT_CAPTURE_TIMEOUT_MS,
   DEFAULT_MAX_DECODED_BYTES,
+  DEFAULT_MAX_DIMENSION,
+  MAX_CAPTURE_DIMENSION,
+  MIN_CAPTURE_DIMENSION,
+  type CaptureMaxDimension,
   type CapturedCanvasPng,
 } from "../preview/capture-canvas.ts";
 import type { RuntimeUniformValues } from "../components/preview-pane/uniform-controls.ts";
 
 export type CapturePreviewErrorCode =
+  | "invalid-input"
   | "not-ready"
   | "identity-mismatch"
   | "cancelled"
@@ -42,6 +47,9 @@ export interface PreviewCaptureIdentity {
 }
 
 export interface PreviewCaptureResult extends CapturedCanvasPng {
+  /** Native source canvas dimensions, distinct from the encoded PNG dimensions. */
+  readonly canvasWidth: number;
+  readonly canvasHeight: number;
   readonly backend: "webgpu" | "webgl";
   readonly appliedRevision: number;
   readonly uniforms: RuntimeUniformValues;
@@ -51,6 +59,7 @@ export interface PreviewCaptureResult extends CapturedCanvasPng {
 
 export interface CapturePreviewRequest {
   readonly expectedAppliedRevision: number;
+  readonly maxDimension?: CaptureMaxDimension;
   readonly signal?: AbortSignal;
 }
 
@@ -62,9 +71,14 @@ export interface CreateCapturePreviewPortOptions {
   readonly readIdentity: () => PreviewCaptureIdentity | null;
   readonly maxDecodedBytes?: number;
   readonly timeoutMs?: number;
+  readonly maxDimension?: CaptureMaxDimension;
   readonly encode?: (
     canvas: HTMLCanvasElement,
-    options: { readonly maxDecodedBytes: number; readonly timeoutMs: number },
+    options: {
+      readonly maxDecodedBytes: number;
+      readonly timeoutMs: number;
+      readonly maxDimension: CaptureMaxDimension;
+    },
   ) => Promise<CapturedCanvasPng>;
 }
 
@@ -186,14 +200,27 @@ export function createCapturePreviewPort({
   readIdentity,
   maxDecodedBytes = DEFAULT_MAX_DECODED_BYTES,
   timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+  maxDimension = DEFAULT_MAX_DIMENSION,
   encode = captureCanvas,
 }: CreateCapturePreviewPortOptions): CapturePreviewPort {
   return {
-    async capture({ expectedAppliedRevision, signal }) {
+    async capture({ expectedAppliedRevision, maxDimension: requestedMaxDimension, signal }) {
       if (!Number.isSafeInteger(expectedAppliedRevision) || expectedAppliedRevision < 0)
         throw new CapturePreviewError("identity-mismatch", "expectedAppliedRevision must be a non-negative integer.");
       if (isCancelled(signal))
         throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+      const effectiveMaxDimension = requestedMaxDimension ?? maxDimension;
+      if (
+        effectiveMaxDimension !== "native" &&
+        (!Number.isSafeInteger(effectiveMaxDimension) ||
+          effectiveMaxDimension < MIN_CAPTURE_DIMENSION ||
+          effectiveMaxDimension > MAX_CAPTURE_DIMENSION)
+      ) {
+        throw new CapturePreviewError(
+          "invalid-input",
+          `maxDimension must be an integer from ${MIN_CAPTURE_DIMENSION} to ${MAX_CAPTURE_DIMENSION}, or "native".`,
+        );
+      }
       if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
         throw new CapturePreviewError("deadline", "Preview capture deadline must be positive.");
 
@@ -213,10 +240,20 @@ export function createCapturePreviewPort({
       // to itself and browser canvases commonly point into other cyclic DOM
       // state.
       const expectedUniforms = cloneUniformValues(before.uniforms);
+      const scale =
+        effectiveMaxDimension === "native"
+          ? 1
+          : Math.min(1, effectiveMaxDimension / Math.max(before.width, before.height));
+      const expectedEncodedWidth = Math.max(1, Math.floor(before.width * scale));
+      const expectedEncodedHeight = Math.max(1, Math.floor(before.height * scale));
       let encoded: CapturedCanvasPng;
       try {
         encoded = await raceWithCaptureDeadline(
-          encode(before.canvas, { maxDecodedBytes, timeoutMs }),
+          encode(before.canvas, {
+            maxDecodedBytes,
+            timeoutMs,
+            maxDimension: effectiveMaxDimension,
+          }),
           signal,
           timeoutMs,
         );
@@ -232,8 +269,10 @@ export function createCapturePreviewPort({
         after.lifecycle !== before.lifecycle ||
         !sameSemanticIdentity(before, after, expectedUniforms) ||
         after.canvas !== before.canvas ||
-        after.width !== encoded.width ||
-        after.height !== encoded.height ||
+        after.width !== before.width ||
+        after.height !== before.height ||
+        encoded.width !== expectedEncodedWidth ||
+        encoded.height !== expectedEncodedHeight ||
         after.appliedRevision !== expectedAppliedRevision
       ) {
         throw new CapturePreviewError(
@@ -260,6 +299,8 @@ export function createCapturePreviewPort({
       };
       return {
         ...encoded,
+        canvasWidth: before.width,
+        canvasHeight: before.height,
         backend: after.backend,
         appliedRevision: expectedAppliedRevision,
         uniforms: cloneUniformValues(expectedUniforms),
