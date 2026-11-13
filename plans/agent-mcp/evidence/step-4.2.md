@@ -1,0 +1,13 @@
+# Step 4.2 — Correlated preview capture
+
+Implementation is in place but the Step 4.2 completion checkbox remains open pending the user-hosted image proof. Production wiring registers `capture_preview` against the active `useShdrPreview` renderer handle/canvas; cleanup clears the registration on dispose/unmount and a new lifecycle receives a new identity.
+
+- Input: `{ expectedAppliedRevision: integer >= 0 }`.
+- Success: shared bridge image envelope containing `image/png` plus JSON metadata: confirmed `appliedRevision`, current `draftRevision`, `draftDiffersFromApplied`, an `identity` block containing backend and actual pixel width/height, and read-only runtime uniform values.
+- Correlation: lifecycle/generation/canvas/backend/dimensions/applied revision/uniform snapshot are checked before PNG encoding, after encoding, and again after app-side base64 conversion. Draft edits without Apply remain honest divergence; Apply, resize, renderer replacement, unmount, backend change, or runtime-uniform change during capture rejects rather than retagging pixels.
+- Bounds/failures: existing bounded PNG encoder, 4 MiB decoded image limit, 5-second deadline, explicit not-ready/identity/zero-size/size/unsupported/tainted/encoding/null-blob/cancelled/deadline categories. Cancellation/deadline/stale results return no image and do not replay Apply.
+- Catalog/context: production catalog is the five-tool surface `get_authoring_context`, `get_sketch`, `update_sketch`, `apply_sketch`, `capture_preview`; context explicitly advertises preview capture. No runtime setters or implicit Apply were added.
+
+Verification completed: `pnpm --filter repl-web test` — 69 passing native Node 24 tests; `pnpm --filter repl-web check` — pass; `pnpm --filter repl-web lint` — pass; `pnpm --filter repl-web build` — pass; `pnpm --filter repl-web build:preview-probe` — pass; `pnpm --filter repl-web build:authoring-probe` — pass. Capture tests cover successful metadata/image-envelope conversion, draft divergence, identity changes during encoding, canvas resize/replacement/unmount/readiness, encoding/oversize/cancellation/deadline errors. Existing 4.1 hosted evidence remains unchanged. Generic bridge regression `pnpm --filter @shdr/agent-bridge test` also passed (33 tests across 7 files).
+
+Hosted manual proof is **PENDING**: deploy through the existing workflow, pair Pi at `https://shdr-repl.vercel.app/`, Apply a visually distinctive edit, call `capture_preview` with the returned applied revision, and have Pi inspect the actual image. Also manually check dirty-draft divergence and one stale/recovery capture; do not mark this step or Phase 4 complete until that image proof is recorded.

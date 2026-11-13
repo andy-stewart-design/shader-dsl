@@ -1,26 +1,7 @@
 # Step 4.1 — Apply orchestration
 
-Implemented the app-local awaitable Apply pipeline. `apply_sketch` is advertised only when a real Apply controller is supplied; renderer-unready calls return a structured backend failure; the deployed REPL catalog is the existing three authoring tools plus `apply_sketch` (no separate diagnostics tool). Apply snapshots the expected draft revision and editable uniform-definition strings, compiles, installs through the real preview handle, and resolves only after the renderer `draw()` promise completes. `get_sketch` and `get_authoring_context` expose the latest correlated attempt/diagnostics and last confirmed applied revision; they do not retag an older artifact after a draft edit.
+The recorded post-fix verification (not rerun; no source changes since) is green: `pnpm --filter repl-web test` passed with 63 Node tests, and the app `check`, `lint`, and `build` passed. The recorded authoring-probe build also passed. These tests cover deferred install/draw, failure identity retention, stale/current-draft divergence, supersession, cancellation, and presentation-state publishing.
 
-Structured diagnostics preserve `main`/`utils`/`uniforms` ranges where available and categorize uniform, syntax/type, backend, install, draw, stale, cancelled, and superseded failures. Failed compile/replacement leaves the previous applied identity unchanged; cancellation/supersession settles without replay. Manual Run uses the same controller and renderer completion seam, retaining existing runtime-default reset behavior.
+Hosted manual verification was completed on the redeployed REPL over WebGPU. A fresh pair exposed exactly `get_authoring_context`, `get_sketch`, `update_sketch`, and `apply_sketch`; the initial sketch was revision 0/applied 0. Direct MCP observations: a valid blue edit at draft 1 returned successful Apply at attempt/applied revision 1 with the first draw through the real pipeline; a `main` syntax error at draft 2 returned `Unexpected token (8:12)` with applied revision 1 retained; an atomic update with valid blue `main` and invalid `utils` at draft 3 returned `Unexpected token (5:15)` with applied revision 1 retained; and recovery at draft 4 returned success with applied revision 4. User visual confirmation: the 8:12 and 5:15 errors were visible over the retained blue preview, and the solid-green recovery preview had the error cleared, all without pressing Run.
 
-Checks:
-
-- `pnpm --filter repl-web test` — **61 passed** (native Node 24 `node:test`, including 5 Apply lifecycle/race tests).
-- `pnpm --filter repl-web check` — passed.
-- `pnpm --filter repl-web lint` — passed.
-- `pnpm --filter repl-web build` — passed; existing bundler `use client` dependency warnings only.
-- `pnpm --filter repl-web build:authoring-probe` — passed.
-
-Automated coverage includes compile/no-install and uniform/error identity, delayed install/draw readiness, stale expected revisions, current-draft divergence, superseded completion isolation, cancellation, and no replay. Real renderer wiring uses `useShdrPreview`'s injected app-local port and its actual `setShader`/`draw` promises; no arbitrary timeout or RAF completion is used.
-
-Follow-up regression fix for the hosted reproduction: the earlier live record remains that agent blue Apply succeeded, structured `main` syntax diagnostics were returned, and the last-good blue preview was preserved, but the agent-triggered failure was not visible until the user clicked manual Run. Root cause was that `useShdrCompilation` translated failures only in the manual Run promise continuation; the shared controller subscription updated `applyState` but not the existing `compileError`/`runtimeError` props. The fix adds the production state-to-presentation reducer in `apply-controller.ts` and makes the hook subscribe to it for both agent and manual Apply, while stale/cancelled/superseded states leave the current error alone and confirmed success clears it.
-
-Follow-up checks:
-
-- `pnpm --filter repl-web test` — **63 passed**, including 2 focused shared presentation/state-publishing regressions (native Node `node:test`; not real-DOM visual proof).
-- `pnpm --filter repl-web check` — passed.
-- `pnpm --filter repl-web lint` — passed.
-- `pnpm --filter repl-web build` — passed; existing bundler `use client` dependency warnings only.
-
-**Manual hosted Apply/diagnostic/draw verification: PENDING user-assisted redeploy/retest** against the approved deployed REPL `https://shdr-repl.vercel.app/`. After deployment, test agent-triggered invalid `main` and `utils` Apply failures and successful recovery; inspect the visible error before clicking Run. Phase 4.1 final verification remains open, and Phase 4.2 remains untouched.
+The earlier deployment record remains: agent blue Apply and structured diagnostics worked, but the diagnostic was not visible until manual Run. The root fix was the shared controller state-to-presentation update used by both agent and manual Apply; this retest verifies that fix rather than presenting it as a first-time pass. The hosted retest was WebGPU-only; no WebGL manual claim is made. Backend-fault, supersession, and cancellation stress remain covered by the recorded Node tests, not by this manual session. Phase 4.2 remains unchecked and no capture/screenshot behavior is claimed.

@@ -18,6 +18,7 @@ import {
 } from "./authoring-controller.ts";
 import type { AuthoringController } from "./controller-types.ts";
 import type { ApplyController } from "./apply-controller.ts";
+import type { CapturePreviewPort } from "./snapshot.ts";
 import { createAuthoringTools } from "./tools.ts";
 import { editorRegistry, type EditorRegistry } from "../editor/authoring-adapter.ts";
 import { useDraftStore } from "../stores/draft.ts";
@@ -35,6 +36,7 @@ export interface AgentProviderProps {
   readonly bridgeFactory?: AgentBridgeFactory;
   readonly controller?: AuthoringController;
   readonly applyController?: ApplyController;
+  readonly capturePortRef?: { current: CapturePreviewPort | null };
 }
 
 export interface AgentConnectionContextValue {
@@ -54,6 +56,7 @@ export function AgentProvider({
   bridgeFactory = connectAgentBridge,
   controller: suppliedController,
   applyController,
+  capturePortRef,
 }: AgentProviderProps) {
   const bridgeRef = useRef<AgentBridge | null>(null);
   const controllerRef = useRef<AuthoringController | null>(
@@ -91,7 +94,7 @@ export function AgentProvider({
         : authoringController;
     controllerRef.current = controller;
     const bridge = bridgeFactory({
-      tools: createAuthoringTools(controller),
+      tools: createAuthoringTools(controller, capturePortRef),
       onStateChange: setState,
     });
     bridgeRef.current = bridge;
@@ -105,7 +108,7 @@ export function AgentProvider({
         // one-time pairing credential.
       });
     }
-  }, [applyController, bridgeFactory, editorsReady, registry]);
+  }, [applyController, bridgeFactory, capturePortRef, editorsReady, registry]);
 
   const connect = useCallback(async (pairingLink: string) => {
     const trimmed = pairingLink.trim();

@@ -3,6 +3,7 @@ import type { CompiledFragmentArtifact } from "shdr";
 import { useShdrPreview } from "#/hooks/use-shdr-preview";
 import type { Uniform } from "../../shared/uniforms";
 import type { ApplyPreviewPort } from "../../agent/apply-controller";
+import type { CapturePreviewPort } from "../../agent/snapshot";
 import {
   useDrawerMode,
   useFillPreview,
@@ -20,6 +21,8 @@ interface PreviewProps {
   appliedUniforms: readonly Uniform[];
   onError: (error: unknown) => void;
   applyPortRef?: { current: ApplyPreviewPort | null };
+  capturePortRef?: { current: CapturePreviewPort | null };
+  getAppliedRevision?: () => number | null;
   onInitialFrame?: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
 }
 
@@ -28,6 +31,8 @@ export default function Preview({
   appliedUniforms,
   onError,
   applyPortRef,
+  capturePortRef,
+  getAppliedRevision,
   onInitialFrame,
 }: PreviewProps) {
   const playing = usePlaying();
@@ -47,6 +52,8 @@ export default function Preview({
     playing,
     onError,
     applyPortRef,
+    capturePortRef,
+    getAppliedRevision,
     onInitialFrame,
   });
 

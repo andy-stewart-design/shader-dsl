@@ -3,6 +3,10 @@ import type { CompiledFragmentArtifact } from "shdr";
 import { createPreview, type PreviewHandle } from "../preview/create-preview";
 import type { ApplyPreviewPort } from "../agent/apply-controller.ts";
 import {
+  createCapturePreviewPort,
+  type CapturePreviewPort,
+} from "../agent/snapshot.ts";
+import {
   defaultRuntimeValues,
   runtimeValuesToPatch,
   type RuntimeUniform,
@@ -18,6 +22,10 @@ export interface UseShdrPreviewOptions {
   onError?: (error: unknown) => void;
   /** App-local awaitable Apply seam; never exposed as a bridge primitive. */
   applyPortRef?: { current: ApplyPreviewPort | null };
+  /** App-local capture seam; registration is cleared with the renderer lifecycle. */
+  capturePortRef?: { current: CapturePreviewPort | null };
+  /** Applied identity is owned by the compile/apply controller, not React timing. */
+  getAppliedRevision?: () => number | null;
   onInitialFrame?: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
 }
 
@@ -199,6 +207,8 @@ export function useShdrPreview({
   playing = true,
   onError,
   applyPortRef,
+  capturePortRef,
+  getAppliedRevision,
   onInitialFrame,
 }: UseShdrPreviewOptions) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -353,6 +363,24 @@ export function useShdrPreview({
       },
     };
     if (applyPortRef) applyPortRef.current = port;
+    if (capturePortRef) {
+      capturePortRef.current = createCapturePreviewPort({
+        readIdentity: () => {
+          const handle = lifecycle.handle;
+          if (!handle || !isActive(lifecycle, lifecycleRef.current)) return null;
+          return {
+            lifecycle,
+            generation: lifecycle.generation,
+            appliedRevision: getAppliedRevision?.() ?? null,
+            backend: handle.backend,
+            canvas: handle.canvas,
+            width: handle.canvas.width,
+            height: handle.canvas.height,
+            uniforms: lifecycle.installedRuntimeValues,
+          };
+        },
+      });
+    }
 
     const initialize = (): void => {
       if (
@@ -472,10 +500,11 @@ export function useShdrPreview({
       resizeObserver?.disconnect();
       lifecycle.abortController.abort();
       if (applyPortRef?.current === port) applyPortRef.current = null;
+      if (capturePortRef) capturePortRef.current = null;
       lifecycle.handle?.destroy();
       lifecycle.handle = undefined;
     };
-  }, [applyPortRef, onInitialFrame]);
+  }, [applyPortRef, capturePortRef, getAppliedRevision, onInitialFrame]);
 
   function onRuntimeValueChange(name: string, value: RuntimeUniformValue): void {
     if (!runtimeUniformsRef.current.some((uniform) => uniform.name === name))

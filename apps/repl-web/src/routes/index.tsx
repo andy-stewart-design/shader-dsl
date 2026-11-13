@@ -19,11 +19,16 @@ function Home() {
     apply,
     applyController,
     applyPortRef,
+    capturePortRef,
+    getAppliedRevision,
     onInitialFrame,
   } = useShdrCompilation();
 
   return (
-    <AgentProvider applyController={applyController}>
+    <AgentProvider
+      applyController={applyController}
+      capturePortRef={capturePortRef}
+    >
       <AgentConnection />
       <AppLayout>
         <Editor
@@ -38,6 +43,8 @@ function Home() {
             appliedUniforms={appliedUniforms}
             onError={onPreviewError}
             applyPortRef={applyPortRef}
+            capturePortRef={capturePortRef}
+            getAppliedRevision={getAppliedRevision}
             onInitialFrame={onInitialFrame}
           />
         )}

@@ -418,7 +418,7 @@ Tasks:
 - [x] Preserve the installed preview on compile/replacement failure, reject stale Apply before installation, and reject superseded completions without overwriting newer status.
 - [x] Migrate manual Run and all affected consumers atomically; retain existing reset-to-definition-default behavior and fallback rules.
 - [x] Add deferred/fake-renderer race tests and real-renderer checks for current-draft divergence, compile failure, runtime failure, draw completion, disposal, and supersession.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 

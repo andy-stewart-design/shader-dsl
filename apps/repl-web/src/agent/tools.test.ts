@@ -5,6 +5,7 @@ import type {
   AuthoringController,
   DraftSnapshot,
 } from "./controller-types.ts";
+import type { CapturePreviewPort } from "./snapshot.ts";
 
 function makeController() {
   let snapshot: DraftSnapshot = {
@@ -98,5 +99,63 @@ test("stale update returns a readable conflict with the current revision", async
       message: "stale draft revision",
       currentRevision: 4,
     },
+  });
+});
+
+test("capture is a fifth site capability and returns an image envelope with honest applied metadata", async () => {
+  const { controller, requests } = makeController();
+  let expectedRevision: number | undefined;
+  const capturePortRef: { current: CapturePreviewPort | null } = {
+    current: {
+      capture: async (request) => {
+        expectedRevision = request.expectedAppliedRevision;
+        return {
+          blob: new Blob(["png"], { type: "image/png" }),
+          width: 64,
+          height: 32,
+          mimeType: "image/png",
+          backend: "webgl",
+          appliedRevision: 3,
+          uniforms: { gain: 0.25 },
+          assertCurrent: () => {},
+        };
+      },
+    },
+  };
+  const fullController: AuthoringController = {
+    ...controller,
+    apply: async () => ({
+      ok: false,
+      attemptId: 1,
+      error: { code: "backend", message: "not used in this test" },
+      diagnostics: [],
+    }),
+  };
+  const tools = createAuthoringTools(fullController, capturePortRef);
+  assert.deepEqual(tools.map((tool) => tool.name), [
+    "get_authoring_context",
+    "get_sketch",
+    "update_sketch",
+    "apply_sketch",
+    "capture_preview",
+  ]);
+  const result = (await tools[4]!.handler(
+    { expectedAppliedRevision: 3 },
+    { signal: new AbortController().signal },
+  )) as Record<string, unknown>;
+  assert.equal(expectedRevision, 3);
+  assert.equal(requests.length, 0);
+  assert.equal(result.bridgeResultVersion, 1);
+  assert.equal((result.content as Array<Record<string, unknown>>)[0]?.type, "image");
+  assert.deepEqual(result.metadata, {
+    kind: "preview-capture",
+    appliedRevision: 3,
+    draftRevision: 4,
+    draftDiffersFromApplied: true,
+    identity: { appliedRevision: 3, backend: "webgl", width: 64, height: 32 },
+    backend: "webgl",
+    width: 64,
+    height: 32,
+    uniforms: { gain: 0.25 },
   });
 });

@@ -27,7 +27,7 @@ const LANGUAGE = {
 } as const;
 
 export interface AuthoringContext {
-  readonly toolScope: "authoring-read-update-only";
+  readonly toolScope: "authoring-read-update-preview";
   readonly language: typeof LANGUAGE;
   readonly uniforms: {
     readonly editableFields: readonly string[];
@@ -48,6 +48,7 @@ export interface AuthoringContext {
   readonly preview: {
     readonly status: ApplyState["phase"] | "not-tracked-before-phase-4";
     readonly appliedRevision: number | null;
+    readonly capture: "capture_preview" | "not-registered";
     readonly attemptId?: number;
     readonly draftRevision?: number;
     readonly backend?: "webgpu" | "webgl";
@@ -58,11 +59,12 @@ export interface AuthoringContext {
 
 export function createAuthoringContext(
   controller: AuthoringController,
+  captureRegistered = false,
 ): AuthoringContext {
   const snapshot = controller.read();
   const apply = controller.getApplyState?.();
   return {
-    toolScope: "authoring-read-update-only",
+    toolScope: "authoring-read-update-preview",
     language: LANGUAGE,
     uniforms: {
       editableFields: ["id", "name", "type", "value", "min", "max"],
@@ -84,7 +86,10 @@ export function createAuthoringContext(
       manualRuntimeControls: "unchanged-and-not-exposed",
     },
     draftRevision: snapshot.revision,
-    preview: previewFromApplyState(apply),
+    preview: {
+      ...previewFromApplyState(apply),
+      capture: captureRegistered ? "capture_preview" : "not-registered",
+    },
   };
 }
 

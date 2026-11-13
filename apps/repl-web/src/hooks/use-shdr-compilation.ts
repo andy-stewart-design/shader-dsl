@@ -10,6 +10,7 @@ import {
   type ApplyPreviewPort,
   type ApplyState,
 } from "../agent/apply-controller.ts";
+import type { CapturePreviewPort } from "../agent/snapshot.ts";
 import { compileShdrBody, type CompileShdrDiagnostic } from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions";
@@ -111,6 +112,8 @@ export interface UseShdrCompilationResult {
   applyState: ApplyState;
   applyController: ApplyController;
   applyPortRef: { current: ApplyPreviewPort | null };
+  capturePortRef: { current: CapturePreviewPort | null };
+  getAppliedRevision: () => number | null;
   onInitialFrame: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
   isEvaluationFlashing: boolean;
   onPreviewError: (error: unknown) => void;
@@ -137,6 +140,7 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     diagnostics: [],
   });
   const [applyPortRef] = useState<{ current: ApplyPreviewPort | null }>(() => ({ current: null }));
+  const [capturePortRef] = useState<{ current: CapturePreviewPort | null }>(() => ({ current: null }));
   const [artifactRevision] = useState(() => ({ value: 0 }));
   const [controller] = useState<ApplyController>(() => createApplyController({
       readDraft: () => {
@@ -184,6 +188,11 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     [artifactRevision, controller],
   );
 
+  const getAppliedRevision = useCallback(
+    () => controller.getState().appliedRevision,
+    [controller],
+  );
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat || event.isComposing || event.keyCode === 229) return;
@@ -203,6 +212,8 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     applyState,
     applyController: controller,
     applyPortRef,
+    capturePortRef,
+    getAppliedRevision,
     onInitialFrame,
     isEvaluationFlashing,
     onPreviewError,

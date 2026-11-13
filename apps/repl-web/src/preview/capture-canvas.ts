@@ -12,13 +12,12 @@ export type CaptureCanvasErrorCode =
   | "timeout";
 
 export class CaptureCanvasError extends Error {
-  constructor(
-    readonly code: CaptureCanvasErrorCode,
-    message: string,
-    options?: ErrorOptions,
-  ) {
+  readonly code: CaptureCanvasErrorCode;
+
+  constructor(code: CaptureCanvasErrorCode, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "CaptureCanvasError";
+    this.code = code;
   }
 }
 

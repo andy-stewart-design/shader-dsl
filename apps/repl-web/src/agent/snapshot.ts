@@ -1,0 +1,235 @@
+import {
+  captureCanvas,
+  CaptureCanvasError,
+  DEFAULT_CAPTURE_TIMEOUT_MS,
+  DEFAULT_MAX_DECODED_BYTES,
+  type CapturedCanvasPng,
+} from "../preview/capture-canvas.ts";
+import type { RuntimeUniformValues } from "../components/preview-pane/uniform-controls.ts";
+
+export type CapturePreviewErrorCode =
+  | "not-ready"
+  | "identity-mismatch"
+  | "cancelled"
+  | "deadline"
+  | "zero-size"
+  | "size"
+  | "unsupported"
+  | "tainted"
+  | "encoding"
+  | "null-blob";
+
+export class CapturePreviewError extends Error {
+  readonly code: CapturePreviewErrorCode;
+
+  constructor(code: CapturePreviewErrorCode, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CapturePreviewError";
+    this.code = code;
+  }
+}
+
+export interface PreviewCaptureIdentity {
+  /** Stable identity for one mounted renderer lifecycle. */
+  readonly lifecycle: object;
+  readonly generation: number;
+  readonly appliedRevision: number | null;
+  readonly backend: "webgpu" | "webgl";
+  readonly canvas: HTMLCanvasElement;
+  readonly width: number;
+  readonly height: number;
+  readonly uniforms: RuntimeUniformValues;
+}
+
+export interface PreviewCaptureResult extends CapturedCanvasPng {
+  readonly backend: "webgpu" | "webgl";
+  readonly appliedRevision: number;
+  readonly uniforms: RuntimeUniformValues;
+  /** Internal final guard used after app-side base64 conversion. */
+  readonly assertCurrent: () => void;
+}
+
+export interface CapturePreviewRequest {
+  readonly expectedAppliedRevision: number;
+  readonly signal?: AbortSignal;
+}
+
+export interface CapturePreviewPort {
+  capture(request: CapturePreviewRequest): Promise<PreviewCaptureResult>;
+}
+
+export interface CreateCapturePreviewPortOptions {
+  readonly readIdentity: () => PreviewCaptureIdentity | null;
+  readonly maxDecodedBytes?: number;
+  readonly timeoutMs?: number;
+  readonly encode?: (
+    canvas: HTMLCanvasElement,
+    options: { readonly maxDecodedBytes: number; readonly timeoutMs: number },
+  ) => Promise<CapturedCanvasPng>;
+}
+
+function cloneUniformValues(values: RuntimeUniformValues): RuntimeUniformValues {
+  return { ...values };
+}
+
+function identityKey(identity: PreviewCaptureIdentity): string {
+  return JSON.stringify({
+    lifecycle: identity.lifecycle,
+    generation: identity.generation,
+    appliedRevision: identity.appliedRevision,
+    backend: identity.backend,
+    canvas: identity.canvas,
+    width: identity.width,
+    height: identity.height,
+    uniforms: identity.uniforms,
+  });
+}
+
+function isCancelled(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true;
+}
+
+function raceWithCaptureDeadline<T>(
+  operation: Promise<T>,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      callback();
+    };
+    const onAbort = (): void =>
+      finish(() =>
+        reject(new CapturePreviewError("cancelled", "Preview capture was cancelled.")),
+      );
+    const timer = setTimeout(
+      () =>
+        finish(() =>
+          reject(
+            new CapturePreviewError(
+              "deadline",
+              `Preview capture exceeded the ${timeoutMs} ms deadline.`,
+            ),
+          ),
+        ),
+      timeoutMs,
+    );
+
+    if (isCancelled(signal)) {
+      onAbort();
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
+
+function normalizeCaptureError(error: unknown): CapturePreviewError {
+  if (error instanceof CapturePreviewError) return error;
+  if (error instanceof CaptureCanvasError) {
+    if (error.code === "timeout")
+      return new CapturePreviewError("deadline", error.message, { cause: error });
+    return new CapturePreviewError(error.code, error.message, { cause: error });
+  }
+  return new CapturePreviewError(
+    "encoding",
+    `Preview PNG capture failed: ${error instanceof Error ? error.message : String(error)}`,
+    { cause: error },
+  );
+}
+
+/**
+ * Captures one registered renderer lifecycle. The identity is checked before
+ * encoding and after it completes so an old canvas can never be retagged as a
+ * newer Apply result.
+ */
+export function createCapturePreviewPort({
+  readIdentity,
+  maxDecodedBytes = DEFAULT_MAX_DECODED_BYTES,
+  timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+  encode = captureCanvas,
+}: CreateCapturePreviewPortOptions): CapturePreviewPort {
+  return {
+    async capture({ expectedAppliedRevision, signal }) {
+      if (!Number.isSafeInteger(expectedAppliedRevision) || expectedAppliedRevision < 0)
+        throw new CapturePreviewError("identity-mismatch", "expectedAppliedRevision must be a non-negative integer.");
+      if (isCancelled(signal))
+        throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+        throw new CapturePreviewError("deadline", "Preview capture deadline must be positive.");
+
+      const before = readIdentity();
+      if (!before)
+        throw new CapturePreviewError("not-ready", "The preview renderer is not ready for capture.");
+      if (before.appliedRevision !== expectedAppliedRevision)
+        throw new CapturePreviewError(
+          "identity-mismatch",
+          `Expected applied revision ${expectedAppliedRevision}, but the preview is at ${before.appliedRevision ?? "none"}.`,
+        );
+      if (before.width <= 0 || before.height <= 0)
+        throw new CapturePreviewError("zero-size", "The active preview canvas has no pixels.");
+
+      const expectedIdentity = identityKey(before);
+      let encoded: CapturedCanvasPng;
+      try {
+        encoded = await raceWithCaptureDeadline(
+          encode(before.canvas, { maxDecodedBytes, timeoutMs }),
+          signal,
+          timeoutMs,
+        );
+      } catch (error) {
+        throw normalizeCaptureError(error);
+      }
+      if (isCancelled(signal))
+        throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+
+      const after = readIdentity();
+      if (
+        !after ||
+        after.lifecycle !== before.lifecycle ||
+        identityKey(after) !== expectedIdentity ||
+        after.canvas !== before.canvas ||
+        after.width !== encoded.width ||
+        after.height !== encoded.height ||
+        after.appliedRevision !== expectedAppliedRevision
+      ) {
+        throw new CapturePreviewError(
+          "identity-mismatch",
+          "The preview changed while its PNG was being encoded; no image was returned.",
+        );
+      }
+      const assertCurrent = (): void => {
+        if (isCancelled(signal))
+          throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+        const current = readIdentity();
+        if (
+          !current ||
+          current.lifecycle !== before.lifecycle ||
+          identityKey(current) !== expectedIdentity ||
+          current.canvas !== before.canvas ||
+          current.appliedRevision !== expectedAppliedRevision
+        ) {
+          throw new CapturePreviewError(
+            "identity-mismatch",
+            "The preview changed before the captured image was delivered.",
+          );
+        }
+      };
+      return {
+        ...encoded,
+        backend: after.backend,
+        appliedRevision: expectedAppliedRevision,
+        uniforms: cloneUniformValues(before.uniforms),
+        assertCurrent,
+      };
+    },
+  };
+}

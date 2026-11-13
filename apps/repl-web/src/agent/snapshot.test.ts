@@ -1,0 +1,171 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  CapturePreviewError,
+  createCapturePreviewPort,
+  type PreviewCaptureIdentity,
+} from "./snapshot.ts";
+import type { CapturedCanvasPng } from "../preview/capture-canvas.ts";
+
+const canvas = {} as HTMLCanvasElement;
+const blob = new Blob(["png"], { type: "image/png" });
+
+function sourceState() {
+  let current: PreviewCaptureIdentity | null = {
+    lifecycle: {},
+    generation: 1,
+    appliedRevision: 4,
+    backend: "webgpu",
+    canvas,
+    width: 320,
+    height: 180,
+    uniforms: { gain: 0.5 },
+  };
+  return {
+    read: () => current,
+    replace(next: PreviewCaptureIdentity | null) {
+      current = next;
+    },
+  };
+}
+
+function encoded(overrides: Partial<CapturedCanvasPng> = {}): CapturedCanvasPng {
+  return {
+    blob,
+    width: 320,
+    height: 180,
+    mimeType: "image/png",
+    ...overrides,
+  };
+}
+
+async function expectCode(promise: Promise<unknown>, code: CapturePreviewError["code"]): Promise<void> {
+  await assert.rejects(promise, (error: unknown) => {
+    assert(error instanceof CapturePreviewError);
+    assert.equal(error.code, code);
+    return true;
+  });
+}
+
+test("capture returns the real canvas dimensions/backend/applied identity and uniforms", async () => {
+  const source = sourceState();
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => encoded(),
+  });
+  const result = await port.capture({ expectedAppliedRevision: 4 });
+  assert.equal(result.blob, blob);
+  assert.deepEqual(
+    {
+      width: result.width,
+      height: result.height,
+      backend: result.backend,
+      appliedRevision: result.appliedRevision,
+      uniforms: result.uniforms,
+    },
+    {
+      width: 320,
+      height: 180,
+      backend: "webgpu",
+      appliedRevision: 4,
+      uniforms: { gain: 0.5 },
+    },
+  );
+});
+
+test("draft edits do not mislabel capture: expected applied identity remains authoritative", async () => {
+  const source = sourceState();
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => encoded(),
+  });
+  const result = await port.capture({ expectedAppliedRevision: 4 });
+  source.replace({ ...source.read()!, generation: 2, appliedRevision: 4 });
+  assert.equal(result.appliedRevision, 4);
+});
+
+test("identity changes while PNG encoding reject without returning pixels", async () => {
+  const source = sourceState();
+  let resolve!: (value: CapturedCanvasPng) => void;
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: () => new Promise((next) => { resolve = next; }),
+  });
+  const pending = port.capture({ expectedAppliedRevision: 4 });
+  source.replace({ ...source.read()!, generation: 2, appliedRevision: 5 });
+  resolve(encoded());
+  await expectCode(pending, "identity-mismatch");
+});
+
+test("resize, replacement, unmount, and readiness failures are explicit", async () => {
+  const source = sourceState();
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => encoded(),
+  });
+  source.replace({ ...source.read()!, width: 640, height: 360 });
+  await expectCode(port.capture({ expectedAppliedRevision: 4 }), "identity-mismatch");
+  source.replace(null);
+  await expectCode(port.capture({ expectedAppliedRevision: 4 }), "not-ready");
+  source.replace({
+    lifecycle: {},
+    generation: 2,
+    appliedRevision: 4,
+    backend: "webgpu",
+    canvas,
+    width: 320,
+    height: 180,
+    uniforms: {},
+  });
+  let resolve!: (value: CapturedCanvasPng) => void;
+  const replacementPort = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: () => new Promise((next) => { resolve = next; }),
+  });
+  const pending = replacementPort.capture({ expectedAppliedRevision: 4 });
+  source.replace({
+    lifecycle: {},
+    generation: 3,
+    appliedRevision: 4,
+    backend: "webgl",
+    canvas: {} as HTMLCanvasElement,
+    width: 320,
+    height: 180,
+    uniforms: {},
+  });
+  resolve(encoded());
+  await expectCode(pending, "identity-mismatch");
+});
+
+test("encoding, oversize, cancellation, and deadline failures return stable categories", async () => {
+  const source = sourceState();
+  const failing = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => { throw new Error("encoder failed"); },
+  });
+  await expectCode(failing.capture({ expectedAppliedRevision: 4 }), "encoding");
+
+  const oversized = createCapturePreviewPort({
+    readIdentity: source.read,
+    maxDecodedBytes: 1,
+    encode: async () => {
+      throw new CapturePreviewError("size", "PNG exceeds limit.");
+    },
+  });
+  await expectCode(oversized.capture({ expectedAppliedRevision: 4 }), "size");
+
+  const abort = new AbortController();
+  abort.abort();
+  const cancellable = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: async () => encoded(),
+  });
+  await expectCode(cancellable.capture({ expectedAppliedRevision: 4, signal: abort.signal }), "cancelled");
+
+  const deadline = createCapturePreviewPort({
+    readIdentity: source.read,
+    timeoutMs: 5,
+    encode: () => new Promise(() => {}),
+  });
+  await expectCode(deadline.capture({ expectedAppliedRevision: 4 }), "deadline");
+});
