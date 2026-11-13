@@ -78,6 +78,7 @@ export interface CreateCapturePreviewPortOptions {
       readonly maxDecodedBytes: number;
       readonly timeoutMs: number;
       readonly maxDimension: CaptureMaxDimension;
+      readonly signal?: AbortSignal;
     },
   ) => Promise<CapturedCanvasPng>;
 }
@@ -253,6 +254,7 @@ export function createCapturePreviewPort({
             maxDecodedBytes,
             timeoutMs,
             maxDimension: effectiveMaxDimension,
+            signal,
           }),
           signal,
           timeoutMs,
