@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import {
   createApplyController,
+  updateApplyErrorPresentation,
   type ApplyCompileResult,
   type ApplyController,
   type ApplyDiagnostic,
+  type ApplyErrorPresentation,
   type ApplyPreviewPort,
   type ApplyState,
 } from "../agent/apply-controller.ts";
@@ -120,10 +122,12 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
     initialCompilation.ok ? initialCompilation.artifact : null,
   );
-  const [compileError, setCompileError] = useState<string | null>(
-    initialCompilation.ok ? null : initialCompilation.diagnostics.map((item) => item.message).join("\n"),
-  );
-  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [errorPresentation, setErrorPresentation] = useState<ApplyErrorPresentation>({
+    compileError: initialCompilation.ok
+      ? null
+      : initialCompilation.diagnostics.map((item) => item.message).join("\n"),
+    runtimeError: null,
+  });
   const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>([]);
   const [isEvaluationFlashing, setIsEvaluationFlashing] = useState(false);
   const [applyState, setApplyState] = useState<ApplyState>({
@@ -150,30 +154,28 @@ export function useShdrCompilation(): UseShdrCompilationResult {
         artifactRevision.value = snapshot.revision;
         setArtifact(nextArtifact);
         setAppliedUniforms(cloneUniforms(toDraftUniforms(snapshot.uniforms)));
-        setCompileError(null);
-        setRuntimeError(null);
       },
   }));
 
-  useEffect(() => controller.subscribe(() => setApplyState(controller.getState())), [controller]);
+  useEffect(() => controller.subscribe(() => {
+    const next = controller.getState();
+    setApplyState(next);
+    setErrorPresentation((previous) => updateApplyErrorPresentation(previous, next));
+  }), [controller]);
 
   const apply = useCallback(() => {
     const expectedRevision = getDraftState().revision;
     setIsEvaluationFlashing(true);
-    void controller.apply({ expectedRevision }).then((result) => {
+    void controller.apply({ expectedRevision }).then(() => {
       setIsEvaluationFlashing(false);
-      if (!result.ok) {
-        if (result.error.code === "syntax" || result.error.code === "type" || result.error.code === "uniform") {
-          setCompileError(result.diagnostics.map((item) => item.message).join("\n"));
-        } else {
-          setRuntimeError(result.diagnostics.map((item) => item.message).join("\n"));
-        }
-      }
     });
   }, [controller]);
 
   const onPreviewError = useCallback((error: unknown) => {
-    setRuntimeError(error instanceof Error ? error.message : String(error));
+    setErrorPresentation((previous) => ({
+      ...previous,
+      runtimeError: error instanceof Error ? error.message : String(error),
+    }));
   }, []);
   const onInitialFrame = useCallback(
     (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => {
@@ -196,8 +198,8 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   return {
     artifact,
     appliedUniforms,
-    compileError,
-    runtimeError,
+    compileError: errorPresentation.compileError,
+    runtimeError: errorPresentation.runtimeError,
     applyState,
     applyController: controller,
     applyPortRef,

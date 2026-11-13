@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createApplyController, type ApplyCompileResult } from "./apply-controller.ts";
+import {
+  createApplyController,
+  updateApplyErrorPresentation,
+  type ApplyCompileResult,
+  type ApplyErrorPresentation,
+} from "./apply-controller.ts";
 import type { DraftSnapshot } from "./authoring-controller.ts";
 
 const artifact = { glsl: "", wgsl: "", defaults: { glsl: [], wgsl: [] } };
@@ -97,4 +102,57 @@ test("cancellation settles without replaying installation", async () => {
   assert.equal(result.ok, false);
   assert.equal(controller.getState().phase, "cancelled");
   assert.equal(installs, 1);
+});
+
+test("published Apply state drives the shared error surface and clears on recovery", async () => {
+  let shouldFail = true;
+  let presentation: ApplyErrorPresentation = { compileError: null, runtimeError: null };
+  const { controller } = setup(
+    () => shouldFail
+      ? { ok: false, diagnostics: [{ code: "syntax", message: "invalid main" }] }
+      : { ok: true, artifact },
+    async () => ({ backend: "webgpu" }),
+  );
+  controller.subscribe(() => {
+    presentation = updateApplyErrorPresentation(presentation, controller.getState());
+  });
+
+  await controller.apply({ expectedRevision: 0 });
+  assert.deepEqual(presentation, { compileError: "invalid main", runtimeError: null });
+
+  shouldFail = false;
+  await controller.apply({ expectedRevision: 0 });
+  assert.deepEqual(presentation, { compileError: null, runtimeError: null });
+});
+
+test("stale and superseded state cannot replace or clear a newer visible error", async () => {
+  let compileCalls = 0;
+  let presentation: ApplyErrorPresentation = { compileError: null, runtimeError: null };
+  const { controller } = setup(
+    () => ++compileCalls === 1
+      ? { ok: true, artifact }
+      : { ok: false, diagnostics: [{ code: "syntax", message: "newer syntax error" }] },
+    () => new Promise(() => {
+      // The older install never completes; supersession must settle it without
+      // publishing a second presentation update.
+    }),
+  );
+  controller.subscribe(() => {
+    presentation = updateApplyErrorPresentation(presentation, controller.getState());
+  });
+
+  const older = controller.apply({ expectedRevision: 0 });
+  const newer = controller.apply({ expectedRevision: 0 });
+  await newer;
+  assert.deepEqual(presentation, { compileError: "newer syntax error", runtimeError: null });
+  await older;
+  assert.deepEqual(presentation, { compileError: "newer syntax error", runtimeError: null });
+
+  const stale = updateApplyErrorPresentation(presentation, {
+    phase: "stale",
+    attemptId: 3,
+    appliedRevision: 0,
+    diagnostics: [{ code: "stale", message: "old revision" }],
+  });
+  assert.deepEqual(stale, presentation);
 });

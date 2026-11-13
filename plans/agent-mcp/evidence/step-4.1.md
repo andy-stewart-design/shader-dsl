@@ -14,4 +14,13 @@ Checks:
 
 Automated coverage includes compile/no-install and uniform/error identity, delayed install/draw readiness, stale expected revisions, current-draft divergence, superseded completion isolation, cancellation, and no replay. Real renderer wiring uses `useShdrPreview`'s injected app-local port and its actual `setShader`/`draw` promises; no arbitrary timeout or RAF completion is used.
 
-**Manual hosted Apply/diagnostic/draw verification: PENDING user-assisted run** against the approved deployed REPL `https://shdr-repl.vercel.app/`. Phase 4.1 is not represented as a completed live acceptance gate, and Phase 4.2 remains untouched.
+Follow-up regression fix for the hosted reproduction: the earlier live record remains that agent blue Apply succeeded, structured `main` syntax diagnostics were returned, and the last-good blue preview was preserved, but the agent-triggered failure was not visible until the user clicked manual Run. Root cause was that `useShdrCompilation` translated failures only in the manual Run promise continuation; the shared controller subscription updated `applyState` but not the existing `compileError`/`runtimeError` props. The fix adds the production state-to-presentation reducer in `apply-controller.ts` and makes the hook subscribe to it for both agent and manual Apply, while stale/cancelled/superseded states leave the current error alone and confirmed success clears it.
+
+Follow-up checks:
+
+- `pnpm --filter repl-web test` — **63 passed**, including 2 focused shared presentation/state-publishing regressions (native Node `node:test`; not real-DOM visual proof).
+- `pnpm --filter repl-web check` — passed.
+- `pnpm --filter repl-web lint` — passed.
+- `pnpm --filter repl-web build` — passed; existing bundler `use client` dependency warnings only.
+
+**Manual hosted Apply/diagnostic/draw verification: PENDING user-assisted redeploy/retest** against the approved deployed REPL `https://shdr-repl.vercel.app/`. After deployment, test agent-triggered invalid `main` and `utils` Apply failures and successful recovery; inspect the visible error before clicking Run. Phase 4.1 final verification remains open, and Phase 4.2 remains untouched.

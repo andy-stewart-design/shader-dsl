@@ -43,6 +43,36 @@ export interface ApplyState {
   readonly diagnostics: readonly ApplyDiagnostic[];
 }
 
+export interface ApplyErrorPresentation {
+  readonly compileError: string | null;
+  readonly runtimeError: string | null;
+}
+
+/**
+ * Reduces controller state into the existing editor status surface. Pending
+ * and non-current terminal states intentionally leave the visible error alone:
+ * only the current failed attempt may replace it, and a confirmed apply clears
+ * both channels.
+ */
+export function updateApplyErrorPresentation(
+  previous: ApplyErrorPresentation,
+  next: ApplyState,
+): ApplyErrorPresentation {
+  if (next.phase === "applied") {
+    return { compileError: null, runtimeError: null };
+  }
+  if (next.phase !== "failed" || next.diagnostics.length === 0) {
+    return previous;
+  }
+
+  const message = next.diagnostics.map((item) => item.message).join("\n");
+  const firstCode = next.diagnostics[0]?.code;
+  if (firstCode === "syntax" || firstCode === "type" || firstCode === "uniform") {
+    return { compileError: message, runtimeError: previous.runtimeError };
+  }
+  return { compileError: previous.compileError, runtimeError: message };
+}
+
 export interface ApplyRequest {
   readonly expectedRevision: number;
   readonly signal?: AbortSignal;
