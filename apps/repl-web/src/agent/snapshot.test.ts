@@ -73,6 +73,40 @@ test("capture returns the real canvas dimensions/backend/applied identity and un
   );
 });
 
+test("production lifecycle/canvas references are not serialized as capture identity", async () => {
+  const lifecycle = {} as { current?: unknown };
+  lifecycle.current = lifecycle;
+  const productionCanvas = {} as { owner?: unknown } as HTMLCanvasElement;
+  (productionCanvas as unknown as { owner?: unknown }).owner = productionCanvas;
+  const uniforms = { gain: 0.5 };
+  const current: PreviewCaptureIdentity = {
+    lifecycle,
+    generation: 1,
+    appliedRevision: 4,
+    backend: "webgpu",
+    canvas: productionCanvas,
+    width: 320,
+    height: 180,
+    uniforms,
+  };
+  let mutateDuringCapture = false;
+  const port = createCapturePreviewPort({
+    readIdentity: () => current,
+    encode: async () => {
+      if (mutateDuringCapture) uniforms.gain = 0.9;
+      return encoded();
+    },
+  });
+
+  const result = await port.capture({ expectedAppliedRevision: 4 });
+  uniforms.gain = 0.75;
+  assert.equal(result.uniforms.gain, 0.5);
+  assert.doesNotThrow(() => JSON.stringify(result.uniforms));
+
+  mutateDuringCapture = true;
+  await expectCode(port.capture({ expectedAppliedRevision: 4 }), "identity-mismatch");
+});
+
 test("draft edits do not mislabel capture: expected applied identity remains authoritative", async () => {
   const source = sourceState();
   const port = createCapturePreviewPort({

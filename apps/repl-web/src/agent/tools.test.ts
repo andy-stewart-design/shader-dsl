@@ -5,7 +5,10 @@ import type {
   AuthoringController,
   DraftSnapshot,
 } from "./controller-types.ts";
-import type { CapturePreviewPort } from "./snapshot.ts";
+import {
+  createCapturePreviewPort,
+  type CapturePreviewPort,
+} from "./snapshot.ts";
 
 function makeController() {
   let snapshot: DraftSnapshot = {
@@ -104,23 +107,31 @@ test("stale update returns a readable conflict with the current revision", async
 
 test("capture is a fifth site capability and returns an image envelope with honest applied metadata", async () => {
   const { controller, requests } = makeController();
-  let expectedRevision: number | undefined;
+  const lifecycle = {} as { current?: unknown };
+  lifecycle.current = lifecycle;
+  const canvas = {} as HTMLCanvasElement;
+  (canvas as unknown as { owner?: unknown }).owner = canvas;
+  const runtimeUniforms = { gain: 0.25 };
+  const capturePort: CapturePreviewPort = createCapturePreviewPort({
+    readIdentity: () => ({
+      lifecycle,
+      generation: 1,
+      appliedRevision: 3,
+      backend: "webgl",
+      canvas,
+      width: 64,
+      height: 32,
+      uniforms: runtimeUniforms,
+    }),
+    encode: async () => ({
+      blob: new Blob(["png"], { type: "image/png" }),
+      width: 64,
+      height: 32,
+      mimeType: "image/png",
+    }),
+  });
   const capturePortRef: { current: CapturePreviewPort | null } = {
-    current: {
-      capture: async (request) => {
-        expectedRevision = request.expectedAppliedRevision;
-        return {
-          blob: new Blob(["png"], { type: "image/png" }),
-          width: 64,
-          height: 32,
-          mimeType: "image/png",
-          backend: "webgl",
-          appliedRevision: 3,
-          uniforms: { gain: 0.25 },
-          assertCurrent: () => {},
-        };
-      },
-    },
+    current: capturePort,
   };
   const fullController: AuthoringController = {
     ...controller,
@@ -143,8 +154,8 @@ test("capture is a fifth site capability and returns an image envelope with hone
     { expectedAppliedRevision: 3 },
     { signal: new AbortController().signal },
   )) as Record<string, unknown>;
-  assert.equal(expectedRevision, 3);
   assert.equal(requests.length, 0);
+  assert.doesNotThrow(() => JSON.stringify(result));
   assert.equal(result.bridgeResultVersion, 1);
   assert.equal((result.content as Array<Record<string, unknown>>)[0]?.type, "image");
   assert.deepEqual(result.metadata, {

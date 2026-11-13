@@ -68,21 +68,52 @@ export interface CreateCapturePreviewPortOptions {
   ) => Promise<CapturedCanvasPng>;
 }
 
+/**
+ * Copy the semantic values used by the preview controls, not their owning
+ * React/runtime objects. The renderer lifecycle and canvas are deliberately
+ * live objects (and may contain back-references), so they must only be used
+ * for identity checks by reference.
+ */
 function cloneUniformValues(values: RuntimeUniformValues): RuntimeUniformValues {
-  return { ...values };
+  const snapshot: Record<string, number | string> = {};
+  for (const [name, value] of Object.entries(values)) {
+    if (typeof value !== "number" && typeof value !== "string") {
+      throw new CapturePreviewError(
+        "encoding",
+        `Runtime uniform ${name} is not a JSON-safe scalar value.`,
+      );
+    }
+    snapshot[name] = value;
+  }
+  return snapshot;
 }
 
-function identityKey(identity: PreviewCaptureIdentity): string {
-  return JSON.stringify({
-    lifecycle: identity.lifecycle,
-    generation: identity.generation,
-    appliedRevision: identity.appliedRevision,
-    backend: identity.backend,
-    canvas: identity.canvas,
-    width: identity.width,
-    height: identity.height,
-    uniforms: identity.uniforms,
-  });
+function sameUniformValues(
+  first: RuntimeUniformValues,
+  second: RuntimeUniformValues,
+): boolean {
+  const firstNames = Object.keys(first);
+  const secondNames = Object.keys(second);
+  if (firstNames.length !== secondNames.length) return false;
+  return firstNames.every(
+    (name) =>
+      Object.hasOwn(second, name) && Object.is(first[name], second[name]),
+  );
+}
+
+function sameSemanticIdentity(
+  first: PreviewCaptureIdentity,
+  second: PreviewCaptureIdentity,
+  expectedUniforms: RuntimeUniformValues,
+): boolean {
+  return (
+    first.generation === second.generation &&
+    first.appliedRevision === second.appliedRevision &&
+    first.backend === second.backend &&
+    first.width === second.width &&
+    first.height === second.height &&
+    sameUniformValues(expectedUniforms, cloneUniformValues(second.uniforms))
+  );
 }
 
 function isCancelled(signal: AbortSignal | undefined): boolean {
@@ -177,7 +208,11 @@ export function createCapturePreviewPort({
       if (before.width <= 0 || before.height <= 0)
         throw new CapturePreviewError("zero-size", "The active preview canvas has no pixels.");
 
-      const expectedIdentity = identityKey(before);
+      // Snapshot only the primitive values that describe the draw. Do not
+      // serialize the live lifecycle/canvas graph: the lifecycle points back
+      // to itself and browser canvases commonly point into other cyclic DOM
+      // state.
+      const expectedUniforms = cloneUniformValues(before.uniforms);
       let encoded: CapturedCanvasPng;
       try {
         encoded = await raceWithCaptureDeadline(
@@ -195,7 +230,7 @@ export function createCapturePreviewPort({
       if (
         !after ||
         after.lifecycle !== before.lifecycle ||
-        identityKey(after) !== expectedIdentity ||
+        !sameSemanticIdentity(before, after, expectedUniforms) ||
         after.canvas !== before.canvas ||
         after.width !== encoded.width ||
         after.height !== encoded.height ||
@@ -213,7 +248,7 @@ export function createCapturePreviewPort({
         if (
           !current ||
           current.lifecycle !== before.lifecycle ||
-          identityKey(current) !== expectedIdentity ||
+          !sameSemanticIdentity(before, current, expectedUniforms) ||
           current.canvas !== before.canvas ||
           current.appliedRevision !== expectedAppliedRevision
         ) {
@@ -227,7 +262,7 @@ export function createCapturePreviewPort({
         ...encoded,
         backend: after.backend,
         appliedRevision: expectedAppliedRevision,
-        uniforms: cloneUniformValues(before.uniforms),
+        uniforms: cloneUniformValues(expectedUniforms),
         assertCurrent,
       };
     },
