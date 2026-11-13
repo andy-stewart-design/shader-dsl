@@ -106,6 +106,46 @@ test("small canvases are never upscaled and native explicitly preserves dimensio
   assert.deepEqual([nativeResult.width, nativeResult.height], [1209, 805]);
 });
 
+test("tainted native export has a stable error and returns no image", async () => {
+  const source = makeCanvas(320, 180, makeDocument());
+  source.toBlob = (() => {
+    throw new DOMException("The canvas has been tainted.", "SecurityError");
+  }) as unknown as HTMLCanvasElement["toBlob"];
+  await expectCode(captureCanvas(source), "tainted");
+});
+
+test("tainted decoded snapshot draw has the same stable error", async () => {
+  const document = {} as FakeDocument;
+  document.createElement = (() => makeCanvas(0, 0, document)) as Document["createElement"];
+  const source = makeCanvas(1209, 805, document);
+  const previousBitmap = (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
+  const nativeBlob = new Blob(["native-captured-pixels"], { type: "image/png" });
+  source.encodedBlob = nativeBlob;
+  (globalThis as { createImageBitmap?: unknown }).createImageBitmap = async () => ({ close() {} });
+  const target = makeCanvas(0, 0, document);
+  document.createElement = (() => target) as Document["createElement"];
+  target.getContext = (() => ({
+    drawImage() {
+      throw new DOMException("The decoded image is not readable.", "SecurityError");
+    },
+  })) as unknown as HTMLCanvasElement["getContext"];
+  try {
+    await expectCode(captureCanvas(source, { maxDimension: 512 }), "tainted");
+  } finally {
+    if (previousBitmap === undefined)
+      delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
+    else (globalThis as { createImageBitmap?: unknown }).createImageBitmap = previousBitmap;
+  }
+});
+
+test("an invalidated native canvas has a stable encoding error and returns no image", async () => {
+  const source = makeCanvas(320, 180, makeDocument());
+  source.toBlob = (() => {
+    throw new DOMException("The canvas is no longer valid.", "InvalidStateError");
+  }) as unknown as HTMLCanvasElement["toBlob"];
+  await expectCode(captureCanvas(source), "encoding");
+});
+
 test("invalid and oversized native bounds fail before encoding", async () => {
   let encoded = false;
   const source = makeCanvas(3000, 3000, makeDocument());

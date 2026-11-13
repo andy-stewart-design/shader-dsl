@@ -40,6 +40,8 @@ type PreviewLifecycle = {
   latestRuntimeValues: RuntimeUniformValues;
   installedRuntimeUniforms: readonly RuntimeUniform[];
   installedRuntimeValues: RuntimeUniformValues;
+  /** Names explicitly changed through the preview controls. */
+  runtimeOverrideNames: Set<string>;
   publishRuntimeState: (
     uniforms: readonly RuntimeUniform[],
     values: RuntimeUniformValues,
@@ -114,11 +116,15 @@ function applyRuntimeValues(
     return;
 
   try {
-    // setShader can carry overrides across compatible replacements. An Apply
-    // is intentionally a reset boundary, even when the artifact is identical.
+    // An authored Apply is a reset boundary. Only names explicitly changed
+    // through the controls are written back through setUniforms: the runtime
+    // correctly treats every setUniforms key as a persistent override, which
+    // would make an old authored default win over a later same-name/type one.
     handle.resetUniforms();
     const patch = runtimeValuesToPatch(
-      lifecycle.installedRuntimeUniforms,
+      lifecycle.installedRuntimeUniforms.filter((uniform) =>
+        lifecycle.runtimeOverrideNames.has(uniform.name),
+      ),
       lifecycle.installedRuntimeValues,
     );
     if (Object.keys(patch).length > 0) handle.setUniforms(patch);
@@ -181,7 +187,8 @@ function updateArtifact(
         lifecycle.latestRuntimeUniforms,
         lifecycle.latestRuntimeValues,
       );
-      applyRuntimeValues(lifecycle, reportError);
+      // setShader already carries genuine runtime overrides. Do not reset
+      // them or rewrite authored defaults as persistent overrides here.
     },
     (error: unknown) => {
       if (
@@ -265,6 +272,9 @@ export function useShdrPreview({
         lifecycle.installedRuntimeUniforms = runtimeUniforms;
         lifecycle.installedRuntimeValues = defaults;
         publishRuntimeState(runtimeUniforms, defaults);
+        // A successful Apply has already reset the renderer before its first
+        // candidate frame; keep the new authored defaults as values, not
+        // persistent host overrides.
         applyRuntimeValues(lifecycle, reportError);
       }
     }
@@ -314,6 +324,7 @@ export function useShdrPreview({
       latestRuntimeValues: runtimeValuesRef.current,
       installedRuntimeUniforms: runtimeUniformsRef.current,
       installedRuntimeValues: runtimeValuesRef.current,
+      runtimeOverrideNames: new Set(),
       publishRuntimeState,
     };
     // Used by the small helpers above to reject stale renderer lifecycles.
@@ -342,6 +353,12 @@ export function useShdrPreview({
         }
         lifecycle.rendererArtifact = nextArtifact;
         lifecycle.requestedArtifact = nextArtifact;
+        // setShader intentionally preserves compatible explicit host
+        // overrides. Apply, however, is the REPL's reset boundary. Reset only
+        // after installation succeeds so a failed candidate leaves the
+        // previous shader and its runtime values untouched, then draw the
+        // candidate with its actual new defaults.
+        handle.resetUniforms();
         options.onDrawing?.();
         if (options.signal.aborted) throw new Error("Apply was cancelled.");
         await raceWithAbort(handle.draw(), [
@@ -353,6 +370,9 @@ export function useShdrPreview({
           !isActive(lifecycle, lifecycleRef.current) ||
           generation !== lifecycle.generation
         ) throw new Error("Preview draw was superseded.");
+        // Clear old explicit overrides only after the replacement's default
+        // frame has succeeded; a failed candidate preserves them.
+        lifecycle.runtimeOverrideNames.clear();
         installRuntimeSnapshot(
           lifecycle,
           nextArtifact,
@@ -511,15 +531,30 @@ export function useShdrPreview({
       return;
     const next = { ...runtimeValuesRef.current, [name]: value };
     const uniforms = runtimeUniformsRef.current;
-    publishRuntimeState(uniforms, next);
     const lifecycle = lifecycleRef.current;
+    lifecycle?.runtimeOverrideNames.add(name);
+    publishRuntimeState(uniforms, next);
     if (!lifecycle?.active) return;
     lifecycle.installedRuntimeUniforms = uniforms;
     lifecycle.installedRuntimeValues = next;
     // During initial creation the latest snapshot is also the only snapshot.
     if (!lifecycle.rendererArtifact)
       lifecycle.latestRuntimeValues = next;
-    applyRuntimeValues(lifecycle, (error) => onError?.(error));
+    const handle = lifecycle.handle;
+    if (!handle || !lifecycle.rendererArtifact) return;
+    try {
+      // Only the value the user changed becomes a persistent renderer
+      // override. Rewriting every control value here would turn untouched
+      // authored defaults into overrides and make replacement metadata lie.
+      const patch = runtimeValuesToPatch(
+        uniforms.filter((uniform) => uniform.name === name),
+        { [name]: value },
+      );
+      if (Object.keys(patch).length > 0) handle.setUniforms(patch);
+      drawIfPaused(lifecycle, (error) => onError?.(error));
+    } catch (error: unknown) {
+      if (isActive(lifecycle, lifecycle.current)) onError?.(error);
+    }
   }
 
   return {

@@ -244,6 +244,52 @@ try {
     Array(11).fill("uniform"),
   ]);
   await pixels([0.4, 0.7, 0.6, 1], "atomic validation");
+  const applyDefaultFailure = await page.evaluate(
+    async ({ changed }) => {
+      const both = (fn) => Promise.all(window.renderers.map(fn));
+      const invalid = {
+        ...changed,
+        glsl: "invalid apply candidate",
+        wgsl: "invalid apply candidate",
+      };
+      await both((renderer) => renderer.setUniforms({ b: 0.9 }));
+      const failed = await both((renderer) =>
+        renderer.setShader(invalid).then(
+          () => "accepted",
+          (error) => error.kind,
+        ),
+      );
+      await both((renderer) => renderer.draw());
+      return failed;
+    },
+    { changed },
+  );
+  assert.deepEqual(applyDefaultFailure, ["shader", "shader"]);
+  await pixels(
+    [0.4, 0.9, 0.6, 1],
+    "failed same-schema Apply preserves the old shader and runtime override",
+  );
+  const applyDefaultRecovery = await page.evaluate(
+    async ({ initial, changed }) => {
+      const both = (fn) => Promise.all(window.renderers.map(fn));
+      const recovered = await both(async (renderer) => {
+        const result = await renderer.setShader(changed);
+        // This is the REPL Apply boundary: reset only after the candidate
+        // installs, then draw its own same-name/type defaults.
+        renderer.resetUniforms();
+        await renderer.draw();
+        return result.status;
+      });
+      await both((renderer) => renderer.setShader(initial));
+      return recovered;
+    },
+    { initial, changed },
+  );
+  assert.deepEqual(applyDefaultRecovery, ["installed", "installed"]);
+  await pixels(
+    [0.3, 0.25, 0.6, 1],
+    "same-schema Apply recovery uses the new defaults on both pixel paths",
+  );
   await page.evaluate(() => window.mutate("set"));
   await pixels([0.8, 0.9, 0.4, 1], "set / vector copy");
   await page.evaluate(() => window.mutate("replace"));

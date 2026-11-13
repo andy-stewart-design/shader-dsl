@@ -5,6 +5,7 @@ import {
   createCapturePreviewPort,
   type PreviewCaptureIdentity,
 } from "./snapshot.ts";
+import { createApplyController } from "./apply-controller.ts";
 import type { CapturedCanvasPng } from "../preview/capture-canvas.ts";
 
 const canvas = {} as HTMLCanvasElement;
@@ -207,6 +208,116 @@ test("resize, replacement, unmount, and readiness failures are explicit", async 
   });
   resolve(encoded());
   await expectCode(pending, "identity-mismatch");
+});
+
+test("a registered capture returns no image when its renderer is disposed mid-encode", async () => {
+  const lifecycle = {
+    active: true,
+    current: null as object | null,
+  };
+  lifecycle.current = lifecycle;
+  const disposedCanvas = {} as HTMLCanvasElement;
+  let resolveEncode!: (value: CapturedCanvasPng) => void;
+  const source = {
+    read: () => lifecycle.active
+      ? {
+          lifecycle,
+          generation: 1,
+          appliedRevision: 4,
+          backend: "webgpu" as const,
+          canvas: disposedCanvas,
+          width: 320,
+          height: 180,
+          uniforms: {},
+        }
+      : null,
+  };
+  const port = createCapturePreviewPort({
+    readIdentity: source.read,
+    encode: () => new Promise((resolve) => { resolveEncode = resolve; }),
+  });
+  const pending = port.capture({ expectedAppliedRevision: 4 });
+  await Promise.resolve();
+  lifecycle.active = false;
+  resolveEncode(encoded());
+  await expectCode(pending, "identity-mismatch");
+});
+
+test("a real Apply and capture controller reject old pixels and preserve the latest applied state", async () => {
+  const artifact = { glsl: "", wgsl: "", defaults: { glsl: [], wgsl: [] } };
+  const oldLifecycle = {};
+  const oldCanvas = {} as HTMLCanvasElement;
+  const newLifecycle = {};
+  const newCanvas = {} as HTMLCanvasElement;
+  let draftRevision = 0;
+  let appliedRevision = 0;
+  let activeLifecycle: object = oldLifecycle;
+  let activeCanvas = oldCanvas;
+  let activeBackend: "webgpu" | "webgl" = "webgpu";
+  let releaseOldCapture!: (value: CapturedCanvasPng) => void;
+  const capture = createCapturePreviewPort({
+    readIdentity: () => ({
+      lifecycle: activeLifecycle,
+      generation: appliedRevision,
+      appliedRevision,
+      backend: activeBackend,
+      canvas: activeCanvas,
+      width: 320,
+      height: 180,
+      uniforms: { gain: appliedRevision },
+    }),
+    encode: async (canvas) => {
+      if (canvas === oldCanvas) {
+        return new Promise((resolve) => { releaseOldCapture = resolve; });
+      }
+      return encoded();
+    },
+  });
+  let releaseFrame!: () => void;
+  const apply = createApplyController({
+    readDraft: () => ({ revision: draftRevision, main: `source-${draftRevision}`, utils: "", uniforms: [] }),
+    compile: async (snapshot) => {
+      assert.equal(snapshot.revision, 1);
+      return { ok: true as const, artifact };
+    },
+    preview: {
+      current: {
+        installAndDraw: async (_next, options) => {
+          options.onDrawing?.();
+          await new Promise<void>((resolve) => { releaseFrame = resolve; });
+          return { backend: "webgl" as const };
+        },
+      },
+    },
+    onApplied: () => {
+      appliedRevision = 1;
+      activeLifecycle = newLifecycle;
+      activeCanvas = newCanvas;
+      activeBackend = "webgl";
+    },
+  });
+  apply.confirmInitial(0, "webgpu");
+
+  const oldCapture = capture.capture({ expectedAppliedRevision: 0 });
+  await Promise.resolve();
+  draftRevision = 1;
+  const applying = apply.apply({ expectedRevision: 1 });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(typeof releaseFrame, "function");
+  releaseFrame();
+  const applied = await applying;
+  assert.equal(applied.ok, true);
+  assert.equal(apply.getState().phase, "applied");
+  assert.equal(apply.getState().appliedRevision, 1);
+  assert.deepEqual(apply.getState().diagnostics, []);
+
+  releaseOldCapture(encoded());
+  await expectCode(oldCapture, "identity-mismatch");
+
+  const fresh = await capture.capture({ expectedAppliedRevision: 1 });
+  assert.equal(fresh.appliedRevision, 1);
+  assert.equal(fresh.backend, "webgl");
+  assert.deepEqual(fresh.uniforms, { gain: 1 });
 });
 
 test("encoding, oversize, cancellation, and deadline failures return stable categories", async () => {
