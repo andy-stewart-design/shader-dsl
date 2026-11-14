@@ -1242,9 +1242,11 @@ export function connectAgentBridge(options: {
     setState({ status: "disconnected" });
   };
 
-  // A fresh reload is the only new-document navigation for which a stored
-  // grant is eligible. Delaying one turn lets an explicit pairing-link connect
-  // win the race. BFCache resumes are handled by pageshow above.
+  // A same-URL reload or same-origin history traversal creates a new
+  // controller/document but keeps sessionStorage. Both are eligible to use
+  // the still-live bridge lease; ordinary navigation is intentionally not.
+  // Delaying one turn lets an explicit pairing-link connect win the race.
+  // BFCache resumes are handled by pageshow above.
   const stored = readGrant();
   const navigationType = (() => {
     try {
@@ -1254,7 +1256,9 @@ export function connectAgentBridge(options: {
       return undefined;
     }
   })();
-  if (ownsWindow && stored && navigationType === "reload") {
+  const canResumeNewDocument =
+    navigationType === "reload" || navigationType === "back_forward";
+  if (ownsWindow && stored && canResumeNewDocument) {
     resumeGrant = stored;
     resumeCapable = true;
     autoResumeTimer = setTimeout(() => {

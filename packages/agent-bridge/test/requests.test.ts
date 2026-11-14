@@ -66,8 +66,16 @@ function page(sessionStorage = storage(), navigation = "navigate") {
     ) =>
       listeners.get(type)?.delete(listener),
     hide(persisted = false) {
+      if (!persisted) {
+        for (const listener of [...(listeners.get("beforeunload") ?? [])])
+          listener({ persisted });
+      }
       for (const listener of [...(listeners.get("pagehide") ?? [])])
         listener({ persisted });
+      if (!persisted) {
+        for (const listener of [...(listeners.get("unload") ?? [])])
+          listener({ persisted });
+      }
     },
     show(persisted = false) {
       for (const listener of [...(listeners.get("pageshow") ?? [])])
@@ -202,6 +210,84 @@ describe("refresh and request lifecycle composition", () => {
     // The same controller can be paired manually again after an explicit disconnect.
     await fresh.connect(helper.connectionInfo().pairingUrl!);
     expect((await connected(fresh)).sessionId).not.toBe(next.sessionId);
+  });
+
+  it("resumes a new same-origin history document without restoring app state", async () => {
+    const { createAuthoringController } = (await import(
+      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string
+    )) as any;
+    const { createAuthoringTools } = (await import(
+      "../../../apps/repl-web/src/agent/tools.ts" as string
+    )) as any;
+    const { createDraftStore } = (await import(
+      "../../../apps/repl-web/src/stores/draft.ts" as string
+    )) as any;
+    const { helper, client } = await server();
+    const sessionStorage = storage();
+    const oldStore = createDraftStore();
+    oldStore.getState().actions.commit({ main: "history-document-old-state" });
+    const oldTools = createAuthoringTools(
+      createAuthoringController(oldStore),
+    ) as BridgeTool[];
+    const oldPage = page(sessionStorage);
+    const old = browser(oldPage, oldTools);
+    await old.connect(helper.connectionInfo().pairingUrl!);
+    const before = await connected(old);
+    const stored = sessionStorage.getItem(key);
+    expect(stored).toBeTruthy();
+
+    // This is the production beforeunload -> pagehide -> unload sequence used
+    // before a new history document is created. The grant must survive the old
+    // document.
+    oldPage.hide(false);
+    await vi.waitFor(() =>
+      expect(helper.connectionInfo().status).toBe("interrupted"),
+    );
+    expect(sessionStorage.getItem(key)).toBe(stored);
+
+    const ordinaryStorage = storage();
+    ordinaryStorage.setItem(key, stored!);
+    const ordinary = browser(page(ordinaryStorage, "navigate"), oldTools);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(ordinary.getState().status).toBe("disconnected");
+    expect(ordinaryStorage.getItem(key)).toBeNull();
+
+    const freshStore = createDraftStore();
+    const fresh = browser(
+      page(sessionStorage, "back_forward"),
+      createAuthoringTools(
+        createAuthoringController(freshStore),
+      ) as BridgeTool[],
+    );
+    const after = await connected(fresh);
+    expect(after.sessionId).not.toBe(before.sessionId);
+    expect(after.catalogVersion).toBe(1);
+    expect(freshStore.getState().revision).toBe(0);
+    expect(freshStore.getState().main).not.toBe("history-document-old-state");
+
+    const listed = await client.callTool({
+      name: "bridge_list_tools",
+      arguments: { sessionId: after.sessionId },
+    });
+    const listedTools = JSON.parse(
+      (listed.content as Array<{ text: string }>)[0]!.text,
+    ).tools.map((item: any) => item.name);
+    expect(listedTools).toEqual([
+      "get_authoring_context",
+      "get_sketch",
+      "update_sketch",
+    ]);
+    const sketch = await client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: after.sessionId,
+        catalogVersion: 1,
+        name: "get_sketch",
+        arguments: {},
+      },
+    });
+    expect(parse(sketch)).toMatchObject({ revision: 0 });
+    expect(parse(sketch).main).not.toBe("history-document-old-state");
   });
 
   it("retries a refresh handoff conflict and reconnects a dropped live transport", async () => {

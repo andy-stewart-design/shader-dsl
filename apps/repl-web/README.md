@@ -51,7 +51,7 @@ pi mcp add -l agent-bridge -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --a
 
 Pi's registration is cwd-local in `.pi/mcp.json`; it does not search a parent directory. After registration, run `/reload`, then request a fresh pairing link and open the approved deployed URL. For a local manual check, configure the helper's allowed origin explicitly as `http://localhost:3000` instead; this README does not modify Pi configuration.
 
-The deployed response headers must allow the bridge WebSocket connection to the local helper (the effective CSP needs `connect-src ws://127.0.0.1:*`, alongside the site's existing sources). Apply that as an approved host/header change in the deployment workflow; do not add a blanket production host exception. The initial pairing fragment is removed before the app renders and is not copied to app state, URL history, logs, telemetry, or durable storage. The bridge may retain only its own scoped same-origin refresh resume credential in `sessionStorage`.
+The deployed response headers must allow the bridge WebSocket connection to the local helper (the effective CSP needs `connect-src ws://127.0.0.1:*`, alongside the site's existing sources). Apply that as an approved host/header change in the deployment workflow; do not add a blanket production host exception. The initial pairing fragment is removed before the app renders and is not copied to app state, URL history, logs, telemetry, or durable storage. The bridge may retain only its own scoped same-origin reload/history resume credential in `sessionStorage`.
 
 # Building For Production
 
