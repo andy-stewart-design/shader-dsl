@@ -444,21 +444,21 @@ Tasks:
 
 - [x] Register `capture_preview` against the active renderer handle and a draw/export boundary, with expected applied revision guarding before and after capture; default the encoded PNG to a bounded 512-pixel longest edge while retaining explicit native capture.
 - [x] Return the shared image envelope and distinguish encoded PNG dimensions from native canvas identity dimensions, alongside consistent applied revision/backend and read-only uniform snapshot; do not expose runtime setters or permanent playback changes.
-- [ ] Test missing/tainted/disposed canvases, export/size errors, resize/backend replacement, and apply-during-capture without returning stale or mislabeled success.
-- [ ] Extend the real app browser journey and run Pi's deployed source/definition edit, Apply, diagnose, inspect-image, and review loop on the supported renderer backends.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Test missing/tainted/disposed canvases, export/size errors, resize/backend replacement, and apply-during-capture without returning stale or mislabeled success.
+- [x] Extend the real app browser journey and run Pi's deployed source/definition edit, Apply, diagnose, inspect-image, and review loop on the supported renderer backends.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
-- Automated: app unit/browser/check/lint/build and `build:preview-probe`, plus generic result-conversion regressions. The existing preview probe remains user-assisted; test-only backend injection cannot change production fallback semantics or become a tool.
-- Manual: real deployed REPL and target Chrome/Pi, with local app servers stopped: change a visually distinctive sketch and definitions, Apply, request guarded capture, and have Pi describe the actual image. Check backend/dimensions/revision metadata and both backend exports; unsupported hardware is a blocker, not a pass.
+- Automated: the approved native Node app suite, app `check`/`lint`/`build`, `build:preview-probe`, `build:authoring-probe`, and generic result-conversion regressions. These are source/build checks, not automated browser pixel verification; the preview probe and hosted journey remain user-assisted.
+- Manual: real deployed REPL with local app servers stopped: Chrome WebGPU and the user-approved Zen Firefox WebGL2 alternative each completed the distinctive source/definition edit, Apply, guarded capture, failure/recovery, metadata, and Pi image-review journey. Unsupported hardware is a blocker, not a pass.
 
 Completion gate: Pi can complete AC23's core loop and AC20/AC21's capture behaviors hold, including real model-visible images from the application canvas rather than the whole tab.
 Evidence location: [evidence/step-4.2.md](evidence/step-4.2.md).
 
-Phase exit gate: rerun integrated app/generic checks and the full deployed Pi visual journey after 4.2. Review Apply races, canvas identity, and backend proof together; record the result in `evidence/step-4.2.md` before Phase 5. Broader installation/client claims remain unproven until Phase 5.
+Phase exit gate: rerun integrated app/generic checks and the full deployed Pi visual journey after 4.2. Review Apply races, canvas identity, and Chrome WebGPU plus the user-approved Zen Firefox WebGL2 backend proof together; record the result in `evidence/step-4.2.md` before Phase 5. Broader installation/client claims remain unproven until Phase 5.
 
-Checklist reconciliation: Step 4.2 remains pending. The prior closure was premature: the latest hosted production journey proves WebGPU only, not the required hosted WebGL2 journey on both supported backends, and the fresh combined Phase 4 exit checks have not been run. Task 5.1 has not started; readiness for it is overstated while this Phase 4 gate is pending.
+Checklist reconciliation: Step 4.2 and the Phase 4 exit gate are complete. All five Step 4.2 tasks are checked: capture registration/guarding, envelope metadata, negative/concurrency coverage, both-backend hosted visual proof, and the final verification gate. Step 5.1 remains unchecked and has not started.
 
 ## Phase 5 — Harden, package, and verify supported clients
 

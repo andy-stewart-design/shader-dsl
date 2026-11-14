@@ -280,7 +280,6 @@ try {
         await renderer.draw();
         return result.status;
       });
-      await both((renderer) => renderer.setShader(initial));
       return recovered;
     },
     { initial, changed },

@@ -133,6 +133,7 @@ export function connectAgentBridge(options: {
   let reconnectDelay: number = LIMITS.reconnectInitialDelayMs;
   let stopped = !ownsWindow;
   let pageLifecycleDropped = false;
+  let pageSuspendedForBfcache = false;
   let autoResumeTimer: ReturnType<typeof setTimeout> | undefined;
   let pendingCatalog:
     | {
@@ -169,6 +170,7 @@ export function connectAgentBridge(options: {
   const removeLifecycleListeners = () => {
     try {
       pageWindow?.removeEventListener?.("pagehide", onPageLifecycle);
+      pageWindow?.removeEventListener?.("pageshow", onPageShow);
       pageWindow?.removeEventListener?.("unload", onPageLifecycle);
     } catch {
       // Some test/browser window shims do not implement removal.
@@ -267,12 +269,51 @@ export function connectAgentBridge(options: {
     }
   };
 
-  function onPageLifecycle() {
-    if (stopped) return;
+  function onPageLifecycle(event?: { persisted?: boolean }) {
+    // A persisted pagehide means the document is entering the BFCache. The
+    // document and its controller still own the page, but its transport must
+    // be dropped so the helper can hold the normal short resume lease.
+    if (event?.persisted === true) {
+      if (pageLifecycleDropped || pageSuspendedForBfcache) return;
+      pageSuspendedForBfcache = true;
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+      if (autoResumeTimer) clearTimeout(autoResumeTimer);
+      autoResumeTimer = undefined;
+      const current = socket;
+      const hadOpenTransport = current?.readyState === OPEN;
+      socket = undefined;
+      sessionId = undefined;
+      catalogVersion = BRIDGE_CATALOG_VERSION;
+      abortActive(undefined, false);
+      rejectCatalog(new BridgeClientError("not_connected", "page suspended"));
+      if (current && current.readyState < 2) {
+        try {
+          current.close();
+        } catch {
+          // best effort while entering the BFCache
+        }
+      }
+      if (resumeGrant) {
+        // A connected socket's close starts the helper's lease. Never extend
+        // an already-running lease when transport loss preceded pagehide.
+        if (hadOpenTransport)
+          reconnectDeadline = Date.now() + resumeGrant.resumeLeaseMs;
+        resumeCapable = true;
+      } else {
+        resumeCapable = false;
+      }
+      setState({ status: "disconnected" });
+      return;
+    }
+    if (pageLifecycleDropped) return;
     pageLifecycleDropped = true;
     stopped = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
+    if (autoResumeTimer) clearTimeout(autoResumeTimer);
+    autoResumeTimer = undefined;
     const current = socket;
     socket = undefined;
     sessionId = undefined;
@@ -289,8 +330,51 @@ export function connectAgentBridge(options: {
     releaseOwner();
   }
 
+  function onPageShow(event?: { persisted?: boolean }) {
+    if (
+      event?.persisted !== true ||
+      pageLifecycleDropped ||
+      !pageSuspendedForBfcache ||
+      !ownsWindow
+    )
+      return;
+    pageSuspendedForBfcache = false;
+    stopped = false;
+    const stored = readGrant();
+    if (!stored || !resumeGrant) {
+      failTerminal(
+        new BridgeClientError(
+          "resume_expired",
+          "bridge resume credential is unavailable",
+        ),
+        resumeGrant,
+      );
+      return;
+    }
+    resumeGrant = stored;
+    resumeCapable = true;
+    if (Date.now() >= reconnectDeadline) {
+      failTerminal(
+        new BridgeClientError("resume_expired", "bridge resume lease expired"),
+        resumeGrant,
+      );
+      return;
+    }
+    reconnectDelay = LIMITS.reconnectInitialDelayMs;
+    setState({ status: "connecting" });
+    autoResumeTimer = setTimeout(() => {
+      autoResumeTimer = undefined;
+      if (stopped || pageLifecycleDropped || !resumeGrant || socket) return;
+      void startSocket(
+        { endpoint: resumeGrant.endpoint, resume: resumeGrant },
+        "auto",
+      ).catch(() => undefined);
+    }, 0);
+  }
+
   if (pageWindow?.addEventListener && ownsWindow) {
     pageWindow.addEventListener("pagehide", onPageLifecycle);
+    pageWindow.addEventListener("pageshow", onPageShow);
     pageWindow.addEventListener("unload", onPageLifecycle);
   }
 
@@ -829,6 +913,7 @@ export function connectAgentBridge(options: {
         owners.set(pageWindow, ownerToken);
         ownsWindow = true;
         pageWindow.addEventListener?.("pagehide", onPageLifecycle);
+        pageWindow.addEventListener?.("pageshow", onPageShow);
         pageWindow.addEventListener?.("unload", onPageLifecycle);
       }
     }
@@ -1120,6 +1205,7 @@ export function connectAgentBridge(options: {
       return;
     stopped = true;
     pageLifecycleDropped = true;
+    pageSuspendedForBfcache = false;
     if (autoResumeTimer) clearTimeout(autoResumeTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     autoResumeTimer = undefined;
@@ -1156,8 +1242,9 @@ export function connectAgentBridge(options: {
     setState({ status: "disconnected" });
   };
 
-  // A reload is the only navigation for which a stored grant is eligible.
-  // Delaying one turn lets an explicit pairing-link connect win the race.
+  // A fresh reload is the only new-document navigation for which a stored
+  // grant is eligible. Delaying one turn lets an explicit pairing-link connect
+  // win the race. BFCache resumes are handled by pageshow above.
   const stored = readGrant();
   const navigationType = (() => {
     try {

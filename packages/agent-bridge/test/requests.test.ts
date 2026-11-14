@@ -15,9 +15,24 @@ const clients: Client[] = [];
 const bridges: AgentBridge[] = [];
 const sockets: WebSocket[] = [];
 class LocalSocket extends WebSocket {
+  static dropNextResponse = false;
+
   constructor(url: string) {
     super(url, { origin });
     sockets.push(this);
+  }
+
+  send(data: string | Buffer) {
+    if (
+      LocalSocket.dropNextResponse &&
+      typeof data === "string" &&
+      JSON.parse(data).type === "response"
+    ) {
+      LocalSocket.dropNextResponse = false;
+      this.terminate();
+      return;
+    }
+    super.send(data);
   }
 }
 function storage() {
@@ -33,19 +48,30 @@ function storage() {
   };
 }
 function page(sessionStorage = storage(), navigation = "navigate") {
-  const listeners = new Map<string, Set<() => void>>();
+  const listeners = new Map<string, Set<(event?: { persisted?: boolean }) => void>>();
   return {
     sessionStorage,
     location: { origin, href: pageUrl },
     performance: { getEntriesByType: () => [{ type: navigation }] },
-    addEventListener(type: string, listener: () => void) {
+    addEventListener(
+      type: string,
+      listener: (event?: { persisted?: boolean }) => void,
+    ) {
       if (!listeners.has(type)) listeners.set(type, new Set());
       listeners.get(type)!.add(listener);
     },
-    removeEventListener: (type: string, listener: () => void) =>
+    removeEventListener: (
+      type: string,
+      listener: (event?: { persisted?: boolean }) => void,
+    ) =>
       listeners.get(type)?.delete(listener),
-    hide() {
-      for (const listener of [...(listeners.get("pagehide") ?? [])]) listener();
+    hide(persisted = false) {
+      for (const listener of [...(listeners.get("pagehide") ?? [])])
+        listener({ persisted });
+    },
+    show(persisted = false) {
+      for (const listener of [...(listeners.get("pageshow") ?? [])])
+        listener({ persisted });
     },
   };
 }
@@ -111,6 +137,7 @@ afterEach(async () => {
   for (const socket of sockets.splice(0)) socket.terminate();
   for (const client of clients.splice(0)) await client.close();
   for (const helper of servers.splice(0)) await helper.close();
+  LocalSocket.dropNextResponse = false;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -202,6 +229,101 @@ describe("refresh and request lifecycle composition", () => {
       },
       { timeout: 2500 },
     );
+  });
+
+  it("resumes the same controller after a persisted BFCache lifecycle", async () => {
+    const { createAuthoringController } = await import(
+      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string,
+    ) as any;
+    const { createAuthoringTools } = await import(
+      "../../../apps/repl-web/src/agent/tools.ts" as string,
+    ) as any;
+    const { createDraftStore } = await import(
+      "../../../apps/repl-web/src/stores/draft.ts" as string,
+    ) as any;
+    const { helper, client } = await server();
+    const store = createDraftStore();
+    const controller = createAuthoringController(store);
+    const authoringTools = createAuthoringTools(controller) as BridgeTool[];
+    const beforeDraft = store.getState();
+    let calls = 0;
+    let complete!: (result: { finished: boolean }) => void;
+    const sessionStorage = storage();
+    const originalPage = page(sessionStorage);
+    const original = browser(originalPage, [
+      ...authoringTools,
+      tool("slow", () => {
+        calls++;
+        return new Promise<{ finished: boolean }>((resolve) => {
+          complete = resolve;
+        });
+      }),
+    ]);
+    await original.connect(helper.connectionInfo().pairingUrl!);
+    const before = await connected(original);
+    const stored = JSON.parse(sessionStorage.getItem(key)!);
+    const pending = client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: before.sessionId,
+        catalogVersion: 1,
+        name: "slow",
+        arguments: {},
+      },
+    });
+    await vi.waitFor(() => expect(calls).toBe(1));
+
+    originalPage.hide(true);
+    expect((await pending).isError).toBe(true);
+    complete({ finished: true });
+    await vi.waitFor(() =>
+      expect(helper.connectionInfo().status).toBe("interrupted"),
+    );
+    expect(original.getState().status).toBe("disconnected");
+    expect(sessionStorage.getItem(key)).toBeTruthy();
+
+    originalPage.show(true);
+    const after = await connected(original);
+    expect(after.sessionId).not.toBe(before.sessionId);
+    expect(after.catalogVersion).toBe(1);
+    expect(calls).toBe(1);
+    const rotated = JSON.parse(sessionStorage.getItem(key)!);
+    expect(rotated.resumeToken).not.toBe(stored.resumeToken);
+
+    const read = await client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: after.sessionId,
+        catalogVersion: 1,
+        name: "get_sketch",
+        arguments: {},
+      },
+    });
+    expect(parse(read)).toMatchObject({
+      revision: beforeDraft.revision,
+      main: beforeDraft.main,
+      utils: beforeDraft.utils,
+      uniforms: beforeDraft.uniforms,
+    });
+    expect(store.getState()).toEqual(beforeDraft);
+  });
+
+  it("does not revive an explicitly disconnected BFCache page", async () => {
+    const { helper } = await server();
+    const originalPage = page();
+    const bridge = browser(originalPage);
+    await bridge.connect(helper.connectionInfo().pairingUrl!);
+    await connected(bridge);
+    bridge.disconnect();
+    await vi.waitFor(() =>
+      expect(helper.connectionInfo().status).toBe("unpaired"),
+    );
+
+    originalPage.hide(true);
+    originalPage.show(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(bridge.getState().status).toBe("disconnected");
+    expect(helper.connectionInfo().status).toBe("unpaired");
   });
 
   it("clears invalid resume information and permits fresh manual pairing", async () => {
@@ -331,6 +453,86 @@ describe("refresh and request lifecycle composition", () => {
         }),
       ),
     ).toEqual({ ready: true });
+  });
+
+  it("keeps a committed app mutation single-shot across lost response and refresh", async () => {
+    // Keep the composition probe in the bridge suite without making the
+    // generic package's typecheck own the app's native .ts import graph.
+    const { createAuthoringController } = await import(
+      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string,
+    ) as any;
+    const { createAuthoringTools } = await import(
+      "../../../apps/repl-web/src/agent/tools.ts" as string,
+    ) as any;
+    const { createDraftStore } = await import(
+      "../../../apps/repl-web/src/stores/draft.ts" as string,
+    ) as any;
+    const { helper, client } = await server();
+    const store = createDraftStore();
+    const controller = createAuthoringController(store);
+    const tools = createAuthoringTools(controller) as BridgeTool[];
+    const originalPage = page();
+    const original = browser(originalPage, tools);
+    await original.connect(helper.connectionInfo().pairingUrl!);
+    const before = await connected(original);
+    const listed = await client.callTool({
+      name: "bridge_list_tools",
+      arguments: { sessionId: before.sessionId },
+    });
+    const listedText = (listed.content as Array<{ text: string }>)[0]!.text;
+    expect(JSON.parse(listedText).tools.map((item: any) => item.name)).toEqual([
+      "get_authoring_context",
+      "get_sketch",
+      "update_sketch",
+    ]);
+
+    LocalSocket.dropNextResponse = true;
+    const lost = await client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: before.sessionId,
+        catalogVersion: 1,
+        name: "update_sketch",
+        arguments: { expectedRevision: 0, main: "committed-before-response-loss" },
+      },
+    });
+    expect(lost.isError).toBe(true);
+    expect(store.getState().revision).toBe(1);
+    expect(store.getState().main).toBe("committed-before-response-loss");
+
+    await vi.waitFor(() => expect(helper.connectionInfo().status).toBe("interrupted"));
+    originalPage.hide();
+    const refreshed = browser(page(originalPage.sessionStorage, "reload"), tools);
+    const after = await connected(refreshed);
+    expect(after.sessionId).not.toBe(before.sessionId);
+    const reread = await client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: after.sessionId,
+        catalogVersion: 1,
+        name: "get_sketch",
+        arguments: {},
+      },
+    });
+    const current = parse(reread);
+    expect(current.revision).toBe(1);
+    expect(current.main).toBe("committed-before-response-loss");
+
+    const stale = await client.callTool({
+      name: "bridge_call_tool",
+      arguments: {
+        sessionId: after.sessionId,
+        catalogVersion: 1,
+        name: "update_sketch",
+        arguments: { expectedRevision: 0, utils: "must-not-replay" },
+      },
+    });
+    expect(parse(stale)).toMatchObject({
+      ok: false,
+      error: { code: "conflict", currentRevision: 1 },
+    });
+    expect(store.getState().revision).toBe(1);
+    expect(store.getState().utils).toBe("");
   });
 
   it("allows only one helper/controller per page and does not steal ownership", async () => {

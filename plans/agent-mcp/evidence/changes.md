@@ -46,6 +46,10 @@ The user authorized Step 3.3 with the same quick/manual-first method and explici
 
 Step 4.1 keeps the existing three authoring tools and adds only `apply_sketch` when the production renderer-backed Apply operation exists. Correlated diagnostics and applied identity are returned by `apply_sketch` and reflected in `get_sketch`/`get_authoring_context`; no separate `get_diagnostics` tool or Phase 4.2 capture/runtime tool was added. This follows the execution handoff's explicit narrow catalog boundary while retaining structured diagnostics.
 
+## Step 4.2 approved backend-verification method
+
+For final Step 4.2 hosted verification, the user explicitly approved Zen Firefox as the alternative backend test after the method was clarified. The evidence therefore uses Chrome WebGPU plus user-assisted Zen Firefox WebGL2 with WebGPU disabled, rather than pretending both backends were tested in Chrome or claiming automated browser pixels. This records a verification-method clarification only; it changes no contract, scope, backend policy, or Phase 5 status.
+
 ## Step 4.2 bounded preview capture default
 
 The user explicitly approved lowering the default capture resolution: “Yeah, I think it makes sense to default to a lower resolution capture to be safe”. Step 4.2 now uses optional `maxDimension` (integer 64–2048 or explicit `"native"`), defaults to 512 at the `capture_preview`/production port boundary, and keeps the generic `captureCanvas` helper's native default for the standalone probe. Metadata distinguishes encoded PNG `width`/`height` from native `identity` and `canvasWidth`/`canvasHeight`; no provider payload root cause or deployment approval is inferred.
