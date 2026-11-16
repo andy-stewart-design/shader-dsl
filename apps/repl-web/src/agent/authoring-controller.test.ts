@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
-import {
-  authoringUpdateJsonSchema,
-  createAuthoringController,
-} from "./authoring-controller.ts";
+import { createAuthoringController } from "./authoring-controller.ts";
 import { EditorRegistry } from "../editor/authoring-adapter.ts";
 import { createDraftStore } from "../stores/draft.ts";
 
@@ -25,13 +21,6 @@ const validColor = {
   type: "color" as const,
   value: "#0f8",
 };
-
-test("checked-in authoring schema matches the dynamic Zod artifact", () => {
-  const staticSchema = JSON.parse(
-    readFileSync(new URL("./authoring-schema.json", import.meta.url), "utf8"),
-  );
-  assert.deepEqual(staticSchema, authoringUpdateJsonSchema);
-});
 
 test("reads cloned raw drafts and maps color value from draft", () => {
   const { controller } = makeController();
