@@ -1,5 +1,5 @@
 import { defineTool, z } from "@shdr/agent-bridge/zod";
-import { imageResult, type BridgeTool } from "@shdr/agent-bridge/browser";
+import { imageResult } from "@shdr/agent-bridge/browser";
 import {
   authoringUpdateSchema,
   type AuthoringUpdateInput,
@@ -32,7 +32,8 @@ export function createAuthoringTools(
   controller: AuthoringController,
   capturePortRef?: { current: CapturePreviewPort | null },
 ) {
-  const tools: BridgeTool<unknown>[] = [
+  const { apply } = controller;
+  return [
     defineTool({
       name: "get_authoring_context",
       description:
@@ -56,91 +57,92 @@ export function createAuthoringTools(
       input: authoringUpdateSchema,
       handler: (input) => updateSketch(controller, input),
     }),
-  ];
-  const apply = controller.apply;
-  if (apply) {
-    tools.push(
-      defineTool({
-        name: "apply_sketch",
-        description:
-          "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
-        input: applyInputSchema,
-        handler: (input, context) =>
-          apply({
-            expectedRevision: input.expectedRevision,
-            signal: context.signal,
+    ...(apply
+      ? [
+          defineTool({
+            name: "apply_sketch",
+            description:
+              "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
+            input: applyInputSchema,
+            handler: (input, context) =>
+              apply({
+                expectedRevision: input.expectedRevision,
+                signal: context.signal,
+              }),
           }),
-      }),
-    );
-  }
-  if (capturePortRef) {
-    tools.push(
-      defineTool({
-        name: "capture_preview",
-        description:
-          'Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or "native" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.',
-        input: captureInputSchema,
-        handler: async (input, context) => {
-          const port = capturePortRef.current;
-          if (!port) {
-            return {
-              ok: false as const,
-              error: {
-                code: "not-ready",
-                message: "The preview renderer is not ready for capture.",
-              },
-            };
-          }
-          try {
-            const captured = await port.capture({
-              expectedAppliedRevision: input.expectedAppliedRevision,
-              maxDimension: input.maxDimension,
-              signal: context.signal,
-            });
-            const data = await blobToBase64(captured.blob);
-            captured.assertCurrent();
-            const draftRevision = controller.read().revision;
-            return imageResult({
-              data,
-              mimeType: captured.mimeType,
-              metadata: {
-                kind: "preview-capture",
-                appliedRevision: captured.appliedRevision,
-                draftRevision,
-                draftDiffersFromApplied:
-                  draftRevision !== captured.appliedRevision,
-                identity: {
-                  appliedRevision: captured.appliedRevision,
-                  backend: captured.backend,
-                  width: captured.canvasWidth,
-                  height: captured.canvasHeight,
-                },
-                backend: captured.backend,
-                width: captured.width,
-                height: captured.height,
-                canvasWidth: captured.canvasWidth,
-                canvasHeight: captured.canvasHeight,
-                uniforms: captured.uniforms,
-              },
-            });
-          } catch (error) {
-            const captureError =
-              error instanceof CapturePreviewError
-                ? error
-                : new CapturePreviewError(
-                    "encoding",
-                    error instanceof Error ? error.message : String(error),
-                  );
-            return {
-              ok: false as const,
-              error: { code: captureError.code, message: captureError.message },
-            };
-          }
-        },
-      }),
-    );
-  }
-  return tools;
+        ]
+      : []),
+    ...(capturePortRef
+      ? [
+          defineTool({
+            name: "capture_preview",
+            description:
+              'Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or "native" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.',
+            input: captureInputSchema,
+            handler: async (input, context) => {
+              const port = capturePortRef.current;
+              if (!port) {
+                return {
+                  ok: false as const,
+                  error: {
+                    code: "not-ready",
+                    message: "The preview renderer is not ready for capture.",
+                  },
+                };
+              }
+              try {
+                const captured = await port.capture({
+                  expectedAppliedRevision: input.expectedAppliedRevision,
+                  maxDimension: input.maxDimension,
+                  signal: context.signal,
+                });
+                const data = await blobToBase64(captured.blob);
+                captured.assertCurrent();
+                const draftRevision = controller.read().revision;
+                return imageResult({
+                  data,
+                  mimeType: captured.mimeType,
+                  metadata: {
+                    kind: "preview-capture",
+                    appliedRevision: captured.appliedRevision,
+                    draftRevision,
+                    draftDiffersFromApplied:
+                      draftRevision !== captured.appliedRevision,
+                    identity: {
+                      appliedRevision: captured.appliedRevision,
+                      backend: captured.backend,
+                      width: captured.canvasWidth,
+                      height: captured.canvasHeight,
+                    },
+                    backend: captured.backend,
+                    width: captured.width,
+                    height: captured.height,
+                    canvasWidth: captured.canvasWidth,
+                    canvasHeight: captured.canvasHeight,
+                    uniforms: captured.uniforms,
+                  },
+                });
+              } catch (error) {
+                const captureError =
+                  error instanceof CapturePreviewError
+                    ? error
+                    : new CapturePreviewError(
+                        "encoding",
+                        error instanceof Error ? error.message : String(error),
+                      );
+                return {
+                  ok: false as const,
+                  error: {
+                    code: captureError.code,
+                    message: captureError.message,
+                  },
+                };
+              }
+            },
+          }),
+        ]
+      : []),
+  ];
 }
 
 function updateSketch(
