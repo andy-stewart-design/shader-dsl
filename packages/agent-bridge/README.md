@@ -71,10 +71,10 @@ repo="$PWD"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/consumer"
-pnpm --dir "$repo/packages/agent-bridge" pack --pack-destination "$tmp"
+(cd "$repo/packages/agent-bridge" && npm pack --pack-destination "$tmp")
 # Use the generated shdr-agent-bridge-*.tgz path below.
 printf '{"private":true,"type":"module"}\n' > "$tmp/consumer/package.json"
-(cd "$tmp/consumer" && pnpm add --offline --ignore-scripts "$tmp"/shdr-agent-bridge-*.tgz)
+(cd "$tmp/consumer" && npm install --ignore-scripts --no-audit --no-fund "$tmp"/shdr-agent-bridge-*.tgz)
 ```
 
 From the temporary consumer directory (outside the repository), the installed executable can then be configured with an ordinary MCP stdio entry:
@@ -86,7 +86,9 @@ cd "$tmp/consumer"
   --site-url https://example.invalid/
 ```
 
-`--allowed-origin` is an exact origin and has no trailing slash; `--site-url` is the full page URL and normally does have a trailing slash. `pnpm add --offline` must use the existing local cache and `--ignore-scripts`; do not silently retry online when a dependency tarball is absent. This is a temporary consumer install only: it does not publish the package, install globally, start a daemon, or modify a permanent agent configuration.
+`--allowed-origin` is an exact origin and has no trailing slash; `--site-url` is the full page URL and normally does have a trailing slash. The temporary consumer install uses the registry for package dependencies while keeping lifecycle scripts disabled; it does not publish the package, install globally, start a daemon, or modify a permanent agent configuration.
+
+The `test:packed` check is intentionally a publishing smoke test: it builds and packs the package, installs the tarball in a fresh temporary consumer with registry access, imports the public entrypoints (`.`, `/browser`, `/protocol`, `/server`, `/zod`, and `/react` with React), confirms the optional React peer is not installed for the non-React consumer, and checks the installed CLI bin target. It does not duplicate transport/image integration, browser bundling, or detailed tarball audits.
 
 Effective bounds are: 5 minute pairing lifetime, 5 second authentication deadline, 30 second request deadline, 4 KiB unauthenticated frames, 8 MiB authenticated frames, 4 MiB decoded images, 4 unauthenticated sockets, 8 pending calls, 64 tools, and 512 KiB catalogs.
 

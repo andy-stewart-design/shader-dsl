@@ -1,7 +1,6 @@
 {
-  "name": "@shdr/agent-bridge",
-  "version": "0.0.0",
-  "private": true,
+  "name": "web-mcp",
+  "version": "0.0.1",
   "type": "module",
   "engines": {
     "node": ">=24"
