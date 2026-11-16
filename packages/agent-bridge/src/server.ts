@@ -537,7 +537,7 @@ export async function startBridgeServer(
     if (mcpServer || shuttingDown)
       throw new Error("bridge is already attached or closed");
     const server = new McpServer(
-      { name: "shdr-agent-bridge", version: "0.0.0" },
+      { name: "app-mcp", version: "0.0.0" },
       { capabilities: { tools: {} } },
     );
     server.registerTool(

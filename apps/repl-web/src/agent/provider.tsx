@@ -2,7 +2,7 @@ import {
   AgentBridgeProvider,
   useAgentBridge,
   type AgentBridgeFactory,
-} from "@shdr/agent-bridge/react";
+} from "app-mcp/react";
 import {
   createContext,
   useContext,

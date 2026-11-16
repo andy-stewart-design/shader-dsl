@@ -1,4 +1,4 @@
-import { z } from "@shdr/agent-bridge/zod";
+import { z } from "app-mcp/zod";
 import {
   authoringUpdateSchema,
   authoringUpdateJsonSchema,

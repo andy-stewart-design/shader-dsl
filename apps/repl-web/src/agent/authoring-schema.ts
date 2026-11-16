@@ -1,4 +1,4 @@
-import { toJsonSchema, z } from "@shdr/agent-bridge/zod";
+import { toJsonSchema, z } from "app-mcp/zod";
 import { colorToValidHex } from "../components/uniforms-pane/helpers.ts";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions.ts";
 import type { Uniform } from "../shared/uniforms.ts";

@@ -53,11 +53,11 @@ function checkExports(consumer) {
     consumer,
     "check-exports.mjs",
     `
-      const root = await import("@shdr/agent-bridge");
-      const browser = await import("@shdr/agent-bridge/browser");
-      const protocol = await import("@shdr/agent-bridge/protocol");
-      const server = await import("@shdr/agent-bridge/server");
-      const zod = await import("@shdr/agent-bridge/zod");
+      const root = await import("app-mcp");
+      const browser = await import("app-mcp/browser");
+      const protocol = await import("app-mcp/protocol");
+      const server = await import("app-mcp/server");
+      const zod = await import("app-mcp/zod");
       if (typeof root.imageResult !== "function") throw new Error("root export missing");
       if (typeof browser.connectAgentBridge !== "function" || typeof browser.consumePairingLink !== "function" || typeof browser.imageResult !== "function") throw new Error("browser exports missing");
       if (protocol.BRIDGE_PROTOCOL_VERSION !== 1 || protocol.BRIDGE_CATALOG_VERSION !== 1 || protocol.BRIDGE_RESULT_VERSION !== 1 || typeof protocol.LIMITS !== "object") throw new Error("protocol exports missing");
@@ -69,19 +69,19 @@ function checkExports(consumer) {
 }
 
 function checkCli(consumer) {
-  const installed = join(consumer, "node_modules/@shdr/agent-bridge");
+  const installed = join(consumer, "node_modules/app-mcp");
   const metadata = JSON.parse(
     readFileSync(join(installed, "package.json"), "utf8"),
   );
-  assert.equal(metadata.bin?.["shdr-agent-bridge"], "./dist/bin.mjs");
+  assert.equal(metadata.bin?.["app-mcp"], "./dist/bin.mjs");
   const target = join(installed, "dist/bin.mjs");
   assert.ok(existsSync(target), "CLI target is missing");
   const bin = join(
     consumer,
     "node_modules/.bin",
     process.platform === "win32"
-      ? "shdr-agent-bridge.cmd"
-      : "shdr-agent-bridge",
+      ? "app-mcp.cmd"
+      : "app-mcp",
   );
   assert.ok(existsSync(bin), "installed CLI executable is missing");
   if (process.platform !== "win32") {
@@ -106,7 +106,7 @@ function checkReact(consumer) {
     "check-react.mjs",
     `
       const React = await import("react");
-      const adapter = await import("@shdr/agent-bridge/react");
+      const adapter = await import("app-mcp/react");
       if (typeof React.createElement !== "function") throw new Error("React SSR import missing");
       if (typeof adapter.AgentBridgeProvider !== "function" || typeof adapter.useAgentBridge !== "function") throw new Error("React exports missing");
       if (typeof window !== "undefined") throw new Error("React SSR check unexpectedly has window");
@@ -115,7 +115,7 @@ function checkReact(consumer) {
 }
 
 function main() {
-  const tempRoot = mkdtempSync(join(tmpdir(), "shdr-agent-bridge-packed-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "app-mcp-packed-"));
   try {
     const pack = JSON.parse(
       run("npm", ["pack", "--pack-destination", tempRoot, "--json"], {
@@ -133,7 +133,7 @@ function main() {
     );
     install(consumer, tarball);
 
-    const installed = join(consumer, "node_modules/@shdr/agent-bridge");
+    const installed = join(consumer, "node_modules/app-mcp");
     assert.ok(
       existsSync(join(installed, "package.json")),
       "tarball package is not installed",

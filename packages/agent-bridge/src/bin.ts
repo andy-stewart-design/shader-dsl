@@ -22,7 +22,7 @@ try {
     )
   ) {
     throw new Error(
-      "usage: shdr-agent-bridge --allowed-origin <HTTPS or localhost origin> --site-url <URL within that origin>",
+      "usage: app-mcp --allowed-origin <HTTPS or localhost origin> --site-url <URL within that origin>",
     );
   }
   if (
@@ -34,7 +34,7 @@ try {
   await bridge.attachMcp(new StdioServerTransport());
 } catch (error) {
   process.stderr.write(
-    `shdr-agent-bridge: ${error instanceof Error ? error.message : "startup failed"}\n`,
+    `app-mcp: ${error instanceof Error ? error.message : "startup failed"}\n`,
   );
   process.exitCode = 1;
 }

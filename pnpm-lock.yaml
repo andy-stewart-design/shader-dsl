@@ -285,7 +285,7 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.5
         version: 1.2.5
-      '@shdr/agent-bridge':
+      'app-mcp':
         specifier: workspace:*
         version: link:../../packages/agent-bridge
       '@shdr/core':

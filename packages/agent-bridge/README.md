@@ -1,4 +1,4 @@
-# @shdr/agent-bridge
+# app-mcp
 
 A small, generic bridge between a standard MCP stdio client and explicitly declared tools in an HTTPS page (or explicitly configured localhost HTTP during development). It has no shader, browser automation, or agent orchestration behavior.
 
@@ -7,18 +7,18 @@ A small, generic bridge between a standard MCP stdio client and explicitly decla
 Have the MCP client start the foreground helper with an exact HTTPS origin and URL (plain HTTP is accepted only for explicitly configured `localhost`/`127.0.0.1` development origins):
 
 ```sh
-shdr-agent-bridge --allowed-origin https://example.invalid --site-url https://example.invalid/
+app-mcp --allowed-origin https://example.invalid --site-url https://example.invalid/
 ```
 
-The helper binds only to `127.0.0.1` on an ephemeral port. Call `bridge_get_connection_info` over MCP to receive the short-lived pairing URL. The URL contains credentials only in its fragment; it is not logged or sent in the WebSocket URL. A page should call `consumePairingLink()` from `@shdr/agent-bridge/browser`, remove the fragment immediately, and pass the returned link to `connectAgentBridge`.
+The helper binds only to `127.0.0.1` on an ephemeral port. Call `bridge_get_connection_info` over MCP to receive the short-lived pairing URL. The URL contains credentials only in its fragment; it is not logged or sent in the WebSocket URL. A page should call `consumePairingLink()` from `app-mcp/browser`, remove the fragment immediately, and pass the returned link to `connectAgentBridge`.
 
 ```ts
 import {
   connectAgentBridge,
   consumePairingLink,
-} from "@shdr/agent-bridge/browser";
+} from "app-mcp/browser";
 
-import { defineTool, z } from "@shdr/agent-bridge/zod";
+import { defineTool, z } from "app-mcp/zod";
 
 const bridge = connectAgentBridge({
   tools: [
@@ -36,10 +36,10 @@ if (link) await bridge.connect(link);
 
 ### React adapter
 
-React applications can use the optional `@shdr/agent-bridge/react` entrypoint. React is an optional peer; importing the browser entrypoint does not import React. The adapter consumes the initial pairing fragment at module evaluation, creates one bridge after `enabled` becomes true, queues explicit links until that bridge exists, and disposes it on real unmount. `disconnect()` clears queued links and the terminal bridge is replaced on the next `connect()`.
+React applications can use the optional `app-mcp/react` entrypoint. React is an optional peer; importing the browser entrypoint does not import React. The adapter consumes the initial pairing fragment at module evaluation, creates one bridge after `enabled` becomes true, queues explicit links until that bridge exists, and disposes it on real unmount. `disconnect()` clears queued links and the terminal bridge is replaced on the next `connect()`.
 
 ```tsx
-import { AgentBridgeProvider, useAgentBridge } from "@shdr/agent-bridge/react";
+import { AgentBridgeProvider, useAgentBridge } from "app-mcp/react";
 
 function ConnectionButton() {
   const { state, connect, disconnect } = useAgentBridge();
@@ -60,7 +60,7 @@ function ConnectionButton() {
 
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
 
-`@shdr/agent-bridge/zod` exports `defineTool` and `z` for typed definitions. `defineTool` converts a Zod input schema to draft-2020-12 JSON Schema and parses input immediately before invoking the handler, so unknown keys rejected by `z.strictObject` are rejected for direct calls as well as transport calls. Default `z.object` unknown-key behavior is retained. Defaults are JSON Schema annotations; Zod supplies them (and strips unknown keys) before the handler, while the transport validator only validates the raw input. Custom refinements and transforms are rejected when they cannot be advertised faithfully; representable built-in checks are retained. Handler output is inferred directly from the callback: named interfaces, optional properties, readonly arrays, discriminated results, and bridge envelopes are accepted without an application `toJson` helper, while obvious non-JSON output types are rejected at compile time. This is a structural typing convenience, not a trust boundary: direct `defineTool` calls validate and parse input, but output validation remains the browser/runtime normalizer's responsibility. The browser rejects cycles, sparse arrays, non-plain objects, undefined values, non-finite numbers, and oversized payloads at runtime. Broad `object`/`{}`, `unknown`, and `any` output types are intentionally not accepted because they cannot prove JSON compatibility. `imageResult` applies the same inferred metadata ergonomics and guards metadata at runtime. The shared Ajv boundary intentionally disables format validation, so transport validation can be weaker than Zod (for example, URL formats); Zod still runs before the typed handler.
+`app-mcp/zod` exports `defineTool` and `z` for typed definitions. `defineTool` converts a Zod input schema to draft-2020-12 JSON Schema and parses input immediately before invoking the handler, so unknown keys rejected by `z.strictObject` are rejected for direct calls as well as transport calls. Default `z.object` unknown-key behavior is retained. Defaults are JSON Schema annotations; Zod supplies them (and strips unknown keys) before the handler, while the transport validator only validates the raw input. Custom refinements and transforms are rejected when they cannot be advertised faithfully; representable built-in checks are retained. Handler output is inferred directly from the callback: named interfaces, optional properties, readonly arrays, discriminated results, and bridge envelopes are accepted without an application `toJson` helper, while obvious non-JSON output types are rejected at compile time. This is a structural typing convenience, not a trust boundary: direct `defineTool` calls validate and parse input, but output validation remains the browser/runtime normalizer's responsibility. The browser rejects cycles, sparse arrays, non-plain objects, undefined values, non-finite numbers, and oversized payloads at runtime. Broad `object`/`{}`, `unknown`, and `any` output types are intentionally not accepted because they cannot prove JSON compatibility. `imageResult` applies the same inferred metadata ergonomics and guards metadata at runtime. The shared Ajv boundary intentionally disables format validation, so transport validation can be weaker than Zod (for example, URL formats); Zod still runs before the typed handler.
 
 ## Use an installed artifact
 
@@ -72,16 +72,16 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/consumer"
 (cd "$repo/packages/agent-bridge" && npm pack --pack-destination "$tmp")
-# Use the generated shdr-agent-bridge-*.tgz path below.
+# Use the generated app-mcp-*.tgz path below.
 printf '{"private":true,"type":"module"}\n' > "$tmp/consumer/package.json"
-(cd "$tmp/consumer" && npm install --ignore-scripts --no-audit --no-fund "$tmp"/shdr-agent-bridge-*.tgz)
+(cd "$tmp/consumer" && npm install --ignore-scripts --no-audit --no-fund "$tmp"/app-mcp-*.tgz)
 ```
 
 From the temporary consumer directory (outside the repository), the installed executable can then be configured with an ordinary MCP stdio entry:
 
 ```sh
 cd "$tmp/consumer"
-./node_modules/.bin/shdr-agent-bridge \
+./node_modules/.bin/app-mcp \
   --allowed-origin https://example.invalid \
   --site-url https://example.invalid/
 ```
@@ -97,13 +97,13 @@ Effective bounds are: 5 minute pairing lifetime, 5 second authentication deadlin
 For a checked-out development build, from the repository root register the foreground helper for the site's exact origin (replace the example with your deployment):
 
 ```sh
-pi mcp add -l agent-bridge -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://example.invalid --site-url https://example.invalid/
+pi mcp add -l app-mcp -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://example.invalid --site-url https://example.invalid/
 ```
 
 For an installed artifact, run the same command from the temporary consumer directory using its local executable:
 
 ```sh
-pi mcp add -l agent-bridge -- "$PWD/node_modules/.bin/shdr-agent-bridge" \
+pi mcp add -l app-mcp -- "$PWD/node_modules/.bin/app-mcp" \
   --allowed-origin https://example.invalid \
   --site-url https://example.invalid/
 ```

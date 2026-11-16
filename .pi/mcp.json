@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "agent-bridge": {
+    "app-mcp": {
       "command": "node",
       "args": [
         "/Users/andy/Documents/Development/shader-dsl/packages/agent-bridge/dist/bin.mjs",

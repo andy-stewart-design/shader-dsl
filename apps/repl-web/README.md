@@ -46,7 +46,7 @@ Brief manual journey: pair at the approved deployed URL, call `get_sketch`, make
 For the approved deployed REPL, use the existing Nitro/Vercel deployment workflow (this is a server-rendered Nitro app; do not deploy a guessed static `dist` directory). In Pi, from the repository root, register the local helper with the deployed origin:
 
 ```bash
-pi mcp add -l agent-bridge -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://shdr-repl.vercel.app --site-url https://shdr-repl.vercel.app/
+pi mcp add -l app-mcp -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://shdr-repl.vercel.app --site-url https://shdr-repl.vercel.app/
 ```
 
 Pi's registration is cwd-local in `.pi/mcp.json`; it does not search a parent directory. After registration, run `/reload`, then request a fresh pairing link and open the approved deployed URL. For a local manual check, configure the helper's allowed origin explicitly as `http://localhost:3000` instead; this README does not modify Pi configuration.

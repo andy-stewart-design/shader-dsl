@@ -1,5 +1,5 @@
-import { defineTool, z } from "@shdr/agent-bridge/zod";
-import { imageResult } from "@shdr/agent-bridge/browser";
+import { defineTool, z } from "app-mcp/zod";
+import { imageResult } from "app-mcp/browser";
 import {
   authoringUpdateSchema,
   type AuthoringUpdateInput,

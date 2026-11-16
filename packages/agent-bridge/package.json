@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "bin": {
-    "shdr-agent-bridge": "./dist/bin.mjs"
+    "app-mcp": "./dist/bin.mjs"
   },
   "exports": {
     ".": {
