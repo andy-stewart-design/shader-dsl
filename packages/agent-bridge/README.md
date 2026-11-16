@@ -18,18 +18,16 @@ import {
   consumePairingLink,
 } from "@shdr/agent-bridge/browser";
 
+import { defineTool, z } from "@shdr/agent-bridge/zod";
+
 const bridge = connectAgentBridge({
   tools: [
-    {
+    defineTool({
       name: "read_state",
       description: "Read application state",
-      inputSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
+      input: z.strictObject({}),
       handler: async () => ({ ready: true }),
-    },
+    }),
   ],
 });
 const link = consumePairingLink();
@@ -37,6 +35,8 @@ if (link) await bridge.connect(link);
 ```
 
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
+
+`@shdr/agent-bridge/zod` exports `defineTool` and `z` for typed definitions. `defineTool` converts a Zod input schema to draft-2020-12 JSON Schema and parses input immediately before invoking the handler, so unknown keys rejected by `z.strictObject` are rejected for direct calls as well as transport calls. Default `z.object` unknown-key behavior is retained. Defaults are JSON Schema annotations; Zod supplies them (and strips unknown keys) before the handler, while the transport validator only validates the raw input. Custom refinements and transforms are rejected when they cannot be advertised faithfully; representable built-in checks are retained. The shared Ajv boundary intentionally disables format validation, so transport validation can be weaker than Zod (for example, URL formats); Zod still runs before the typed handler. Handler results retain the normal bridge runtime JSON/result-envelope validation.
 
 ## Use an installed artifact
 

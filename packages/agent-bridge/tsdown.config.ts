@@ -7,6 +7,7 @@ export default defineConfig({
     "src/protocol.ts",
     "src/browser.ts",
     "src/server.ts",
+    "src/zod.ts",
   ],
   format: "esm",
   dts: true,

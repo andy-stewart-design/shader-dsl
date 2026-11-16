@@ -54,16 +54,20 @@ function makeController() {
   return { controller, requests };
 }
 
-test("advertises exactly the three Phase 3 authoring tools", () => {
-  const { controller } = makeController();
+test("advertises exactly the three Phase 3 authoring tools", async () => {
+  const { controller, requests } = makeController();
   const tools = createAuthoringTools(controller);
   assert.deepEqual(
     tools.map((tool) => tool.name),
     ["get_authoring_context", "get_sketch", "update_sketch"],
   );
-  assert.equal(tools[0]?.inputSchema.additionalProperties, false);
-  assert.equal(tools[1]?.inputSchema.additionalProperties, false);
-  assert.equal(tools[2]?.inputSchema.additionalProperties, false);
+  const context = { signal: new AbortController().signal };
+  await assert.rejects(async () => tools[0]!.handler({ extra: true }, context));
+  await assert.rejects(async () => tools[1]!.handler({ extra: true }, context));
+  await assert.rejects(async () =>
+    tools[2]!.handler({ expectedRevision: 4 }, context),
+  );
+  assert.deepEqual(requests, []);
 });
 
 test("read tools clone current draft and update delegates the controller", async () => {

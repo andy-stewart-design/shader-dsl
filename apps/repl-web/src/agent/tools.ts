@@ -1,27 +1,24 @@
+import { defineTool, z } from "@shdr/agent-bridge/zod";
 import { imageResult, type BridgeTool } from "@shdr/agent-bridge/browser";
-import type { JsonObject, JsonValue } from "@shdr/agent-bridge/protocol";
+import type { JsonValue } from "@shdr/agent-bridge/protocol";
 import {
-  authoringUpdateJsonSchema,
+  authoringUpdateSchema,
   type AuthoringUpdateInput,
 } from "./authoring-schema.ts";
 import { createAuthoringContext, sketchFromSnapshot } from "./context.ts";
 import type { AuthoringController } from "./controller-types.ts";
 import { CapturePreviewError, type CapturePreviewPort } from "./snapshot.ts";
 
-const emptySchema: JsonObject = {
-  type: "object",
-  properties: {},
-  additionalProperties: false,
-};
-
-const updateSchema: JsonObject = {
-  ...authoringUpdateJsonSchema,
-  anyOf: [
-    { required: ["main"] },
-    { required: ["utils"] },
-    { required: ["uniforms"] },
-  ],
-} as unknown as JsonObject;
+const emptyInputSchema = z.strictObject({});
+const applyInputSchema = z.strictObject({
+  expectedRevision: z.number().int().min(0),
+});
+const captureInputSchema = z.strictObject({
+  expectedAppliedRevision: z.number().int().min(0),
+  maxDimension: z
+    .union([z.number().int().min(64).max(2048), z.literal("native")])
+    .default(512),
+});
 
 export const AUTHORING_TOOL_NAMES = [
   "get_authoring_context",
@@ -37,154 +34,115 @@ export function createAuthoringTools(
   capturePortRef?: { current: CapturePreviewPort | null },
 ): readonly BridgeTool[] {
   const tools: BridgeTool[] = [
-    {
+    defineTool({
       name: "get_authoring_context",
       description:
         "Read the compact REPL language, uniform-definition, explicit-Run, and draft-authoring context. This operation does not mutate the page.",
-      inputSchema: emptySchema,
+      input: emptyInputSchema,
       handler: () =>
         toJson(createAuthoringContext(controller, Boolean(capturePortRef))),
-    },
-    {
+    }),
+    defineTool({
       name: "get_sketch",
       description:
         "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and correlated applied/diagnostic status. This operation does not mutate the page.",
-      inputSchema: emptySchema,
+      input: emptyInputSchema,
       handler: () =>
         toJson(
           sketchFromSnapshot(controller.read(), controller.getApplyState?.()),
         ),
-    },
-    {
+    }),
+    defineTool({
       name: "update_sketch",
       description:
         "Atomically update one or more complete main/utils sources or editable uniform definitions using the expected draft revision. Source edits do not compile until the human uses Run.",
-      inputSchema: updateSchema,
-      handler: (input) =>
-        toJson(updateSketch(controller, input as AuthoringUpdateInput)),
-    },
+      input: authoringUpdateSchema,
+      handler: (input) => toJson(updateSketch(controller, input)),
+    }),
   ];
   if (controller.apply) {
-    tools.push({
-      name: "apply_sketch",
-      description:
-        "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
-      inputSchema: {
-        type: "object",
-        properties: { expectedRevision: { type: "integer", minimum: 0 } },
-        required: ["expectedRevision"],
-        additionalProperties: false,
-      },
-      handler: async (input, context) => {
-        const expectedRevision = (input as { expectedRevision?: unknown })
-          .expectedRevision;
-        if (typeof expectedRevision !== "number") {
-          return toJson({
-            ok: false,
-            error: { code: "stale", message: "expectedRevision is required." },
-            diagnostics: [],
-          });
-        }
-        return toJson(
-          await controller.apply!({ expectedRevision, signal: context.signal }),
-        );
-      },
-    });
+    tools.push(
+      defineTool({
+        name: "apply_sketch",
+        description:
+          "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
+        input: applyInputSchema,
+        handler: async (input, context) =>
+          toJson(
+            await controller.apply!({
+              expectedRevision: input.expectedRevision,
+              signal: context.signal,
+            }),
+          ),
+      }),
+    );
   }
   if (capturePortRef) {
-    tools.push({
-      name: "capture_preview",
-      description:
-        'Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or "native" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.',
-      inputSchema: {
-        type: "object",
-        properties: {
-          expectedAppliedRevision: { type: "integer", minimum: 0 },
-          maxDimension: {
-            oneOf: [
-              { type: "integer", minimum: 64, maximum: 2048 },
-              { const: "native" },
-            ],
-            default: 512,
-          },
-        },
-        required: ["expectedAppliedRevision"],
-        additionalProperties: false,
-      },
-      handler: async (input, context) => {
-        const request = input as {
-          expectedAppliedRevision?: unknown;
-          maxDimension?: unknown;
-        };
-        const expectedAppliedRevision = request.expectedAppliedRevision;
-        if (typeof expectedAppliedRevision !== "number") {
-          return toJson({
-            ok: false,
-            error: {
-              code: "identity-mismatch",
-              message: "expectedAppliedRevision is required.",
-            },
-          });
-        }
-        const port = capturePortRef.current;
-        if (!port) {
-          return toJson({
-            ok: false,
-            error: {
-              code: "not-ready",
-              message: "The preview renderer is not ready for capture.",
-            },
-          });
-        }
-        try {
-          const captured = await port.capture({
-            expectedAppliedRevision,
-            ...(request.maxDimension === undefined
-              ? {}
-              : { maxDimension: request.maxDimension as "native" | number }),
-            signal: context.signal,
-          });
-          const data = await blobToBase64(captured.blob);
-          captured.assertCurrent();
-          const draftRevision = controller.read().revision;
-          return imageResult({
-            data,
-            mimeType: captured.mimeType,
-            metadata: {
-              kind: "preview-capture",
-              appliedRevision: captured.appliedRevision,
-              draftRevision,
-              draftDiffersFromApplied:
-                draftRevision !== captured.appliedRevision,
-              identity: {
-                appliedRevision: captured.appliedRevision,
-                backend: captured.backend,
-                width: captured.canvasWidth,
-                height: captured.canvasHeight,
+    tools.push(
+      defineTool({
+        name: "capture_preview",
+        description:
+          'Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or "native" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.',
+        input: captureInputSchema,
+        handler: async (input, context) => {
+          const port = capturePortRef.current;
+          if (!port) {
+            return toJson({
+              ok: false,
+              error: {
+                code: "not-ready",
+                message: "The preview renderer is not ready for capture.",
               },
-              backend: captured.backend,
-              width: captured.width,
-              height: captured.height,
-              canvasWidth: captured.canvasWidth,
-              canvasHeight: captured.canvasHeight,
-              uniforms: captured.uniforms,
-            },
-          });
-        } catch (error) {
-          const captureError =
-            error instanceof CapturePreviewError
-              ? error
-              : new CapturePreviewError(
-                  "encoding",
-                  error instanceof Error ? error.message : String(error),
-                );
-          return toJson({
-            ok: false,
-            error: { code: captureError.code, message: captureError.message },
-          });
-        }
-      },
-    });
+            });
+          }
+          try {
+            const captured = await port.capture({
+              expectedAppliedRevision: input.expectedAppliedRevision,
+              maxDimension: input.maxDimension,
+              signal: context.signal,
+            });
+            const data = await blobToBase64(captured.blob);
+            captured.assertCurrent();
+            const draftRevision = controller.read().revision;
+            return imageResult({
+              data,
+              mimeType: captured.mimeType,
+              metadata: {
+                kind: "preview-capture",
+                appliedRevision: captured.appliedRevision,
+                draftRevision,
+                draftDiffersFromApplied:
+                  draftRevision !== captured.appliedRevision,
+                identity: {
+                  appliedRevision: captured.appliedRevision,
+                  backend: captured.backend,
+                  width: captured.canvasWidth,
+                  height: captured.canvasHeight,
+                },
+                backend: captured.backend,
+                width: captured.width,
+                height: captured.height,
+                canvasWidth: captured.canvasWidth,
+                canvasHeight: captured.canvasHeight,
+                uniforms: captured.uniforms,
+              },
+            });
+          } catch (error) {
+            const captureError =
+              error instanceof CapturePreviewError
+                ? error
+                : new CapturePreviewError(
+                    "encoding",
+                    error instanceof Error ? error.message : String(error),
+                  );
+            return toJson({
+              ok: false,
+              error: { code: captureError.code, message: captureError.message },
+            });
+          }
+        },
+      }),
+    );
   }
   return tools;
 }

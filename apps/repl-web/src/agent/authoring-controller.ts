@@ -1,4 +1,6 @@
+import { z } from "@shdr/agent-bridge/zod";
 import {
+  authoringUpdateSchema,
   authoringUpdateJsonSchema,
   normalizeUniformDefinitions,
   readUniformDefinitions,
@@ -40,8 +42,6 @@ export type AuthoringUpdateResult =
       };
     };
 
-const UPDATE_KEYS = new Set(["expectedRevision", "main", "utils", "uniforms"]);
-
 /**
  * Synchronous authoring boundary. Without a registry it remains a store-only
  * seam for isolated tests; with one, requested source fields are dispatched to
@@ -60,10 +60,11 @@ export function createAuthoringController(
 
     update(request: unknown): AuthoringUpdateResult {
       const state = store.getState();
-      const shapeError = validateRequestShape(request);
-      if (shapeError) return validationFailure(shapeError);
+      const parsed = authoringUpdateSchema.safeParse(request);
+      if (!parsed.success)
+        return validationFailure(z.prettifyError(parsed.error));
 
-      const input = request as AuthoringUpdateInput;
+      const input: AuthoringUpdateInput = parsed.data;
       if (input.expectedRevision !== state.revision) {
         return {
           ok: false,
@@ -146,45 +147,6 @@ export function createAuthoringController(
       return { ok: true, snapshot: snapshot(store.getState()) };
     },
   };
-}
-
-function validateRequestShape(request: unknown): string | null {
-  if (
-    typeof request !== "object" ||
-    request === null ||
-    Array.isArray(request)
-  ) {
-    return "Authoring update must be an object.";
-  }
-  const input = request as Record<string, unknown>;
-  if (!Object.hasOwn(input, "expectedRevision")) {
-    return "expectedRevision is required.";
-  }
-  if (
-    typeof input.expectedRevision !== "number" ||
-    !Number.isFinite(input.expectedRevision) ||
-    !Number.isInteger(input.expectedRevision)
-  ) {
-    return "expectedRevision must be a finite integer.";
-  }
-  if (!Object.keys(input).every((key) => UPDATE_KEYS.has(key))) {
-    return "Authoring update contains an unknown field.";
-  }
-
-  const fields = ["main", "utils", "uniforms"].filter((key) =>
-    Object.hasOwn(input, key),
-  );
-  if (fields.length === 0) return "At least one authoring field is required.";
-  if (Object.hasOwn(input, "main") && typeof input.main !== "string") {
-    return "main must be a full source string.";
-  }
-  if (Object.hasOwn(input, "utils") && typeof input.utils !== "string") {
-    return "utils must be a full source string.";
-  }
-  if (Object.hasOwn(input, "uniforms") && !Array.isArray(input.uniforms)) {
-    return "uniforms must be a complete replacement list.";
-  }
-  return null;
 }
 
 function prepareEditorReplacement(

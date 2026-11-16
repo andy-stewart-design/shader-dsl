@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { createAuthoringController } from "./authoring-controller.ts";
+import {
+  authoringUpdateJsonSchema,
+  createAuthoringController,
+} from "./authoring-controller.ts";
 import { EditorRegistry } from "../editor/authoring-adapter.ts";
 import { createDraftStore } from "../stores/draft.ts";
 
@@ -21,6 +25,13 @@ const validColor = {
   type: "color" as const,
   value: "#0f8",
 };
+
+test("checked-in authoring schema matches the dynamic Zod artifact", () => {
+  const staticSchema = JSON.parse(
+    readFileSync(new URL("./authoring-schema.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(staticSchema, authoringUpdateJsonSchema);
+});
 
 test("reads cloned raw drafts and maps color value from draft", () => {
   const { controller } = makeController();
@@ -153,6 +164,10 @@ test("stale, malformed, and semantically invalid requests are atomic", () => {
 
   const malformed = controller.update({ expectedRevision: 1 });
   assert.equal(malformed.ok, false);
+  if (!malformed.ok) {
+    assert.equal(malformed.error.code, "validation");
+    assert.ok(malformed.error.message.trim().length > 0);
+  }
   assert.deepEqual(controller.read(), before);
 });
 

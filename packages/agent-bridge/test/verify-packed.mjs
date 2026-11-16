@@ -76,6 +76,7 @@ async function inspectArtifact(tarball) {
     "package/dist/index.mjs",
     "package/dist/protocol.mjs",
     "package/dist/server.mjs",
+    "package/dist/zod.mjs",
   ])
     assert.ok(listing.includes(entry), `missing packaged entry: ${entry}`);
 
@@ -90,6 +91,7 @@ async function inspectArtifact(tarball) {
   );
   assert.deepEqual(metadata.exports["./browser"].import, "./dist/browser.mjs");
   assert.deepEqual(metadata.exports["./server"].import, "./dist/server.mjs");
+  assert.deepEqual(metadata.exports["./zod"].import, "./dist/zod.mjs");
   assert.deepEqual(Object.keys(metadata.dependencies).sort(), [
     "@modelcontextprotocol/sdk",
     "ajv",
@@ -165,9 +167,11 @@ async function checkInstalledExports(consumer) {
     check,
     `
     const browser = await import("@shdr/agent-bridge/browser");
+    const zod = await import("@shdr/agent-bridge/zod");
     const protocol = await import("@shdr/agent-bridge/protocol");
     const server = await import("@shdr/agent-bridge/server");
     if (typeof browser.connectAgentBridge !== "function" || typeof browser.imageResult !== "function") throw new Error("browser exports missing");
+    if (typeof zod.defineTool !== "function" || typeof zod.z?.strictObject !== "function") throw new Error("zod export missing");
     if (protocol.BRIDGE_PROTOCOL_VERSION !== 1) throw new Error("protocol export missing");
     if (typeof server.startBridgeServer !== "function") throw new Error("server export missing");
     if (typeof window !== "undefined") throw new Error("SSR check unexpectedly has window");

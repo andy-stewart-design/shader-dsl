@@ -1,77 +1,60 @@
+import { toJsonSchema, z } from "@shdr/agent-bridge/zod";
 import { colorToValidHex } from "../components/uniforms-pane/helpers.ts";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions.ts";
 import type { Uniform } from "../shared/uniforms.ts";
 
-export interface FloatUniformDefinitionInput {
-  readonly id?: string;
-  readonly name: string;
-  readonly type: "float";
+const floatUniformDefinitionSchema = z.strictObject({
+  id: z.string().min(1).optional(),
+  name: z.string(),
+  type: z.literal("float"),
   /** The editable definition default, not a live runtime value. */
-  readonly value: string;
-  readonly min: string;
-  readonly max: string;
-}
+  value: z.string(),
+  min: z.string(),
+  max: z.string(),
+});
 
-export interface ColorUniformDefinitionInput {
-  readonly id?: string;
-  readonly name: string;
-  readonly type: "color";
+const colorUniformDefinitionSchema = z.strictObject({
+  id: z.string().min(1).optional(),
+  name: z.string(),
+  type: z.literal("color"),
   /** The editable definition default, not a live runtime value. */
-  readonly value: string;
-}
+  value: z.string(),
+});
 
-export type UniformDefinitionInput =
-  FloatUniformDefinitionInput | ColorUniformDefinitionInput;
+export const uniformDefinitionSchema = z.discriminatedUnion("type", [
+  floatUniformDefinitionSchema,
+  colorUniformDefinitionSchema,
+]);
 
-export interface AuthoringUpdateInput {
-  readonly expectedRevision: number;
-  readonly main?: string;
-  readonly utils?: string;
-  readonly uniforms?: readonly UniformDefinitionInput[];
-}
+const updateFields = {
+  expectedRevision: z.number().int(),
+  main: z.string().optional(),
+  utils: z.string().optional(),
+  uniforms: uniformDefinitionSchema.array().optional(),
+};
+
+// The union expresses the command's requirement that at least one editable
+// field be present, while each strict object still permits a multi-field update.
+export const authoringUpdateSchema = z.union([
+  z.strictObject({ ...updateFields, main: z.string() }),
+  z.strictObject({ ...updateFields, utils: z.string() }),
+  z.strictObject({
+    ...updateFields,
+    uniforms: uniformDefinitionSchema.array(),
+  }),
+]);
+
+export type FloatUniformDefinitionInput = z.infer<
+  typeof floatUniformDefinitionSchema
+>;
+export type ColorUniformDefinitionInput = z.infer<
+  typeof colorUniformDefinitionSchema
+>;
+export type UniformDefinitionInput = z.infer<typeof uniformDefinitionSchema>;
+export type AuthoringUpdateInput = z.infer<typeof authoringUpdateSchema>;
 
 /** JSON Schema advertised for the internal authoring command boundary. */
-export const authoringUpdateJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["expectedRevision"],
-  properties: {
-    expectedRevision: { type: "integer" },
-    main: { type: "string" },
-    utils: { type: "string" },
-    uniforms: {
-      type: "array",
-      items: {
-        oneOf: [
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["name", "type", "value", "min", "max"],
-            properties: {
-              id: { type: "string", minLength: 1 },
-              name: { type: "string" },
-              type: { const: "float" },
-              value: { type: "string" },
-              min: { type: "string" },
-              max: { type: "string" },
-            },
-          },
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["name", "type", "value"],
-            properties: {
-              id: { type: "string", minLength: 1 },
-              name: { type: "string" },
-              type: { const: "color" },
-              value: { type: "string" },
-            },
-          },
-        ],
-      },
-    },
-  },
-} as const;
+export const authoringUpdateJsonSchema = toJsonSchema(authoringUpdateSchema);
 
 export interface NormalizedUniforms {
   readonly ok: true;
@@ -117,7 +100,9 @@ export function normalizeUniformDefinitions(
   input: unknown,
   existing: readonly Uniform[],
 ): NormalizeUniformsResult {
-  if (!Array.isArray(input)) return invalid("uniforms must be an array.");
+  const parsed = uniformDefinitionSchema.array().safeParse(input);
+  if (!parsed.success)
+    return invalid("Uniforms contain an invalid definition.");
 
   const existingById = new Map(
     existing.map((uniform) => [uniform.id, uniform]),
@@ -134,18 +119,10 @@ export function normalizeUniformDefinitions(
   const drafts: Uniform[] = [];
   let nextId = 0;
 
-  for (const item of input) {
-    if (!isRecord(item)) return invalid("Each uniform must be an object.");
-    const idResult = readOptionalString(item, "id");
-    if (!idResult.ok) return invalid("Uniform id must be a non-empty string.");
-    const name = item.name;
-    if (typeof name !== "string")
-      return invalid("Uniform name must be a string.");
-    const type = item.type;
-
+  for (const item of parsed.data) {
     let id: string;
-    if (idResult.value !== undefined) {
-      id = idResult.value;
+    if (item.id !== undefined) {
+      id = item.id;
       if (!existingById.has(id)) {
         return invalid(`Uniform id ${JSON.stringify(id)} is unknown.`);
       }
@@ -154,7 +131,7 @@ export function normalizeUniformDefinitions(
       usedExistingIds.add(id);
     } else {
       const sameName = existingByName
-        .get(name)
+        .get(item.name)
         ?.find((uniform) => !usedExistingIds.has(uniform.id));
       if (sameName) {
         id = sameName.id;
@@ -168,71 +145,29 @@ export function normalizeUniformDefinitions(
     }
     usedIds.add(id);
 
-    if (type === "float") {
-      if (
-        !hasOnlyKeys(item, ["id", "name", "type", "value", "min", "max"]) ||
-        typeof item.value !== "string" ||
-        typeof item.min !== "string" ||
-        typeof item.max !== "string"
-      ) {
-        return invalid(
-          "Float uniforms require string value, min, and max fields.",
-        );
-      }
+    if (item.type === "float") {
       drafts.push({
         id,
-        name,
-        type,
+        name: item.name,
+        type: item.type,
         value: item.value,
         min: item.min,
         max: item.max,
       });
-    } else if (type === "color") {
-      if (
-        !hasOnlyKeys(item, ["id", "name", "type", "value"]) ||
-        typeof item.value !== "string"
-      ) {
-        return invalid("Color uniforms require a string value field.");
-      }
+    } else {
       drafts.push({
         id,
-        name,
-        type,
+        name: item.name,
+        type: item.type,
         draft: item.value,
         valid: colorToValidHex(item.value) ?? "",
       });
-    } else {
-      return invalid('Uniform type must be "float" or "color".');
     }
   }
 
   const definitions = toShaderUniformDefinitions(drafts);
   if (!definitions.ok) return invalid(definitions.error);
   return { ok: true, uniforms: drafts };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOnlyKeys(
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean {
-  const allowed = new Set(keys);
-  return Object.keys(value).every((key) => allowed.has(key));
-}
-
-function readOptionalString(
-  value: Record<string, unknown>,
-  key: string,
-):
-  | { readonly ok: true; readonly value: string | undefined }
-  | { readonly ok: false } {
-  if (!(key in value)) return { ok: true, value: undefined };
-  return typeof value[key] === "string" && value[key] !== ""
-    ? { ok: true, value: value[key] }
-    : { ok: false };
 }
 
 function invalid(error: string): InvalidUniforms {

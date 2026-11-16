@@ -1,43 +1,224 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "REPL authoring update",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["expectedRevision"],
-  "properties": {
-    "expectedRevision": { "type": "integer" },
-    "main": { "type": "string" },
-    "utils": { "type": "string" },
-    "uniforms": {
-      "type": "array",
-      "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name", "type", "value", "min", "max"],
-            "properties": {
-              "id": { "type": "string", "minLength": 1 },
-              "name": { "type": "string" },
-              "type": { "const": "float" },
-              "value": { "type": "string" },
-              "min": { "type": "string" },
-              "max": { "type": "string" }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name", "type", "value"],
-            "properties": {
-              "id": { "type": "string", "minLength": 1 },
-              "name": { "type": "string" },
-              "type": { "const": "color" },
-              "value": { "type": "string" }
-            }
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "main": {
+          "type": "string"
+        },
+        "utils": {
+          "type": "string"
+        },
+        "uniforms": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "float"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value", "min", "max"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "color"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value"],
+                "additionalProperties": false
+              }
+            ]
           }
-        ]
-      }
+        }
+      },
+      "required": ["expectedRevision", "main"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "main": {
+          "type": "string"
+        },
+        "utils": {
+          "type": "string"
+        },
+        "uniforms": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "float"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value", "min", "max"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "color"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": ["expectedRevision", "utils"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "main": {
+          "type": "string"
+        },
+        "utils": {
+          "type": "string"
+        },
+        "uniforms": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "float"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value", "min", "max"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "color"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "value"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": ["expectedRevision", "uniforms"],
+      "additionalProperties": false
     }
-  }
+  ]
 }
