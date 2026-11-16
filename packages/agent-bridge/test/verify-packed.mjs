@@ -77,6 +77,8 @@ async function inspectArtifact(tarball) {
     "package/dist/protocol.mjs",
     "package/dist/server.mjs",
     "package/dist/zod.mjs",
+    "package/dist/react.mjs",
+    "package/dist/react.d.mts",
   ])
     assert.ok(listing.includes(entry), `missing packaged entry: ${entry}`);
 
@@ -92,6 +94,10 @@ async function inspectArtifact(tarball) {
   assert.deepEqual(metadata.exports["./browser"].import, "./dist/browser.mjs");
   assert.deepEqual(metadata.exports["./server"].import, "./dist/server.mjs");
   assert.deepEqual(metadata.exports["./zod"].import, "./dist/zod.mjs");
+  assert.deepEqual(metadata.exports["./react"].import, "./dist/react.mjs");
+  assert.deepEqual(metadata.exports["./react"].types, "./dist/react.d.mts");
+  assert.equal(metadata.peerDependencies?.react, ">=18");
+  assert.equal(metadata.peerDependenciesMeta?.react?.optional, true);
   assert.deepEqual(Object.keys(metadata.dependencies).sort(), [
     "@modelcontextprotocol/sdk",
     "ajv",
@@ -133,6 +139,10 @@ async function installConsumer(tempRoot, tarball) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   assert.ok(existsSync(consumer), "offline consumer was not created");
+  assert.ok(
+    !existsSync(join(consumer, "node_modules/react")),
+    "optional React peer was installed for the browser consumer",
+  );
   const installed = join(consumer, "node_modules/@shdr/agent-bridge");
   assert.ok(
     existsSync(join(installed, "package.json")),
@@ -161,6 +171,33 @@ async function installConsumer(tempRoot, tarball) {
   return { consumer, installed, installedReal };
 }
 
+async function installReactConsumer(consumer) {
+  const reactPackage = JSON.parse(
+    await readFile(
+      join(packageRoot, "node_modules/react/package.json"),
+      "utf8",
+    ),
+  );
+  await runAsync(
+    "pnpm",
+    ["add", "--offline", "--ignore-scripts", `react@${reactPackage.version}`],
+    {
+      cwd: consumer,
+      env: {
+        ...process.env,
+        NODE_PATH: "",
+        npm_config_ignore_scripts: "true",
+        npm_config_auto_install_peers: "false",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert.ok(
+    existsSync(join(consumer, "node_modules/react/package.json")),
+    "React was not installed in the isolated consumer",
+  );
+}
+
 async function checkInstalledExports(consumer) {
   const check = join(consumer, "check-exports.mjs");
   await writeFile(
@@ -186,6 +223,30 @@ async function checkInstalledExports(consumer) {
     result.status,
     0,
     `installed export import failed: ${result.stderr}`,
+  );
+}
+
+async function checkInstalledReactExport(consumer) {
+  const check = join(consumer, "check-react-export.mjs");
+  await writeFile(
+    check,
+    `
+    const React = await import("react");
+    const adapter = await import("@shdr/agent-bridge/react");
+    if (typeof React.createElement !== "function") throw new Error("React SSR import missing");
+    if (typeof adapter.AgentBridgeProvider !== "function" || typeof adapter.useAgentBridge !== "function") throw new Error("React export missing");
+    if (typeof window !== "undefined") throw new Error("React export SSR check unexpectedly has window");
+  `,
+  );
+  const result = spawnSync(process.execPath, [check], {
+    cwd: consumer,
+    env: { ...process.env, NODE_PATH: "" },
+    encoding: "utf8",
+  });
+  assert.equal(
+    result.status,
+    0,
+    `installed React export import failed: ${result.stderr}`,
   );
 }
 
@@ -484,6 +545,8 @@ async function main() {
     await checkInstalledExports(consumer.consumer);
     await checkInstalledCli(consumer.consumer);
     await checkBrowserBundle(consumer.consumer, tempRoot);
+    await installReactConsumer(consumer.consumer);
+    await checkInstalledReactExport(consumer.consumer);
     console.log(
       `packed artifact verified: ${artifact.listing.length} files, isolated consumer, CLI/MCP image, SSR exports, browser boundary`,
     );

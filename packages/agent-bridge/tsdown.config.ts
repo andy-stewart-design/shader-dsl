@@ -8,6 +8,7 @@ export default defineConfig({
     "src/browser.ts",
     "src/server.ts",
     "src/zod.ts",
+    "src/react.tsx",
   ],
   format: "esm",
   dts: true,

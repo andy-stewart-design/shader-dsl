@@ -1,14 +1,13 @@
 import {
-  connectAgentBridge,
-  consumePairingLink,
-  type BridgeConnectionState,
-} from "@shdr/agent-bridge/browser";
+  AgentBridgeProvider,
+  useAgentBridge,
+  type AgentBridgeFactory,
+} from "@shdr/agent-bridge/react";
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useRef,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -26,12 +25,7 @@ import {
 } from "../editor/authoring-adapter.ts";
 import { useDraftStore } from "../stores/draft.ts";
 
-// This runs at client module evaluation, before the provider renders. The
-// bridge itself never receives the original URL once this value is consumed.
-const initialPairingLink = consumePairingLink();
-
-type AgentBridge = ReturnType<typeof connectAgentBridge>;
-export type AgentBridgeFactory = typeof connectAgentBridge;
+export type { AgentBridgeFactory };
 
 export interface AgentProviderProps {
   readonly children: ReactNode;
@@ -43,10 +37,10 @@ export interface AgentProviderProps {
 }
 
 export interface AgentConnectionContextValue {
-  readonly state: BridgeConnectionState;
+  readonly state: ReturnType<typeof useAgentBridge>["state"];
   readonly editorsReady: boolean;
-  readonly connect: (pairingLink: string) => Promise<void>;
-  readonly disconnect: () => void;
+  readonly connect: ReturnType<typeof useAgentBridge>["connect"];
+  readonly disconnect: ReturnType<typeof useAgentBridge>["disconnect"];
 }
 
 const AgentConnectionContext = createContext<
@@ -56,20 +50,12 @@ const AgentConnectionContext = createContext<
 export function AgentProvider({
   children,
   editorRegistry: registry = editorRegistry,
-  bridgeFactory = connectAgentBridge,
+  bridgeFactory,
   controller: suppliedController,
   applyController,
   capturePortRef,
 }: AgentProviderProps) {
-  const bridgeRef = useRef<AgentBridge | null>(null);
-  const controllerRef = useRef<AuthoringController | null>(
-    suppliedController ?? null,
-  );
-  const pendingLinkRef = useRef<string | undefined>(initialPairingLink);
   const [editorsReady, setEditorsReady] = useState(() => registry.areReady());
-  const [state, setState] = useState<BridgeConnectionState>({
-    status: "disconnected",
-  });
 
   useEffect(() => {
     const update = () => setEditorsReady(registry.areReady());
@@ -78,60 +64,63 @@ export function AgentProvider({
     return unsubscribe;
   }, [registry]);
 
-  useEffect(() => {
-    if (!editorsReady || bridgeRef.current) return;
-
-    const authoringController: AuthoringController =
-      controllerRef.current ??
+  const baseController = useMemo(() => {
+    if (!editorsReady && !suppliedController) return undefined;
+    return (
+      suppliedController ??
       createAuthoringController(useDraftStore, {
         editorRegistry: registry,
-      } satisfies AuthoringControllerOptions);
-    const controller: AuthoringController =
-      applyController && !authoringController.apply
-        ? {
-            ...authoringController,
-            apply: applyController.apply,
-            getApplyState: applyController.getState,
-            subscribeApply: applyController.subscribe,
-          }
-        : authoringController;
-    controllerRef.current = controller;
-    const bridge = bridgeFactory({
-      tools: createAuthoringTools(controller, capturePortRef),
-      onStateChange: setState,
-    });
-    bridgeRef.current = bridge;
-    setState(bridge.getState());
+      } satisfies AuthoringControllerOptions)
+    );
+  }, [editorsReady, registry, suppliedController]);
 
-    const pairingLink = pendingLinkRef.current;
-    pendingLinkRef.current = undefined;
-    if (pairingLink) {
-      void bridge.connect(pairingLink).catch(() => {
-        // The bridge publishes a redacted error state. Do not echo or log the
-        // one-time pairing credential.
-      });
-    }
-  }, [applyController, bridgeFactory, capturePortRef, editorsReady, registry]);
+  const controller = useMemo(() => {
+    if (
+      !baseController ||
+      !applyController ||
+      ("apply" in baseController && baseController.apply)
+    )
+      return baseController;
+    return {
+      ...baseController,
+      apply: applyController.apply,
+      getApplyState: applyController.getState,
+      subscribeApply: applyController.subscribe,
+    } satisfies AuthoringController;
+  }, [applyController, baseController]);
 
-  const connect = useCallback(async (pairingLink: string) => {
-    const trimmed = pairingLink.trim();
-    if (!trimmed) throw new Error("A pairing link is required.");
-    const bridge = bridgeRef.current;
-    if (!bridge) {
-      pendingLinkRef.current = trimmed;
-      return;
-    }
-    await bridge.connect(trimmed);
-  }, []);
-
-  const disconnect = useCallback(() => {
-    bridgeRef.current?.disconnect();
-  }, []);
+  const tools = useMemo(
+    () => (controller ? createAuthoringTools(controller, capturePortRef) : []),
+    [capturePortRef, controller],
+  );
 
   return (
-    <AgentConnectionContext.Provider
-      value={{ state, editorsReady, connect, disconnect }}
+    <AgentBridgeProvider
+      tools={tools}
+      enabled={editorsReady && Boolean(controller)}
+      bridgeFactory={bridgeFactory}
     >
+      <AgentConnectionAdapter editorsReady={editorsReady}>
+        {children}
+      </AgentConnectionAdapter>
+    </AgentBridgeProvider>
+  );
+}
+
+function AgentConnectionAdapter({
+  children,
+  editorsReady,
+}: {
+  readonly children: ReactNode;
+  readonly editorsReady: boolean;
+}) {
+  const bridge = useAgentBridge();
+  const value = useMemo(
+    () => ({ ...bridge, editorsReady }),
+    [bridge, editorsReady],
+  );
+  return (
+    <AgentConnectionContext.Provider value={value}>
       {children}
     </AgentConnectionContext.Provider>
   );
