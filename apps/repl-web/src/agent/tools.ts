@@ -1,6 +1,5 @@
 import { defineTool, z } from "@shdr/agent-bridge/zod";
 import { imageResult, type BridgeTool } from "@shdr/agent-bridge/browser";
-import type { JsonValue } from "@shdr/agent-bridge/protocol";
 import {
   authoringUpdateSchema,
   type AuthoringUpdateInput,
@@ -32,15 +31,15 @@ export const AUTHORING_TOOL_NAMES = [
 export function createAuthoringTools(
   controller: AuthoringController,
   capturePortRef?: { current: CapturePreviewPort | null },
-): readonly BridgeTool[] {
-  const tools: BridgeTool[] = [
+) {
+  const tools: BridgeTool<unknown>[] = [
     defineTool({
       name: "get_authoring_context",
       description:
         "Read the compact REPL language, uniform-definition, explicit-Run, and draft-authoring context. This operation does not mutate the page.",
       input: emptyInputSchema,
       handler: () =>
-        toJson(createAuthoringContext(controller, Boolean(capturePortRef))),
+        createAuthoringContext(controller, Boolean(capturePortRef)),
     }),
     defineTool({
       name: "get_sketch",
@@ -48,32 +47,29 @@ export function createAuthoringTools(
         "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and correlated applied/diagnostic status. This operation does not mutate the page.",
       input: emptyInputSchema,
       handler: () =>
-        toJson(
-          sketchFromSnapshot(controller.read(), controller.getApplyState?.()),
-        ),
+        sketchFromSnapshot(controller.read(), controller.getApplyState?.()),
     }),
     defineTool({
       name: "update_sketch",
       description:
         "Atomically update one or more complete main/utils sources or editable uniform definitions using the expected draft revision. Source edits do not compile until the human uses Run.",
       input: authoringUpdateSchema,
-      handler: (input) => toJson(updateSketch(controller, input)),
+      handler: (input) => updateSketch(controller, input),
     }),
   ];
-  if (controller.apply) {
+  const apply = controller.apply;
+  if (apply) {
     tools.push(
       defineTool({
         name: "apply_sketch",
         description:
           "Compile the expected draft, install it in the active preview, and await the renderer's confirmed first frame. Returns structured diagnostics on failure.",
         input: applyInputSchema,
-        handler: async (input, context) =>
-          toJson(
-            await controller.apply!({
-              expectedRevision: input.expectedRevision,
-              signal: context.signal,
-            }),
-          ),
+        handler: (input, context) =>
+          apply({
+            expectedRevision: input.expectedRevision,
+            signal: context.signal,
+          }),
       }),
     );
   }
@@ -87,13 +83,13 @@ export function createAuthoringTools(
         handler: async (input, context) => {
           const port = capturePortRef.current;
           if (!port) {
-            return toJson({
-              ok: false,
+            return {
+              ok: false as const,
               error: {
                 code: "not-ready",
                 message: "The preview renderer is not ready for capture.",
               },
-            });
+            };
           }
           try {
             const captured = await port.capture({
@@ -135,10 +131,10 @@ export function createAuthoringTools(
                     "encoding",
                     error instanceof Error ? error.message : String(error),
                   );
-            return toJson({
-              ok: false,
+            return {
+              ok: false as const,
               error: { code: captureError.code, message: captureError.message },
-            });
+            };
           }
         },
       }),
@@ -159,11 +155,7 @@ function updateSketch(
   };
 }
 
-function toJson(value: unknown): JsonValue {
-  return value as JsonValue;
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
+async function blobToBase64(blob: Blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = "";
   const chunkSize = 0x8000;

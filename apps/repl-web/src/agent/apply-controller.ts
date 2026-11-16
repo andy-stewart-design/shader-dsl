@@ -152,7 +152,7 @@ export function createApplyController(
     diagnostics: [],
   };
   const listeners = new Set<() => void>();
-  const publish = (next: ApplyState): void => {
+  const publish = (next: ApplyState) => {
     state = next;
     for (const listener of listeners) listener();
   };
@@ -393,8 +393,11 @@ function awaitAbortable<T>(
 
 function classifyRuntimeError(error: unknown): ApplyDiagnosticCode {
   const kind =
-    typeof error === "object" && error !== null && "kind" in error
-      ? String((error as { kind?: unknown }).kind)
+    typeof error === "object" &&
+    error !== null &&
+    "kind" in error &&
+    typeof error.kind === "string"
+      ? error.kind
       : "install";
   return kind === "draw"
     ? "draw"

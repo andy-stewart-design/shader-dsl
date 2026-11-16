@@ -25,6 +25,33 @@ export type JsonValue =
   JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
+/**
+ * The structural JSON constraint used by typed tool helpers. Unlike JsonValue,
+ * this maps named object types and readonly arrays without requiring an index
+ * signature, while still excluding values with no JSON representation.
+ */
+export type JsonCompatible<T> =
+  IsAny<T> extends true
+    ? never
+    : IsNever<T> extends true
+      ? never
+      : unknown extends T
+        ? never
+        : T extends JsonPrimitive
+          ? T
+          : T extends readonly (infer Item)[]
+            ? readonly JsonCompatible<Item>[]
+            : T extends object
+              ? T extends Date | ((...args: never[]) => unknown)
+                ? never
+                : keyof T extends never
+                  ? never
+                  : { readonly [Key in keyof T]: JsonCompatible<T[Key]> }
+              : never;
+
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type IsNever<T> = [T] extends [never] ? true : false;
+
 export type BridgeTextContent = { type: "text"; text: string };
 export type BridgeImageContent = {
   type: "image";
@@ -38,14 +65,14 @@ export type BridgeResult = {
   metadata?: JsonValue;
 };
 
-export type BridgeTool = {
+export type BridgeTool<Output = JsonValue | BridgeResult> = {
   name: string;
   description: string;
   inputSchema: JsonObject;
   handler: (
     input: unknown,
     context: { signal: AbortSignal },
-  ) => JsonValue | BridgeResult | Promise<JsonValue | BridgeResult>;
+  ) => Output | Promise<Output>;
 };
 
 export type BridgeConnectionState =
@@ -155,6 +182,7 @@ function jsonUtf8Bytes(value: string): number {
 export function isBridgeResult(value: unknown): value is BridgeResult {
   if (
     !isRecord(value) ||
+    !isJsonValue(value) ||
     value.bridgeResultVersion !== BRIDGE_RESULT_VERSION ||
     !Array.isArray(value.content)
   )
@@ -183,11 +211,46 @@ export function isBridgeResult(value: unknown): value is BridgeResult {
 }
 
 export function isJsonValue(value: unknown): value is JsonValue {
+  return isJsonValueWithin(value, new WeakSet<object>());
+}
+
+function isJsonValueWithin(
+  value: unknown,
+  ancestors: WeakSet<object>,
+): value is JsonValue {
   if (value === null || typeof value === "string" || typeof value === "boolean")
     return true;
   if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJsonValue);
-  return isRecord(value) && Object.values(value).every(isJsonValue);
+  if (typeof value !== "object") return false;
+  if (ancestors.has(value)) return false;
+  if (Array.isArray(value)) {
+    ancestors.add(value);
+    let valid = true;
+    for (let index = 0; index < value.length; index++) {
+      if (!Object.hasOwn(value, index)) {
+        valid = false;
+        break;
+      }
+      if (!isJsonValueWithin(value[index], ancestors)) {
+        valid = false;
+        break;
+      }
+    }
+    ancestors.delete(value);
+    return valid;
+  }
+  if (!isPlainObject(value)) return false;
+  ancestors.add(value);
+  const valid = Object.values(value).every((item) =>
+    isJsonValueWithin(item, ancestors),
+  );
+  ancestors.delete(value);
+  return valid;
+}
+
+function isPlainObject(value: object): value is Record<string, unknown> {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === null || prototype === Object.prototype;
 }
 
 /** Strict, canonical RFC 4648 base64 (empty image payloads are not useful). */

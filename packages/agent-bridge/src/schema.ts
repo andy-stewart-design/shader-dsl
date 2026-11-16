@@ -1,5 +1,4 @@
-import * as AjvModule from "ajv/dist/2020.js";
-import type { ValidateFunction } from "ajv/dist/2020.js";
+import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 import {
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
@@ -11,16 +10,8 @@ import {
   type JsonObject,
 } from "./protocol.js";
 
-const AjvConstructor = (
-  AjvModule as unknown as {
-    default: new (options?: object) => {
-      compile: (schema: object) => ValidateFunction;
-    };
-  }
-).default;
-
 function makeAjv() {
-  return new AjvConstructor({
+  return new Ajv2020({
     allErrors: true,
     strict: false,
     validateFormats: false,

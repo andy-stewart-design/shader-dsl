@@ -29,14 +29,7 @@ export type AgentBridge = {
   disconnect(): void;
   getState(): BridgeConnectionState;
   /** Atomically replace the page catalog after the helper acknowledges it. */
-  updateTools(tools: readonly BridgeTool[]): Promise<void>;
-};
-
-type SocketLike = {
-  readyState: number;
-  send(data: string): void;
-  close(): void;
-  addEventListener(type: string, listener: (event: any) => void): void;
+  updateTools(tools: readonly BridgeTool<unknown>[]): Promise<void>;
 };
 
 const OPEN = 1;
@@ -64,7 +57,37 @@ type ResumeGrant = {
   resumeLeaseMs: number;
 };
 
-function browserWindow(): any | undefined {
+function isResumeGrant(
+  value: unknown,
+  origin: string | undefined,
+  pageUrl: string,
+): value is ResumeGrant {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    value.origin !== origin ||
+    value.pageUrl !== pageUrl ||
+    typeof value.endpoint !== "string" ||
+    !/^ws:\/\/127\.0\.0\.1:\d+$/.test(value.endpoint) ||
+    typeof value.sessionId !== "string" ||
+    !value.sessionId ||
+    typeof value.resumeToken !== "string" ||
+    !value.resumeToken ||
+    typeof value.pageId !== "string" ||
+    !value.pageId ||
+    typeof value.resumeLeaseMs !== "number" ||
+    !Number.isSafeInteger(value.resumeLeaseMs) ||
+    value.resumeLeaseMs <= 0 ||
+    value.resumeLeaseMs > LIMITS.resumeLeaseMs
+  )
+    return false;
+  const port = Number(
+    value.endpoint.slice(value.endpoint.lastIndexOf(":") + 1),
+  );
+  return port >= 1 && port <= 65535;
+}
+
+function browserWindow(): Window | undefined {
   return typeof window === "undefined" ? undefined : window;
 }
 
@@ -91,14 +114,14 @@ export function consumePairingLink(): string | undefined {
 }
 
 export function connectAgentBridge(options: {
-  tools: readonly BridgeTool[];
+  tools: readonly BridgeTool<unknown>[];
   onStateChange?: (state: BridgeConnectionState) => void;
 }): AgentBridge {
   validateCatalogTools(
     options.tools.map(({ handler: _handler, ...tool }) => tool),
   );
   let currentTools = [...options.tools];
-  const toolMap = new Map<string, BridgeTool>(
+  const toolMap = new Map<string, BridgeTool<unknown>>(
     currentTools.map((tool) => [tool.name, tool]),
   );
 
@@ -123,7 +146,7 @@ export function connectAgentBridge(options: {
           message: "another bridge controller owns this page",
         },
       };
-  let socket: SocketLike | undefined;
+  let socket: WebSocket | undefined;
   let sessionId: string | undefined;
   let catalogVersion: number = BRIDGE_CATALOG_VERSION;
   let resumeCapable = false;
@@ -139,7 +162,7 @@ export function connectAgentBridge(options: {
     | {
         version: number;
         timer: ReturnType<typeof setTimeout>;
-        tools: readonly BridgeTool[];
+        tools: readonly BridgeTool<unknown>[];
         resolve: () => void;
         reject: (error: Error) => void;
       }
@@ -184,30 +207,9 @@ export function connectAgentBridge(options: {
     } catch {
       return undefined;
     }
-    if (
-      !isRecord(value) ||
-      value.version !== 1 ||
-      value.origin !== pageWindow?.location?.origin ||
-      value.pageUrl !== pageUrl ||
-      typeof value.endpoint !== "string" ||
-      !/^ws:\/\/127\.0\.0\.1:\d+$/.test(value.endpoint) ||
-      typeof value.sessionId !== "string" ||
-      !value.sessionId ||
-      typeof value.resumeToken !== "string" ||
-      !value.resumeToken ||
-      typeof value.pageId !== "string" ||
-      !value.pageId ||
-      typeof value.resumeLeaseMs !== "number" ||
-      !Number.isSafeInteger(value.resumeLeaseMs) ||
-      value.resumeLeaseMs <= 0 ||
-      value.resumeLeaseMs > LIMITS.resumeLeaseMs
-    )
-      return undefined;
-    const port = Number(
-      value.endpoint.slice(value.endpoint.lastIndexOf(":") + 1),
-    );
-    if (port < 1 || port > 65535) return undefined;
-    return value as unknown as ResumeGrant;
+    return isResumeGrant(value, pageWindow?.location?.origin, pageUrl)
+      ? value
+      : undefined;
   };
   const clearGrant = (expected?: ResumeGrant) => {
     if (!storage) return;
@@ -269,11 +271,11 @@ export function connectAgentBridge(options: {
     }
   };
 
-  function onPageLifecycle(event?: { persisted?: boolean }) {
+  function onPageLifecycle(event?: Event) {
     // A persisted pagehide means the document is entering the BFCache. The
     // document and its controller still own the page, but its transport must
     // be dropped so the helper can hold the normal short resume lease.
-    if (event?.persisted === true) {
+    if (isRecord(event) && event.persisted === true) {
       if (pageLifecycleDropped || pageSuspendedForBfcache) return;
       pageSuspendedForBfcache = true;
       stopped = true;
@@ -330,9 +332,10 @@ export function connectAgentBridge(options: {
     releaseOwner();
   }
 
-  function onPageShow(event?: { persisted?: boolean }) {
+  function onPageShow(event?: Event) {
     if (
-      event?.persisted !== true ||
+      !isRecord(event) ||
+      event.persisted !== true ||
       pageLifecycleDropped ||
       !pageSuspendedForBfcache ||
       !ownsWindow
@@ -396,7 +399,7 @@ export function connectAgentBridge(options: {
   const closeTransport = (
     error?: Error,
     allowResume = true,
-    expected?: SocketLike,
+    expected?: WebSocket,
   ) => {
     if (expected && socket !== expected) return;
     const current = socket;
@@ -475,24 +478,26 @@ export function connectAgentBridge(options: {
   }
 
   function failAttempt(
-    candidate: SocketLike,
+    candidate: WebSocket | undefined,
     error: Error,
     intent: "manual" | "auto",
     terminal: boolean,
     reject?: (error: Error) => void,
   ) {
-    if (socket && socket !== candidate) {
+    if (socket && (!candidate || socket !== candidate)) {
       reject?.(error);
       return;
     }
-    if (socket === candidate) socket = undefined;
+    if (candidate && socket === candidate) socket = undefined;
     sessionId = undefined;
     abortActive(undefined, false);
     rejectCatalog(error);
-    try {
-      if (candidate.readyState < 2) candidate.close();
-    } catch {
-      // ignore close errors
+    if (candidate) {
+      try {
+        if (candidate.readyState < 2) candidate.close();
+      } catch {
+        // ignore close errors
+      }
     }
     if (reject) reject(error);
     if (terminal) {
@@ -523,8 +528,7 @@ export function connectAgentBridge(options: {
           "bridge controller is not active",
         ),
       );
-    const WebSocketCtor = (globalThis as any).WebSocket;
-    if (typeof WebSocketCtor !== "function") {
+    if (typeof globalThis.WebSocket !== "function") {
       const error = new BridgeClientError(
         "not_connected",
         "WebSocket is unavailable",
@@ -532,14 +536,13 @@ export function connectAgentBridge(options: {
       if (intent === "auto") failTerminal(error, resumeGrant);
       return Promise.reject(error);
     }
-    let candidate: SocketLike;
+    let candidate: WebSocket;
     try {
-      candidate = new WebSocketCtor(connection.endpoint) as SocketLike;
+      candidate = new globalThis.WebSocket(connection.endpoint);
     } catch (error) {
       const reason =
         error instanceof Error ? error : new Error("bridge connection failed");
-      if (intent === "auto")
-        failAttempt({} as SocketLike, reason, intent, false);
+      if (intent === "auto") failAttempt(undefined, reason, intent, false);
       return Promise.reject(reason);
     }
     socket = candidate;
@@ -613,16 +616,17 @@ export function connectAgentBridge(options: {
           );
         }
       });
-      candidate.addEventListener("message", (event: { data: unknown }) => {
+      candidate.addEventListener("message", (event) => {
         if (socket !== candidate) return;
-        let message: any;
+        let message: unknown;
+        const data: unknown = event.data;
         try {
-          if (wireByteLength(event.data) > LIMITS.authenticatedFrameBytes)
+          if (wireByteLength(data) > LIMITS.authenticatedFrameBytes)
             throw new BridgeClientError(
               "payload_limit",
               "message exceeds payload limit",
             );
-          message = parseEventData(event.data);
+          message = parseEventData(data);
         } catch (error) {
           finish(
             error instanceof BridgeClientError
@@ -742,9 +746,11 @@ export function connectAgentBridge(options: {
           return;
         }
         if (message.type === "catalog_ok") {
+          const authenticatedSessionId = sessionId;
           if (
             message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
-            message.sessionId !== sessionId ||
+            !authenticatedSessionId ||
+            message.sessionId !== authenticatedSessionId ||
             !Number.isSafeInteger(message.catalogVersion)
           ) {
             finish(
@@ -771,7 +777,7 @@ export function connectAgentBridge(options: {
             catalogVersion = message.catalogVersion;
             setState({
               status: "connected",
-              sessionId: sessionId!,
+              sessionId: authenticatedSessionId,
               catalogVersion,
             });
             finish();
@@ -805,7 +811,7 @@ export function connectAgentBridge(options: {
           catalogVersion = request.version;
           setState({
             status: "connected",
-            sessionId: sessionId!,
+            sessionId: authenticatedSessionId,
             catalogVersion,
           });
           request.resolve();
@@ -944,21 +950,25 @@ export function connectAgentBridge(options: {
     return startSocket(
       { endpoint: parsed.websocketUrl, token: parsed.token },
       "manual",
-    ) as Promise<void>;
+    );
   }
 
-  async function updateTools(tools: readonly BridgeTool[]): Promise<void> {
+  async function updateTools(
+    tools: readonly BridgeTool<unknown>[],
+  ): Promise<void> {
     const publicTools = tools.map(({ handler: _handler, ...tool }) => tool);
     validateCatalogTools(publicTools);
     const nextVersion = catalogVersion + 1;
-    if (!socket || !sessionId || state.status !== "connected")
+    const currentSocket = socket;
+    const currentSessionId = sessionId;
+    if (!currentSocket || !currentSessionId || state.status !== "connected")
       throw new BridgeClientError("not_connected", "no authenticated bridge");
     if (pendingCatalog)
       throw new BridgeClientError(
         "invalid_message",
         "a catalog update is already pending",
       );
-    const catalog = makeCatalog(tools, sessionId, nextVersion);
+    const catalog = makeCatalog(tools, currentSessionId, nextVersion);
     if (jsonSize(catalog) > LIMITS.catalogBytes)
       throw new BridgeClientError(
         "payload_limit",
@@ -982,7 +992,7 @@ export function connectAgentBridge(options: {
         reject,
       };
       try {
-        socket!.send(JSON.stringify(catalog));
+        currentSocket.send(JSON.stringify(catalog));
       } catch {
         const request = pendingCatalog;
         pendingCatalog = undefined;
@@ -995,9 +1005,9 @@ export function connectAgentBridge(options: {
   }
 
   async function handleRequest(
-    next: SocketLike,
-    message: any,
-    registered: Map<string, BridgeTool>,
+    next: WebSocket,
+    message: unknown,
+    registered: Map<string, BridgeTool<unknown>>,
   ) {
     const requestId =
       isRecord(message) && typeof message.requestId === "string"
@@ -1250,8 +1260,11 @@ export function connectAgentBridge(options: {
   const stored = readGrant();
   const navigationType = (() => {
     try {
-      return pageWindow?.performance?.getEntriesByType?.("navigation")?.[0]
-        ?.type;
+      const entry =
+        pageWindow?.performance?.getEntriesByType?.("navigation")?.[0];
+      return isRecord(entry) && typeof entry.type === "string"
+        ? entry.type
+        : undefined;
     } catch {
       return undefined;
     }
@@ -1279,7 +1292,7 @@ export function connectAgentBridge(options: {
 }
 
 function makeCatalog(
-  tools: readonly BridgeTool[],
+  tools: readonly BridgeTool<unknown>[],
   sessionId: string,
   catalogVersion: number,
 ) {
@@ -1319,22 +1332,19 @@ function parseEventData(data: unknown): unknown {
 
 function randomId(): string {
   try {
-    const cryptoObject = (globalThis as any).crypto;
-    if (cryptoObject?.randomUUID) return cryptoObject.randomUUID();
-    if (cryptoObject?.getRandomValues) {
-      const bytes = new Uint8Array(16);
-      cryptoObject.getRandomValues(bytes);
-      return Array.from(bytes, (byte) =>
-        byte.toString(16).padStart(2, "0"),
-      ).join("");
-    }
+    if (globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+      "",
+    );
   } catch {
     // Fall through to a non-secret per-document identifier.
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function cleanPageUrl(pageWindow: any): string {
+function cleanPageUrl(pageWindow: Window | undefined): string {
   try {
     const url = new URL(
       pageWindow?.location?.href ??
@@ -1352,10 +1362,12 @@ function cleanPageUrl(pageWindow: any): string {
   }
 }
 
-function usableSessionStorage(pageWindow: any): Storage | undefined {
+function usableSessionStorage(
+  pageWindow: Window | undefined,
+): Storage | undefined {
   if (!pageWindow) return undefined;
   try {
-    const candidate = pageWindow.sessionStorage as Storage;
+    const candidate = pageWindow.sessionStorage;
     if (!candidate || typeof candidate.getItem !== "function") return undefined;
     const probe = `${RESUME_STORAGE_KEY}:probe`;
     candidate.setItem(probe, "1");

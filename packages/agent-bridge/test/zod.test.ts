@@ -1,19 +1,183 @@
 import { describe, expect, it } from "vitest";
 import { normalizeResult } from "../src/results.js";
 import { compileInputSchema } from "../src/schema.js";
+import type { BridgeResult, BridgeTool } from "../src/protocol.js";
 import { defineTool, z } from "../src/zod.js";
 
 // Compile-time inference regression: this block is deliberately never run.
 if (false) {
+  const emptyInput = z.strictObject({});
+  interface NamedOutput {
+    readonly ok: boolean;
+    readonly optional?: string;
+    readonly values: readonly number[];
+  }
+  type DiscriminatedOutput =
+    | { readonly kind: "ok"; readonly value: NamedOutput }
+    | { readonly kind: "error"; readonly message: string };
+
   defineTool({
     name: "inference",
     description: "inference",
     input: z.strictObject({ count: z.number() }),
+    handler: (input): NamedOutput => ({
+      ok: true,
+      optional: input.count.toString(),
+      values: [input.count],
+    }),
+  });
+  defineTool({
+    name: "discriminated",
+    description: "discriminated",
+    input: z.strictObject({}),
+    handler: (): DiscriminatedOutput => ({ kind: "error", message: "nope" }),
+  });
+  const asyncNamedTool: BridgeTool<NamedOutput> = defineTool({
+    name: "async-inference",
+    description: "async-inference",
+    input: z.strictObject({}),
+    handler: async (): Promise<NamedOutput> => ({
+      ok: true,
+      values: [1],
+    }),
+  });
+  interface NamedFailure {
+    readonly ok: false;
+    readonly error: { readonly code: string; readonly message: string };
+  }
+  type AsyncBridgeOutput = BridgeResult | NamedFailure;
+  const asyncBridgeResultTool: BridgeTool<AsyncBridgeOutput> = defineTool({
+    name: "async-bridge-result-inference",
+    description: "async-bridge-result-inference",
+    input: z.strictObject({}),
+    handler: async (): Promise<AsyncBridgeOutput> => ({
+      ok: false,
+      error: { code: "not-ready", message: "not ready" },
+    }),
+  });
+  void asyncNamedTool;
+  void asyncBridgeResultTool;
+  defineTool({
+    name: "envelope",
+    description: "envelope",
+    input: z.strictObject({}),
+    handler: () => ({
+      bridgeResultVersion: 1 as const,
+      content: [{ type: "text" as const, text: "hello" }],
+    }),
+  });
+  defineTool({
+    name: "unknown-output",
+    description: "unknown-output",
+    input: z.strictObject({}),
+    // @ts-expect-error Unknown output cannot be proven JSON-compatible.
+    handler: (): unknown => ({ ok: true }),
+  });
+  defineTool({
+    name: "date-output",
+    description: "date-output",
+    input: z.strictObject({}),
+    // @ts-expect-error Dates are not JSON output values.
+    handler: () => new Date(),
+  });
+  defineTool({
+    name: "undefined-output",
+    description: "undefined-output",
+    input: z.strictObject({}),
+    // @ts-expect-error Top-level undefined is not a result.
+    handler: () => undefined,
+  });
+  defineTool({
+    name: "function-output",
+    description: "function-output",
+    input: z.strictObject({}),
+    // @ts-expect-error Functions are not JSON output values.
+    handler: (): (() => string) => () => "not JSON",
+  });
+  type NestedFunction = { readonly nested: () => string };
+  type NestedDate = { readonly nested: Date };
+  type NestedUndefined = { readonly nested: undefined };
+  type NestedBigint = { readonly nested: bigint };
+  type NestedSymbol = { readonly nested: symbol };
+  defineTool({
+    name: "nested-function",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Nested functions are not JSON output values.
+    handler: (): NestedFunction => ({ nested: () => "nope" }),
+  });
+  defineTool({
+    name: "nested-date",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Nested dates are not JSON output values.
+    handler: (): NestedDate => ({ nested: new Date() }),
+  });
+  defineTool({
+    name: "nested-undefined",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Nested undefined is not a JSON output value.
+    handler: (): NestedUndefined => ({ nested: undefined }),
+  });
+  defineTool({
+    name: "nested-bigint",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Nested bigint is not a JSON output value.
+    handler: (): NestedBigint => ({ nested: 1n }),
+  });
+  defineTool({
+    name: "nested-symbol",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Nested symbols are not JSON output values.
+    handler: (): NestedSymbol => ({ nested: Symbol() }),
+  });
+  defineTool({
+    name: "broad-object",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Broad object output can hide non-JSON class instances.
+    handler: (): object => ({}),
+  });
+  defineTool({
+    name: "empty-object",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error The empty object type does not prove JSON compatibility.
+    handler: (): {} => ({}),
+  });
+  // @ts-expect-error `any` output bypasses static knowledge and is rejected.
+  defineTool({
+    name: "any-output",
+    description: "",
+    input: z.strictObject({}),
+    handler: (): any => ({}),
+  });
+  type UnknownAlias = unknown;
+  defineTool({
+    name: "unknown-alias",
+    description: "",
+    input: z.strictObject({}),
+    // @ts-expect-error Aliases do not bypass the unknown output check.
+    handler: (): UnknownAlias => ({}),
+  });
+  defineTool<typeof emptyInput, Date>({
+    name: "explicit-date",
+    description: "",
+    input: emptyInput,
+    // @ts-expect-error Explicit output parameters do not bypass JSON checking.
+    handler: () => new Date(),
+  });
+
+  defineTool({
+    name: "bad-input-access",
+    description: "bad-input-access",
+    input: z.strictObject({ count: z.number() }),
     handler: (input) => {
-      const count: number = input.count;
       // @ts-expect-error The callback must not receive raw unknown input.
-      input.missing;
-      return { count };
+      return input.missing;
     },
   });
 }

@@ -14,6 +14,21 @@ const validEnvelope = () => ({
   content: [{ type: "text", text: "hello" }],
 });
 
+if (false) {
+  interface CaptureMetadata {
+    readonly width: number;
+    readonly labels?: readonly string[];
+  }
+  const metadata: CaptureMetadata = { width: 1, labels: ["hero"] };
+  imageResult({
+    data: pixel,
+    mimeType: "image/png",
+    metadata,
+  });
+  // @ts-expect-error Date metadata is not JSON-compatible.
+  imageResult({ data: pixel, mimeType: "image/png", metadata: new Date() });
+}
+
 describe("result envelopes", () => {
   it("keeps ordinary JSON readable and emits MCP image and metadata blocks", () => {
     expect(
@@ -59,9 +74,31 @@ describe("result envelopes", () => {
 
   it("checks MIME at runtime and rejects unsupported result values", () => {
     expect(() =>
-      imageResult({ data: pixel, mimeType: "image/gif" as any }),
+      // @ts-expect-error Runtime validation also protects JavaScript callers.
+      imageResult({ data: pixel, mimeType: "image/gif" }),
     ).toThrow();
     expect(() => normalizeResult(() => undefined)).toThrow();
+    expect(() => normalizeResult(undefined)).toThrow();
+    expect(() => normalizeResult(new Date())).toThrow();
+    expect(() => normalizeResult(new Map())).toThrow();
+    expect(() => normalizeResult({ value: undefined })).toThrow();
+    expect(() => normalizeResult({ value: BigInt(1) })).toThrow();
+    expect(() => normalizeResult({ value: Symbol("nope") })).toThrow();
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    expect(() => normalizeResult(sparse)).toThrow();
+    const cyclic: { self?: unknown } = {};
+    cyclic.self = cyclic;
+    expect(() => normalizeResult(cyclic)).toThrow();
+    expect(() => normalizeResult({ value: Number.NaN })).toThrow();
+    expect(() =>
+      // @ts-expect-error Runtime validation also protects JavaScript callers.
+      imageResult({ data: pixel, mimeType: "image/png", metadata: new Date() }),
+    ).toThrow();
+    expect(() =>
+      // @ts-expect-error Runtime validation also protects JavaScript callers.
+      imageResult({ data: pixel, mimeType: "image/png", metadata: new Map() }),
+    ).toThrow();
     expect(isBridgeResult({ bridgeResultVersion: 1, content: [] })).toBe(true);
     expect(jsonSize({ a: "x" })).toBeGreaterThan(0);
   });

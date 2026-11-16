@@ -18,6 +18,7 @@ import {
   BRIDGE_CATALOG_VERSION,
   BRIDGE_PROTOCOL_VERSION,
   LIMITS,
+  isJsonValue,
   isRecord,
   jsonSize,
   safeJson,
@@ -78,7 +79,7 @@ const callToolSchema = z
     sessionId: z.string(),
     catalogVersion: z.number().int(),
     name: z.string(),
-    arguments: z.any(),
+    arguments: z.unknown(),
   })
   .strict();
 
@@ -307,7 +308,7 @@ export async function startBridgeServer(
         ws.close(1009, "message limit");
         return;
       }
-      let message: any;
+      let message: unknown;
       try {
         message = JSON.parse(String(raw));
       } catch {
@@ -595,7 +596,9 @@ export async function startBridgeServer(
       if (name === "bridge_get_connection_info")
         return textMcp(connectionInfo());
       if (name === "bridge_list_tools") {
-        const input = args as any;
+        const input = parseMcpInput(sessionSchema, args);
+        if (!input)
+          return errorMcp("invalid_arguments", "invalid bridge arguments");
         if (!catalog || !active)
           return errorMcp("not_connected", "no page is paired");
         if (input.sessionId !== active.sessionId)
@@ -607,7 +610,9 @@ export async function startBridgeServer(
         });
       }
       if (name === "bridge_describe_tool") {
-        const input = args as any;
+        const input = parseMcpInput(describeToolSchema, args);
+        if (!input)
+          return errorMcp("invalid_arguments", "invalid bridge arguments");
         if (!catalog || !active)
           return errorMcp("not_connected", "no page is paired");
         if (input.sessionId !== active.sessionId)
@@ -622,7 +627,9 @@ export async function startBridgeServer(
           : errorMcp("unknown_tool", "unknown tool");
       }
       if (name === "bridge_call_tool") {
-        const input = args as any;
+        const input = parseMcpInput(callToolSchema, args);
+        if (!input)
+          return errorMcp("invalid_arguments", "invalid bridge arguments");
         if (!catalog || !active || active.socket.readyState !== 1)
           return errorMcp("not_connected", "no page is paired");
         if (input.sessionId !== active.sessionId)
@@ -632,7 +639,11 @@ export async function startBridgeServer(
         const tool = catalog.tools.find((item) => item.name === input.name);
         if (!tool) return errorMcp("unknown_tool", "unknown tool");
         const valid = validateInput(tool.inputSchema, input.arguments);
-        if (!valid.ok) return errorMcp("invalid_arguments", valid.message);
+        if (!valid.ok || !isJsonValue(input.arguments))
+          return errorMcp(
+            "invalid_arguments",
+            valid.ok ? "arguments must be JSON" : valid.message,
+          );
         try {
           return bridgeResultToMcp(
             await callPage(input.name, input.arguments, signal),
@@ -657,7 +668,9 @@ export async function startBridgeServer(
     input: JsonValue,
     signal?: AbortSignal,
   ): Promise<BridgeResult> {
-    if (!active || !catalog || active.socket.readyState !== 1)
+    const current = active;
+    const currentCatalog = catalog;
+    if (!current || !currentCatalog || current.socket.readyState !== 1)
       return Promise.reject(
         new BridgeProtocolError("not_connected", "not connected"),
       );
@@ -676,8 +689,8 @@ export async function startBridgeServer(
     const message = {
       type: "request",
       requestId,
-      sessionId: active.sessionId,
-      catalogVersion: catalog.catalogVersion,
+      sessionId: current.sessionId,
+      catalogVersion: currentCatalog.catalogVersion,
       toolName,
       input,
     };
@@ -714,15 +727,15 @@ export async function startBridgeServer(
         timer,
         signal,
         abort,
-        sessionId: active!.sessionId,
-        catalogVersion: catalog!.catalogVersion,
-        resumable: active!.resumable,
-        socket: active!.socket,
+        sessionId: current.sessionId,
+        catalogVersion: currentCatalog.catalogVersion,
+        resumable: current.resumable,
+        socket: current.socket,
       };
       pending.set(requestId, item);
       if (signal) signal.addEventListener("abort", abort, { once: true });
       try {
-        send(active!.socket, message);
+        send(current.socket, message);
       } catch {
         cancelPending(
           requestId,
@@ -736,7 +749,7 @@ export async function startBridgeServer(
     });
   }
 
-  function handleResponse(message: any, ws: WebSocket) {
+  function handleResponse(message: unknown, ws: WebSocket) {
     if (!isRecord(message) || typeof message.requestId !== "string") return;
     const call = pending.get(message.requestId);
     if (
@@ -921,6 +934,14 @@ const PUBLIC_ERROR_MESSAGES: Record<string, string> = {
   unsupported_protocol: "unsupported bridge protocol or result version",
   payload_limit: "payload exceeds the configured limit",
 };
+
+function parseMcpInput<Schema extends z.ZodType>(
+  schema: Schema,
+  value: unknown,
+): z.output<Schema> | undefined {
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
 
 function textMcp(value: unknown) {
   return { content: [{ type: "text" as const, text: safeJson(value) }] };

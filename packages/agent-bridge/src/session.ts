@@ -1,16 +1,17 @@
 import { LIMITS } from "./protocol.js";
 
-export type SessionClock = {
+type ClockHandle = ReturnType<typeof setTimeout> | number;
+
+export type SessionClock<Handle = ClockHandle> = {
   now(): number;
-  setTimeout(callback: () => void, delay: number): unknown;
-  clearTimeout(handle: unknown): void;
+  setTimeout(callback: () => void, delay: number): Handle;
+  clearTimeout(handle: Handle): void;
 };
 
 const realClock: SessionClock = {
   now: () => Date.now(),
   setTimeout: (callback, delay) => setTimeout(callback, delay),
-  clearTimeout: (handle) =>
-    clearTimeout(handle as ReturnType<typeof setTimeout>),
+  clearTimeout: (handle) => clearTimeout(handle),
 };
 
 export type SuspendedSession<TCredential = unknown> = {
@@ -27,7 +28,7 @@ export type SuspendedSession<TCredential = unknown> = {
  */
 export class SessionLease<TCredential = unknown> {
   private suspended: SuspendedSession<TCredential> | undefined;
-  private expiryTimer: unknown;
+  private expiryTimer: ClockHandle | undefined;
   private readonly clock: SessionClock;
   private readonly leaseMs: number;
   private readonly onExpire?: () => void;

@@ -112,7 +112,7 @@ function cloneUniformValues(
 function sameUniformValues(
   first: RuntimeUniformValues,
   second: RuntimeUniformValues,
-): boolean {
+) {
   const firstNames = Object.keys(first);
   const secondNames = Object.keys(second);
   if (firstNames.length !== secondNames.length) return false;
@@ -126,7 +126,7 @@ function sameSemanticIdentity(
   first: PreviewCaptureIdentity,
   second: PreviewCaptureIdentity,
   expectedUniforms: RuntimeUniformValues,
-): boolean {
+) {
   return (
     first.generation === second.generation &&
     first.appliedRevision === second.appliedRevision &&
@@ -137,7 +137,7 @@ function sameSemanticIdentity(
   );
 }
 
-function isCancelled(signal: AbortSignal | undefined): boolean {
+function isCancelled(signal: AbortSignal | undefined) {
   return signal?.aborted === true;
 }
 
@@ -148,7 +148,7 @@ function raceWithCaptureDeadline<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let settled = false;
-    const finish = (callback: () => void): void => {
+    const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -329,7 +329,7 @@ export function createCapturePreviewPort({
           "The preview changed while its PNG was being encoded; no image was returned.",
         );
       }
-      const assertCurrent = (): void => {
+      const assertCurrent = () => {
         if (isCancelled(signal))
           throw new CapturePreviewError(
             "cancelled",

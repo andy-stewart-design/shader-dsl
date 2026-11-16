@@ -9,6 +9,7 @@ import {
   jsonSize,
   safeJson,
   type BridgeResult,
+  type JsonCompatible,
   type JsonValue,
 } from "./protocol.js";
 
@@ -24,11 +25,15 @@ export class BridgeResultError extends Error {
   }
 }
 
-export function imageResult(options: {
+type ImageResultOptions<Metadata> = {
   data: string;
   mimeType: "image/png" | "image/jpeg";
-  metadata?: JsonValue;
-}): BridgeResult {
+  metadata?: Metadata & JsonCompatible<Metadata>;
+};
+
+export function imageResult<Metadata = JsonValue>(
+  options: ImageResultOptions<Metadata>,
+): BridgeResult {
   if (options.mimeType !== "image/png" && options.mimeType !== "image/jpeg")
     throw new BridgeResultError(
       "invalid_message",
@@ -41,23 +46,25 @@ export function imageResult(options: {
       "payload_limit",
       "image exceeds the decoded image limit",
     );
-  if (options.metadata !== undefined && !isJsonValue(options.metadata))
-    throw new BridgeResultError(
-      "invalid_message",
-      "image metadata must be JSON",
-    );
   const result: BridgeResult = {
     bridgeResultVersion: BRIDGE_RESULT_VERSION,
     content: [
       { type: "image", mimeType: options.mimeType, data: options.data },
     ],
-    ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
   };
+  if (options.metadata !== undefined) {
+    if (!isJsonValue(options.metadata))
+      throw new BridgeResultError(
+        "invalid_message",
+        "image metadata must be JSON",
+      );
+    result.metadata = options.metadata;
+  }
   assertResultSize(result);
   return result;
 }
 
-function assertResultSize(result: BridgeResult): void {
+function assertResultSize(result: BridgeResult) {
   if (jsonSize(result) > LIMITS.authenticatedFrameBytes)
     throw new BridgeResultError(
       "payload_limit",
@@ -65,12 +72,17 @@ function assertResultSize(result: BridgeResult): void {
     );
 }
 
-function looksLikeResultEnvelope(value: Record<string, unknown>): boolean {
+function looksLikeResultEnvelope(value: Record<string, unknown>) {
   return Object.prototype.hasOwnProperty.call(value, "bridgeResultVersion");
 }
 
 export function normalizeResult(value: unknown): BridgeResult {
   if (isRecord(value) && looksLikeResultEnvelope(value)) {
+    if (!isJsonValue(value))
+      throw new BridgeResultError(
+        "invalid_message",
+        "malformed bridge result envelope",
+      );
     if (value.bridgeResultVersion !== BRIDGE_RESULT_VERSION)
       throw new BridgeResultError(
         "unsupported_protocol",
