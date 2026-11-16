@@ -61,13 +61,7 @@ function makeCanvas(parent: HTMLElement): HTMLCanvasElement {
 }
 
 export async function createPreview(
-  {
-    parent,
-    artifact,
-    playing,
-    onError,
-    signal,
-  }: CreatePreviewOptions,
+  { parent, artifact, playing, onError, signal }: CreatePreviewOptions,
   factories: PreviewRendererFactories = defaultFactories,
 ): Promise<PreviewHandle> {
   const abortController = new AbortController();

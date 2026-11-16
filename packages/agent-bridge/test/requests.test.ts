@@ -48,7 +48,10 @@ function storage() {
   };
 }
 function page(sessionStorage = storage(), navigation = "navigate") {
-  const listeners = new Map<string, Set<(event?: { persisted?: boolean }) => void>>();
+  const listeners = new Map<
+    string,
+    Set<(event?: { persisted?: boolean }) => void>
+  >();
   return {
     sessionStorage,
     location: { origin, href: pageUrl },
@@ -63,8 +66,7 @@ function page(sessionStorage = storage(), navigation = "navigate") {
     removeEventListener: (
       type: string,
       listener: (event?: { persisted?: boolean }) => void,
-    ) =>
-      listeners.get(type)?.delete(listener),
+    ) => listeners.get(type)?.delete(listener),
     hide(persisted = false) {
       if (!persisted) {
         for (const listener of [...(listeners.get("beforeunload") ?? [])])
@@ -318,15 +320,15 @@ describe("refresh and request lifecycle composition", () => {
   });
 
   it("resumes the same controller after a persisted BFCache lifecycle", async () => {
-    const { createAuthoringController } = await import(
-      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string,
-    ) as any;
-    const { createAuthoringTools } = await import(
-      "../../../apps/repl-web/src/agent/tools.ts" as string,
-    ) as any;
-    const { createDraftStore } = await import(
-      "../../../apps/repl-web/src/stores/draft.ts" as string,
-    ) as any;
+    const { createAuthoringController } = (await import(
+      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string
+    )) as any;
+    const { createAuthoringTools } = (await import(
+      "../../../apps/repl-web/src/agent/tools.ts" as string
+    )) as any;
+    const { createDraftStore } = (await import(
+      "../../../apps/repl-web/src/stores/draft.ts" as string
+    )) as any;
     const { helper, client } = await server();
     const store = createDraftStore();
     const controller = createAuthoringController(store);
@@ -544,15 +546,15 @@ describe("refresh and request lifecycle composition", () => {
   it("keeps a committed app mutation single-shot across lost response and refresh", async () => {
     // Keep the composition probe in the bridge suite without making the
     // generic package's typecheck own the app's native .ts import graph.
-    const { createAuthoringController } = await import(
-      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string,
-    ) as any;
-    const { createAuthoringTools } = await import(
-      "../../../apps/repl-web/src/agent/tools.ts" as string,
-    ) as any;
-    const { createDraftStore } = await import(
-      "../../../apps/repl-web/src/stores/draft.ts" as string,
-    ) as any;
+    const { createAuthoringController } = (await import(
+      "../../../apps/repl-web/src/agent/authoring-controller.ts" as string
+    )) as any;
+    const { createAuthoringTools } = (await import(
+      "../../../apps/repl-web/src/agent/tools.ts" as string
+    )) as any;
+    const { createDraftStore } = (await import(
+      "../../../apps/repl-web/src/stores/draft.ts" as string
+    )) as any;
     const { helper, client } = await server();
     const store = createDraftStore();
     const controller = createAuthoringController(store);
@@ -579,16 +581,24 @@ describe("refresh and request lifecycle composition", () => {
         sessionId: before.sessionId,
         catalogVersion: 1,
         name: "update_sketch",
-        arguments: { expectedRevision: 0, main: "committed-before-response-loss" },
+        arguments: {
+          expectedRevision: 0,
+          main: "committed-before-response-loss",
+        },
       },
     });
     expect(lost.isError).toBe(true);
     expect(store.getState().revision).toBe(1);
     expect(store.getState().main).toBe("committed-before-response-loss");
 
-    await vi.waitFor(() => expect(helper.connectionInfo().status).toBe("interrupted"));
+    await vi.waitFor(() =>
+      expect(helper.connectionInfo().status).toBe("interrupted"),
+    );
     originalPage.hide();
-    const refreshed = browser(page(originalPage.sessionStorage, "reload"), tools);
+    const refreshed = browser(
+      page(originalPage.sessionStorage, "reload"),
+      tools,
+    );
     const after = await connected(refreshed);
     expect(after.sessionId).not.toBe(before.sessionId);
     const reread = await client.callTool({

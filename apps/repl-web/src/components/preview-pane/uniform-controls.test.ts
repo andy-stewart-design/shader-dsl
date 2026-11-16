@@ -37,9 +37,7 @@ test("runtime controls use applied defaults and metadata", () => {
 });
 
 test("invalid float ranges fall back without producing NaN patches", () => {
-  const controls = toRuntimeUniforms([
-    { ...float, min: "bad", max: "bad" },
-  ]);
+  const controls = toRuntimeUniforms([{ ...float, min: "bad", max: "bad" }]);
   assert.equal(controls.length, 1);
   const [control] = controls;
   assert.equal(control?.type, "float");
@@ -80,8 +78,14 @@ test("fallback ranges stay within finite f32 for both signs", () => {
 
 test("float patches reject values that overflow f32", () => {
   const controls = toRuntimeUniforms([float]);
-  assert.deepEqual(runtimeValuesToPatch(controls, { gain: Number.MAX_VALUE }), {});
-  assert.deepEqual(runtimeValuesToPatch(controls, { gain: -Number.MAX_VALUE }), {});
+  assert.deepEqual(
+    runtimeValuesToPatch(controls, { gain: Number.MAX_VALUE }),
+    {},
+  );
+  assert.deepEqual(
+    runtimeValuesToPatch(controls, { gain: -Number.MAX_VALUE }),
+    {},
+  );
 });
 
 test("runtime colors become vec3 patches", () => {

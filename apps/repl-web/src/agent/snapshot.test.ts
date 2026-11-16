@@ -30,7 +30,9 @@ function sourceState() {
   };
 }
 
-function encoded(overrides: Partial<CapturedCanvasPng> = {}): CapturedCanvasPng {
+function encoded(
+  overrides: Partial<CapturedCanvasPng> = {},
+): CapturedCanvasPng {
   return {
     blob,
     width: 320,
@@ -40,7 +42,10 @@ function encoded(overrides: Partial<CapturedCanvasPng> = {}): CapturedCanvasPng 
   };
 }
 
-async function expectCode(promise: Promise<unknown>, code: CapturePreviewError["code"]): Promise<void> {
+async function expectCode(
+  promise: Promise<unknown>,
+  code: CapturePreviewError["code"],
+): Promise<void> {
   await assert.rejects(promise, (error: unknown) => {
     assert(error instanceof CapturePreviewError);
     assert.equal(error.code, code);
@@ -105,7 +110,10 @@ test("production lifecycle/canvas references are not serialized as capture ident
   assert.doesNotThrow(() => JSON.stringify(result.uniforms));
 
   mutateDuringCapture = true;
-  await expectCode(port.capture({ expectedAppliedRevision: 4 }), "identity-mismatch");
+  await expectCode(
+    port.capture({ expectedAppliedRevision: 4 }),
+    "identity-mismatch",
+  );
 });
 
 test("the production port defaults to 512, supports custom bounds, and preserves explicit native capture", async () => {
@@ -122,7 +130,10 @@ test("the production port defaults to 512, supports custom bounds, and preserves
     },
   });
   const bounded = await port.capture({ expectedAppliedRevision: 4 });
-  const native = await port.capture({ expectedAppliedRevision: 4, maxDimension: "native" });
+  const native = await port.capture({
+    expectedAppliedRevision: 4,
+    maxDimension: "native",
+  });
   assert.deepEqual([bounded.width, bounded.height], [512, 340]);
   assert.deepEqual([native.width, native.height], [1209, 805]);
   assert.deepEqual(requested, ["512", "native"]);
@@ -162,7 +173,10 @@ test("identity changes while PNG encoding reject without returning pixels", asyn
   let resolve!: (value: CapturedCanvasPng) => void;
   const port = createCapturePreviewPort({
     readIdentity: source.read,
-    encode: () => new Promise((next) => { resolve = next; }),
+    encode: () =>
+      new Promise((next) => {
+        resolve = next;
+      }),
   });
   const pending = port.capture({ expectedAppliedRevision: 4 });
   source.replace({ ...source.read()!, generation: 2, appliedRevision: 5 });
@@ -177,7 +191,10 @@ test("resize, replacement, unmount, and readiness failures are explicit", async 
     encode: async () => encoded(),
   });
   source.replace({ ...source.read()!, width: 640, height: 360 });
-  await expectCode(port.capture({ expectedAppliedRevision: 4 }), "identity-mismatch");
+  await expectCode(
+    port.capture({ expectedAppliedRevision: 4 }),
+    "identity-mismatch",
+  );
   source.replace(null);
   await expectCode(port.capture({ expectedAppliedRevision: 4 }), "not-ready");
   source.replace({
@@ -193,7 +210,10 @@ test("resize, replacement, unmount, and readiness failures are explicit", async 
   let resolve!: (value: CapturedCanvasPng) => void;
   const replacementPort = createCapturePreviewPort({
     readIdentity: source.read,
-    encode: () => new Promise((next) => { resolve = next; }),
+    encode: () =>
+      new Promise((next) => {
+        resolve = next;
+      }),
   });
   const pending = replacementPort.capture({ expectedAppliedRevision: 4 });
   source.replace({
@@ -219,22 +239,26 @@ test("a registered capture returns no image when its renderer is disposed mid-en
   const disposedCanvas = {} as HTMLCanvasElement;
   let resolveEncode!: (value: CapturedCanvasPng) => void;
   const source = {
-    read: () => lifecycle.active
-      ? {
-          lifecycle,
-          generation: 1,
-          appliedRevision: 4,
-          backend: "webgpu" as const,
-          canvas: disposedCanvas,
-          width: 320,
-          height: 180,
-          uniforms: {},
-        }
-      : null,
+    read: () =>
+      lifecycle.active
+        ? {
+            lifecycle,
+            generation: 1,
+            appliedRevision: 4,
+            backend: "webgpu" as const,
+            canvas: disposedCanvas,
+            width: 320,
+            height: 180,
+            uniforms: {},
+          }
+        : null,
   };
   const port = createCapturePreviewPort({
     readIdentity: source.read,
-    encode: () => new Promise((resolve) => { resolveEncode = resolve; }),
+    encode: () =>
+      new Promise((resolve) => {
+        resolveEncode = resolve;
+      }),
   });
   const pending = port.capture({ expectedAppliedRevision: 4 });
   await Promise.resolve();
@@ -268,14 +292,21 @@ test("a real Apply and capture controller reject old pixels and preserve the lat
     }),
     encode: async (canvas) => {
       if (canvas === oldCanvas) {
-        return new Promise((resolve) => { releaseOldCapture = resolve; });
+        return new Promise((resolve) => {
+          releaseOldCapture = resolve;
+        });
       }
       return encoded();
     },
   });
   let releaseFrame!: () => void;
   const apply = createApplyController({
-    readDraft: () => ({ revision: draftRevision, main: `source-${draftRevision}`, utils: "", uniforms: [] }),
+    readDraft: () => ({
+      revision: draftRevision,
+      main: `source-${draftRevision}`,
+      utils: "",
+      uniforms: [],
+    }),
     compile: async (snapshot) => {
       assert.equal(snapshot.revision, 1);
       return { ok: true as const, artifact };
@@ -284,7 +315,9 @@ test("a real Apply and capture controller reject old pixels and preserve the lat
       current: {
         installAndDraw: async (_next, options) => {
           options.onDrawing?.();
-          await new Promise<void>((resolve) => { releaseFrame = resolve; });
+          await new Promise<void>((resolve) => {
+            releaseFrame = resolve;
+          });
           return { backend: "webgl" as const };
         },
       },
@@ -324,7 +357,9 @@ test("encoding, oversize, cancellation, and deadline failures return stable cate
   const source = sourceState();
   const failing = createCapturePreviewPort({
     readIdentity: source.read,
-    encode: async () => { throw new Error("encoder failed"); },
+    encode: async () => {
+      throw new Error("encoder failed");
+    },
   });
   await expectCode(failing.capture({ expectedAppliedRevision: 4 }), "encoding");
 
@@ -343,12 +378,18 @@ test("encoding, oversize, cancellation, and deadline failures return stable cate
     readIdentity: source.read,
     encode: async () => encoded(),
   });
-  await expectCode(cancellable.capture({ expectedAppliedRevision: 4, signal: abort.signal }), "cancelled");
+  await expectCode(
+    cancellable.capture({ expectedAppliedRevision: 4, signal: abort.signal }),
+    "cancelled",
+  );
 
   const deadline = createCapturePreviewPort({
     readIdentity: source.read,
     timeoutMs: 5,
     encode: () => new Promise(() => {}),
   });
-  await expectCode(deadline.capture({ expectedAppliedRevision: 4 }), "deadline");
+  await expectCode(
+    deadline.capture({ expectedAppliedRevision: 4 }),
+    "deadline",
+  );
 });

@@ -28,26 +28,26 @@ No baseline checks were run during planning, and no green baseline is assumed. `
 
 Existing commands, run from repository root unless noted:
 
-| Command | What it establishes |
-| --- | --- |
-| `pnpm build` | Existing workspace build via Turbo; capture unrelated baseline failures separately. |
-| `pnpm check` | Existing workspace type checks, not live browser behavior. |
-| `pnpm --filter repl-web check` | App TypeScript compatibility. |
-| `pnpm --filter repl-web lint` | App lint compatibility. |
-| `pnpm --filter repl-web build` | Production app bundle, not deployment/header correctness. |
-| `pnpm --filter @shdr/runtime exec vitest run test/scheduler.test.ts --config ../../vitest.config.ts` | Existing focused scheduler test without invoking the package's browser-install lifecycle. |
-| `pnpm --filter @shdr/runtime test` | Existing runtime scheduler/browser suite; its pretest may download Chromium and needs approved prerequisites. |
+| Command                                                                                              | What it establishes                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pnpm build`                                                                                         | Existing workspace build via Turbo; capture unrelated baseline failures separately.                           |
+| `pnpm check`                                                                                         | Existing workspace type checks, not live browser behavior.                                                    |
+| `pnpm --filter repl-web check`                                                                       | App TypeScript compatibility.                                                                                 |
+| `pnpm --filter repl-web lint`                                                                        | App lint compatibility.                                                                                       |
+| `pnpm --filter repl-web build`                                                                       | Production app bundle, not deployment/header correctness.                                                     |
+| `pnpm --filter @shdr/runtime exec vitest run test/scheduler.test.ts --config ../../vitest.config.ts` | Existing focused scheduler test without invoking the package's browser-install lifecycle.                     |
+| `pnpm --filter @shdr/runtime test`                                                                   | Existing runtime scheduler/browser suite; its pretest may download Chromium and needs approved prerequisites. |
 
 New commands below are **proposed additions**, not commands currently present:
 
-| Added by | New command | Intended boundary |
-| --- | --- | --- |
-| 1.1 | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`; `pnpm --filter agent-bridge-demo dev`, `check`, `build`, `preview` | Generic package types/build and Node tests; scaffold and serve the minimal standalone demo app. `dev`/`preview` are local serving commands, not hosted proof. |
-| 1.2 | `pnpm --filter repl-web dev:preview-probe`, `build:preview-probe` | User-assisted real-canvas probe at localhost:5174 and an independently hostable build; no automated browser harness. |
-| 2.3 | `pnpm --filter agent-bridge-demo check`, `lint`, `build`; package `test`, `check`, `build` when needed | Demo-app build checks plus user-assisted manual browser conformance; not a substitute for hosted permission testing. |
-| 3.1 | `pnpm --filter repl-web test` | Explicit package Vitest config covering existing and new source/unit tests. |
-| 3.2 | `pnpm --filter repl-web test`, `build:authoring-probe` | Existing native Node unit tests plus the manual real-editor fixture; no browser harness. |
-| 5.2 | `pnpm --filter @shdr/agent-bridge test:packed` | Isolated packed/installed entrypoint and CLI checks, not publication. |
+| Added by | New command                                                                                                                   | Intended boundary                                                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1      | `pnpm --filter @shdr/agent-bridge check`, `build`, `test`; `pnpm --filter agent-bridge-demo dev`, `check`, `build`, `preview` | Generic package types/build and Node tests; scaffold and serve the minimal standalone demo app. `dev`/`preview` are local serving commands, not hosted proof. |
+| 1.2      | `pnpm --filter repl-web dev:preview-probe`, `build:preview-probe`                                                             | User-assisted real-canvas probe at localhost:5174 and an independently hostable build; no automated browser harness.                                          |
+| 2.3      | `pnpm --filter agent-bridge-demo check`, `lint`, `build`; package `test`, `check`, `build` when needed                        | Demo-app build checks plus user-assisted manual browser conformance; not a substitute for hosted permission testing.                                          |
+| 3.1      | `pnpm --filter repl-web test`                                                                                                 | Explicit package Vitest config covering existing and new source/unit tests.                                                                                   |
+| 3.2      | `pnpm --filter repl-web test`, `build:authoring-probe`                                                                        | Existing native Node unit tests plus the manual real-editor fixture; no browser harness.                                                                      |
+| 5.2      | `pnpm --filter @shdr/agent-bridge test:packed`                                                                                | Isolated packed/installed entrypoint and CLI checks, not publication.                                                                                         |
 
 ### Planning defaults for shared contracts
 
@@ -65,14 +65,14 @@ These finalize non-product protocol details the spec explicitly delegates to pla
 
 ## Phase overview and delivery boundary
 
-| Phase | Outcome | Dependencies | Exit gate |
-| --- | --- | --- | --- |
-| 0 | Reproducible baseline and known live prerequisites | Existing repository and specification | Baseline/access findings recorded; no unknown prerequisite silently assumed. |
-| 1 | Safe thin hosted bridge plus early real-canvas feasibility proof | Phase 0 | The approved HTTPS demo app calls a tool and delivers an image to Pi; the separate real REPL renderer probe exports on target backends. |
-| 2 | Reusable validated bridge with isolated lifecycle behavior | Phase 1 gate | The standalone unrelated demo app reads/mutates/returns images through the same package; failure/session tests compose. |
-| 3 | Safe live REPL reading and authoring | Phase 2 gate | Source and definition edits are atomic, revision-checked, visible, undoable, and reachable through explicit pairing. |
-| 4 | Complete visual authoring/review loop | Phase 3 gate | Pi edits, applies, receives diagnostics and the correct real preview image on the deployed REPL. |
-| 5 | Hardened, installable, multi-client integration | Phase 4 gate | Lifecycle regressions, packed artifacts, and Pi/Claude Code/Codex acceptance all meet the spec. |
+| Phase | Outcome                                                          | Dependencies                          | Exit gate                                                                                                                               |
+| ----- | ---------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Reproducible baseline and known live prerequisites               | Existing repository and specification | Baseline/access findings recorded; no unknown prerequisite silently assumed.                                                            |
+| 1     | Safe thin hosted bridge plus early real-canvas feasibility proof | Phase 0                               | The approved HTTPS demo app calls a tool and delivers an image to Pi; the separate real REPL renderer probe exports on target backends. |
+| 2     | Reusable validated bridge with isolated lifecycle behavior       | Phase 1 gate                          | The standalone unrelated demo app reads/mutates/returns images through the same package; failure/session tests compose.                 |
+| 3     | Safe live REPL reading and authoring                             | Phase 2 gate                          | Source and definition edits are atomic, revision-checked, visible, undoable, and reachable through explicit pairing.                    |
+| 4     | Complete visual authoring/review loop                            | Phase 3 gate                          | Pi edits, applies, receives diagnostics and the correct real preview image on the deployed REPL.                                        |
+| 5     | Hardened, installable, multi-client integration                  | Phase 4 gate                          | Lifecycle regressions, packed artifacts, and Pi/Claude Code/Codex acceptance all meet the spec.                                         |
 
 Delivery boundary: one feature-complete PR may contain all reviewable increments; phases are not automatically separate PRs or merge approvals. Do not represent an early probe or partial catalog as complete delivery. No publish/deploy step is automatically authorized.
 
@@ -458,7 +458,7 @@ Evidence location: [evidence/step-4.2.md](evidence/step-4.2.md).
 
 Phase exit gate: rerun integrated app/generic checks and the full deployed Pi visual journey after 4.2. Review Apply races, canvas identity, and Chrome WebGPU plus the user-approved Zen Firefox WebGL2 backend proof together; record the result in `evidence/step-4.2.md` before Phase 5. Broader installation/client claims remain unproven until Phase 5.
 
-Checklist reconciliation: Step 4.2 and the Phase 4 exit gate are complete. All five Step 4.2 tasks are checked: capture registration/guarding, envelope metadata, negative/concurrency coverage, both-backend hosted visual proof, and the final verification gate. Step 5.1 remains unchecked and has not started.
+Checklist reconciliation: Step 4.2 and the Phase 4 exit gate are complete. All five Step 4.2 tasks are checked: capture registration/guarding, envelope metadata, negative/concurrency coverage, both-backend hosted visual proof, and the final verification gate. Step 5.1 is closed below; Step 5.2 remains unchecked and has not started.
 
 ## Phase 5 — Harden, package, and verify supported clients
 
@@ -480,11 +480,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Exercise two helpers/tabs, credential expiration/reuse, same-origin refresh resume, mid-update/mid-Apply disconnect, navigation, explicit disconnect, helper shutdown/restart, reconnection leases, and stale late responses against real page state.
-- [ ] Assert loss of a response does not replay a mutation or claim rollback; refresh creates fresh catalog/page identity and agents reread actual app state before further authoring, while cached revisions are not trusted merely because resume succeeded.
-- [ ] Verify pairing/read/disconnect leave the current draft and runtime controls unchanged. Refresh restores only the connection and retains normal app reload behavior without adding sketch/source/runtime persistence; catalog exclusions remain intact and failed captures/Apply never mislabel an older preview.
-- [ ] Add regression tests with fixes, then run relevant existing workspace/runtime regressions at this major boundary with approved browser prerequisites.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Exercise two helpers/tabs, credential expiration/reuse, same-origin refresh resume, mid-update/mid-Apply disconnect, navigation, explicit disconnect, helper shutdown/restart, reconnection leases, and stale late responses against real page state.
+- [x] Assert loss of a response does not replay a mutation or claim rollback; refresh creates fresh catalog/page identity and agents reread actual app state before further authoring, while cached revisions are not trusted merely because resume succeeded.
+- [x] Verify pairing/read/disconnect leave the current draft and runtime controls unchanged. Refresh restores only the connection and retains normal app reload behavior without adding sketch/source/runtime persistence; catalog exclusions remain intact and failed captures/Apply never mislabel an older preview.
+- [x] Add regression tests with fixes, then run relevant existing workspace/runtime regressions at this major boundary with approved browser prerequisites.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
@@ -493,6 +493,8 @@ Verification:
 
 Completion gate: safety/failure criteria hold in the composed application, not just mocks, and required regressions pass or the gate remains blocked for explicit resolution.
 Evidence location: [evidence/step-5.1.md](evidence/step-5.1.md).
+
+Checklist reconciliation: all five Step 5.1 tasks and its completion gate are complete. Step 5.2 remains unchecked and has not started.
 
 ### Step 5.2 — Verify the packed helper and browser artifact boundaries
 
@@ -554,32 +556,32 @@ Phase exit gate: after 5.3, assess all owning acceptance gates below, packed art
 
 Each row identifies the full owning gate; partial checks listed in earlier steps do not independently satisfy the whole criterion. Evidence links are predetermined and are created only when execution produces results or blockers.
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result | Evidence location |
-| --- | --- | --- | --- |
-| AC1 | 3.3 plus 5.3 final deployed gate | Normal hosted REPL use and explicit pairing work without local app server/extension/debugging or automatic edits. | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md) |
-| AC2 | 1.3 plus 5.3 final client gate | MCP-provided pairing info, real HTTPS/CSP/local-network denial and retry behavior work without breaking the site. | [step-1.3](evidence/step-1.3.md), [step-5.3](evidence/step-5.3.md) |
-| AC3 | Phase 2 exit / 2.3 | The standalone unrelated demo app reads, mutates, and delivers an image to the model without bridge changes. | [step-2.3](evidence/step-2.3.md) |
-| AC4 | 5.2 artifact gate and 5.3 client gate | Same installed helper works with Pi, Claude Code, and Codex including model-visible images. | [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md) |
-| AC5 | 1.1/2.2 transport proof, composed in 5.1 | Two helpers get isolated loopback ports; stdout/logging remain safe. | [step-1.1](evidence/step-1.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC6 | 1.1/2.1 rejection proof, composed in 5.1 | Wrong origin/token and pre-auth calls never gain authority or change state. | [step-1.1](evidence/step-1.1.md), [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md) |
-| AC7 | 3.3 and final 5.3 browser check | Initial pairing credentials are removed from the fragment and absent from logs/durable storage; only scoped resume credentials may remain in sessionStorage. | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md) |
-| AC8 | 2.2/2.3 lifecycle proof, composed in 5.1 | A second owner cannot replace the first; disconnect/re-pair preserves draft with new identity. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
-| AC9 | 2.2/2.3 lifecycle proof, composed in 5.1 | Same-origin refresh may resume only with valid scoped authorization; navigation/disconnect/helper restart/expiry and late messages do not transfer authority or fabricate success. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
-| AC10 | 2.1, composed in 5.1 | Current session/catalog/schema is enforced before handler mutation. | [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md) |
-| AC11 | 2.1/2.2 bounds proof, composed in 5.1 | Resource/time limits, cancellation uncertainty, and no mutation replay hold. | [step-2.1](evidence/step-2.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC12 | 2.1 conversion, 5.2 installed proof, and 5.3 live model gate | JSON and image envelopes convert correctly; malformed content fails without fetching URLs; configured clients/models actually receive and inspect the image. | [step-2.1](evidence/step-2.1.md), [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md) |
-| AC13 | 3.3/4.1, confirmed in 5.3 | Context/draft/applied/diagnostic reads are useful, accurate, and nonmutating. | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.3](evidence/step-5.3.md) |
-| AC14 | Phase 3 exit / 3.3 | Real source-plus-definition updates commit coherently and preserve omitted fields. | [step-3.1](evidence/step-3.1.md), [step-3.2](evidence/step-3.2.md), [step-3.3](evidence/step-3.3.md) |
-| AC15 | 3.1/3.2, regression in 5.1 | Invalid/stale multi-field requests change nothing and explain rejection. | [step-3.1](evidence/step-3.1.md), [step-3.2](evidence/step-3.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC16 | 3.2, regression in 5.1 | Visible undo/redo/manual changes stay consistent and invalidate old revisions. | [step-3.2](evidence/step-3.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC17 | 4.1 | Delayed compile/install/draw cannot produce premature visual readiness. | [step-4.1](evidence/step-4.1.md) |
-| AC18 | 4.1, regression in 5.1 | Failed/stale Apply retains the previous preview and structured failure identity. | [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md) |
-| AC19 | 4.1/4.2, regression in 5.1 | Superseded Apply/capture never overwrites or mislabels current output. | [step-4.1](evidence/step-4.1.md), [step-4.2](evidence/step-4.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC20 | 4.2, confirmed in 5.3 | Actual WebGL/WebGPU preview images reach the model with correct metadata, not viewport substitution. | [step-1.2](evidence/step-1.2.md), [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md) |
-| AC21 | 4.2, regression in 5.1 | Missing/mismatched/unexportable/oversized capture fails explicitly. | [step-4.2](evidence/step-4.2.md), [step-5.1](evidence/step-5.1.md) |
-| AC22 | 3.3/4.1 boundaries, final 5.1/5.3 checks | No excluded capabilities; connection/read/disconnect preserve controls and Apply preserves documented defaults behavior. | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md), [step-5.3](evidence/step-5.3.md) |
-| AC23 | Phase 4 core loop and Phase 5 final gate | Pi completes deployed authoring/definition editing/Apply/diagnose/visual review through the installed integration. | [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md) |
-| AC24 | Phase 2.2 lifecycle contract, 2.3 manual conformance, regression in 5.1 | Pair once, resume after same-origin refresh without a new link, reread fresh page/catalog state, and reject resume after explicit disconnect/helper restart/expiry; interrupted mutations are not replayed. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md) |
+| Spec acceptance ID | Owning step / gate                                                      | Verification and expected result                                                                                                                                                                            | Evidence location                                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1                | 3.3 plus 5.3 final deployed gate                                        | Normal hosted REPL use and explicit pairing work without local app server/extension/debugging or automatic edits.                                                                                           | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md)                                                                     |
+| AC2                | 1.3 plus 5.3 final client gate                                          | MCP-provided pairing info, real HTTPS/CSP/local-network denial and retry behavior work without breaking the site.                                                                                           | [step-1.3](evidence/step-1.3.md), [step-5.3](evidence/step-5.3.md)                                                                     |
+| AC3                | Phase 2 exit / 2.3                                                      | The standalone unrelated demo app reads, mutates, and delivers an image to the model without bridge changes.                                                                                                | [step-2.3](evidence/step-2.3.md)                                                                                                       |
+| AC4                | 5.2 artifact gate and 5.3 client gate                                   | Same installed helper works with Pi, Claude Code, and Codex including model-visible images.                                                                                                                 | [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md)                                                                     |
+| AC5                | 1.1/2.2 transport proof, composed in 5.1                                | Two helpers get isolated loopback ports; stdout/logging remain safe.                                                                                                                                        | [step-1.1](evidence/step-1.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC6                | 1.1/2.1 rejection proof, composed in 5.1                                | Wrong origin/token and pre-auth calls never gain authority or change state.                                                                                                                                 | [step-1.1](evidence/step-1.1.md), [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC7                | 3.3 and final 5.3 browser check                                         | Initial pairing credentials are removed from the fragment and absent from logs/durable storage; only scoped resume credentials may remain in sessionStorage.                                                | [step-3.3](evidence/step-3.3.md), [step-5.3](evidence/step-5.3.md)                                                                     |
+| AC8                | 2.2/2.3 lifecycle proof, composed in 5.1                                | A second owner cannot replace the first; disconnect/re-pair preserves draft with new identity.                                                                                                              | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC9                | 2.2/2.3 lifecycle proof, composed in 5.1                                | Same-origin refresh may resume only with valid scoped authorization; navigation/disconnect/helper restart/expiry and late messages do not transfer authority or fabricate success.                          | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC10               | 2.1, composed in 5.1                                                    | Current session/catalog/schema is enforced before handler mutation.                                                                                                                                         | [step-2.1](evidence/step-2.1.md), [step-5.1](evidence/step-5.1.md)                                                                     |
+| AC11               | 2.1/2.2 bounds proof, composed in 5.1                                   | Resource/time limits, cancellation uncertainty, and no mutation replay hold.                                                                                                                                | [step-2.1](evidence/step-2.1.md), [step-2.2](evidence/step-2.2.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC12               | 2.1 conversion, 5.2 installed proof, and 5.3 live model gate            | JSON and image envelopes convert correctly; malformed content fails without fetching URLs; configured clients/models actually receive and inspect the image.                                                | [step-2.1](evidence/step-2.1.md), [step-5.2](evidence/step-5.2.md), [step-5.3](evidence/step-5.3.md)                                   |
+| AC13               | 3.3/4.1, confirmed in 5.3                                               | Context/draft/applied/diagnostic reads are useful, accurate, and nonmutating.                                                                                                                               | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.3](evidence/step-5.3.md)                                   |
+| AC14               | Phase 3 exit / 3.3                                                      | Real source-plus-definition updates commit coherently and preserve omitted fields.                                                                                                                          | [step-3.1](evidence/step-3.1.md), [step-3.2](evidence/step-3.2.md), [step-3.3](evidence/step-3.3.md)                                   |
+| AC15               | 3.1/3.2, regression in 5.1                                              | Invalid/stale multi-field requests change nothing and explain rejection.                                                                                                                                    | [step-3.1](evidence/step-3.1.md), [step-3.2](evidence/step-3.2.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC16               | 3.2, regression in 5.1                                                  | Visible undo/redo/manual changes stay consistent and invalidate old revisions.                                                                                                                              | [step-3.2](evidence/step-3.2.md), [step-5.1](evidence/step-5.1.md)                                                                     |
+| AC17               | 4.1                                                                     | Delayed compile/install/draw cannot produce premature visual readiness.                                                                                                                                     | [step-4.1](evidence/step-4.1.md)                                                                                                       |
+| AC18               | 4.1, regression in 5.1                                                  | Failed/stale Apply retains the previous preview and structured failure identity.                                                                                                                            | [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md)                                                                     |
+| AC19               | 4.1/4.2, regression in 5.1                                              | Superseded Apply/capture never overwrites or mislabels current output.                                                                                                                                      | [step-4.1](evidence/step-4.1.md), [step-4.2](evidence/step-4.2.md), [step-5.1](evidence/step-5.1.md)                                   |
+| AC20               | 4.2, confirmed in 5.3                                                   | Actual WebGL/WebGPU preview images reach the model with correct metadata, not viewport substitution.                                                                                                        | [step-1.2](evidence/step-1.2.md), [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md)                                   |
+| AC21               | 4.2, regression in 5.1                                                  | Missing/mismatched/unexportable/oversized capture fails explicitly.                                                                                                                                         | [step-4.2](evidence/step-4.2.md), [step-5.1](evidence/step-5.1.md)                                                                     |
+| AC22               | 3.3/4.1 boundaries, final 5.1/5.3 checks                                | No excluded capabilities; connection/read/disconnect preserve controls and Apply preserves documented defaults behavior.                                                                                    | [step-3.3](evidence/step-3.3.md), [step-4.1](evidence/step-4.1.md), [step-5.1](evidence/step-5.1.md), [step-5.3](evidence/step-5.3.md) |
+| AC23               | Phase 4 core loop and Phase 5 final gate                                | Pi completes deployed authoring/definition editing/Apply/diagnose/visual review through the installed integration.                                                                                          | [step-4.2](evidence/step-4.2.md), [step-5.3](evidence/step-5.3.md)                                                                     |
+| AC24               | Phase 2.2 lifecycle contract, 2.3 manual conformance, regression in 5.1 | Pair once, resume after same-origin refresh without a new link, reread fresh page/catalog state, and reject resume after explicit disconnect/helper restart/expiry; interrupted mutations are not replayed. | [step-2.2](evidence/step-2.2.md), [step-2.3](evidence/step-2.3.md), [step-5.1](evidence/step-5.1.md)                                   |
 
 Final gates do not replace focused tests with a single broad green command. A successful build, fake renderer, standalone demo app, installed artifact, and live model journey prove different things. All required owning gates must be assessed; any blocked, skipped, or failed gate remains uncompleted and is reported in its evidence note.
 

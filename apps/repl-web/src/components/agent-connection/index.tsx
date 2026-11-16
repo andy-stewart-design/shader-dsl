@@ -63,7 +63,11 @@ export default function AgentConnection() {
           Disconnect
         </button>
       )}
-      {message && <p className={s.message} role="status">{message}</p>}
+      {message && (
+        <p className={s.message} role="status">
+          {message}
+        </p>
+      )}
     </aside>
   );
 }

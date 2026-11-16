@@ -69,10 +69,7 @@ export function generateUniformsSource(
     if (definition.type !== "f32" && definition.type !== "vec3") {
       return invalid("Uniform has an unsupported type.", index);
     }
-    if (
-      definition.type === "f32" &&
-      typeof definition.default !== "number"
-    ) {
+    if (definition.type === "f32" && typeof definition.default !== "number") {
       return invalid(
         `Uniform ${JSON.stringify(definition.name)} must have a numeric default.`,
         index,

@@ -11,15 +11,7 @@ const LANGUAGE = {
   },
   composition:
     "The REPL generates shdr imports, optional uniform definitions, utils, and a createFragmentShader callback containing main.",
-  valueTypes: [
-    "f32",
-    "vec2",
-    "vec3",
-    "vec4",
-    "mat2",
-    "mat3",
-    "mat4",
-  ],
+  valueTypes: ["f32", "vec2", "vec3", "vec4", "mat2", "mat3", "mat4"],
   builtins: Object.keys(SHADER_BUILTINS),
   constructors: ["vec2", "vec3", "vec4", "mat2", "mat3", "mat4"],
   additionalCallables: ["sample"],
@@ -39,9 +31,11 @@ export interface AuthoringContext {
     readonly runtimeValuesExposed: false;
   };
   readonly workflow: {
-    readonly apply: "explicit-manual-run" | "explicit-manual-run-or-apply-sketch";
+    readonly apply:
+      "explicit-manual-run" | "explicit-manual-run-or-apply-sketch";
     readonly runShortcut: "Alt+Enter";
-    readonly sourceEditsCompile: "only-after-human-run" | "only-after-explicit-apply";
+    readonly sourceEditsCompile:
+      "only-after-human-run" | "only-after-explicit-apply";
     readonly manualRuntimeControls: "unchanged-and-not-exposed";
   };
   readonly draftRevision: number;
@@ -122,7 +116,9 @@ function previewFromApplyState(apply?: ApplyState) {
     status: apply.phase,
     appliedRevision: apply.appliedRevision,
     attemptId: apply.attemptId,
-    ...(apply.draftRevision === undefined ? {} : { draftRevision: apply.draftRevision }),
+    ...(apply.draftRevision === undefined
+      ? {}
+      : { draftRevision: apply.draftRevision }),
     ...(apply.appliedBackend ? { backend: apply.appliedBackend } : {}),
     diagnostics: apply.diagnostics,
     note:

@@ -10,14 +10,14 @@ The root scripts were inspected before execution. `build` is `turbo run build`; 
 
 Commands were run sequentially from repository root to avoid shared Turbo/dist contention. Results are actual command results, not acceptance claims:
 
-| Command | Exit | Result / relevant diagnostics |
-|---|---:|---|
-| `pnpm build` | 0 | 13 Turbo tasks successful, 6 cached. Warnings: TypeScript 7 experimental API; Vite/Rolldown module-level `use client` warnings; chunk-size warnings; Turbo warns no output files for `repl-web#build`. |
-| `pnpm check` | 0 | 19 tasks successful (19 cached). Type checks completed; same TypeScript 7 experimental-API build warnings appeared in dependency builds. |
-| `pnpm --filter repl-web check` | 0 | `tsc --noEmit` completed without diagnostics. |
-| `pnpm --filter repl-web lint` | 0 | `eslint .` completed without diagnostics. |
-| `pnpm --filter repl-web build` | 0 | Vite/Nitro build completed. Existing module-level `use client` warnings from Base UI/Rolldown and a chunk-size warning were emitted; no build failure. |
-| `pnpm --filter @shdr/runtime exec vitest run test/scheduler.test.ts --config ../../vitest.config.ts` | 0 | 1 file, 7 tests passed in 83 ms. This direct command avoided the runtime `pretest` Chromium-install hook. |
+| Command                                                                                              | Exit | Result / relevant diagnostics                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ---: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm build`                                                                                         |    0 | 13 Turbo tasks successful, 6 cached. Warnings: TypeScript 7 experimental API; Vite/Rolldown module-level `use client` warnings; chunk-size warnings; Turbo warns no output files for `repl-web#build`. |
+| `pnpm check`                                                                                         |    0 | 19 tasks successful (19 cached). Type checks completed; same TypeScript 7 experimental-API build warnings appeared in dependency builds.                                                               |
+| `pnpm --filter repl-web check`                                                                       |    0 | `tsc --noEmit` completed without diagnostics.                                                                                                                                                          |
+| `pnpm --filter repl-web lint`                                                                        |    0 | `eslint .` completed without diagnostics.                                                                                                                                                              |
+| `pnpm --filter repl-web build`                                                                       |    0 | Vite/Nitro build completed. Existing module-level `use client` warnings from Base UI/Rolldown and a chunk-size warning were emitted; no build failure.                                                 |
+| `pnpm --filter @shdr/runtime exec vitest run test/scheduler.test.ts --config ../../vitest.config.ts` |    0 | 1 file, 7 tests passed in 83 ms. This direct command avoided the runtime `pretest` Chromium-install hook.                                                                                              |
 
 Raw logs (including command output and exit marker):
 

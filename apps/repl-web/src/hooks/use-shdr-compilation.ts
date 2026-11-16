@@ -11,13 +11,19 @@ import {
   type ApplyState,
 } from "../agent/apply-controller.ts";
 import type { CapturePreviewPort } from "../agent/snapshot.ts";
-import { compileShdrBody, type CompileShdrDiagnostic } from "../compiler/compile-shdr-body";
+import {
+  compileShdrBody,
+  type CompileShdrDiagnostic,
+} from "../compiler/compile-shdr-body";
 import { initialShaderSource } from "../shared/initial-source";
 import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions";
 import { getDraftState } from "../stores/draft";
 import { cloneUniforms, type Uniform } from "../shared/uniforms";
 import type { DraftSnapshot } from "../agent/authoring-controller.ts";
-import { readUniformDefinitions, type UniformDefinitionInput } from "../agent/authoring-schema.ts";
+import {
+  readUniformDefinitions,
+  type UniformDefinitionInput,
+} from "../agent/authoring-schema.ts";
 
 interface Sources {
   main: string;
@@ -43,7 +49,12 @@ export function formatCompileDiagnostics(
     .map((diagnostic) => {
       const document = diagnostic.document;
       const source = document === "uniforms" ? "" : sources[document];
-      const label = document === "main" ? "Main" : document === "utils" ? "Utils" : "Uniforms";
+      const label =
+        document === "main"
+          ? "Main"
+          : document === "utils"
+            ? "Utils"
+            : "Uniforms";
       return `${label}: ${sourceLocation(source, diagnostic.range)}: ${diagnostic.code}: ${diagnostic.message}`;
     })
     .join("\n");
@@ -52,20 +63,41 @@ export function formatCompileDiagnostics(
 function toDraftUniforms(inputs: readonly UniformDefinitionInput[]): Uniform[] {
   return inputs.map((uniform, index) =>
     uniform.type === "float"
-      ? { id: uniform.id ?? `uniform-${index}`, name: uniform.name, type: "float", value: uniform.value, min: uniform.min, max: uniform.max }
-      : { id: uniform.id ?? `uniform-${index}`, name: uniform.name, type: "color", draft: uniform.value, valid: uniform.value },
+      ? {
+          id: uniform.id ?? `uniform-${index}`,
+          name: uniform.name,
+          type: "float",
+          value: uniform.value,
+          min: uniform.min,
+          max: uniform.max,
+        }
+      : {
+          id: uniform.id ?? `uniform-${index}`,
+          name: uniform.name,
+          type: "color",
+          draft: uniform.value,
+          valid: uniform.value,
+        },
   );
 }
 
 function compileSnapshot(snapshot: DraftSnapshot): ApplyCompileResult {
-  const converted = toShaderUniformDefinitions(toDraftUniforms(snapshot.uniforms));
+  const converted = toShaderUniformDefinitions(
+    toDraftUniforms(snapshot.uniforms),
+  );
   if (!converted.ok) {
     return {
       ok: false,
-      diagnostics: [{ code: "uniform", message: converted.error, document: "uniforms" }],
+      diagnostics: [
+        { code: "uniform", message: converted.error, document: "uniforms" },
+      ],
     };
   }
-  const result = compileShdrBody(snapshot.main, snapshot.utils, converted.definitions);
+  const result = compileShdrBody(
+    snapshot.main,
+    snapshot.utils,
+    converted.definitions,
+  );
   if (!result.ok) {
     return {
       ok: false,
@@ -80,18 +112,27 @@ function compileSnapshot(snapshot: DraftSnapshot): ApplyCompileResult {
   return { ok: true, artifact: result.artifact };
 }
 
-export function compileDraftSnapshot(snapshot: DraftSnapshot): ApplyCompileResult {
+export function compileDraftSnapshot(
+  snapshot: DraftSnapshot,
+): ApplyCompileResult {
   try {
     return compileSnapshot(snapshot);
   } catch (error) {
     return {
       ok: false,
-      diagnostics: [{ code: "syntax", message: error instanceof Error ? error.message : String(error) }],
+      diagnostics: [
+        {
+          code: "syntax",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
     };
   }
 }
 
-function diagnosticCode(diagnostic: CompileShdrDiagnostic): ApplyDiagnostic["code"] {
+function diagnosticCode(
+  diagnostic: CompileShdrDiagnostic,
+): ApplyDiagnostic["code"] {
   const text = `${diagnostic.code} ${diagnostic.message}`.toLowerCase();
   return text.includes("type") ? "type" : "syntax";
 }
@@ -114,7 +155,10 @@ export interface UseShdrCompilationResult {
   applyPortRef: { current: ApplyPreviewPort | null };
   capturePortRef: { current: CapturePreviewPort | null };
   getAppliedRevision: () => number | null;
-  onInitialFrame: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
+  onInitialFrame: (info: {
+    readonly backend: "webgpu" | "webgl";
+    readonly artifact: CompiledFragmentArtifact;
+  }) => void;
   isEvaluationFlashing: boolean;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
@@ -125,13 +169,16 @@ export function useShdrCompilation(): UseShdrCompilationResult {
   const [artifact, setArtifact] = useState<CompiledFragmentArtifact | null>(
     initialCompilation.ok ? initialCompilation.artifact : null,
   );
-  const [errorPresentation, setErrorPresentation] = useState<ApplyErrorPresentation>({
-    compileError: initialCompilation.ok
-      ? null
-      : initialCompilation.diagnostics.map((item) => item.message).join("\n"),
-    runtimeError: null,
-  });
-  const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>([]);
+  const [errorPresentation, setErrorPresentation] =
+    useState<ApplyErrorPresentation>({
+      compileError: initialCompilation.ok
+        ? null
+        : initialCompilation.diagnostics.map((item) => item.message).join("\n"),
+      runtimeError: null,
+    });
+  const [appliedUniforms, setAppliedUniforms] = useState<readonly Uniform[]>(
+    [],
+  );
   const [isEvaluationFlashing, setIsEvaluationFlashing] = useState(false);
   const [applyState, setApplyState] = useState<ApplyState>({
     phase: "idle",
@@ -139,10 +186,15 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     appliedRevision: null,
     diagnostics: [],
   });
-  const [applyPortRef] = useState<{ current: ApplyPreviewPort | null }>(() => ({ current: null }));
-  const [capturePortRef] = useState<{ current: CapturePreviewPort | null }>(() => ({ current: null }));
+  const [applyPortRef] = useState<{ current: ApplyPreviewPort | null }>(() => ({
+    current: null,
+  }));
+  const [capturePortRef] = useState<{ current: CapturePreviewPort | null }>(
+    () => ({ current: null }),
+  );
   const [artifactRevision] = useState(() => ({ value: 0 }));
-  const [controller] = useState<ApplyController>(() => createApplyController({
+  const [controller] = useState<ApplyController>(() =>
+    createApplyController({
       readDraft: () => {
         const draft = getDraftState();
         return {
@@ -159,13 +211,20 @@ export function useShdrCompilation(): UseShdrCompilationResult {
         setArtifact(nextArtifact);
         setAppliedUniforms(cloneUniforms(toDraftUniforms(snapshot.uniforms)));
       },
-  }));
+    }),
+  );
 
-  useEffect(() => controller.subscribe(() => {
-    const next = controller.getState();
-    setApplyState(next);
-    setErrorPresentation((previous) => updateApplyErrorPresentation(previous, next));
-  }), [controller]);
+  useEffect(
+    () =>
+      controller.subscribe(() => {
+        const next = controller.getState();
+        setApplyState(next);
+        setErrorPresentation((previous) =>
+          updateApplyErrorPresentation(previous, next),
+        );
+      }),
+    [controller],
+  );
 
   const apply = useCallback(() => {
     const expectedRevision = getDraftState().revision;
@@ -182,7 +241,10 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     }));
   }, []);
   const onInitialFrame = useCallback(
-    (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => {
+    (info: {
+      readonly backend: "webgpu" | "webgl";
+      readonly artifact: CompiledFragmentArtifact;
+    }) => {
       controller.confirmInitial(artifactRevision.value, info.backend);
     },
     [artifactRevision, controller],
@@ -195,7 +257,17 @@ export function useShdrCompilation(): UseShdrCompilationResult {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat || event.isComposing || event.keyCode === 229) return;
+      if (
+        event.key !== "Enter" ||
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.repeat ||
+        event.isComposing ||
+        event.keyCode === 229
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
       apply();

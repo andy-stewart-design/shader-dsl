@@ -5,7 +5,11 @@ import type {
 
 export type { DraftSnapshot } from "./authoring-controller.ts";
 
-import type { ApplyState, ApplyRequest, ApplyResult } from "./apply-controller.ts";
+import type {
+  ApplyState,
+  ApplyRequest,
+  ApplyResult,
+} from "./apply-controller.ts";
 
 export interface AuthoringController {
   read(): DraftSnapshot;

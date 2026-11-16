@@ -3,7 +3,10 @@ import {
   createEditorAdapter,
   editorRegistry,
 } from "../../src/editor/authoring-adapter.ts";
-import { createEditor, type EditorHandle } from "../../src/editor/create-editor.ts";
+import {
+  createEditor,
+  type EditorHandle,
+} from "../../src/editor/create-editor.ts";
 import { createDraftStore } from "../../src/stores/draft.ts";
 
 const store = createDraftStore();
@@ -83,7 +86,11 @@ applyButton.addEventListener("click", () => {
     main: `${current.main}\n// applied by the authoring controller`,
     utils: "const helper = (value) => value;",
   });
-  render(result.ok ? "Programmatic source edit applied" : `Rejected: ${result.error.message}`);
+  render(
+    result.ok
+      ? "Programmatic source edit applied"
+      : `Rejected: ${result.error.message}`,
+  );
 });
 
 undoButton.addEventListener("click", () => {
@@ -102,7 +109,11 @@ conflictButton.addEventListener("click", () => {
     expectedRevision: before.revision,
     main: "stale agent edit",
   });
-  render(result.ok ? "Unexpectedly accepted stale edit" : `Conflict: ${result.error.message}`);
+  render(
+    result.ok
+      ? "Unexpectedly accepted stale edit"
+      : `Conflict: ${result.error.message}`,
+  );
 });
 
 unmountButton.addEventListener("click", unmountUtils);

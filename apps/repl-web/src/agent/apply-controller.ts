@@ -67,7 +67,11 @@ export function updateApplyErrorPresentation(
 
   const message = next.diagnostics.map((item) => item.message).join("\n");
   const firstCode = next.diagnostics[0]?.code;
-  if (firstCode === "syntax" || firstCode === "type" || firstCode === "uniform") {
+  if (
+    firstCode === "syntax" ||
+    firstCode === "type" ||
+    firstCode === "uniform"
+  ) {
     return { compileError: message, runtimeError: previous.runtimeError };
   }
   return { compileError: previous.compileError, runtimeError: message };
@@ -121,7 +125,10 @@ export interface ApplyControllerOptions {
     snapshot: DraftSnapshot,
   ) => ApplyCompileResult | Promise<ApplyCompileResult>;
   readonly preview: { current: ApplyPreviewPort | null };
-  readonly onApplied?: (snapshot: DraftSnapshot, artifact: CompiledFragmentArtifact) => void;
+  readonly onApplied?: (
+    snapshot: DraftSnapshot,
+    artifact: CompiledFragmentArtifact,
+  ) => void;
 }
 
 export interface ApplyController {
@@ -136,7 +143,8 @@ export function createApplyController(
   options: ApplyControllerOptions,
 ): ApplyController {
   let attemptId = 0;
-  let active: { readonly id: number; readonly abort: AbortController } | null = null;
+  let active: { readonly id: number; readonly abort: AbortController } | null =
+    null;
   let state: ApplyState = {
     phase: "idle",
     attemptId: 0,
@@ -213,14 +221,22 @@ export function createApplyController(
       });
       const isCurrent = () => active?.id === id && !abort.signal.aborted;
       try {
-        const compiled = await awaitAbortable(options.compile(snapshot), abort.signal);
+        const compiled = await awaitAbortable(
+          options.compile(snapshot),
+          abort.signal,
+        );
         if (!isCurrent()) {
-          return diagnosticResult(id, snapshot.revision, {
-            code: request.signal?.aborted ? "cancelled" : "superseded",
-            message: request.signal?.aborted
-              ? "Apply was cancelled before installation."
-              : "Apply was superseded by a newer request.",
-          }, request.signal?.aborted ? "cancelled" : "superseded");
+          return diagnosticResult(
+            id,
+            snapshot.revision,
+            {
+              code: request.signal?.aborted ? "cancelled" : "superseded",
+              message: request.signal?.aborted
+                ? "Apply was cancelled before installation."
+                : "Apply was superseded by a newer request.",
+            },
+            request.signal?.aborted ? "cancelled" : "superseded",
+          );
         }
         if (!compiled.ok) {
           const first = compiled.diagnostics[0] ?? {
@@ -259,27 +275,35 @@ export function createApplyController(
           ...preservedApplied(),
           diagnostics: [],
         });
-        const installed = await awaitAbortable(port.installAndDraw(compiled.artifact, {
-          signal: abort.signal,
-          onDrawing: () => {
-            if (!isCurrent()) return;
-            publish({
-              phase: "drawing",
-              attemptId: id,
-              draftRevision: snapshot.revision,
-              expectedRevision: request.expectedRevision,
-              ...preservedApplied(),
-              diagnostics: [],
-            });
-          },
-        }), abort.signal);
+        const installed = await awaitAbortable(
+          port.installAndDraw(compiled.artifact, {
+            signal: abort.signal,
+            onDrawing: () => {
+              if (!isCurrent()) return;
+              publish({
+                phase: "drawing",
+                attemptId: id,
+                draftRevision: snapshot.revision,
+                expectedRevision: request.expectedRevision,
+                ...preservedApplied(),
+                diagnostics: [],
+              });
+            },
+          }),
+          abort.signal,
+        );
         if (!isCurrent()) {
-          return diagnosticResult(id, snapshot.revision, {
-            code: request.signal?.aborted ? "cancelled" : "superseded",
-            message: request.signal?.aborted
-              ? "Apply was cancelled; the renderer was not replayed."
-              : "Apply completion was superseded by a newer request.",
-          }, request.signal?.aborted ? "cancelled" : "superseded");
+          return diagnosticResult(
+            id,
+            snapshot.revision,
+            {
+              code: request.signal?.aborted ? "cancelled" : "superseded",
+              message: request.signal?.aborted
+                ? "Apply was cancelled; the renderer was not replayed."
+                : "Apply completion was superseded by a newer request.",
+            },
+            request.signal?.aborted ? "cancelled" : "superseded",
+          );
         }
         // installAndDraw resolves only after the renderer's own frame promise.
         // No timeout or RAF heuristic is used here.
@@ -304,7 +328,9 @@ export function createApplyController(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const diagnostic: ApplyDiagnostic = {
-          code: abort.signal.aborted ? "cancelled" : classifyRuntimeError(error),
+          code: abort.signal.aborted
+            ? "cancelled"
+            : classifyRuntimeError(error),
           message: abort.signal.aborted ? "Apply was cancelled." : message,
           document: "preview",
         };
@@ -344,7 +370,10 @@ class ApplyAbortError extends Error {
   }
 }
 
-function awaitAbortable<T>(value: T | PromiseLike<T>, signal: AbortSignal): Promise<T> {
+function awaitAbortable<T>(
+  value: T | PromiseLike<T>,
+  signal: AbortSignal,
+): Promise<T> {
   if (signal.aborted) return Promise.reject(new ApplyAbortError());
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(new ApplyAbortError());
@@ -363,12 +392,21 @@ function awaitAbortable<T>(value: T | PromiseLike<T>, signal: AbortSignal): Prom
 }
 
 function classifyRuntimeError(error: unknown): ApplyDiagnosticCode {
-  const kind = typeof error === "object" && error !== null && "kind" in error
-    ? String((error as { kind?: unknown }).kind)
-    : "install";
-  return kind === "draw" ? "draw" : kind === "uniform" ? "uniform" : kind === "unavailable" || kind === "lost" ? "backend" : "install";
+  const kind =
+    typeof error === "object" && error !== null && "kind" in error
+      ? String((error as { kind?: unknown }).kind)
+      : "install";
+  return kind === "draw"
+    ? "draw"
+    : kind === "uniform"
+      ? "uniform"
+      : kind === "unavailable" || kind === "lost"
+        ? "backend"
+        : "install";
 }
 
-export function cloneUniformSnapshot(uniforms: readonly Uniform[]): readonly Uniform[] {
+export function cloneUniformSnapshot(
+  uniforms: readonly Uniform[],
+): readonly Uniform[] {
   return structuredClone(uniforms);
 }

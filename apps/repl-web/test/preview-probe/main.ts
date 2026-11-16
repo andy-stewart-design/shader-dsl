@@ -38,7 +38,9 @@ function unavailableFactory(backend: "webgpu" | "webgl") {
   };
 }
 
-function factoriesFor(choice: BackendChoice): PreviewRendererFactories | undefined {
+function factoriesFor(
+  choice: BackendChoice,
+): PreviewRendererFactories | undefined {
   if (choice === "auto") return undefined;
   if (choice === "webgpu") {
     return { webgpu: createWebGpuRenderer, webgl: unavailableFactory("webgl") };
@@ -125,7 +127,9 @@ async function load(choice: BackendChoice): Promise<void> {
     }
     if (choice !== "auto" && handle.backend !== choice) {
       handle.destroy();
-      throw new Error(`Fixture expected ${choice}, but renderer reported ${handle.backend}.`);
+      throw new Error(
+        `Fixture expected ${choice}, but renderer reported ${handle.backend}.`,
+      );
     }
     activeHandle = handle;
     backendLabel.textContent = `Backend: ${handle.backend} (reported by renderer)`;
@@ -134,7 +138,8 @@ async function load(choice: BackendChoice): Promise<void> {
     if (expectedGeneration === generation)
       status.textContent = `Preview failed: ${describeError(error)}`;
   } finally {
-    if (expectedGeneration === generation && activeHandle) captureButton.disabled = false;
+    if (expectedGeneration === generation && activeHandle)
+      captureButton.disabled = false;
   }
 }
 

@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createAuthoringTools } from "./tools.ts";
-import type {
-  AuthoringController,
-  DraftSnapshot,
-} from "./controller-types.ts";
+import type { AuthoringController, DraftSnapshot } from "./controller-types.ts";
 import {
   createCapturePreviewPort,
   type CapturePreviewPort,
@@ -49,9 +46,7 @@ function makeController() {
       snapshot = {
         ...snapshot,
         revision: snapshot.revision + 1,
-        ...(typeof request === "object" && request !== null
-          ? request
-          : {}),
+        ...(typeof request === "object" && request !== null ? request : {}),
       } as DraftSnapshot;
       return { ok: true, snapshot: structuredClone(snapshot) };
     },
@@ -74,18 +69,29 @@ test("advertises exactly the three Phase 3 authoring tools", () => {
 test("read tools clone current draft and update delegates the controller", async () => {
   const { controller, requests } = makeController();
   const tools = createAuthoringTools(controller);
-  const context = (await tools[0]!.handler({}, { signal: new AbortController().signal })) as Record<string, unknown>;
-  const sketch = (await tools[1]!.handler({}, { signal: new AbortController().signal })) as Record<string, unknown>;
+  const context = (await tools[0]!.handler(
+    {},
+    { signal: new AbortController().signal },
+  )) as Record<string, unknown>;
+  const sketch = (await tools[1]!.handler(
+    {},
+    { signal: new AbortController().signal },
+  )) as Record<string, unknown>;
   assert.equal(context.draftRevision, 4);
   assert.equal(sketch.revision, 4);
-  assert.equal((sketch.preview as Record<string, unknown>).appliedRevision, null);
+  assert.equal(
+    (sketch.preview as Record<string, unknown>).appliedRevision,
+    null,
+  );
 
   const update = await tools[2]!.handler(
     { expectedRevision: 4, main: "raw invalid text" },
     { signal: new AbortController().signal },
   );
   assert.equal((update as Record<string, unknown>).ok, true);
-  assert.deepEqual(requests, [{ expectedRevision: 4, main: "raw invalid text" }]);
+  assert.deepEqual(requests, [
+    { expectedRevision: 4, main: "raw invalid text" },
+  ]);
 });
 
 test("stale update returns a readable conflict with the current revision", async () => {
@@ -143,13 +149,16 @@ test("capture is a fifth site capability and returns an image envelope with hone
     }),
   };
   const tools = createAuthoringTools(fullController, capturePortRef);
-  assert.deepEqual(tools.map((tool) => tool.name), [
-    "get_authoring_context",
-    "get_sketch",
-    "update_sketch",
-    "apply_sketch",
-    "capture_preview",
-  ]);
+  assert.deepEqual(
+    tools.map((tool) => tool.name),
+    [
+      "get_authoring_context",
+      "get_sketch",
+      "update_sketch",
+      "apply_sketch",
+      "capture_preview",
+    ],
+  );
   const result = (await tools[4]!.handler(
     { expectedAppliedRevision: 3 },
     { signal: new AbortController().signal },
@@ -157,13 +166,21 @@ test("capture is a fifth site capability and returns an image envelope with hone
   assert.equal(requests.length, 0);
   assert.doesNotThrow(() => JSON.stringify(result));
   assert.equal(result.bridgeResultVersion, 1);
-  assert.equal((result.content as Array<Record<string, unknown>>)[0]?.type, "image");
+  assert.equal(
+    (result.content as Array<Record<string, unknown>>)[0]?.type,
+    "image",
+  );
   assert.deepEqual(result.metadata, {
     kind: "preview-capture",
     appliedRevision: 3,
     draftRevision: 4,
     draftDiffersFromApplied: true,
-    identity: { appliedRevision: 3, backend: "webgl", width: 1209, height: 1209 },
+    identity: {
+      appliedRevision: 3,
+      backend: "webgl",
+      width: 1209,
+      height: 1209,
+    },
     backend: "webgl",
     width: 512,
     height: 512,

@@ -20,7 +20,11 @@ export type CaptureCanvasErrorCode =
 export class CaptureCanvasError extends Error {
   readonly code: CaptureCanvasErrorCode;
 
-  constructor(code: CaptureCanvasErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: CaptureCanvasErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = "CaptureCanvasError";
     this.code = code;
@@ -48,7 +52,10 @@ function isTaintedError(error: unknown): boolean {
     typeof DOMException !== "undefined" &&
     error instanceof DOMException &&
     error.name === "SecurityError";
-  return isSecurityException || (error instanceof Error && /security|taint/i.test(error.message));
+  return (
+    isSecurityException ||
+    (error instanceof Error && /security|taint/i.test(error.message))
+  );
 }
 
 function assertNotAborted(signal: AbortSignal | undefined): void {
@@ -72,10 +79,15 @@ function withTimeout<T>(
     const onAbort = (): void =>
       finish(() => reject(new Error("PNG capture was cancelled.")));
     const timer = setTimeout(
-      () => finish(() => reject(new CaptureCanvasError(
-        "timeout",
-        `PNG capture did not finish within ${timeoutMs} ms.`,
-      ))),
+      () =>
+        finish(() =>
+          reject(
+            new CaptureCanvasError(
+              "timeout",
+              `PNG capture did not finish within ${timeoutMs} ms.`,
+            ),
+          ),
+        ),
       timeoutMs,
     );
     if (signal?.aborted) {
@@ -194,7 +206,10 @@ async function decodeNativePng(
     } catch (error) {
       // A timed-out bitmap decode can still resolve later; close it rather
       // than retaining the intermediate native snapshot in the browser.
-      void bitmapPromise.then((bitmap) => bitmap.close(), () => undefined);
+      void bitmapPromise.then(
+        (bitmap) => bitmap.close(),
+        () => undefined,
+      );
       if (error instanceof CaptureCanvasError || signal?.aborted) throw error;
       // Some browsers expose createImageBitmap but do not support Blob input;
       // use the HTML image path before reporting an unsupported decoder.
@@ -202,7 +217,8 @@ async function decodeNativePng(
   }
 
   const ownerDocument =
-    canvas.ownerDocument ?? (typeof document === "undefined" ? undefined : document);
+    canvas.ownerDocument ??
+    (typeof document === "undefined" ? undefined : document);
   const objectUrl =
     typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
       ? URL.createObjectURL(blob)
@@ -218,7 +234,8 @@ async function decodeNativePng(
   try {
     const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
       image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Captured PNG could not be decoded."));
+      image.onerror = () =>
+        reject(new Error("Captured PNG could not be decoded."));
       image.src = objectUrl;
     });
     await withTimeout(loaded, timeoutMs, signal);
@@ -256,7 +273,10 @@ export async function captureCanvas(
     );
   }
   if (!Number.isFinite(maxDecodedBytes) || maxDecodedBytes <= 0) {
-    throw new CaptureCanvasError("size", "The PNG byte limit must be positive.");
+    throw new CaptureCanvasError(
+      "size",
+      "The PNG byte limit must be positive.",
+    );
   }
   if (
     maxDimension !== "native" &&
@@ -276,10 +296,16 @@ export async function captureCanvas(
     );
   }
   if (typeof canvas.toBlob !== "function") {
-    throw new CaptureCanvasError("unsupported", "This browser does not support canvas.toBlob().");
+    throw new CaptureCanvasError(
+      "unsupported",
+      "This browser does not support canvas.toBlob().",
+    );
   }
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new CaptureCanvasError("timeout", "The capture timeout must be positive.");
+    throw new CaptureCanvasError(
+      "timeout",
+      "The capture timeout must be positive.",
+    );
   }
   assertNotAborted(signal);
 
@@ -300,7 +326,8 @@ export async function captureCanvas(
     decoded = await decodeNativePng(native.blob, canvas, timeoutMs, signal);
     assertNotAborted(signal);
     const ownerDocument =
-      canvas.ownerDocument ?? (typeof document === "undefined" ? undefined : document);
+      canvas.ownerDocument ??
+      (typeof document === "undefined" ? undefined : document);
     if (!ownerDocument) {
       throw new CaptureCanvasError(
         "unsupported",
@@ -330,7 +357,12 @@ export async function captureCanvas(
       );
     }
     assertNotAborted(signal);
-    return await encodeCanvas(temporaryCanvas, maxDecodedBytes, timeoutMs, signal);
+    return await encodeCanvas(
+      temporaryCanvas,
+      maxDecodedBytes,
+      timeoutMs,
+      signal,
+    );
   } finally {
     decoded?.close();
   }

@@ -27,7 +27,11 @@ export type CapturePreviewErrorCode =
 export class CapturePreviewError extends Error {
   readonly code: CapturePreviewErrorCode;
 
-  constructor(code: CapturePreviewErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: CapturePreviewErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = "CapturePreviewError";
     this.code = code;
@@ -89,7 +93,9 @@ export interface CreateCapturePreviewPortOptions {
  * live objects (and may contain back-references), so they must only be used
  * for identity checks by reference.
  */
-function cloneUniformValues(values: RuntimeUniformValues): RuntimeUniformValues {
+function cloneUniformValues(
+  values: RuntimeUniformValues,
+): RuntimeUniformValues {
   const snapshot: Record<string, number | string> = {};
   for (const [name, value] of Object.entries(values)) {
     if (typeof value !== "number" && typeof value !== "string") {
@@ -151,7 +157,12 @@ function raceWithCaptureDeadline<T>(
     };
     const onAbort = (): void =>
       finish(() =>
-        reject(new CapturePreviewError("cancelled", "Preview capture was cancelled.")),
+        reject(
+          new CapturePreviewError(
+            "cancelled",
+            "Preview capture was cancelled.",
+          ),
+        ),
       );
     const timer = setTimeout(
       () =>
@@ -182,7 +193,9 @@ function normalizeCaptureError(error: unknown): CapturePreviewError {
   if (error instanceof CapturePreviewError) return error;
   if (error instanceof CaptureCanvasError) {
     if (error.code === "timeout")
-      return new CapturePreviewError("deadline", error.message, { cause: error });
+      return new CapturePreviewError("deadline", error.message, {
+        cause: error,
+      });
     return new CapturePreviewError(error.code, error.message, { cause: error });
   }
   return new CapturePreviewError(
@@ -205,11 +218,24 @@ export function createCapturePreviewPort({
   encode = captureCanvas,
 }: CreateCapturePreviewPortOptions): CapturePreviewPort {
   return {
-    async capture({ expectedAppliedRevision, maxDimension: requestedMaxDimension, signal }) {
-      if (!Number.isSafeInteger(expectedAppliedRevision) || expectedAppliedRevision < 0)
-        throw new CapturePreviewError("identity-mismatch", "expectedAppliedRevision must be a non-negative integer.");
+    async capture({
+      expectedAppliedRevision,
+      maxDimension: requestedMaxDimension,
+      signal,
+    }) {
+      if (
+        !Number.isSafeInteger(expectedAppliedRevision) ||
+        expectedAppliedRevision < 0
+      )
+        throw new CapturePreviewError(
+          "identity-mismatch",
+          "expectedAppliedRevision must be a non-negative integer.",
+        );
       if (isCancelled(signal))
-        throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+        throw new CapturePreviewError(
+          "cancelled",
+          "Preview capture was cancelled.",
+        );
       const effectiveMaxDimension = requestedMaxDimension ?? maxDimension;
       if (
         effectiveMaxDimension !== "native" &&
@@ -223,18 +249,27 @@ export function createCapturePreviewPort({
         );
       }
       if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
-        throw new CapturePreviewError("deadline", "Preview capture deadline must be positive.");
+        throw new CapturePreviewError(
+          "deadline",
+          "Preview capture deadline must be positive.",
+        );
 
       const before = readIdentity();
       if (!before)
-        throw new CapturePreviewError("not-ready", "The preview renderer is not ready for capture.");
+        throw new CapturePreviewError(
+          "not-ready",
+          "The preview renderer is not ready for capture.",
+        );
       if (before.appliedRevision !== expectedAppliedRevision)
         throw new CapturePreviewError(
           "identity-mismatch",
           `Expected applied revision ${expectedAppliedRevision}, but the preview is at ${before.appliedRevision ?? "none"}.`,
         );
       if (before.width <= 0 || before.height <= 0)
-        throw new CapturePreviewError("zero-size", "The active preview canvas has no pixels.");
+        throw new CapturePreviewError(
+          "zero-size",
+          "The active preview canvas has no pixels.",
+        );
 
       // Snapshot only the primitive values that describe the draw. Do not
       // serialize the live lifecycle/canvas graph: the lifecycle points back
@@ -244,9 +279,18 @@ export function createCapturePreviewPort({
       const scale =
         effectiveMaxDimension === "native"
           ? 1
-          : Math.min(1, effectiveMaxDimension / Math.max(before.width, before.height));
-      const expectedEncodedWidth = Math.max(1, Math.floor(before.width * scale));
-      const expectedEncodedHeight = Math.max(1, Math.floor(before.height * scale));
+          : Math.min(
+              1,
+              effectiveMaxDimension / Math.max(before.width, before.height),
+            );
+      const expectedEncodedWidth = Math.max(
+        1,
+        Math.floor(before.width * scale),
+      );
+      const expectedEncodedHeight = Math.max(
+        1,
+        Math.floor(before.height * scale),
+      );
       let encoded: CapturedCanvasPng;
       try {
         encoded = await raceWithCaptureDeadline(
@@ -263,7 +307,10 @@ export function createCapturePreviewPort({
         throw normalizeCaptureError(error);
       }
       if (isCancelled(signal))
-        throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+        throw new CapturePreviewError(
+          "cancelled",
+          "Preview capture was cancelled.",
+        );
 
       const after = readIdentity();
       if (
@@ -284,7 +331,10 @@ export function createCapturePreviewPort({
       }
       const assertCurrent = (): void => {
         if (isCancelled(signal))
-          throw new CapturePreviewError("cancelled", "Preview capture was cancelled.");
+          throw new CapturePreviewError(
+            "cancelled",
+            "Preview capture was cancelled.",
+          );
         const current = readIdentity();
         if (
           !current ||

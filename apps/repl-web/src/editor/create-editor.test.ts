@@ -4,10 +4,7 @@ import { history, isolateHistory, redo, undo } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { programmaticEdit } from "./create-editor.ts";
 
-function runCommand(
-  command: typeof undo,
-  state: EditorState,
-): EditorState {
+function runCommand(command: typeof undo, state: EditorState): EditorState {
   let next: EditorState | undefined;
   assert.equal(
     command({

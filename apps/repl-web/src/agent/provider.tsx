@@ -20,7 +20,10 @@ import type { AuthoringController } from "./controller-types.ts";
 import type { ApplyController } from "./apply-controller.ts";
 import type { CapturePreviewPort } from "./snapshot.ts";
 import { createAuthoringTools } from "./tools.ts";
-import { editorRegistry, type EditorRegistry } from "../editor/authoring-adapter.ts";
+import {
+  editorRegistry,
+  type EditorRegistry,
+} from "../editor/authoring-adapter.ts";
 import { useDraftStore } from "../stores/draft.ts";
 
 // This runs at client module evaluation, before the provider renders. The

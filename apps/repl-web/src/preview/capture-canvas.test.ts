@@ -11,7 +11,11 @@ interface FakeDocument extends Document {
   lastCanvas?: FakeCanvas;
 }
 
-function makeCanvas(width: number, height: number, ownerDocument?: Document): FakeCanvas {
+function makeCanvas(
+  width: number,
+  height: number,
+  ownerDocument?: Document,
+): FakeCanvas {
   const canvas = {
     width,
     height,
@@ -63,8 +67,11 @@ async function expectCode(
 
 test("default bounded capture downsamples a large canvas without changing its aspect ratio", async () => {
   const source = makeCanvas(1209, 805, makeDocument());
-  const previousBitmap = (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
-  const nativeBlob = new Blob(["native-captured-pixels"], { type: "image/png" });
+  const previousBitmap = (globalThis as { createImageBitmap?: unknown })
+    .createImageBitmap;
+  const nativeBlob = new Blob(["native-captured-pixels"], {
+    type: "image/png",
+  });
   const bitmap = { close() {}, nativeBlob };
   // Model a presented WebGPU buffer that is already cleared by the time a
   // post-frame 2D draw would inspect the renderer canvas directly.
@@ -73,7 +80,9 @@ test("default bounded capture downsamples a large canvas without changing its as
       throw new Error("presented GPU buffer was cleared");
     },
   })) as unknown as HTMLCanvasElement["getContext"];
-  (globalThis as { createImageBitmap?: unknown }).createImageBitmap = async (blob: Blob) => {
+  (globalThis as { createImageBitmap?: unknown }).createImageBitmap = async (
+    blob: Blob,
+  ) => {
     assert.equal(blob, nativeBlob);
     return bitmap;
   };
@@ -81,19 +90,21 @@ test("default bounded capture downsamples a large canvas without changing its as
     source.encodedBlob = nativeBlob;
     const result = await captureCanvas(source, { maxDimension: 512 });
     assert.deepEqual([result.width, result.height], [512, 340]);
-    assert.equal(await result.blob.text(), "resized-from-native-captured-pixels");
+    assert.equal(
+      await result.blob.text(),
+      "resized-from-native-captured-pixels",
+    );
     assert.deepEqual(source.drawImageArgs, undefined);
-    assert.deepEqual((source.ownerDocument as FakeDocument).lastCanvas?.drawImageArgs, [
-      bitmap,
-      0,
-      0,
-      512,
-      340,
-    ]);
+    assert.deepEqual(
+      (source.ownerDocument as FakeDocument).lastCanvas?.drawImageArgs,
+      [bitmap, 0, 0, 512, 340],
+    );
   } finally {
     if (previousBitmap === undefined)
       delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
-    else (globalThis as { createImageBitmap?: unknown }).createImageBitmap = previousBitmap;
+    else
+      (globalThis as { createImageBitmap?: unknown }).createImageBitmap =
+        previousBitmap;
   }
 });
 
@@ -116,17 +127,25 @@ test("tainted native export has a stable error and returns no image", async () =
 
 test("tainted decoded snapshot draw has the same stable error", async () => {
   const document = {} as FakeDocument;
-  document.createElement = (() => makeCanvas(0, 0, document)) as Document["createElement"];
+  document.createElement = (() =>
+    makeCanvas(0, 0, document)) as Document["createElement"];
   const source = makeCanvas(1209, 805, document);
-  const previousBitmap = (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
-  const nativeBlob = new Blob(["native-captured-pixels"], { type: "image/png" });
+  const previousBitmap = (globalThis as { createImageBitmap?: unknown })
+    .createImageBitmap;
+  const nativeBlob = new Blob(["native-captured-pixels"], {
+    type: "image/png",
+  });
   source.encodedBlob = nativeBlob;
-  (globalThis as { createImageBitmap?: unknown }).createImageBitmap = async () => ({ close() {} });
+  (globalThis as { createImageBitmap?: unknown }).createImageBitmap =
+    async () => ({ close() {} });
   const target = makeCanvas(0, 0, document);
   document.createElement = (() => target) as Document["createElement"];
   target.getContext = (() => ({
     drawImage() {
-      throw new DOMException("The decoded image is not readable.", "SecurityError");
+      throw new DOMException(
+        "The decoded image is not readable.",
+        "SecurityError",
+      );
     },
   })) as unknown as HTMLCanvasElement["getContext"];
   try {
@@ -134,14 +153,19 @@ test("tainted decoded snapshot draw has the same stable error", async () => {
   } finally {
     if (previousBitmap === undefined)
       delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
-    else (globalThis as { createImageBitmap?: unknown }).createImageBitmap = previousBitmap;
+    else
+      (globalThis as { createImageBitmap?: unknown }).createImageBitmap =
+        previousBitmap;
   }
 });
 
 test("an invalidated native canvas has a stable encoding error and returns no image", async () => {
   const source = makeCanvas(320, 180, makeDocument());
   source.toBlob = (() => {
-    throw new DOMException("The canvas is no longer valid.", "InvalidStateError");
+    throw new DOMException(
+      "The canvas is no longer valid.",
+      "InvalidStateError",
+    );
   }) as unknown as HTMLCanvasElement["toBlob"];
   await expectCode(captureCanvas(source), "encoding");
 });

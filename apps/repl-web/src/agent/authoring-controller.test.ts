@@ -273,7 +273,9 @@ test("preflights every requested editor before changing any document", () => {
     }),
   });
 
-  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const controller = createAuthoringController(store, {
+    editorRegistry: registry,
+  });
   const before = controller.read();
   const result = controller.update({
     expectedRevision: before.revision,
@@ -313,7 +315,9 @@ test("visible editor replacements commit once and preserve omitted documents", (
       },
     });
   }
-  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const controller = createAuthoringController(store, {
+    editorRegistry: registry,
+  });
   const seen: number[] = [];
   const unsubscribe = store.subscribe((state) => seen.push(state.revision));
   const result = controller.update({
@@ -365,7 +369,9 @@ test("restores staged documents when a later editor dispatch fails", () => {
       },
     });
   }
-  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const controller = createAuthoringController(store, {
+    editorRegistry: registry,
+  });
   const result = controller.update({
     expectedRevision: 0,
     main: "staged main",
@@ -405,7 +411,9 @@ test("does not roll back visible documents when a committed observer throws", ()
   const unsubscribe = store.subscribe(() => {
     throw new Error("observer failure");
   });
-  const controller = createAuthoringController(store, { editorRegistry: registry });
+  const controller = createAuthoringController(store, {
+    editorRegistry: registry,
+  });
   assert.throws(
     () => controller.update({ expectedRevision: 0, main: "published" }),
     /observer failure/,

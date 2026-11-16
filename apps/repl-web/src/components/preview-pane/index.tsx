@@ -23,7 +23,10 @@ interface PreviewProps {
   applyPortRef?: { current: ApplyPreviewPort | null };
   capturePortRef?: { current: CapturePreviewPort | null };
   getAppliedRevision?: () => number | null;
-  onInitialFrame?: (info: { readonly backend: "webgpu" | "webgl"; readonly artifact: CompiledFragmentArtifact }) => void;
+  onInitialFrame?: (info: {
+    readonly backend: "webgpu" | "webgl";
+    readonly artifact: CompiledFragmentArtifact;
+  }) => void;
 }
 
 export default function Preview({

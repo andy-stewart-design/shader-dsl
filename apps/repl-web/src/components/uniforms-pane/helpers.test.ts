@@ -97,7 +97,13 @@ test("rejects invalid names, reserved names, drafts, and f32 overflow", () => {
   );
   assert.equal(
     toShaderUniformDefinitions([
-      { id: "color", name: "tint", type: "color", draft: "#12", valid: "#123456" },
+      {
+        id: "color",
+        name: "tint",
+        type: "color",
+        draft: "#12",
+        valid: "#123456",
+      },
     ]).ok,
     false,
   );

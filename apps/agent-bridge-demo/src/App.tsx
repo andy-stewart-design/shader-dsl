@@ -4,219 +4,228 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-} from 'react'
-import type { FormEvent } from 'react'
+} from "react";
+import type { FormEvent } from "react";
 import {
   connectAgentBridge,
   imageResult,
   type BridgeConnectionState,
   type BridgeTool,
-} from '@shdr/agent-bridge/browser'
-import './App.css'
+} from "@shdr/agent-bridge/browser";
+import "./App.css";
 
 const emptyInputSchema = {
-  type: 'object',
+  type: "object",
   properties: {},
   additionalProperties: false,
-} as const
+} as const;
 
 const setMessageInputSchema = {
-  type: 'object',
+  type: "object",
   properties: {
-    message: { type: 'string', minLength: 1, maxLength: 500, pattern: '\\S' },
-    delayMs: { type: 'integer', minimum: 0, maximum: 10_000 },
+    message: { type: "string", minLength: 1, maxLength: 500, pattern: "\\S" },
+    delayMs: { type: "integer", minimum: 0, maximum: 10_000 },
   },
-  required: ['message'],
+  required: ["message"],
   additionalProperties: false,
-}
+};
 
 type DemoMessageState = {
-  message: string
-  revision: number
-  lastOperation: string
-}
+  message: string;
+  revision: number;
+  lastOperation: string;
+};
 
-type StateListener = () => void
+type StateListener = () => void;
 
-const initialMessage = 'A small page for checking bridge connectivity and image delivery.'
+const initialMessage =
+  "A small page for checking bridge connectivity and image delivery.";
 let messageState: DemoMessageState = {
   message: initialMessage,
   revision: 0,
-  lastOperation: 'No message mutation yet.',
-}
-const messageStateListeners = new Set<StateListener>()
+  lastOperation: "No message mutation yet.",
+};
+const messageStateListeners = new Set<StateListener>();
 
 function getMessageState() {
-  return messageState
+  return messageState;
 }
 
 function subscribeToMessageState(listener: StateListener) {
-  messageStateListeners.add(listener)
-  return () => messageStateListeners.delete(listener)
+  messageStateListeners.add(listener);
+  return () => messageStateListeners.delete(listener);
 }
 
 function setMessageState(message: string) {
-  const revision = messageState.revision + 1
+  const revision = messageState.revision + 1;
   messageState = {
     message,
     revision,
     lastOperation: `demo_set_message applied at revision ${revision}.`,
-  }
+  };
   for (const listener of messageStateListeners) {
-    listener()
+    listener();
   }
-  return messageState
+  return messageState;
 }
 
 function publicMessageState(state = getMessageState()) {
-  const { message, revision } = state
-  return { message, revision }
+  const { message, revision } = state;
+  return { message, revision };
 }
 
 function waitForDelay(delayMs: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout> | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     const cleanup = () => {
       if (timer !== undefined) {
-        clearTimeout(timer)
-        timer = undefined
+        clearTimeout(timer);
+        timer = undefined;
       }
-      signal.removeEventListener('abort', onAbort)
-    }
+      signal.removeEventListener("abort", onAbort);
+    };
     const onAbort = () => {
-      cleanup()
-      reject(new Error('The message update was cancelled.'))
-    }
+      cleanup();
+      reject(new Error("The message update was cancelled."));
+    };
 
-    signal.addEventListener('abort', onAbort, { once: true })
+    signal.addEventListener("abort", onAbort, { once: true });
     timer = setTimeout(() => {
-      cleanup()
+      cleanup();
       if (signal.aborted) {
-        reject(new Error('The message update was cancelled.'))
+        reject(new Error("The message update was cancelled."));
       } else {
-        resolve()
+        resolve();
       }
-    }, delayMs)
+    }, delayMs);
 
-    if (signal.aborted) onAbort()
-  })
+    if (signal.aborted) onAbort();
+  });
 }
 
 const demoTools: readonly BridgeTool[] = [
   {
-    name: 'demo_get_state',
+    name: "demo_get_state",
     description:
-      'Read the current visible message and revision of the Agent Bridge Demo. This tool does not change the page.',
+      "Read the current visible message and revision of the Agent Bridge Demo. This tool does not change the page.",
     inputSchema: emptyInputSchema,
     handler: () => ({
-      title: 'Agent Bridge Demo',
+      title: "Agent Bridge Demo",
       ...publicMessageState(),
-      demoState: 'ready',
-      capabilities: ['read/write message', 'generated PNG image'],
+      demoState: "ready",
+      capabilities: ["read/write message", "generated PNG image"],
     }),
   },
   {
-    name: 'demo_set_message',
+    name: "demo_set_message",
     description:
-      'Set the page-local visible message and return its new revision. An optional bounded delay is only for interrupted-call manual testing.',
+      "Set the page-local visible message and return its new revision. An optional bounded delay is only for interrupted-call manual testing.",
     inputSchema: setMessageInputSchema,
     handler: async (input, { signal }) => {
-      const { message, delayMs = 0 } = input as { message: string; delayMs?: number }
-      if (!message.trim()) throw new Error('Message must contain a non-space character.')
-      await waitForDelay(delayMs, signal)
-      if (signal.aborted) throw new Error('The message update was cancelled.')
+      const { message, delayMs = 0 } = input as {
+        message: string;
+        delayMs?: number;
+      };
+      if (!message.trim())
+        throw new Error("Message must contain a non-space character.");
+      await waitForDelay(delayMs, signal);
+      if (signal.aborted) throw new Error("The message update was cancelled.");
       return {
-        title: 'Agent Bridge Demo',
+        title: "Agent Bridge Demo",
         ...publicMessageState(setMessageState(message)),
-      }
+      };
     },
   },
   {
-    name: 'demo_capture_image',
+    name: "demo_capture_image",
     description:
-      'Generate a distinctive application-owned PNG with asymmetric purple and green panels and a readable label.',
+      "Generate a distinctive application-owned PNG with asymmetric purple and green panels and a readable label.",
     inputSchema: emptyInputSchema,
     handler: () => {
-      const width = 640
-      const height = 360
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const context = canvas.getContext('2d')
+      const width = 640;
+      const height = 360;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
 
       if (!context) {
-        throw new Error('The browser could not create a 2D canvas.')
+        throw new Error("The browser could not create a 2D canvas.");
       }
 
-      context.fillStyle = '#21143f'
-      context.fillRect(0, 0, width, height)
-      context.fillStyle = '#8f5bff'
-      context.fillRect(0, 0, 390, height)
-      context.fillStyle = '#8ee38f'
-      context.fillRect(390, 0, width - 390, height)
-      context.fillStyle = '#f7f3ff'
-      context.beginPath()
-      context.moveTo(72, 68)
-      context.lineTo(300, 68)
-      context.lineTo(188, 292)
-      context.closePath()
-      context.fill()
-      context.fillStyle = '#21143f'
-      context.beginPath()
-      context.arc(505, 180, 82, 0, Math.PI * 2)
-      context.fill()
-      context.font = '600 26px system-ui, sans-serif'
-      context.fillStyle = '#21143f'
-      context.fillText('BRIDGE IMAGE', 424, 318)
-      context.font = '600 24px system-ui, sans-serif'
-      context.fillStyle = '#f7f3ff'
-      context.fillText('AGENT BRIDGE DEMO', 28, 334)
+      context.fillStyle = "#21143f";
+      context.fillRect(0, 0, width, height);
+      context.fillStyle = "#8f5bff";
+      context.fillRect(0, 0, 390, height);
+      context.fillStyle = "#8ee38f";
+      context.fillRect(390, 0, width - 390, height);
+      context.fillStyle = "#f7f3ff";
+      context.beginPath();
+      context.moveTo(72, 68);
+      context.lineTo(300, 68);
+      context.lineTo(188, 292);
+      context.closePath();
+      context.fill();
+      context.fillStyle = "#21143f";
+      context.beginPath();
+      context.arc(505, 180, 82, 0, Math.PI * 2);
+      context.fill();
+      context.font = "600 26px system-ui, sans-serif";
+      context.fillStyle = "#21143f";
+      context.fillText("BRIDGE IMAGE", 424, 318);
+      context.font = "600 24px system-ui, sans-serif";
+      context.fillStyle = "#f7f3ff";
+      context.fillText("AGENT BRIDGE DEMO", 28, 334);
 
-      const dataUrl = canvas.toDataURL('image/png')
-      const comma = dataUrl.indexOf(',')
+      const dataUrl = canvas.toDataURL("image/png");
+      const comma = dataUrl.indexOf(",");
       if (comma < 0) {
-        throw new Error('The browser could not encode the demo image.')
+        throw new Error("The browser could not encode the demo image.");
       }
 
       return imageResult({
         data: dataUrl.slice(comma + 1),
-        mimeType: 'image/png',
+        mimeType: "image/png",
         metadata: {
           width,
           height,
-          source: 'application-generated demo artwork',
+          source: "application-generated demo artwork",
         },
-      })
+      });
     },
   },
-]
+];
 
-const stateListeners = new Set<StateListener>()
-let bridgeState: BridgeConnectionState
+const stateListeners = new Set<StateListener>();
+let bridgeState: BridgeConnectionState;
 
 const bridge = connectAgentBridge({
   tools: demoTools,
   onStateChange: (state) => {
-    bridgeState = state
+    bridgeState = state;
     for (const listener of stateListeners) {
-      listener()
+      listener();
     }
   },
-})
-bridgeState = bridge.getState()
+});
+bridgeState = bridge.getState();
 
 function subscribeToBridge(listener: StateListener) {
-  stateListeners.add(listener)
-  return () => stateListeners.delete(listener)
+  stateListeners.add(listener);
+  return () => stateListeners.delete(listener);
 }
 
 function getBridgeState() {
-  return bridgeState
+  return bridgeState;
 }
 
 function useBridgeState() {
-  return useSyncExternalStore(subscribeToBridge, getBridgeState, getBridgeState)
+  return useSyncExternalStore(
+    subscribeToBridge,
+    getBridgeState,
+    getBridgeState,
+  );
 }
 
 function useDemoMessageState() {
@@ -224,49 +233,51 @@ function useDemoMessageState() {
     subscribeToMessageState,
     getMessageState,
     getMessageState,
-  )
+  );
 }
 
 type AppProps = {
-  initialPairingLink?: string
-}
+  initialPairingLink?: string;
+};
 
 function App({ initialPairingLink }: AppProps) {
-  const state = useBridgeState()
-  const messageState = useDemoMessageState()
-  const [pairingLink, setPairingLink] = useState('')
-  const [formMessage, setFormMessage] = useState<string | undefined>()
-  const autoConnectStarted = useRef(false)
+  const state = useBridgeState();
+  const messageState = useDemoMessageState();
+  const [pairingLink, setPairingLink] = useState("");
+  const [formMessage, setFormMessage] = useState<string | undefined>();
+  const autoConnectStarted = useRef(false);
 
   const connect = useCallback((link: string) => {
-    const trimmedLink = link.trim()
+    const trimmedLink = link.trim();
     if (!trimmedLink) {
-      setFormMessage('Paste a pairing link before connecting.')
-      return
+      setFormMessage("Paste a pairing link before connecting.");
+      return;
     }
 
-    setPairingLink('')
-    setFormMessage(undefined)
+    setPairingLink("");
+    setFormMessage(undefined);
     void bridge.connect(trimmedLink).catch(() => {
       // The bridge exposes a redacted state; do not echo or log the pairing link.
-      setFormMessage('The helper could not connect. Check the pairing link and try again.')
-    })
-  }, [])
+      setFormMessage(
+        "The helper could not connect. Check the pairing link and try again.",
+      );
+    });
+  }, []);
 
   useEffect(() => {
     if (initialPairingLink && !autoConnectStarted.current) {
-      autoConnectStarted.current = true
-      connect(initialPairingLink)
+      autoConnectStarted.current = true;
+      connect(initialPairingLink);
     }
-  }, [connect, initialPairingLink])
+  }, [connect, initialPairingLink]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    connect(pairingLink)
-  }
+    event.preventDefault();
+    connect(pairingLink);
+  };
 
-  const isBusy = state.status === 'connecting'
-  const isConnected = state.status === 'connected'
+  const isBusy = state.status === "connecting";
+  const isConnected = state.status === "connected";
 
   return (
     <main className="page-shell">
@@ -282,13 +293,22 @@ function App({ initialPairingLink }: AppProps) {
       <section className="hero-section">
         <div className="hero-copy">
           <p className="kicker">A tiny connected canvas</p>
-          <h1>Meet the<br /><em>Agent Bridge.</em></h1>
+          <h1>
+            Meet the
+            <br />
+            <em>Agent Bridge.</em>
+          </h1>
           <p className="hero-description">
-            A deliberately small React page that lets an external agent read a safe demo state
-            and receive a generated image through the browser bridge.
+            A deliberately small React page that lets an external agent read a
+            safe demo state and receive a generated image through the browser
+            bridge.
           </p>
         </div>
-        <div className="hero-art" aria-label="Abstract purple and green bridge artwork" role="img">
+        <div
+          className="hero-art"
+          aria-label="Abstract purple and green bridge artwork"
+          role="img"
+        >
           <div className="art-sun" />
           <div className="art-slope" />
           <div className="art-line" />
@@ -305,8 +325,8 @@ function App({ initialPairingLink }: AppProps) {
           <ConnectionBadge state={state} />
         </div>
         <p className="panel-intro">
-          Paste the pairing link returned by your bridge helper. The link is held in memory only
-          and is cleared after an attempt.
+          Paste the pairing link returned by your bridge helper. The link is
+          held in memory only and is cleared after an attempt.
         </p>
         <form className="pair-form" onSubmit={handleSubmit}>
           <label htmlFor="pairing-link">Pairing link</label>
@@ -322,29 +342,34 @@ function App({ initialPairingLink }: AppProps) {
               disabled={isBusy || isConnected}
             />
             <button type="submit" disabled={isBusy || isConnected}>
-              {isBusy ? 'Connecting…' : 'Connect'}
+              {isBusy ? "Connecting…" : "Connect"}
             </button>
           </div>
         </form>
-        {state.status === 'connected' && (
+        {state.status === "connected" && (
           <div className="connected-details">
             <span>Session {state.sessionId}</span>
             <span>Catalog v{state.catalogVersion}</span>
           </div>
         )}
-        {state.status === 'error' && (
+        {state.status === "error" && (
           <p className="message error-message" role="alert">
-            The bridge reported a connection error. No pairing credential is shown here.
+            The bridge reported a connection error. No pairing credential is
+            shown here.
           </p>
         )}
-        {formMessage && <p className="message" role="status">{formMessage}</p>}
+        {formMessage && (
+          <p className="message" role="status">
+            {formMessage}
+          </p>
+        )}
         {isConnected && (
           <button
             className="disconnect-button"
             type="button"
             onClick={() => {
-              bridge.disconnect()
-              setFormMessage(undefined)
+              bridge.disconnect();
+              setFormMessage(undefined);
             }}
           >
             Disconnect
@@ -372,7 +397,9 @@ function App({ initialPairingLink }: AppProps) {
             <p className="section-label">03 — AVAILABLE TOOLS</p>
             <h2 id="tools-title">Only what this demo needs</h2>
           </div>
-          <p className="tool-count">{demoTools.length} tools · read, write, image</p>
+          <p className="tool-count">
+            {demoTools.length} tools · read, write, image
+          </p>
         </div>
         <div className="tool-grid">
           {demoTools.map((tool, index) => (
@@ -380,7 +407,7 @@ function App({ initialPairingLink }: AppProps) {
               <div className="tool-number">0{index + 1}</div>
               <h3>{tool.name}</h3>
               <p>{tool.description}</p>
-              <code>{'{}'} input</code>
+              <code>{"{}"} input</code>
             </article>
           ))}
         </div>
@@ -392,24 +419,25 @@ function App({ initialPairingLink }: AppProps) {
         <span>PNG OUTPUT</span>
       </footer>
     </main>
-  )
+  );
 }
 
 function ConnectionBadge({ state }: { state: BridgeConnectionState }) {
-  const label = state.status === 'connected'
-    ? 'Connected'
-    : state.status === 'connecting'
-      ? 'Connecting'
-      : state.status === 'error'
-        ? 'Needs attention'
-        : 'Not connected'
+  const label =
+    state.status === "connected"
+      ? "Connected"
+      : state.status === "connecting"
+        ? "Connecting"
+        : state.status === "error"
+          ? "Needs attention"
+          : "Not connected";
 
   return (
     <div className={`connection-badge ${state.status}`}>
       <span className="status-dot" aria-hidden="true" />
       {label}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

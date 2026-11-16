@@ -6,10 +6,7 @@ import {
 } from "./authoring-schema.ts";
 import { createAuthoringContext, sketchFromSnapshot } from "./context.ts";
 import type { AuthoringController } from "./controller-types.ts";
-import {
-  CapturePreviewError,
-  type CapturePreviewPort,
-} from "./snapshot.ts";
+import { CapturePreviewError, type CapturePreviewPort } from "./snapshot.ts";
 
 const emptySchema: JsonObject = {
   type: "object",
@@ -45,7 +42,8 @@ export function createAuthoringTools(
       description:
         "Read the compact REPL language, uniform-definition, explicit-Run, and draft-authoring context. This operation does not mutate the page.",
       inputSchema: emptySchema,
-      handler: () => toJson(createAuthoringContext(controller, Boolean(capturePortRef))),
+      handler: () =>
+        toJson(createAuthoringContext(controller, Boolean(capturePortRef))),
     },
     {
       name: "get_sketch",
@@ -53,7 +51,9 @@ export function createAuthoringTools(
         "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and correlated applied/diagnostic status. This operation does not mutate the page.",
       inputSchema: emptySchema,
       handler: () =>
-        toJson(sketchFromSnapshot(controller.read(), controller.getApplyState?.())),
+        toJson(
+          sketchFromSnapshot(controller.read(), controller.getApplyState?.()),
+        ),
     },
     {
       name: "update_sketch",
@@ -61,9 +61,7 @@ export function createAuthoringTools(
         "Atomically update one or more complete main/utils sources or editable uniform definitions using the expected draft revision. Source edits do not compile until the human uses Run.",
       inputSchema: updateSchema,
       handler: (input) =>
-        toJson(
-          updateSketch(controller, input as AuthoringUpdateInput),
-        ),
+        toJson(updateSketch(controller, input as AuthoringUpdateInput)),
     },
   ];
   if (controller.apply) {
@@ -78,11 +76,18 @@ export function createAuthoringTools(
         additionalProperties: false,
       },
       handler: async (input, context) => {
-        const expectedRevision = (input as { expectedRevision?: unknown }).expectedRevision;
+        const expectedRevision = (input as { expectedRevision?: unknown })
+          .expectedRevision;
         if (typeof expectedRevision !== "number") {
-          return toJson({ ok: false, error: { code: "stale", message: "expectedRevision is required." }, diagnostics: [] });
+          return toJson({
+            ok: false,
+            error: { code: "stale", message: "expectedRevision is required." },
+            diagnostics: [],
+          });
         }
-        return toJson(await controller.apply!({ expectedRevision, signal: context.signal }));
+        return toJson(
+          await controller.apply!({ expectedRevision, signal: context.signal }),
+        );
       },
     });
   }
@@ -90,7 +95,7 @@ export function createAuthoringTools(
     tools.push({
       name: "capture_preview",
       description:
-        "Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or \"native\" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.",
+        'Capture the active applied preview canvas as a model-visible PNG. By default the PNG is downsampled to at most 512 pixels on its longest edge without upscaling; pass maxDimension as an integer from 64 to 2048 for another bound, or "native" for explicit full-resolution capture. The expected applied revision is guarded before and after encoding; this never applies drafts or changes runtime controls.',
       inputSchema: {
         type: "object",
         properties: {
@@ -115,14 +120,20 @@ export function createAuthoringTools(
         if (typeof expectedAppliedRevision !== "number") {
           return toJson({
             ok: false,
-            error: { code: "identity-mismatch", message: "expectedAppliedRevision is required." },
+            error: {
+              code: "identity-mismatch",
+              message: "expectedAppliedRevision is required.",
+            },
           });
         }
         const port = capturePortRef.current;
         if (!port) {
           return toJson({
             ok: false,
-            error: { code: "not-ready", message: "The preview renderer is not ready for capture." },
+            error: {
+              code: "not-ready",
+              message: "The preview renderer is not ready for capture.",
+            },
           });
         }
         try {
@@ -143,7 +154,8 @@ export function createAuthoringTools(
               kind: "preview-capture",
               appliedRevision: captured.appliedRevision,
               draftRevision,
-              draftDiffersFromApplied: draftRevision !== captured.appliedRevision,
+              draftDiffersFromApplied:
+                draftRevision !== captured.appliedRevision,
               identity: {
                 appliedRevision: captured.appliedRevision,
                 backend: captured.backend,
@@ -159,12 +171,13 @@ export function createAuthoringTools(
             },
           });
         } catch (error) {
-          const captureError = error instanceof CapturePreviewError
-            ? error
-            : new CapturePreviewError(
-                "encoding",
-                error instanceof Error ? error.message : String(error),
-              );
+          const captureError =
+            error instanceof CapturePreviewError
+              ? error
+              : new CapturePreviewError(
+                  "encoding",
+                  error instanceof Error ? error.message : String(error),
+                );
           return toJson({
             ok: false,
             error: { code: captureError.code, message: captureError.message },
@@ -197,7 +210,9 @@ async function blobToBase64(blob: Blob): Promise<string> {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...bytes.subarray(offset, offset + chunkSize),
+    );
   }
   return btoa(binary);
 }

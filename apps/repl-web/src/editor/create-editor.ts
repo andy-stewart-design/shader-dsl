@@ -85,7 +85,9 @@ export function createEditor({
       apply() {
         requireReady();
         if (view.state !== baseState) {
-          throw new Error("The editor changed while the replacement was staged.");
+          throw new Error(
+            "The editor changed while the replacement was staged.",
+          );
         }
         applied = true;
         try {
