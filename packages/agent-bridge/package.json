@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "bin": {
     "shdr-agent-bridge": "./dist/bin.mjs"
   },
@@ -33,7 +36,8 @@
     "check": "tsc --noEmit",
     "format": "prettier --write src test \"*.{ts,json,md}\"",
     "pretest": "tsdown",
-    "test": "vitest run --config ../../vitest.config.ts --root ."
+    "test": "vitest run --config ../../vitest.config.ts --root .",
+    "test:packed": "pnpm build && node test/verify-packed.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",

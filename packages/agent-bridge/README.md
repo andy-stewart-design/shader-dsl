@@ -38,14 +38,48 @@ if (link) await bridge.connect(link);
 
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
 
+## Use an installed artifact
+
+The supported runtime is Node.js 24 or newer (the CLI is built and verified against Node 24). To test or use the actual package artifact without publishing it, run these commands from the repository root and keep the consumer outside the checkout:
+
+```sh
+repo="$PWD"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+mkdir "$tmp/consumer"
+pnpm --dir "$repo/packages/agent-bridge" pack --pack-destination "$tmp"
+# Use the generated shdr-agent-bridge-*.tgz path below.
+printf '{"private":true,"type":"module"}\n' > "$tmp/consumer/package.json"
+(cd "$tmp/consumer" && pnpm add --offline --ignore-scripts "$tmp"/shdr-agent-bridge-*.tgz)
+```
+
+From the temporary consumer directory (outside the repository), the installed executable can then be configured with an ordinary MCP stdio entry:
+
+```sh
+cd "$tmp/consumer"
+./node_modules/.bin/shdr-agent-bridge \
+  --allowed-origin https://example.invalid \
+  --site-url https://example.invalid/
+```
+
+`--allowed-origin` is an exact origin and has no trailing slash; `--site-url` is the full page URL and normally does have a trailing slash. `pnpm add --offline` must use the existing local cache and `--ignore-scripts`; do not silently retry online when a dependency tarball is absent. This is a temporary consumer install only: it does not publish the package, install globally, start a daemon, or modify a permanent agent configuration.
+
 Effective bounds are: 5 minute pairing lifetime, 5 second authentication deadline, 30 second request deadline, 4 KiB unauthenticated frames, 8 MiB authenticated frames, 4 MiB decoded images, 4 unauthenticated sockets, 8 pending calls, 64 tools, and 512 KiB catalogs.
 
 ## Pairing a hosted demo with Pi
 
-From the repository root, register the built helper for the site's exact origin (replace the example with your deployment):
+For a checked-out development build, from the repository root register the foreground helper for the site's exact origin (replace the example with your deployment):
 
 ```sh
 pi mcp add -l agent-bridge -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://example.invalid --site-url https://example.invalid/
+```
+
+For an installed artifact, run the same command from the temporary consumer directory using its local executable:
+
+```sh
+pi mcp add -l agent-bridge -- "$PWD/node_modules/.bin/shdr-agent-bridge" \
+  --allowed-origin https://example.invalid \
+  --site-url https://example.invalid/
 ```
 
 `-l` writes the current directory's `.pi/mcp.json`. Start Pi from that same directory: Pi does not search parent directories for this file. Use a user-level registration instead if you need the server in unrelated working directories. After changing the registration, run `/reload`; this restarts the helper and invalidates the previous connection.

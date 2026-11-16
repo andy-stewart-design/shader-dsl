@@ -458,7 +458,7 @@ Evidence location: [evidence/step-4.2.md](evidence/step-4.2.md).
 
 Phase exit gate: rerun integrated app/generic checks and the full deployed Pi visual journey after 4.2. Review Apply races, canvas identity, and Chrome WebGPU plus the user-approved Zen Firefox WebGL2 backend proof together; record the result in `evidence/step-4.2.md` before Phase 5. Broader installation/client claims remain unproven until Phase 5.
 
-Checklist reconciliation: Step 4.2 and the Phase 4 exit gate are complete. All five Step 4.2 tasks are checked: capture registration/guarding, envelope metadata, negative/concurrency coverage, both-backend hosted visual proof, and the final verification gate. Step 5.1 is closed below; Step 5.2 remains unchecked and has not started.
+Checklist reconciliation: Step 4.2 and the Phase 4 exit gate are complete. All five Step 4.2 tasks are checked: capture registration/guarding, envelope metadata, negative/concurrency coverage, both-backend hosted visual proof, and the final verification gate. Step 5.1 is closed below; Step 5.2 is recorded and closed below.
 
 ## Phase 5 — Harden, package, and verify supported clients
 
@@ -494,7 +494,7 @@ Verification:
 Completion gate: safety/failure criteria hold in the composed application, not just mocks, and required regressions pass or the gate remains blocked for explicit resolution.
 Evidence location: [evidence/step-5.1.md](evidence/step-5.1.md).
 
-Checklist reconciliation: all five Step 5.1 tasks and its completion gate are complete. Step 5.2 remains unchecked and has not started.
+Checklist reconciliation: all five Step 5.1 tasks and its completion gate are complete. Step 5.2 is recorded below and closed; Step 5.3 remains unchecked and has not started.
 
 ### Step 5.2 — Verify the packed helper and browser artifact boundaries
 
@@ -509,11 +509,11 @@ Expected files:
 
 Tasks:
 
-- [ ] Finalize executable metadata, built files, explicit browser/server/protocol exports, supported Node environment, and artifact-only runtime dependencies.
-- [ ] Add an isolated temporary consumer check that packs the package, installs the tarball with approved dependency access, runs its CLI through MCP, and bundles/imports the public browser entry without repository-source fallbacks.
-- [ ] Verify the artifact excludes credentials, test fixtures, and accidental app code, and browser output contains no Node-only modules or server dependencies.
-- [ ] Document reproducible artifact-based agent configuration and cleanup without publishing or installing a daemon/global configuration.
-- [ ] Satisfy the verification and completion gate below, and record concise evidence.
+- [x] Finalize executable metadata, built files, explicit browser/server/protocol exports, supported Node environment, and artifact-only runtime dependencies.
+- [x] Add an isolated temporary consumer check that packs the package, installs the tarball with approved dependency access, runs its CLI through MCP, and bundles/imports the public browser entry without repository-source fallbacks.
+- [x] Verify the artifact excludes credentials, test fixtures, and accidental app code; installed browser output contains no Node-only modules or server dependencies.
+- [x] Document reproducible artifact-based agent configuration and cleanup without publishing or installing a daemon/global configuration.
+- [x] Satisfy the verification and completion gate below, and record concise evidence.
 
 Verification:
 
@@ -522,6 +522,8 @@ Verification:
 
 Completion gate: the actual distributed tarball shape, CLI, and browser entry work independently of the repository checkout; nothing is published or permanently installed.
 Evidence location: [evidence/step-5.2.md](evidence/step-5.2.md).
+
+Checklist reconciliation: all five Step 5.2 tasks and its completion gate are complete. The isolated tarball consumer, installed CLI/MCP/image path, SSR imports, and installed browser bundle boundary passed; no publication, global installation, permanent configuration, or Step 5.3 work was performed.
 
 ### Step 5.3 — Verify client compatibility and final deployed acceptance
 
