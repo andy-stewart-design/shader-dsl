@@ -285,9 +285,6 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.5
         version: 1.2.5
-      'app-mcp':
-        specifier: workspace:*
-        version: link:../../packages/agent-bridge
       '@shdr/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -309,6 +306,9 @@ importers:
       '@tanstack/react-start':
         specifier: 1.169.4
         version: 1.169.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.15)(supports-color@7.2.0)(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1))
+      app-mcp:
+        specifier: workspace:*
+        version: link:../../packages/agent-bridge
       nitro:
         specifier: 3.0.260610-beta
         version: 3.0.260610-beta(chokidar@5.0.0)(dotenv@16.0.3)(jiti@2.7.0)(lru-cache@11.5.3)(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1))
@@ -451,21 +451,12 @@ importers:
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19.3.0
-        version: 19.3.0(@types/react@19.3.0)
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
-      happy-dom:
-        specifier: ^20.14.6
-        version: 20.14.6
       react:
         specifier: ^19.3.1
         version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
       tsdown:
         specifier: ^0.22.5
         version: 0.22.14(typescript@7.0.2)
@@ -6513,7 +6504,8 @@ snapshots:
 
   '@types/vscode@1.125.0': {}
 
-  '@types/whatwg-mimetype@3.0.2': {}
+  '@types/whatwg-mimetype@3.0.2':
+    optional: true
 
   '@types/ws@8.18.2':
     dependencies:
@@ -6995,6 +6987,7 @@ snapshots:
   buffer-image-size@0.6.4:
     dependencies:
       '@types/node': 24.19.2
+    optional: true
 
   bytes@3.1.2: {}
 
@@ -7180,7 +7173,8 @@ snapshots:
 
   entities@4.5.0: {}
 
-  entities@7.0.1: {}
+  entities@7.0.1:
+    optional: true
 
   env-runner@0.1.16:
     dependencies:
@@ -7524,6 +7518,7 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+    optional: true
 
   has-flag@4.0.0:
     optional: true
@@ -8808,7 +8803,8 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  whatwg-mimetype@3.0.0: {}
+  whatwg-mimetype@3.0.0:
+    optional: true
 
   which@2.0.2:
     dependencies:
