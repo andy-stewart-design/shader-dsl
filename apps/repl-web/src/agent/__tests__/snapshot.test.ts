@@ -4,9 +4,9 @@ import {
   CapturePreviewError,
   createCapturePreviewPort,
   type PreviewCaptureIdentity,
-} from "./snapshot.ts";
-import { createApplyController } from "./apply-controller.ts";
-import type { CapturedCanvasPng } from "../preview/capture-canvas.ts";
+} from "../snapshot.ts";
+import { createApplyController } from "../apply-controller.ts";
+import type { CapturedCanvasPng } from "../../preview/capture-canvas.ts";
 
 const canvas = {} as HTMLCanvasElement;
 const blob = new Blob(["png"], { type: "image/png" });

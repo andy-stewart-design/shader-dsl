@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAuthoringController } from "./authoring-controller.ts";
-import { EditorRegistry } from "../editor/authoring-adapter.ts";
-import { createDraftStore } from "../stores/draft.ts";
+import { createAuthoringController } from "../authoring-controller.ts";
+import { EditorRegistry } from "../../editor/authoring-adapter.ts";
+import { createDraftStore } from "../../stores/draft.ts";
 
 function makeController() {
   const store = createDraftStore();

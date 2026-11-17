@@ -5,8 +5,8 @@ import {
   updateApplyErrorPresentation,
   type ApplyCompileResult,
   type ApplyErrorPresentation,
-} from "./apply-controller.ts";
-import type { DraftSnapshot } from "./authoring-controller.ts";
+} from "../apply-controller.ts";
+import type { DraftSnapshot } from "../authoring-controller.ts";
 
 const artifact = { glsl: "", wgsl: "", defaults: { glsl: [], wgsl: [] } };
 function snapshot(revision: number): DraftSnapshot {

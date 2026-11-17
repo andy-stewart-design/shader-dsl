@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAuthoringTools } from "./tools.ts";
-import type { AuthoringController, DraftSnapshot } from "./controller-types.ts";
+import { createAuthoringTools } from "../tools.ts";
+import type {
+  AuthoringController,
+  DraftSnapshot,
+} from "../controller-types.ts";
 import {
   createCapturePreviewPort,
   type CapturePreviewPort,
-} from "./snapshot.ts";
+} from "../snapshot.ts";
 
 function makeController() {
   let snapshot: DraftSnapshot = {
