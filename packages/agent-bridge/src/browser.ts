@@ -1,8 +1,4 @@
-import {
-  validateCatalogTools,
-  validateInput,
-  validateToolName,
-} from "./schema.js";
+import { validateCatalogTools, validateInput } from "./schema.js";
 import {
   BridgeResultError,
   normalizeResult,
