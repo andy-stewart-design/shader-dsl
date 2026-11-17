@@ -1,6 +1,6 @@
 import type { CompiledFragmentArtifact } from "shdr";
 import type { DraftSnapshot } from "./authoring-controller.ts";
-import type { Uniform } from "../shared/uniforms.ts";
+import type { Uniform } from "#/shared/uniforms.ts";
 
 export type ApplyDocument = "main" | "utils" | "uniforms" | "preview";
 export type ApplyDiagnosticCode =
@@ -110,6 +110,8 @@ export interface ApplyCompileFailure {
 export type ApplyCompileResult = ApplyCompileSuccess | ApplyCompileFailure;
 
 export interface ApplyPreviewPort {
+  /** Reports renderer-handle readiness, not merely port registration. */
+  readonly isReady?: () => boolean;
   installAndDraw(
     artifact: CompiledFragmentArtifact,
     options: {
@@ -134,6 +136,7 @@ export interface ApplyControllerOptions {
 export interface ApplyController {
   apply(request: ApplyRequest): Promise<ApplyResult>;
   getState(): ApplyState;
+  isReady?(): boolean;
   subscribe(listener: () => void): () => void;
   /** Records the initial renderer frame; it is called only after real creation. */
   confirmInitial(revision: number, backend: "webgpu" | "webgl"): void;
@@ -346,6 +349,7 @@ export function createApplyController(
       }
     },
     getState: () => state,
+    isReady: () => options.preview.current?.isReady?.() ?? false,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

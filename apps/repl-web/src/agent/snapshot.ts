@@ -8,8 +8,8 @@ import {
   MIN_CAPTURE_DIMENSION,
   type CaptureMaxDimension,
   type CapturedCanvasPng,
-} from "../preview/capture-canvas.ts";
-import type { RuntimeUniformValues } from "../components/preview-pane/uniform-controls.ts";
+} from "#/preview/capture-canvas.ts";
+import type { RuntimeUniformValues } from "#/components/preview-pane/uniform-controls.ts";
 
 export type CapturePreviewErrorCode =
   | "invalid-input"
@@ -68,6 +68,8 @@ export interface CapturePreviewRequest {
 }
 
 export interface CapturePreviewPort {
+  /** Reports a live, applied renderer with positive canvas dimensions, not merely a registered port. */
+  readonly isReady?: () => boolean;
   capture(request: CapturePreviewRequest): Promise<PreviewCaptureResult>;
 }
 
@@ -218,6 +220,22 @@ export function createCapturePreviewPort({
   encode = captureCanvas,
 }: CreateCapturePreviewPortOptions): CapturePreviewPort {
   return {
+    // Registration makes the tool available; readiness requires a confirmed
+    // applied revision and a drawable canvas. A disposed or not-yet-applied
+    // renderer must remain visibly not ready.
+    isReady: () => {
+      const identity = readIdentity();
+      return (
+        identity !== null &&
+        identity.appliedRevision !== null &&
+        Number.isSafeInteger(identity.appliedRevision) &&
+        identity.appliedRevision >= 0 &&
+        Number.isFinite(identity.width) &&
+        Number.isFinite(identity.height) &&
+        identity.width > 0 &&
+        identity.height > 0
+      );
+    },
     async capture({
       expectedAppliedRevision,
       maxDimension: requestedMaxDimension,

@@ -134,6 +134,19 @@ describe("catalog replacement through the built MCP helper", () => {
         "invalid_arguments",
       ],
       [
+        { catalogVersion: 2, name: "new", arguments: null },
+        "invalid_arguments",
+      ],
+      [{ catalogVersion: 2, name: "new" }, "invalid_arguments"],
+      [
+        {
+          catalogVersion: 2,
+          name: "new",
+          arguments: { ...validInput, extra: true },
+        },
+        "invalid_arguments",
+      ],
+      [
         {
           sessionId: "wrong",
           catalogVersion: 2,

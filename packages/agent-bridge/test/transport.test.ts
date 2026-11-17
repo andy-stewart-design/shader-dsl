@@ -100,11 +100,11 @@ describe("built stdio and loopback transport", () => {
         sessionId: auth.sessionId,
         catalogVersion: 1,
         name: "photo",
-        arguments: {},
       },
     });
     const request = await wsMessage(ws);
     expect(request.type).toBe("request");
+    expect(request.input).toEqual({});
     ws.send(
       JSON.stringify({
         type: "response",

@@ -22,8 +22,8 @@ import { createAuthoringTools } from "./tools.ts";
 import {
   editorRegistry,
   type EditorRegistry,
-} from "../editor/authoring-adapter.ts";
-import { useDraftStore } from "../stores/draft.ts";
+} from "#/editor/authoring-adapter.ts";
+import { useDraftStore } from "#/stores/draft.ts";
 
 export type { AgentBridgeFactory };
 
@@ -84,6 +84,7 @@ export function AgentProvider({
     return {
       ...baseController,
       apply: applyController.apply,
+      isApplyReady: () => applyController.isReady?.() ?? false,
       getApplyState: applyController.getState,
       subscribeApply: applyController.subscribe,
     } satisfies AuthoringController;

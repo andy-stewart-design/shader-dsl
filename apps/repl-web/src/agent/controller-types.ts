@@ -16,6 +16,7 @@ export interface AuthoringController {
   update(request: unknown): AuthoringUpdateResult;
   /** Optional Phase 4 operation; absent controllers retain the Phase 3 catalog. */
   apply?(request: ApplyRequest): Promise<ApplyResult>;
+  isApplyReady?(): boolean;
   getApplyState?(): ApplyState;
   subscribeApply?(listener: () => void): () => void;
 }

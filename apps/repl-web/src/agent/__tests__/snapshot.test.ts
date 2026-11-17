@@ -53,6 +53,37 @@ async function expectCode(
   });
 }
 
+test("capture readiness requires an applied, positive-size renderer", () => {
+  let identity: PreviewCaptureIdentity | null = null;
+  const port = createCapturePreviewPort({
+    readIdentity: () => identity,
+    encode: async () => encoded(),
+  });
+
+  assert.equal(port.isReady?.(), false);
+  identity = {
+    lifecycle: {},
+    generation: 1,
+    appliedRevision: null,
+    backend: "webgpu",
+    canvas,
+    width: 320,
+    height: 180,
+    uniforms: {},
+  };
+  assert.equal(port.isReady?.(), false);
+  identity = { ...identity, appliedRevision: 4 };
+  assert.equal(port.isReady?.(), true);
+  identity = { ...identity, width: 0 };
+  assert.equal(port.isReady?.(), false);
+  identity = { ...identity, width: 320, height: 0 };
+  assert.equal(port.isReady?.(), false);
+  identity = { ...identity, height: 180 };
+  assert.equal(port.isReady?.(), true);
+  identity = null;
+  assert.equal(port.isReady?.(), false);
+});
+
 test("capture returns the real canvas dimensions/backend/applied identity and uniforms", async () => {
   const source = sourceState();
   const port = createCapturePreviewPort({

@@ -4,11 +4,15 @@ import {
   authoringUpdateSchema,
   type AuthoringUpdateInput,
 } from "./authoring-schema.ts";
-import { createAuthoringContext, sketchFromSnapshot } from "./context.ts";
+import { appStateFromController } from "./app-state.ts";
+import { getDocumentation } from "./documentation.ts";
 import type { AuthoringController } from "./controller-types.ts";
 import { CapturePreviewError, type CapturePreviewPort } from "./snapshot.ts";
 
 const emptyInputSchema = z.strictObject({});
+const documentationInputSchema = z
+  .strictObject({ topic: z.string().optional() })
+  .default({});
 const applyInputSchema = z.strictObject({
   expectedRevision: z.number().int().min(0),
 });
@@ -20,14 +24,19 @@ const captureInputSchema = z.strictObject({
 });
 
 export const AUTHORING_TOOL_NAMES = [
-  "get_authoring_context",
+  "get_app_state",
+  "get_documentation",
   "get_sketch",
   "update_sketch",
   "apply_sketch",
   "capture_preview",
 ] as const;
 
-/** Stable, deliberately narrow authoring catalog; Apply is conditional on a real controller. */
+/**
+ * Stable authoring catalog; Apply and capture are conditional site
+ * capabilities. `available` means the tool is registered in this catalog;
+ * `ready` is reserved for a live renderer/handle.
+ */
 export function createAuthoringTools(
   controller: AuthoringController,
   capturePortRef?: { current: CapturePreviewPort | null },
@@ -35,20 +44,29 @@ export function createAuthoringTools(
   const { apply } = controller;
   return [
     defineTool({
-      name: "get_authoring_context",
+      name: "get_app_state",
       description:
-        "Read the compact REPL language, uniform-definition, explicit-Run, and draft-authoring context. This operation does not mutate the page.",
+        "Read compact live draft, applied-preview, diagnostic, and tool capability state. Use this to understand readiness before mutating or capturing; it does not include language reference or source definitions.",
       input: emptyInputSchema,
       handler: () =>
-        createAuthoringContext(controller, Boolean(capturePortRef)),
+        appStateFromController(controller, {
+          captureAvailable: Boolean(capturePortRef),
+          captureReady: capturePortRef?.current?.isReady?.() ?? false,
+        }),
+    }),
+    defineTool({
+      name: "get_documentation",
+      description:
+        "Read the Shader DSL reference for workflow guidance and language details. Request a topic for focused help or omit it for the overview and topic index.",
+      input: documentationInputSchema,
+      handler: (input) => getDocumentation(input),
     }),
     defineTool({
       name: "get_sketch",
       description:
-        "Read cloned raw main/utils draft sources, editable uniform definitions, the current draft revision, and correlated applied/diagnostic status. This operation does not mutate the page.",
+        "Read cloned raw main/utils draft sources and editable uniform definitions with the current draft revision. This operation does not mutate the page.",
       input: emptyInputSchema,
-      handler: () =>
-        sketchFromSnapshot(controller.read(), controller.getApplyState?.()),
+      handler: () => controller.read(),
     }),
     defineTool({
       name: "update_sketch",
@@ -153,7 +171,7 @@ function updateSketch(
   if (!result.ok) return result;
   return {
     ok: true as const,
-    sketch: sketchFromSnapshot(result.snapshot, controller.getApplyState?.()),
+    sketch: result.snapshot,
   };
 }
 

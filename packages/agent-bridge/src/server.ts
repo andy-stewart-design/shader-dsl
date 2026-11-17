@@ -79,7 +79,7 @@ const callToolSchema = z
     sessionId: z.string(),
     catalogVersion: z.number().int(),
     name: z.string(),
-    arguments: z.unknown(),
+    arguments: z.unknown().optional(),
   })
   .strict();
 
@@ -638,15 +638,17 @@ export async function startBridgeServer(
           return errorMcp("stale_catalog", "catalog version is stale");
         const tool = catalog.tools.find((item) => item.name === input.name);
         if (!tool) return errorMcp("unknown_tool", "unknown tool");
-        const valid = validateInput(tool.inputSchema, input.arguments);
-        if (!valid.ok || !isJsonValue(input.arguments))
+        const toolArguments =
+          input.arguments === undefined ? {} : input.arguments;
+        const valid = validateInput(tool.inputSchema, toolArguments);
+        if (!valid.ok || !isJsonValue(toolArguments))
           return errorMcp(
             "invalid_arguments",
             valid.ok ? "arguments must be JSON" : valid.message,
           );
         try {
           return bridgeResultToMcp(
-            await callPage(input.name, input.arguments, signal),
+            await callPage(input.name, toolArguments, signal),
           );
         } catch (error) {
           const code =

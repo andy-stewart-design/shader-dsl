@@ -10,12 +10,12 @@ import {
   useDraftStore,
   type DraftState,
   type DraftStore,
-} from "../stores/draft.ts";
+} from "#/stores/draft.ts";
 import type {
   EditorRegistry,
   EditorReplacement,
-} from "../editor/authoring-adapter.ts";
-import type { Uniform } from "../shared/uniforms.ts";
+} from "#/editor/authoring-adapter.ts";
+import type { Uniform } from "#/shared/uniforms.ts";
 
 export { authoringUpdateJsonSchema };
 

@@ -340,6 +340,9 @@ export function useShdrPreview({
     lifecycleRef.current = lifecycle;
 
     const port: ApplyPreviewPort = {
+      isReady: () =>
+        isActive(lifecycle, lifecycleRef.current) &&
+        lifecycle.handle !== undefined,
       async installAndDraw(nextArtifact, options) {
         const handle = lifecycle.handle;
         if (!isActive(lifecycle, lifecycleRef.current) || !handle) {

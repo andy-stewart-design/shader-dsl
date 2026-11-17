@@ -275,7 +275,8 @@ describe("refresh and request lifecycle composition", () => {
       (listed.content as Array<{ text: string }>)[0]!.text,
     ).tools.map((item: any) => item.name);
     expect(listedTools).toEqual([
-      "get_authoring_context",
+      "get_app_state",
+      "get_documentation",
       "get_sketch",
       "update_sketch",
     ]);
@@ -569,7 +570,8 @@ describe("refresh and request lifecycle composition", () => {
     });
     const listedText = (listed.content as Array<{ text: string }>)[0]!.text;
     expect(JSON.parse(listedText).tools.map((item: any) => item.name)).toEqual([
-      "get_authoring_context",
+      "get_app_state",
+      "get_documentation",
       "get_sketch",
       "update_sketch",
     ]);

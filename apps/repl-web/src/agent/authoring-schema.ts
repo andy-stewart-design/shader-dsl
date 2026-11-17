@@ -1,7 +1,7 @@
 import { toJsonSchema, z } from "app-mcp/zod";
-import { colorToValidHex } from "../components/uniforms-pane/helpers.ts";
-import { toShaderUniformDefinitions } from "../components/uniforms-pane/definitions.ts";
-import type { Uniform } from "../shared/uniforms.ts";
+import { colorToValidHex } from "#/components/uniforms-pane/helpers.ts";
+import { toShaderUniformDefinitions } from "#/components/uniforms-pane/definitions.ts";
+import type { Uniform } from "#/shared/uniforms.ts";
 
 const floatUniformDefinitionSchema = z.strictObject({
   id: z.string().min(1).optional(),
