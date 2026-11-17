@@ -175,7 +175,7 @@ describe("refresh and request lifecycle composition", () => {
     expect(rotated.pageId).not.toBe(stored.pageId);
     expect(next.catalogVersion).toBe(1);
     const read = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: next.sessionId,
         catalogVersion: 1,
@@ -281,7 +281,7 @@ describe("refresh and request lifecycle composition", () => {
       "update_sketch",
     ]);
     const sketch = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: after.sessionId,
         catalogVersion: 1,
@@ -352,7 +352,7 @@ describe("refresh and request lifecycle composition", () => {
     const before = await connected(original);
     const stored = JSON.parse(sessionStorage.getItem(key)!);
     const pending = client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: before.sessionId,
         catalogVersion: 1,
@@ -380,7 +380,7 @@ describe("refresh and request lifecycle composition", () => {
     expect(rotated.resumeToken).not.toBe(stored.resumeToken);
 
     const read = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: after.sessionId,
         catalogVersion: 1,
@@ -459,7 +459,7 @@ describe("refresh and request lifecycle composition", () => {
     const outcome = client
       .callTool(
         {
-          name: "bridge_call_tool",
+          name: "call_tool",
           arguments: {
             sessionId: state.sessionId,
             catalogVersion: 1,
@@ -480,7 +480,7 @@ describe("refresh and request lifecycle composition", () => {
     await vi.waitFor(() => expect(signal?.aborted).toBe(true));
     complete({ late: true });
     const read = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: state.sessionId,
         catalogVersion: 1,
@@ -510,7 +510,7 @@ describe("refresh and request lifecycle composition", () => {
     await original.connect(helper.connectionInfo().pairingUrl!);
     const before = await connected(original);
     const outcome = client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: before.sessionId,
         catalogVersion: 1,
@@ -532,7 +532,7 @@ describe("refresh and request lifecycle composition", () => {
     expect(
       parse(
         await client.callTool({
-          name: "bridge_call_tool",
+          name: "call_tool",
           arguments: {
             sessionId: next.sessionId,
             catalogVersion: 1,
@@ -578,7 +578,7 @@ describe("refresh and request lifecycle composition", () => {
 
     LocalSocket.dropNextResponse = true;
     const lost = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: before.sessionId,
         catalogVersion: 1,
@@ -604,7 +604,7 @@ describe("refresh and request lifecycle composition", () => {
     const after = await connected(refreshed);
     expect(after.sessionId).not.toBe(before.sessionId);
     const reread = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: after.sessionId,
         catalogVersion: 1,
@@ -617,7 +617,7 @@ describe("refresh and request lifecycle composition", () => {
     expect(current.main).toBe("committed-before-response-loss");
 
     const stale = await client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: after.sessionId,
         catalogVersion: 1,

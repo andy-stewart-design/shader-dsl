@@ -45,6 +45,11 @@ async function start() {
       args: ["dist/bin.mjs", "--allowed-origin", origin, "--site-url", origin],
     }),
   );
+  const registeredTools = (await client.listTools()).tools.map(
+    (registered) => registered.name,
+  );
+  expect(registeredTools).toContain("call_tool");
+  expect(registeredTools).not.toContain("bridge_call_tool");
   const info = data(
     await client.callTool({
       name: "bridge_get_connection_info",
@@ -156,7 +161,7 @@ describe("catalog replacement through the built MCP helper", () => {
         "stale_session",
       ],
     ] as const) {
-      const result = await call("bridge_call_tool", args);
+      const result = await call("call_tool", args);
       expect(result.isError).toBe(true);
       expect(result.content).toEqual(
         expect.arrayContaining([
@@ -172,7 +177,7 @@ describe("catalog replacement through the built MCP helper", () => {
       await catalog(3, [tool("duplicate"), tool("duplicate")]),
     ).toMatchObject({ type: "catalog_error" });
     expect(data(await call("bridge_list_tools")).catalogVersion).toBe(2);
-    const failed = await call("bridge_call_tool", {
+    const failed = await call("call_tool", {
       catalogVersion: 2,
       name: "new",
       arguments: validInput,
@@ -189,7 +194,7 @@ describe("catalog replacement through the built MCP helper", () => {
     const { socket, catalog, call } = await start();
     await catalog(1, [tool("old")]);
     const requestSeen = nextMessage(socket);
-    const result = call("bridge_call_tool", {
+    const result = call("call_tool", {
       catalogVersion: 1,
       name: "old",
       arguments: validInput,

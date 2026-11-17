@@ -104,7 +104,7 @@ describe("built stdio and loopback transport", () => {
     });
     expect(JSON.parse(listed.content[0].text).tools[0].name).toBe("photo");
     const calledPromise: Promise<any> = client.callTool({
-      name: "bridge_call_tool",
+      name: "call_tool",
       arguments: {
         sessionId: auth.sessionId,
         catalogVersion: 1,

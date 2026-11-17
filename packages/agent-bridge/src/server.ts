@@ -70,6 +70,8 @@ export type BridgeServer = {
   close(): Promise<void>;
 };
 
+const CALL_TOOL_NAME = "call_tool";
+
 const connectionInfoSchema = z.object({}).strict();
 const sessionSchema = z.object({ sessionId: z.string() }).strict();
 const describeToolSchema = z
@@ -570,13 +572,13 @@ export async function startBridgeServer(
         handleMcpTool("bridge_describe_tool", input, extra.signal),
     );
     server.registerTool(
-      "bridge_call_tool",
+      CALL_TOOL_NAME,
       {
         description: "Call a declared tool on the paired page.",
         inputSchema: callToolSchema,
       },
       async (input, extra) =>
-        handleMcpTool("bridge_call_tool", input, extra.signal),
+        handleMcpTool(CALL_TOOL_NAME, input, extra.signal),
     );
     mcpServer = server;
     const protocol = server.server;
@@ -627,7 +629,7 @@ export async function startBridgeServer(
             })
           : errorMcp("unknown_tool", "unknown tool");
       }
-      if (name === "bridge_call_tool") {
+      if (name === CALL_TOOL_NAME) {
         const input = parseMcpInput(callToolSchema, args);
         if (!input)
           return errorMcp("invalid_arguments", "invalid bridge arguments");
