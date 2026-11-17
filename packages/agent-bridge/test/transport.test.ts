@@ -3,6 +3,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import WebSocket from "ws";
+import packageJson from "../package.json" with { type: "json" };
 
 const origin = "https://bridge.example.test";
 const clients: Client[] = [];
@@ -47,6 +48,14 @@ async function wsMessage(ws: WebSocket): Promise<any> {
 }
 
 describe("built stdio and loopback transport", () => {
+  it("reports the package version during MCP initialization", async () => {
+    const { client } = await start();
+    expect(client.getServerVersion()).toEqual({
+      name: packageJson.name,
+      version: packageJson.version,
+    });
+  }, 15_000);
+
   it("pairs only after auth and returns a real MCP image block", async () => {
     const { client } = await start();
     const infoCall: any = await client.callTool({

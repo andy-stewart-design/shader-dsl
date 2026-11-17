@@ -3,6 +3,7 @@ import {
   type Server as HttpServer,
 } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import packageJson from "../package.json" with { type: "json" };
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
@@ -537,7 +538,7 @@ export async function startBridgeServer(
     if (mcpServer || shuttingDown)
       throw new Error("bridge is already attached or closed");
     const server = new McpServer(
-      { name: "app-mcp", version: "0.0.0" },
+      { name: packageJson.name, version: packageJson.version },
       { capabilities: { tools: {} } },
     );
     server.registerTool(

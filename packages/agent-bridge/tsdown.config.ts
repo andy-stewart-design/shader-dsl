@@ -12,4 +12,7 @@ export default defineConfig({
   ],
   format: "esm",
   dts: true,
+  deps: {
+    neverBundle: ["../package.json"],
+  },
 });
