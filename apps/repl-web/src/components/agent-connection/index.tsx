@@ -28,7 +28,10 @@ export default function AgentConnection() {
   }
 
   function openDialog() {
-    dialogRef.current?.showModal();
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    setIsDialogOpen(true);
   }
 
   return (
@@ -42,7 +45,7 @@ export default function AgentConnection() {
         ref={dialogRef}
         className={s.dialog}
         aria-label="Agent connection"
-        onToggle={(event) => setIsDialogOpen(event.currentTarget.open)}
+        onClose={() => setIsDialogOpen(false)}
       >
         <div className={s.heading}>
           <span>Agent</span>
