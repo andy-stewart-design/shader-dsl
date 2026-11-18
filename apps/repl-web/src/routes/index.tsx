@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "#/components/app-layout";
-import AgentConnection from "#/components/agent-connection";
 import { AgentProvider } from "#/agent/provider";
 import Editor from "#/components/editor-pane";
 import Preview from "#/components/preview-pane";
@@ -29,7 +28,6 @@ function Home() {
       applyController={applyController}
       capturePortRef={capturePortRef}
     >
-      <AgentConnection />
       <AppLayout>
         <Editor
           onApply={apply}

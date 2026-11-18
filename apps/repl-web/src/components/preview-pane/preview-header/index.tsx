@@ -1,3 +1,4 @@
+import AgentConnection from "#/components/agent-connection";
 import { usePlaying, usePreviewActions } from "../../../stores/preview";
 import s from "./style.module.css";
 
@@ -66,6 +67,8 @@ export default function PreviewHeader() {
       >
         <IconControls /> Controls
       </button>
+
+      <AgentConnection />
     </div>
   );
 }
