@@ -34,7 +34,7 @@
   border-radius: 100vmax;
 
   &[data-connected="true"] {
-    background: #4deb58;
+    background: #77ff77;
   }
 }
 
@@ -73,14 +73,14 @@
 .status {
   color: var(--color-surface-foreground-secondary);
   font-weight: 400;
-}
 
-.status[data-status="connected"] {
-  color: var(--color-syntax-green);
-}
+  &[data-status="connected"] {
+    color: #77ff77;
+  }
 
-.status[data-status="error"] {
-  color: var(--color-syntax-orange);
+  &[data-status="error"] {
+    color: var(--color-syntax-orange);
+  }
 }
 
 .form {

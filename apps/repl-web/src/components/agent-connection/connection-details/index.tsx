@@ -25,21 +25,18 @@ export default function ConnectionDetails({
         </dd>
       </div>
       <div className={s.detail}>
-        <dt>Connected since</dt>
+        <dt>Connected</dt>
         <dd>
-          {formatTimestamp(state.connectedAt)}
+          {/*{formatTimestamp(state.connectedAt)}*/}
           {isValidTimestamp(state.connectedAt) &&
-            ` (${formatElapsed(now - state.connectedAt)} ago)`}
+            `${formatElapsed(now - state.connectedAt)} ago`}
         </dd>
       </div>
       {isValidTimestamp(state.lastConnectedAt) &&
         state.lastConnectedAt !== state.connectedAt && (
           <div className={s.detail}>
             <dt>Last reconnected</dt>
-            <dd>
-              {formatTimestamp(state.lastConnectedAt)}
-              {` (${formatElapsed(now - state.lastConnectedAt)} ago)`}
-            </dd>
+            <dd>{`${formatElapsed(now - state.lastConnectedAt)} ago`}</dd>
           </div>
         )}
     </dl>
@@ -55,11 +52,6 @@ function isValidTimestamp(timestamp: number | undefined): timestamp is number {
     timestamp >= 0 &&
     timestamp <= MAX_VALID_DATE_MS
   );
-}
-
-function formatTimestamp(timestamp: number | undefined) {
-  if (!isValidTimestamp(timestamp)) return "Unknown";
-  return new Date(timestamp).toLocaleString();
 }
 
 function formatElapsed(milliseconds: number) {
