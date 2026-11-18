@@ -44,13 +44,7 @@ export default function AgentConnection() {
         <div className={s.heading}>
           <span>Agent</span>
           <span className={s.status} data-status={state.status}>
-            {isConnecting
-              ? "Connecting…"
-              : isConnected
-                ? "Connected"
-                : state.status === "error"
-                  ? "Needs attention"
-                  : "Not connected"}
+            {statusText(state.status)}
           </span>
         </div>
         {!isConnected && (
@@ -93,4 +87,17 @@ export default function AgentConnection() {
       </dialog>
     </>
   );
+}
+
+function statusText(status: string) {
+  switch (status) {
+    case "connecting":
+      return "Connecting…";
+    case "connected":
+      return "Connected";
+    case "error":
+      return "Needs attention";
+    default:
+      return "Not connected";
+  }
 }
