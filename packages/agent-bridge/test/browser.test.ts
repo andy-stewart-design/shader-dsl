@@ -9,6 +9,8 @@ class FakeSocket {
   sent: string[] = [];
   protocolVersion = 1;
   deferCatalogAck = false;
+  authMetadata: Record<string, unknown> = {};
+  catalogMetadata: Record<string, unknown> = {};
   constructor(public readonly url: string) {
     FakeSocket.instances.push(this);
   }
@@ -24,6 +26,7 @@ class FakeSocket {
           type: "auth_ok",
           protocolVersion: this.protocolVersion,
           sessionId: "session-a",
+          ...this.authMetadata,
         }),
       });
     if (message.type === "catalog" && !this.deferCatalogAck)
@@ -33,6 +36,7 @@ class FakeSocket {
           protocolVersion: this.protocolVersion,
           sessionId: "session-a",
           catalogVersion: message.catalogVersion,
+          ...this.catalogMetadata,
         }),
       });
   }
@@ -180,6 +184,41 @@ describe("browser entrypoint", () => {
       status: "connected",
       sessionId: "session-a",
     });
+  });
+
+  it("accepts only safe date metadata and keeps malformed optional fields non-fatal", async () => {
+    (globalThis as any).window = {
+      location: {
+        href: "https://bridge.example.test/",
+        origin: "https://bridge.example.test",
+      },
+      history: {},
+    };
+    (globalThis as any).WebSocket = FakeSocket;
+    const bridge = connectAgentBridge({ tools: [makeTool("read")] });
+    const connection = bridge.connect(
+      "https://bridge.example.test/#bridgePort=1&bridgeToken=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
+    );
+    const socket = FakeSocket.instances[0]!;
+    socket.authMetadata = {
+      client: { name: "  \u0000agent  ", version: "" },
+      connectedAt: 1.5,
+      lastConnectedAt: 1,
+    };
+    socket.catalogMetadata = {
+      client: { name: "", version: "1.2.3" },
+      connectedAt: 8.64e15,
+      lastConnectedAt: 8.64e15 - 1,
+    };
+    socket.open();
+    await connection;
+    expect(bridge.getState()).toMatchObject({
+      status: "connected",
+      connectedAt: 8.64e15,
+    });
+    expect(bridge.getState()).not.toHaveProperty("client");
+    expect(bridge.getState()).not.toHaveProperty("lastConnectedAt");
+    bridge.disconnect();
   });
 
   it("atomically replaces tools after the acknowledged catalog version", async () => {

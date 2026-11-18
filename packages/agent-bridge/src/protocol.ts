@@ -75,10 +75,25 @@ export type BridgeTool<Output = JsonValue | BridgeResult> = {
   ) => Output | Promise<Output>;
 };
 
+export type BridgeClientInfo = {
+  name: string;
+  version: string;
+};
+
 export type BridgeConnectionState =
   | { status: "disconnected" }
   | { status: "connecting" }
-  | { status: "connected"; sessionId: string; catalogVersion: number }
+  | {
+      status: "connected";
+      sessionId: string;
+      catalogVersion: number;
+      /** Server time when this pairing authority first completed a catalog handshake. */
+      connectedAt?: number;
+      /** Server time when the current transport most recently completed a catalog handshake. */
+      lastConnectedAt?: number;
+      /** Self-reported MCP client display metadata; it is not an authenticated identity. */
+      client?: BridgeClientInfo;
+    }
   | { status: "error"; error: { code: string; message: string } };
 
 export type BridgeError = { code: string; message: string };
@@ -102,6 +117,7 @@ export type BridgeWireMessage =
       resumable?: boolean;
       pageId?: string;
       pageUrl?: string;
+      metadataUpdates?: true;
     }
   | {
       type: "resume";
@@ -110,6 +126,7 @@ export type BridgeWireMessage =
       resumeToken: string;
       pageId: string;
       pageUrl: string;
+      metadataUpdates?: true;
     }
   | { type: "disconnect"; sessionId: string }
   | { type: "cancel"; sessionId: string; requestId: string }
@@ -139,12 +156,27 @@ export type BridgeWireMessage =
       pageId?: string;
       resumeToken?: string;
       resumeLeaseMs?: number;
+      connectedAt?: number;
+      lastConnectedAt?: number;
+      client?: BridgeClientInfo;
     }
   | {
       type: "catalog_ok";
       protocolVersion: 1;
       sessionId: string;
       catalogVersion: number;
+      connectedAt?: number;
+      lastConnectedAt?: number;
+      client?: BridgeClientInfo;
+    }
+  | {
+      /** Optional additive notification for clients paired before MCP initialization. */
+      type: "connection_state";
+      protocolVersion: 1;
+      sessionId: string;
+      connectedAt?: number;
+      lastConnectedAt?: number;
+      client?: BridgeClientInfo;
     }
   | {
       type: "catalog_error";

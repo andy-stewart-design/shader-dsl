@@ -13,10 +13,7 @@ app-mcp --allowed-origin https://example.invalid --site-url https://example.inva
 The helper binds only to `127.0.0.1` on an ephemeral port. Call `bridge_get_connection_info` over MCP to receive the short-lived pairing URL. The URL contains credentials only in its fragment; it is not logged or sent in the WebSocket URL. A page should call `consumePairingLink()` from `app-mcp/browser`, remove the fragment immediately, and pass the returned link to `connectAgentBridge`.
 
 ```ts
-import {
-  connectAgentBridge,
-  consumePairingLink,
-} from "app-mcp/browser";
+import { connectAgentBridge, consumePairingLink } from "app-mcp/browser";
 
 import { defineTool, z } from "app-mcp/zod";
 
@@ -59,6 +56,8 @@ function ConnectionButton() {
 `tools` is replaced in the connected catalog through `updateTools` without recreating the bridge. Keep the array memoized when tool handlers are application-created. Pairing links passed while disabled wait for enable; `disconnect()` clears that queue. Disabling an active provider disconnects it; re-enabling creates a fresh controller. Factory changes likewise replace the controller.
 
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
+
+A connected browser state may also include `client: { name, version }`, `connectedAt`, and `lastConnectedAt`. Client metadata is the MCP client's self-reported initialize information, sanitized to bounded strings and intended only for display; it is not a verified user, host, or model identity. `connectedAt` and `lastConnectedAt` are server-owned Unix epoch milliseconds: the former is the first successful auth-and-catalog handshake for the current pairing authority, and the latter is the most recent successful transport/auth-and-catalog handshake. Resume/reload preserves the first timestamp through the short server-side lease, while a new pairing or explicit disconnect starts over. Catalog replacement does not change either timestamp. Older helpers may omit these optional fields, and consumers should handle that case.
 
 `app-mcp/zod` exports `defineTool` and `z` for typed definitions. `defineTool` converts a Zod input schema to draft-2020-12 JSON Schema and parses input immediately before invoking the handler, so unknown keys rejected by `z.strictObject` are rejected for direct calls as well as transport calls. Default `z.object` unknown-key behavior is retained. Defaults are JSON Schema annotations; Zod supplies them (and strips unknown keys) before the handler, while the transport validator only validates the raw input. Custom refinements and transforms are rejected when they cannot be advertised faithfully; representable built-in checks are retained. Handler output is inferred directly from the callback: named interfaces, optional properties, readonly arrays, discriminated results, and bridge envelopes are accepted without an application `toJson` helper, while obvious non-JSON output types are rejected at compile time. This is a structural typing convenience, not a trust boundary: direct `defineTool` calls validate and parse input, but output validation remains the browser/runtime normalizer's responsibility. The browser rejects cycles, sparse arrays, non-plain objects, undefined values, non-finite numbers, and oversized payloads at runtime. Broad `object`/`{}`, `unknown`, and `any` output types are intentionally not accepted because they cannot prove JSON compatibility. `imageResult` applies the same inferred metadata ergonomics and guards metadata at runtime. The shared Ajv boundary intentionally disables format validation, so transport validation can be weaker than Zod (for example, URL formats); Zod still runs before the typed handler.
 

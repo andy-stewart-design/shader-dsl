@@ -24,6 +24,7 @@ import {
   jsonSize,
   safeJson,
   type BridgeCatalog,
+  type BridgeClientInfo,
   type BridgeResult,
   type JsonValue,
 } from "./protocol.js";
@@ -45,13 +46,21 @@ type Pending = {
   socket: WebSocket;
 };
 
+type ConnectionAuthority = {
+  connectedAt?: number;
+  lastConnectedAt?: number;
+  client?: BridgeClientInfo;
+};
+
 type ActivePage = {
   socket: WebSocket;
   sessionId: string;
   pageId?: string;
   pageUrl?: string;
   resumable: boolean;
+  metadataUpdates: boolean;
   resumeDigest?: Buffer;
+  authority: ConnectionAuthority;
 };
 
 type ConnectionInfo = {
@@ -97,6 +106,7 @@ export async function startBridgeServer(
   let shuttingDown = false;
   let closePromise: Promise<void> | undefined;
   let mcpServer: McpServer | undefined;
+  let clientInfo: ConnectionAuthority["client"];
 
   const issuePairingCredential = () => {
     token = randomBytes(32).toString("base64url");
@@ -112,7 +122,10 @@ export async function startBridgeServer(
   const sockets = new Set<WebSocket>();
   const authenticatedSockets = new Set<WebSocket>();
   const authTimers = new Map<WebSocket, ReturnType<typeof setTimeout>>();
-  const lease = new SessionLease<{ digest: Buffer }>({
+  const lease = new SessionLease<{
+    digest: Buffer;
+    authority: ConnectionAuthority;
+  }>({
     onExpire: () => {
       // An expired lease is a revocation boundary. A new pairing credential is
       // intentionally not exposed until connectionInfo is requested.
@@ -215,7 +228,10 @@ export async function startBridgeServer(
         sessionId: old.sessionId,
         pageId: old.pageId,
         pageUrl: old.pageUrl,
-        credential: { digest: old.resumeDigest },
+        credential: {
+          digest: old.resumeDigest,
+          authority: old.authority,
+        },
       });
     } else {
       lease.revoke();
@@ -253,7 +269,9 @@ export async function startBridgeServer(
       pageId?: string;
       pageUrl?: string;
       resumable: boolean;
+      metadataUpdates: boolean;
       resumeDigest?: Buffer;
+      authority?: ConnectionAuthority;
     },
   ) => {
     const sessionId = randomBytes(18).toString("base64url");
@@ -263,7 +281,12 @@ export async function startBridgeServer(
       pageId: input.pageId,
       pageUrl: input.pageUrl,
       resumable: input.resumable,
+      metadataUpdates: input.metadataUpdates,
       resumeDigest: input.resumeDigest,
+      authority: {
+        ...input.authority,
+        client: input.authority?.client ?? clientInfo,
+      },
     };
     active = next;
     catalog = undefined;
@@ -272,6 +295,7 @@ export async function startBridgeServer(
       type: "auth_ok",
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
       sessionId,
+      ...metadataFields(next.authority),
     };
     if (input.resumable) {
       const resumeToken = randomBytes(32).toString("base64url");
@@ -343,6 +367,17 @@ export async function startBridgeServer(
             sendAuthError(ws, "authentication_failed", "authentication failed");
             return;
           }
+          if (
+            message.metadataUpdates !== undefined &&
+            message.metadataUpdates !== true
+          ) {
+            sendAuthError(
+              ws,
+              "invalid_message",
+              "invalid authentication message",
+            );
+            return;
+          }
           const resumable = message.resumable === true;
           let pageId: string | undefined;
           let pageUrl: string | undefined;
@@ -368,7 +403,12 @@ export async function startBridgeServer(
           tokenUsed = true;
           authenticated = true;
           lease.revoke();
-          establish(ws, { pageId, pageUrl, resumable });
+          establish(ws, {
+            pageId,
+            pageUrl,
+            resumable,
+            metadataUpdates: message.metadataUpdates === true,
+          });
           return;
         }
         if (message.type === "resume") {
@@ -378,6 +418,13 @@ export async function startBridgeServer(
               "session_conflict",
               "another page is already paired",
             );
+            return;
+          }
+          if (
+            message.metadataUpdates !== undefined &&
+            message.metadataUpdates !== true
+          ) {
+            sendAuthError(ws, "invalid_message", "invalid resume message");
             return;
           }
           const old = lease.current;
@@ -396,12 +443,14 @@ export async function startBridgeServer(
             return;
           }
           // Consume only after all scope and credential checks pass.
-          lease.take();
+          const resumed = lease.take();
           authenticated = true;
           establish(ws, {
             pageId: validPageId(message.pageId) ? message.pageId : undefined,
             pageUrl,
             resumable: true,
+            metadataUpdates: message.metadataUpdates === true,
+            authority: resumed?.credential.authority,
           });
           return;
         }
@@ -471,6 +520,18 @@ export async function startBridgeServer(
           });
           return;
         }
+        if (!catalog) {
+          const now = serverNow();
+          if (now !== undefined) {
+            active.authority.connectedAt ??= now;
+            active.authority.lastConnectedAt = Math.max(
+              now,
+              active.authority.connectedAt,
+              active.authority.lastConnectedAt ?? now,
+            );
+          }
+          active.authority.client ??= clientInfo;
+        }
         if (catalog)
           cancelAll(
             new BridgeProtocolError(
@@ -485,6 +546,7 @@ export async function startBridgeServer(
           protocolVersion: BRIDGE_PROTOCOL_VERSION,
           sessionId,
           catalogVersion: catalog.catalogVersion,
+          ...metadataFields(active.authority),
         });
         return;
       }
@@ -582,6 +644,28 @@ export async function startBridgeServer(
     );
     mcpServer = server;
     const protocol = server.server;
+    const previousInitialized = protocol.oninitialized;
+    protocol.oninitialized = () => {
+      previousInitialized?.();
+      clientInfo = sanitizeClientInfo(protocol.getClientVersion());
+      const current = active;
+      if (
+        !current ||
+        !catalog ||
+        !clientInfo ||
+        !current.metadataUpdates ||
+        (current.authority.client?.name === clientInfo.name &&
+          current.authority.client.version === clientInfo.version)
+      )
+        return;
+      current.authority.client = clientInfo;
+      send(current.socket, {
+        type: "connection_state",
+        protocolVersion: BRIDGE_PROTOCOL_VERSION,
+        sessionId: current.sessionId,
+        ...metadataFields(current.authority),
+      });
+    };
     const previousClose = protocol.onclose;
     protocol.onclose = () => {
       previousClose?.();
@@ -870,6 +954,42 @@ export async function startBridgeServer(
   }
 
   return { port, connectionInfo, attachMcp, close };
+}
+
+function serverNow(): number | undefined {
+  const now = Date.now();
+  return Number.isSafeInteger(now) && now >= 0 && now <= 8.64e15
+    ? now
+    : undefined;
+}
+
+const CLIENT_INFO_LIMIT = 128;
+
+function sanitizeClientInfo(value: unknown): BridgeClientInfo | undefined {
+  if (!isRecord(value)) return undefined;
+  const name = sanitizeClientString(value.name);
+  const version = sanitizeClientString(value.version);
+  return name && version ? { name, version } : undefined;
+}
+
+function sanitizeClientString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned.length > 0 && cleaned.length <= CLIENT_INFO_LIMIT
+    ? cleaned
+    : undefined;
+}
+
+function metadataFields(authority: ConnectionAuthority) {
+  return {
+    ...(authority.client ? { client: authority.client } : {}),
+    ...(authority.connectedAt !== undefined
+      ? { connectedAt: authority.connectedAt }
+      : {}),
+    ...(authority.lastConnectedAt !== undefined
+      ? { lastConnectedAt: authority.lastConnectedAt }
+      : {}),
+  };
 }
 
 function validateConfiguration(options: BridgeServerOptions) {

@@ -155,13 +155,23 @@ afterEach(async () => {
 describe("refresh and request lifecycle composition", () => {
   it("resumes a fresh page without a pairing link, rotates credentials, and revokes on explicit disconnect", async () => {
     const { helper, client } = await server();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
     const firstPage = page();
     const first = browser(firstPage);
     await first.connect(helper.connectionInfo().pairingUrl!);
     const old = await connected(first);
+    expect(old.client).toEqual({ name: "lifecycle-test", version: "1" });
+    expect(old.connectedAt).toBeTypeOf("number");
+    expect(old.lastConnectedAt).toBe(old.connectedAt);
+    await first.updateTools([tool("read"), tool("replacement")]);
+    const replaced = await connected(first);
+    expect(replaced.client).toEqual(old.client);
+    expect(replaced.connectedAt).toBe(old.connectedAt);
+    expect(replaced.lastConnectedAt).toBe(old.lastConnectedAt);
     const stored = JSON.parse(firstPage.sessionStorage.getItem(key)!);
     expect(stored.resumeToken).toBeTruthy();
     expect(stored).not.toHaveProperty("token");
+    clock.mockReturnValue(9_000);
     firstPage.hide();
     await vi.waitFor(() =>
       expect(helper.connectionInfo().status).toBe("interrupted"),
@@ -170,6 +180,10 @@ describe("refresh and request lifecycle composition", () => {
     const fresh = browser(freshPage);
     const next = await connected(fresh);
     expect(next.sessionId).not.toBe(old.sessionId);
+    expect(next.client).toEqual(old.client);
+    expect(next.connectedAt).toBe(old.connectedAt);
+    expect(next.lastConnectedAt).toBe(old.lastConnectedAt);
+    clock.mockRestore();
     const rotated = JSON.parse(freshPage.sessionStorage.getItem(key)!);
     expect(rotated.resumeToken).not.toBe(stored.resumeToken);
     expect(rotated.pageId).not.toBe(stored.pageId);
@@ -211,7 +225,60 @@ describe("refresh and request lifecycle composition", () => {
     unpaired.disconnect();
     // The same controller can be paired manually again after an explicit disconnect.
     await fresh.connect(helper.connectionInfo().pairingUrl!);
-    expect((await connected(fresh)).sessionId).not.toBe(next.sessionId);
+    const reset = await connected(fresh);
+    expect(reset.sessionId).not.toBe(next.sessionId);
+    expect(reset.connectedAt).not.toBe(old.connectedAt);
+    expect(reset.lastConnectedAt).toBe(reset.connectedAt);
+  });
+
+  it("notifies only metadata-capable pages when MCP initializes after pairing", async () => {
+    const pairAndInitialize = async (metadataUpdates: boolean) => {
+      const helper = await startBridgeServer({
+        allowedOrigin: origin,
+        siteUrl: pageUrl,
+      });
+      servers.push(helper);
+      const socket = await rawSocket(helper.port);
+      const pairing = new URL(helper.connectionInfo().pairingUrl!);
+      const auth = await exchange(socket, {
+        type: "auth",
+        token: new URLSearchParams(pairing.hash.slice(1)).get("bridgeToken"),
+        ...(metadataUpdates ? { metadataUpdates: true } : {}),
+      });
+      await exchange(socket, {
+        type: "catalog",
+        protocolVersion: 1,
+        sessionId: auth.sessionId,
+        catalogVersion: 1,
+        tools: [],
+      });
+      const received: any[] = [];
+      socket.on("message", (data) =>
+        received.push(JSON.parse(data.toString())),
+      );
+      const [clientTransport, serverTransport] =
+        InMemoryTransport.createLinkedPair();
+      await helper.attachMcp(serverTransport);
+      const client = new Client({ name: "late-client", version: "1" });
+      clients.push(client);
+      await client.connect(clientTransport);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return received;
+    };
+
+    const optedIn = await pairAndInitialize(true);
+    expect(
+      optedIn.filter((message) => message.type === "connection_state"),
+    ).toHaveLength(1);
+    expect(
+      optedIn.find((message) => message.type === "connection_state"),
+    ).toMatchObject({
+      client: { name: "late-client", version: "1" },
+    });
+    const legacy = await pairAndInitialize(false);
+    expect(legacy.some((message) => message.type === "connection_state")).toBe(
+      false,
+    );
   });
 
   it("resumes a new same-origin history document without restoring app state", async () => {

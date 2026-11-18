@@ -12,12 +12,14 @@ import {
   connectAgentBridge,
   consumePairingLink,
   type AgentBridge,
+  type BridgeClientInfo,
   type BridgeConnectionState,
   type BridgeTool,
 } from "./browser.js";
 
 export type {
   AgentBridge,
+  BridgeClientInfo,
   BridgeConnectionState,
   BridgeTool,
 } from "./browser.js";

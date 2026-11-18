@@ -12,12 +12,17 @@ import {
   isRecord,
   jsonSize,
   wireByteLength,
+  type BridgeClientInfo,
   type BridgeConnectionState,
   type BridgeResult,
   type BridgeTool,
 } from "./protocol.js";
 
-export type { BridgeConnectionState, BridgeTool } from "./protocol.js";
+export type {
+  BridgeClientInfo,
+  BridgeConnectionState,
+  BridgeTool,
+} from "./protocol.js";
 export { makeImageResult as imageResult };
 
 export type AgentBridge = {
@@ -41,6 +46,12 @@ class BridgeClientError extends Error {
     this.name = "BridgeClientError";
   }
 }
+
+type ConnectionMetadata = {
+  client?: BridgeClientInfo;
+  connectedAt?: number;
+  lastConnectedAt?: number;
+};
 
 type ResumeGrant = {
   version: 1;
@@ -145,6 +156,7 @@ export function connectAgentBridge(options: {
   let socket: WebSocket | undefined;
   let sessionId: string | undefined;
   let catalogVersion: number = BRIDGE_CATALOG_VERSION;
+  let connectionMetadata: ConnectionMetadata = {};
   let resumeCapable = false;
   let resumeGrant: ResumeGrant | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -592,6 +604,7 @@ export function connectAgentBridge(options: {
                 resumeToken: connection.resume.resumeToken,
                 pageId,
                 pageUrl,
+                metadataUpdates: true,
               }
             : storage
               ? {
@@ -600,8 +613,13 @@ export function connectAgentBridge(options: {
                   resumable: true,
                   pageId,
                   pageUrl,
+                  metadataUpdates: true,
                 }
-              : { type: "auth", token: connection.token };
+              : {
+                  type: "auth",
+                  token: connection.token,
+                  metadataUpdates: true,
+                };
           candidate.send(JSON.stringify(auth));
         } catch {
           finish(
@@ -692,6 +710,10 @@ export function connectAgentBridge(options: {
             return;
           }
           sessionId = message.sessionId;
+          connectionMetadata = mergeConnectionMetadata(
+            connectionMetadata,
+            readConnectionMetadata(message),
+          );
           catalogVersion = BRIDGE_CATALOG_VERSION;
           const token =
             typeof message.resumeToken === "string" &&
@@ -757,6 +779,10 @@ export function connectAgentBridge(options: {
             );
             return;
           }
+          connectionMetadata = mergeConnectionMetadata(
+            connectionMetadata,
+            readConnectionMetadata(message),
+          );
           if (!pendingCatalog) {
             if (
               state.status !== "connecting" ||
@@ -771,11 +797,13 @@ export function connectAgentBridge(options: {
               return;
             }
             catalogVersion = message.catalogVersion;
-            setState({
-              status: "connected",
-              sessionId: authenticatedSessionId,
-              catalogVersion,
-            });
+            setState(
+              connectedState(
+                authenticatedSessionId,
+                catalogVersion,
+                connectionMetadata,
+              ),
+            );
             finish();
             return;
           }
@@ -805,12 +833,31 @@ export function connectAgentBridge(options: {
           toolMap.clear();
           for (const tool of request.tools) toolMap.set(tool.name, tool);
           catalogVersion = request.version;
-          setState({
-            status: "connected",
-            sessionId: authenticatedSessionId,
-            catalogVersion,
-          });
+          setState(
+            connectedState(
+              authenticatedSessionId,
+              catalogVersion,
+              connectionMetadata,
+            ),
+          );
           request.resolve();
+          return;
+        }
+        if (message.type === "connection_state") {
+          if (
+            message.protocolVersion !== BRIDGE_PROTOCOL_VERSION ||
+            typeof message.sessionId !== "string" ||
+            message.sessionId !== sessionId
+          )
+            return;
+          connectionMetadata = mergeConnectionMetadata(
+            connectionMetadata,
+            readConnectionMetadata(message),
+          );
+          if (state.status === "connected")
+            setState(
+              connectedState(sessionId, catalogVersion, connectionMetadata),
+            );
           return;
         }
         if (message.type === "catalog_error") {
@@ -941,6 +988,7 @@ export function connectAgentBridge(options: {
     }
     stopped = false;
     pageLifecycleDropped = false;
+    connectionMetadata = {};
     resumeGrant = undefined;
     resumeCapable = false;
     return startSocket(
@@ -1285,6 +1333,76 @@ export function connectAgentBridge(options: {
   }
 
   return { connect, disconnect, getState: () => state, updateTools };
+}
+
+function connectedState(
+  sessionId: string,
+  catalogVersion: number,
+  connectionMetadata: ConnectionMetadata,
+) {
+  return {
+    status: "connected" as const,
+    sessionId,
+    catalogVersion,
+    ...(connectionMetadata.connectedAt !== undefined
+      ? { connectedAt: connectionMetadata.connectedAt }
+      : {}),
+    ...(connectionMetadata.lastConnectedAt !== undefined
+      ? { lastConnectedAt: connectionMetadata.lastConnectedAt }
+      : {}),
+    ...(connectionMetadata.client ? { client: connectionMetadata.client } : {}),
+  };
+}
+
+function readConnectionMetadata(
+  value: Record<string, unknown>,
+): ConnectionMetadata {
+  const client = readClientInfo(value.client);
+  const connectedAt = readTimestamp(value.connectedAt);
+  const lastConnectedAt = readTimestamp(value.lastConnectedAt);
+  return {
+    ...(client ? { client } : {}),
+    ...(connectedAt !== undefined ? { connectedAt } : {}),
+    ...(lastConnectedAt !== undefined ? { lastConnectedAt } : {}),
+  };
+}
+
+function readClientInfo(value: unknown): BridgeClientInfo | undefined {
+  if (!isRecord(value)) return undefined;
+  const name = boundedMetadataString(value.name);
+  const version = boundedMetadataString(value.version);
+  return name && version ? { name, version } : undefined;
+}
+
+function boundedMetadataString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned.length > 0 && cleaned.length <= 128 ? cleaned : undefined;
+}
+
+function readTimestamp(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= 8.64e15
+    ? value
+    : undefined;
+}
+
+function mergeConnectionMetadata(
+  current: ConnectionMetadata,
+  incoming: ConnectionMetadata,
+): ConnectionMetadata {
+  const connectedAt = incoming.connectedAt ?? current.connectedAt;
+  const lastConnectedAt = incoming.lastConnectedAt ?? current.lastConnectedAt;
+  return {
+    client: incoming.client ?? current.client,
+    ...(connectedAt !== undefined ? { connectedAt } : {}),
+    ...(lastConnectedAt !== undefined &&
+    (connectedAt === undefined || lastConnectedAt >= connectedAt)
+      ? { lastConnectedAt }
+      : {}),
+  };
 }
 
 function makeCatalog(
