@@ -90,6 +90,36 @@ function checkCli(consumer) {
   }
 }
 
+function checkZustand(consumer) {
+  assert.equal(
+    existsSync(join(consumer, "node_modules/zustand")),
+    false,
+    "optional Zustand peer was installed for the non-Zustand consumer",
+  );
+  const version = JSON.parse(
+    readFileSync(
+      join(packageRoot, "node_modules/zustand/package.json"),
+      "utf8",
+    ),
+  ).version;
+  assert.match(version, /^5\.\d+\.\d+$/);
+  install(consumer, `zustand@${version}`);
+  check(
+    consumer,
+    "check-zustand.mjs",
+    `
+      const { createAgentBridgeStore } = await import("app-mcp/zustand");
+      const { createStore } = await import("zustand/vanilla");
+      if (typeof createStore !== "function" || typeof createAgentBridgeStore !== "function") throw new Error("Zustand exports missing");
+      const store = createAgentBridgeStore();
+      if (store.getState().enabled || store.getState().connection.status !== "disconnected") throw new Error("Zustand defaults changed");
+      await store.getState().connect(" queued-link ");
+      store.getState().setEnabled(true);
+      if (!createStore(() => ({ ready: true })).getState().ready) throw new Error("vanilla Zustand import failed");
+    `,
+  );
+}
+
 function checkReact(consumer) {
   assert.equal(
     existsSync(join(consumer, "node_modules/react")),
@@ -144,9 +174,10 @@ function main() {
     );
     checkExports(consumer);
     checkCli(consumer);
+    checkZustand(consumer);
     checkReact(consumer);
     console.log(
-      "packed artifact smoke test passed: exports, optional React peer, and CLI bin",
+      "packed artifact smoke test passed: exports, optional React/Zustand peers, and CLI bin",
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

@@ -55,6 +55,23 @@ function ConnectionButton() {
 
 `tools` is replaced in the connected catalog through `updateTools` without recreating the bridge. Keep the array memoized when tool handlers are application-created. Pairing links passed while disabled wait for enable; `disconnect()` clears that queue. Disabling an active provider disconnects it; re-enabling creates a fresh controller. Factory changes likewise replace the controller.
 
+### Standalone Zustand adapter
+
+The optional `app-mcp/zustand` entry provides a vanilla Zustand store for non-React clients, or React clients that prefer `useStore`:
+
+```ts
+import { createAgentBridgeStore } from "app-mcp/zustand";
+import { useStore } from "zustand";
+
+const bridgeStore = createAgentBridgeStore({ tools });
+const state = bridgeStore.getState();
+await state.connect(pairingLink); // queues while disabled
+bridgeStore.getState().setEnabled(true);
+// In React: useStore(bridgeStore, (value) => value.connection)
+```
+
+Creation is disabled by default and does not create a browser controller. Set `enabled: true` (or call `setEnabled(true)`) to initialize; initialization is deferred one microtask and consumes the initial pairing fragment at most once per store. `connect()` while disabled accepts and replaces the queued link; disabling preserves that queue, while `disconnect()` clears it and blocks automatic initialization until a later explicit `connect()`. A connect attempt is made only once; disabling or disconnecting rejects its adapter promise promptly even if a custom bridge ignores `disconnect()`, and late completions are ignored. A rejected redundant connect leaves the bridge's authoritative state and metadata intact. `setTools()` validates immediately, queues the latest catalog before connection, and resolves after helper acknowledgement when already connected (queued changes resolve when accepted). Importing this entry is SSR-safe. Create one store outside render/provider scope, and do not use it alongside a React adapter as two page owners. This standalone adapter does not change `app-mcp/react`; shared orchestration and React migration are separate work.
+
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
 
 A connected browser state may also include `client: { name, version }`, `connectedAt`, and `lastConnectedAt`. Client metadata is the MCP client's self-reported initialize information, sanitized to bounded strings and intended only for display; it is not a verified user, host, or model identity. `connectedAt` and `lastConnectedAt` are server-owned Unix epoch milliseconds: the former is the first successful auth-and-catalog handshake for the current pairing authority, and the latter is the most recent successful transport/auth-and-catalog handshake. Resume/reload preserves the first timestamp through the short server-side lease, while a new pairing or explicit disconnect starts over. Catalog replacement does not change either timestamp. Older helpers may omit these optional fields, and consumers should handle that case.
