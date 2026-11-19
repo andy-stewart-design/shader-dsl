@@ -112,9 +112,11 @@ function checkZustand(consumer) {
       const { createStore } = await import("zustand/vanilla");
       if (typeof createStore !== "function" || typeof createAgentBridgeStore !== "function") throw new Error("Zustand exports missing");
       const store = createAgentBridgeStore();
-      if (store.getState().enabled || store.getState().connection.status !== "disconnected") throw new Error("Zustand defaults changed");
-      await store.getState().connect(" queued-link ");
-      store.getState().setEnabled(true);
+      const state = store.getState();
+      if (state.enabled || state.connection.status !== "disconnected") throw new Error("Zustand defaults changed");
+      if (typeof state.actions?.connect !== "function" || typeof state.actions?.setEnabled !== "function" || "connect" in state) throw new Error("Zustand grouped actions missing");
+      await store.getState().actions.connect(" queued-link ");
+      store.getState().actions.setEnabled(true);
       if (!createStore(() => ({ ready: true })).getState().ready) throw new Error("vanilla Zustand import failed");
     `,
   );

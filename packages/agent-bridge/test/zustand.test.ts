@@ -47,16 +47,22 @@ describe("Zustand adapter", () => {
     expect(factory).not.toHaveBeenCalled();
     expect(store.getState().enabled).toBe(false);
     expect(store.getState().connection).toEqual({ status: "disconnected" });
+    expect(store.getState()).not.toHaveProperty("token");
+    expect(store.getState()).not.toHaveProperty("pairingLink");
+    expect(store.getState().connection).not.toHaveProperty("token");
+    expect(store.getState().connection).not.toHaveProperty("pairingLink");
   });
 
   it("queues disabled links and initializes once when enabled", async () => {
     const calls: string[] = [];
     const factory = vi.fn(fakeFactory(calls));
     const store = createAgentBridgeStore({ bridgeFactory: factory });
-    await store.getState().connect(" link-one ");
+    const actions = store.getState().actions;
+    await store.getState().actions.connect(" link-one ");
     expect(calls).toEqual([]);
-    store.getState().setEnabled(true);
+    store.getState().actions.setEnabled(true);
     await vi.waitFor(() => expect(calls).toEqual(["link-one"]));
+    expect(store.getState().actions).toBe(actions);
     expect(store.getState().connection).toMatchObject({
       status: "connected",
       client: { name: "client", version: "1" },
@@ -73,16 +79,16 @@ describe("Zustand adapter", () => {
       return fakeFactory(calls)(options);
     };
     const store = createAgentBridgeStore({ bridgeFactory: factory });
-    store.getState().setEnabled(true);
-    store.getState().setEnabled(false);
+    store.getState().actions.setEnabled(true);
+    store.getState().actions.setEnabled(false);
     await Promise.resolve();
     expect(factories).toHaveLength(0);
-    store.getState().setEnabled(true);
+    store.getState().actions.setEnabled(true);
     await vi.waitFor(() => expect(factories).toHaveLength(1));
-    store.getState().disconnect();
-    store.getState().setEnabled(true);
+    store.getState().actions.disconnect();
+    store.getState().actions.setEnabled(true);
     expect(factories).toHaveLength(1);
-    await store.getState().connect("fresh");
+    await store.getState().actions.connect("fresh");
     expect(factories).toHaveLength(2);
   });
 
@@ -119,17 +125,17 @@ describe("Zustand adapter", () => {
       };
     };
     const store = createAgentBridgeStore({ bridgeFactory: factory });
-    store.getState().setEnabled(true);
-    const pending = store.getState().connect("delayed");
+    store.getState().actions.setEnabled(true);
+    const pending = store.getState().actions.connect("delayed");
     await vi.waitFor(() => expect(calls).toEqual(["delayed"]));
-    store.getState().setEnabled(false);
+    store.getState().actions.setEnabled(false);
     await expect(pending).rejects.toThrow("cancelled");
     release();
     await Promise.resolve();
     expect(calls).toEqual(["delayed"]);
     expect(store.getState().connection).toEqual({ status: "disconnected" });
-    store.getState().setEnabled(true);
-    await store.getState().connect("fresh");
+    store.getState().actions.setEnabled(true);
+    await store.getState().actions.connect("fresh");
     expect(calls).toEqual(["delayed", "fresh"]);
     expect(store.getState().connection).toMatchObject({
       status: "connected",
@@ -143,17 +149,17 @@ describe("Zustand adapter", () => {
       initialPairingLink: "initial",
       bridgeFactory: fakeFactory(calls),
     });
-    store.getState().setEnabled(true);
-    store.getState().setEnabled(false);
-    store.getState().setEnabled(true);
+    store.getState().actions.setEnabled(true);
+    store.getState().actions.setEnabled(false);
+    store.getState().actions.setEnabled(true);
     await vi.waitFor(() => expect(calls).toEqual(["initial"]));
 
-    store.getState().disconnect();
-    store.getState().setEnabled(false);
-    store.getState().setEnabled(true);
+    store.getState().actions.disconnect();
+    store.getState().actions.setEnabled(false);
+    store.getState().actions.setEnabled(true);
     await Promise.resolve();
     expect(calls).toEqual(["initial"]);
-    await store.getState().connect("replacement");
+    await store.getState().actions.connect("replacement");
     expect(calls).toEqual(["initial", "replacement"]);
   });
 
@@ -192,13 +198,13 @@ describe("Zustand adapter", () => {
       tools: [],
       bridgeFactory: factory,
     });
-    await store.getState().connect("first");
+    await store.getState().actions.connect("first");
     const before = store.getState().connection;
-    await expect(store.getState().connect("second")).rejects.toThrow(
+    await expect(store.getState().actions.connect("second")).rejects.toThrow(
       "redundant",
     );
     expect(store.getState().connection).toEqual(before);
-    await store.getState().setTools([
+    await store.getState().actions.setTools([
       {
         name: "tool",
         description: "",
@@ -246,8 +252,8 @@ describe("Zustand adapter", () => {
       enabled: true,
       bridgeFactory: factory,
     });
-    await store.getState().connect("first");
-    const oldUpdate = store.getState().setTools([
+    await store.getState().actions.connect("first");
+    const oldUpdate = store.getState().actions.setTools([
       {
         name: "old",
         description: "",
@@ -256,12 +262,12 @@ describe("Zustand adapter", () => {
       },
     ]);
     await vi.waitFor(() => expect(rejectOld).toBeTypeOf("function"));
-    store.getState().disconnect();
+    store.getState().actions.disconnect();
     await expect(oldUpdate).rejects.toThrow("bridge disconnected");
 
-    const replacement = store.getState().connect("replacement");
+    const replacement = store.getState().actions.connect("replacement");
     await replacement;
-    const newUpdate = store.getState().setTools([
+    const newUpdate = store.getState().actions.setTools([
       {
         name: "new",
         description: "",
@@ -288,7 +294,7 @@ describe("Zustand adapter", () => {
       enabled: true,
       bridgeFactory: fakeFactory(calls, updates),
     });
-    await store.getState().connect("pairing");
+    await store.getState().actions.connect("pairing");
     const first = [
       {
         name: "first",
@@ -305,13 +311,13 @@ describe("Zustand adapter", () => {
         handler: async () => null,
       },
     ];
-    const firstUpdate = store.getState().setTools(first);
-    const secondUpdate = store.getState().setTools(second);
+    const firstUpdate = store.getState().actions.setTools(first);
+    const secondUpdate = store.getState().actions.setTools(second);
     await Promise.all([firstUpdate, secondUpdate]);
     expect(updates).toHaveLength(2);
     expect(updates[1]?.[0]).toMatchObject({ name: "second" });
     await expect(
-      store.getState().setTools([
+      store.getState().actions.setTools([
         {
           name: "bad name",
           description: "",

@@ -1,13 +1,19 @@
 import { useRef, useState, type SubmitEvent } from "react";
-import { useAgentConnection } from "../../agent/provider.tsx";
+import {
+  useAgentActions,
+  useAgentConnectionState,
+  useAgentEnabled,
+} from "../../stores/agent.ts";
 import s from "./style.module.css";
 import ConnectionDetails from "./connection-details/index.tsx";
 
 export default function AgentConnection() {
-  const { state, editorsReady, connect, disconnect } = useAgentConnection();
+  const state = useAgentConnectionState();
+  const enabled = useAgentEnabled();
+  const { connect, disconnect } = useAgentActions();
   const [pairingLink, setPairingLink] = useState("");
   const [message, setMessage] = useState<string | undefined>();
-  const [open, setOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
   const isConnecting = state.status === "connecting";
@@ -31,7 +37,7 @@ export default function AgentConnection() {
     const dialog = dialogRef.current;
     if (!dialog) return;
     dialog.showModal();
-    setOpen(true);
+    setIsDialogOpen(true);
   }
 
   return (
@@ -45,7 +51,7 @@ export default function AgentConnection() {
         ref={dialogRef}
         className={s.dialog}
         aria-label="Agent connection"
-        onClose={() => setOpen(false)}
+        onClose={() => setIsDialogOpen(false)}
       >
         <div className={s.heading}>
           <span>Agent</span>
@@ -65,15 +71,15 @@ export default function AgentConnection() {
                 type="password"
                 value={pairingLink}
                 onChange={(event) => setPairingLink(event.target.value)}
-                placeholder={editorsReady ? "http://www.shdr..." : "Preparing…"}
+                placeholder={enabled ? "http://www.shdr..." : "Preparing…"}
                 autoComplete="off"
                 spellCheck={false}
-                disabled={!editorsReady || isConnecting}
+                disabled={!enabled || isConnecting}
               />
               <button
                 type="submit"
                 className={s.action}
-                disabled={!editorsReady || isConnecting}
+                disabled={!enabled || isConnecting}
               >
                 Connect
               </button>
@@ -82,7 +88,9 @@ export default function AgentConnection() {
         )}
         {isConnected && (
           <>
-            {open && <ConnectionDetails key={state.sessionId} state={state} />}
+            {isDialogOpen && (
+              <ConnectionDetails key={state.sessionId} state={state} />
+            )}
             <button className={s.action} type="button" onClick={disconnect}>
               Disconnect
             </button>

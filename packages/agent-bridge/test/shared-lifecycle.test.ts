@@ -105,8 +105,8 @@ it("rejects a second synchronous connect without replacing the first link", asyn
     bridgeFactory: factory,
   });
 
-  const first = store.getState().connect("one");
-  const second = store.getState().connect("two");
+  const first = store.getState().actions.connect("one");
+  const second = store.getState().actions.connect("two");
   await expect(second).rejects.toThrow("already in progress");
   await first;
   expect(calls).toEqual(["one"]);

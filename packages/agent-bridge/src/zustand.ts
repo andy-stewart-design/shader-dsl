@@ -18,9 +18,7 @@ export interface AgentBridgeStoreOptions {
   readonly initialPairingLink?: string;
 }
 
-export type AgentBridgeStore = {
-  connection: BridgeConnectionState;
-  enabled: boolean;
+export interface AgentBridgeActions {
   connect(pairingLink: string): Promise<void>;
   disconnect(): void;
   setEnabled(enabled: boolean): void;
@@ -29,6 +27,12 @@ export type AgentBridgeStore = {
    * when the catalog is queued; while connected it resolves after acknowledgement.
    */
   setTools(tools: readonly BridgeTool<unknown>[]): Promise<void>;
+}
+
+export type AgentBridgeStore = {
+  connection: BridgeConnectionState;
+  enabled: boolean;
+  actions: AgentBridgeActions;
 };
 
 export function createAgentBridgeStore(options: AgentBridgeStoreOptions = {}) {
@@ -39,6 +43,13 @@ export function createAgentBridgeStore(options: AgentBridgeStoreOptions = {}) {
     initialPairingLink: options.initialPairingLink,
   });
 
+  const actions: AgentBridgeActions = {
+    connect: (pairingLink) => lifecycle.connect(pairingLink),
+    disconnect: () => lifecycle.disconnect(),
+    setEnabled: (enabled) => lifecycle.setEnabled(enabled),
+    setTools: (tools) => lifecycle.setTools(tools),
+  };
+
   const store = createStore<AgentBridgeStore>((set) => {
     lifecycle.subscribe(() => {
       const next = lifecycle.getSnapshot();
@@ -48,10 +59,7 @@ export function createAgentBridgeStore(options: AgentBridgeStoreOptions = {}) {
     return {
       connection: lifecycle.getSnapshot().connection,
       enabled: lifecycle.getSnapshot().enabled,
-      connect: (pairingLink) => lifecycle.connect(pairingLink),
-      disconnect: () => lifecycle.disconnect(),
-      setEnabled: (enabled) => lifecycle.setEnabled(enabled),
-      setTools: (tools) => lifecycle.setTools(tools),
+      actions,
     };
   });
 

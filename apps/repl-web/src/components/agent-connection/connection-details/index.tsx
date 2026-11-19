@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { BridgeConnectionState } from "app-mcp/react";
+import type { BridgeConnectionState } from "app-mcp/browser";
 import s from "./style.module.css";
 
 export default function ConnectionDetails({
