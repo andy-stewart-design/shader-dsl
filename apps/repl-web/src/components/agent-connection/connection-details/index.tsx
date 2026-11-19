@@ -27,7 +27,6 @@ export default function ConnectionDetails({
       <div className={s.detail}>
         <dt>Connected</dt>
         <dd>
-          {/*{formatTimestamp(state.connectedAt)}*/}
           {isValidTimestamp(state.connectedAt) &&
             `${formatElapsed(now - state.connectedAt)} ago`}
         </dd>

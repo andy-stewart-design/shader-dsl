@@ -7,7 +7,7 @@ export default function AgentConnection() {
   const { state, editorsReady, connect, disconnect } = useAgentConnection();
   const [pairingLink, setPairingLink] = useState("");
   const [message, setMessage] = useState<string | undefined>();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
   const isConnecting = state.status === "connecting";
@@ -31,7 +31,7 @@ export default function AgentConnection() {
     const dialog = dialogRef.current;
     if (!dialog) return;
     dialog.showModal();
-    setIsDialogOpen(true);
+    setOpen(true);
   }
 
   return (
@@ -45,7 +45,7 @@ export default function AgentConnection() {
         ref={dialogRef}
         className={s.dialog}
         aria-label="Agent connection"
-        onClose={() => setIsDialogOpen(false)}
+        onClose={() => setOpen(false)}
       >
         <div className={s.heading}>
           <span>Agent</span>
@@ -82,9 +82,7 @@ export default function AgentConnection() {
         )}
         {isConnected && (
           <>
-            {isDialogOpen && (
-              <ConnectionDetails key={state.sessionId} state={state} />
-            )}
+            {open && <ConnectionDetails key={state.sessionId} state={state} />}
             <button className={s.action} type="button" onClick={disconnect}>
               Disconnect
             </button>
@@ -92,6 +90,16 @@ export default function AgentConnection() {
         )}
         {message && (
           <p className={s.message} role="status">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 7V12M12 16V17M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vector-effect="non-scaling-stroke"
+              />
+            </svg>
             {message}
           </p>
         )}
