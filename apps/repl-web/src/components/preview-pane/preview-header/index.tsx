@@ -1,4 +1,8 @@
-import AgentConnection from "#/components/agent-connection";
+import { useRef } from "react";
+import AgentConnection, {
+  type AgentConnectionHandle,
+} from "#/components/agent-connection";
+import { useAgentConnectionState } from "#/stores/agent";
 import { usePlaying, usePreviewActions } from "../../../stores/preview";
 import s from "./style.module.css";
 
@@ -44,6 +48,8 @@ function IconControls() {
 }
 
 export default function PreviewHeader() {
+  const dialogRef = useRef<AgentConnectionHandle>(null);
+  const agentState = useAgentConnectionState();
   const playing = usePlaying();
   const { toggleDrawer, setPlaying } = usePreviewActions();
   const label = playing ? "Pause" : "Play";
@@ -68,7 +74,20 @@ export default function PreviewHeader() {
         <IconControls /> Controls
       </button>
 
-      <AgentConnection />
+      <button
+        className={s.button}
+        type="button"
+        aria-label="Agent connection"
+        aria-haspopup="dialog"
+        onClick={() => dialogRef.current?.showModal()}
+      >
+        <span
+          className={s.indicator}
+          data-connected={agentState.status === "connected"}
+        />
+        Agent
+      </button>
+      <AgentConnection ref={dialogRef} />
     </div>
   );
 }
