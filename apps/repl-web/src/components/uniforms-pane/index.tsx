@@ -62,11 +62,7 @@ export default function UniformsPane({
   return (
     <div className={s.pane}>
       {uniforms.length > 0 ? (
-        <div
-          className={s.uniformList}
-          role="list"
-          aria-label="Uniforms"
-        >
+        <div className={s.uniformList} role="list" aria-label="Uniforms">
           {uniforms.map((uniform) => {
             const duplicateName =
               uniform.name.trim() !== "" &&
@@ -96,11 +92,7 @@ export default function UniformsPane({
         </div>
       )}
       <div className={s.actions}>
-        <button
-          className={s.newButton}
-          type="button"
-          onClick={addUniform}
-        >
+        <button className={s.newButton} type="button" onClick={addUniform}>
           <span aria-hidden="true">+</span>
           New uniform
         </button>

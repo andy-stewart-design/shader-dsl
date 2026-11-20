@@ -38,21 +38,11 @@ export default function Editor({
             isEvaluationFlashing={isEvaluationFlashing}
           />
         </Tabs.Panel>
-        <Tabs.Panel
-          className={s.panel}
-          value="uniforms"
-          keepMounted
-        >
-          <UniformsPane
-            uniforms={uniforms}
-            onUniformsChange={setUniforms}
-          />
+        <Tabs.Panel className={s.panel} value="uniforms" keepMounted>
+          <UniformsPane uniforms={uniforms} onUniformsChange={setUniforms} />
         </Tabs.Panel>
       </div>
-      <EditorStatus
-        compileError={compileError}
-        runtimeError={runtimeError}
-      />
+      <EditorStatus compileError={compileError} runtimeError={runtimeError} />
     </Tabs.Root>
   );
 }

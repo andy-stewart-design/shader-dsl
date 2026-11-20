@@ -44,18 +44,12 @@ export default function TypeSelect({
           aria-labelledby={`${typeLabelId} ${contextLabelId}`}
         >
           <Select.Value />
-          <Select.Icon
-            className={s.selectIcon}
-            aria-hidden="true"
-          >
+          <Select.Icon className={s.selectIcon} aria-hidden="true">
             ▾
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Positioner
-            className={s.typePositioner}
-            sideOffset={4}
-          >
+          <Select.Positioner className={s.typePositioner} sideOffset={4}>
             <Select.Popup className={s.typePopup}>
               <Select.List>
                 {TYPE_OPTIONS.map((option) => (

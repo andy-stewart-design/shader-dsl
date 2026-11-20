@@ -1,5 +1,55 @@
+import { useRef } from "react";
+import AgentConnectionDialog, {
+  type AgentConnectionHandle,
+} from "#/components/agent-connection-dialog";
+import { useAgentConnectionState } from "#/stores/agent";
 import { usePlaying, usePreviewActions } from "../../../stores/preview";
 import s from "./style.module.css";
+
+export default function PreviewHeader() {
+  const dialogRef = useRef<AgentConnectionHandle>(null);
+  const agentState = useAgentConnectionState();
+  const playing = usePlaying();
+  const { toggleDrawer, setPlaying } = usePreviewActions();
+  const label = playing ? "Pause" : "Play";
+  const PlaybackIcon = playing ? IconPause : IconPlay;
+
+  return (
+    <div className={s.header}>
+      <button
+        className={s.button}
+        type="button"
+        aria-label={`${label} preview`}
+        onClick={() => setPlaying(!playing)}
+      >
+        <PlaybackIcon /> <span className={s.playbackText}>{label}</span>
+      </button>
+
+      <button
+        className={s.button}
+        onClick={() => toggleDrawer("controls")}
+        aria-label="Controls"
+      >
+        <IconControls /> Controls
+      </button>
+
+      <button
+        className={s.button}
+        type="button"
+        aria-label="Agent connection"
+        aria-haspopup="dialog"
+        onClick={() => dialogRef.current?.showModal()}
+      >
+        <span
+          className={s.indicator}
+          data-connected={agentState.status === "connected"}
+        />
+        Agent
+      </button>
+      <AgentConnectionDialog ref={dialogRef} />
+    </div>
+  );
+}
 
 function IconPlay() {
   return (
@@ -39,33 +89,5 @@ function IconControls() {
         stroke="currentColor"
       />
     </svg>
-  );
-}
-
-export default function PreviewHeader() {
-  const playing = usePlaying();
-  const { toggleDrawer, setPlaying } = usePreviewActions();
-  const label = playing ? "Pause" : "Play";
-  const PlaybackIcon = playing ? IconPause : IconPlay;
-
-  return (
-    <div className={s.header}>
-      <button
-        className={s.button}
-        type="button"
-        aria-label={`${label} preview`}
-        onClick={() => setPlaying(!playing)}
-      >
-        <PlaybackIcon /> <span className={s.playbackText}>{label}</span>
-      </button>
-
-      <button
-        className={s.button}
-        onClick={() => toggleDrawer("controls")}
-        aria-label="Controls"
-      >
-        <IconControls /> Controls
-      </button>
-    </div>
   );
 }

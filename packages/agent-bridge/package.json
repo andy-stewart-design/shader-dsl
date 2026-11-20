@@ -1,0 +1,81 @@
+{
+  "name": "app-mcp",
+  "version": "0.0.2-beta.7",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "app-mcp": "./dist/bin.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.mts",
+      "import": "./dist/protocol.mjs"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.mts",
+      "import": "./dist/browser.mjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.mts",
+      "import": "./dist/zod.mjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
+    },
+    "./zustand": {
+      "types": "./dist/zustand.d.mts",
+      "import": "./dist/zustand.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "check": "tsc --noEmit",
+    "format": "prettier --write src test \"*.{ts,json,md}\"",
+    "pretest": "tsdown",
+    "test": "vitest run --config ../../vitest.config.ts --root .",
+    "test:packed": "pnpm build && node test/verify-packed.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "zustand": ">=5"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "zustand": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "ajv": "^8.18.0",
+    "ws": "^8.18.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.3.0",
+    "@types/ws": "^8.18.1",
+    "react": "^19.3.1",
+    "tsdown": "^0.22.5",
+    "zustand": "^5.0.16",
+    "typescript": "7.0.2"
+  }
+}

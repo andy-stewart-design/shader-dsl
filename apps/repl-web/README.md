@@ -1,6 +1,38 @@
-Welcome to your new TanStack Start app!
+# REPL authoring documentation
+
+The agent-facing, human-readable language reference lives in [`docs/agent/`](docs/agent/): start with [`overview.md`](docs/agent/overview.md), then use the language, builtins, utilities, uniforms, and preview topics. These Markdown files are the canonical source for the browser-safe `getDocumentation` API and are imported directly as raw Markdown by Vite. Run `pnpm generate-doc-signatures` after changing generated signature regions; `pnpm check-doc-signatures` verifies those regions without writing.
+
+The REPL editors contain shader bodies, not complete modules: Main is wrapped in a generated `createFragmentShader` callback and Utils is placed before it. Do not add imports or exports. The preview is installed only after explicit Run (Alt+Enter) or an approved apply operation; documentation responses contain no live draft, uniform, renderer, or canvas data.
 
 # Getting Started
+
+## Manual preview/capture probe
+
+Run the standalone Vite probe (fixed at <http://localhost:5174/>):
+
+```bash
+pnpm --filter repl-web dev:preview-probe
+```
+
+It uses the actual compiler, preview runtime, and `captureCanvas` primitive (the standalone probe keeps native export unless a bound is passed). Choose **Auto**, **WebGPU (strict)**, or **WebGL (forced fixture)**, then use **Capture PNG** or the download link. A standalone build is written to `apps/repl-web/dist/preview-probe/`:
+
+```bash
+pnpm --filter repl-web build:preview-probe
+```
+
+## Manual authoring transaction probe
+
+Run the small real-CodeMirror controller probe at <http://localhost:5175/>:
+
+```bash
+pnpm --filter repl-web dev:authoring-probe
+```
+
+Click **Apply sample agent edit** and confirm both visible documents change together and the revision advances once. **Undo main** and **Redo main** should change the visible main editor and the draft snapshot consistently. **Try stale conflict** first makes a visible manual-style edit, then rejects the stale controller request without another change. **Unmount utils** makes a source update requiring Utils reject without changing Main; **Mount utils** restores the port. The production editor component uses the same `EditorHandle`, adapter, and registry wiring; this probe adds no MCP or debug global. Build it independently with:
+
+```bash
+pnpm --filter repl-web build:authoring-probe
+```
 
 From the monorepo root, install dependencies and run this application:
 
@@ -8,6 +40,24 @@ From the monorepo root, install dependencies and run this application:
 pnpm install
 pnpm --filter repl-web dev
 ```
+
+## Agent authoring connection
+
+The page wires the singleton `app-mcp/zustand` bridge through `useAgentIntegration`; connection UI reads its focused selectors from `src/stores/agent.ts`. The hook keeps editor readiness and authoring state external to the bridge store.
+
+The page exposes `get_app_state`, `get_documentation`, `get_sketch`, `update_sketch`, `apply_sketch`, and `capture_preview` when the production Apply/preview controller is wired; renderer-unready calls return a structured failure. Pairing and reads do not edit the draft; updates use the production CodeMirror authoring controller and revision checks. `apply_sketch` requires the expected draft revision, then awaits compile, renderer installation, and the renderer's confirmed first `draw()` completion. Its structured result distinguishes source/uniform diagnostics, backend/install/draw failures, cancellation, stale revisions, and superseded attempts; applied identity is returned only after that frame. `get_app_state` reports applied identity, draft/applied divergence, diagnostics, and capability availability/readiness; `get_sketch` returns only editable draft content and its revision. `capture_preview` requires `expectedAppliedRevision` and returns an actual PNG image block plus JSON metadata. By default it downsamples to at most 512 pixels on the longest edge (preserving aspect ratio and never upscaling); pass `maxDimension: "native"` for explicit full-resolution capture, or an integer from 64 through 2048 for another bound. Metadata keeps native `identity.width`/`identity.height` and `canvasWidth`/`canvasHeight` separate from encoded PNG `width`/`height`. It captures only the registered live WebGL/WebGPU canvas and rejects readiness, resize/replacement, identity, encoding, size, cancellation, and deadline failures; the default PNG and request limits are 4 MiB decoded bytes and 5 seconds. Native captures remain bounded by the pixel/byte limits. Capture never applies a draft or changes playback/uniform controls. Run remains the explicit human apply action (Option/Alt+Return) and uses the same pipeline, while the connection panel remains in the upper-right of the REPL.
+
+Brief manual journey: pair at the approved deployed URL, call `get_sketch`, make a visually distinctive `update_sketch`, call `apply_sketch`, then call `capture_preview` with the returned applied revision and inspect the image. If the draft is edited without Apply, capture metadata retains the confirmed applied revision and marks draft divergence. A failed or stale capture returns a categorized error and never returns old pixels; reread `get_sketch` before retrying.
+
+For the approved deployed REPL, use the existing Nitro/Vercel deployment workflow (this is a server-rendered Nitro app; do not deploy a guessed static `dist` directory). In Pi, from the repository root, register the local helper with the deployed origin:
+
+```bash
+pi mcp add -l app-mcp -- node "$PWD/packages/agent-bridge/dist/bin.mjs" --allowed-origin https://shdr-repl.vercel.app --site-url https://shdr-repl.vercel.app/
+```
+
+Pi's registration is cwd-local in `.pi/mcp.json`; it does not search a parent directory. After registration, run `/reload`, then request a fresh pairing link and open the approved deployed URL. For a local manual check, configure the helper's allowed origin explicitly as `http://localhost:3000` instead; this README does not modify Pi configuration.
+
+The deployed response headers must allow the bridge WebSocket connection to the local helper (the effective CSP needs `connect-src ws://127.0.0.1:*`, alongside the site's existing sources). Apply that as an approved host/header change in the deployment workflow; do not add a blanket production host exception. The initial pairing fragment is removed before the app renders and is not copied to app state, URL history, logs, telemetry, or durable storage. The bridge may retain only its own scoped same-origin reload/history resume credential in `sessionStorage`.
 
 # Building For Production
 
@@ -39,6 +89,14 @@ pnpm --filter repl-web lint
 pnpm --filter repl-web check
 # from the repository root
 pnpm format --write
+```
+
+## Tests
+
+Run the package's native Node test suite, including all `src/**/*.test.ts` tests:
+
+```bash
+pnpm --filter repl-web test
 ```
 
 ## Deploy with Nitro

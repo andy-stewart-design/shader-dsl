@@ -1,6 +1,11 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import { createPreview, type PreviewHandle } from "../preview/create-preview";
+import type { ApplyPreviewPort } from "../agent/apply-controller.ts";
+import {
+  createCapturePreviewPort,
+  type CapturePreviewPort,
+} from "../agent/snapshot.ts";
 import {
   defaultRuntimeValues,
   runtimeValuesToPatch,
@@ -15,6 +20,16 @@ export interface UseShdrPreviewOptions {
   runtimeUniforms?: readonly RuntimeUniform[];
   playing?: boolean;
   onError?: (error: unknown) => void;
+  /** App-local awaitable Apply seam; never exposed as a bridge primitive. */
+  applyPortRef?: { current: ApplyPreviewPort | null };
+  /** App-local capture seam; registration is cleared with the renderer lifecycle. */
+  capturePortRef?: { current: CapturePreviewPort | null };
+  /** Applied identity is owned by the compile/apply controller, not React timing. */
+  getAppliedRevision?: () => number | null;
+  onInitialFrame?: (info: {
+    readonly backend: "webgpu" | "webgl";
+    readonly artifact: CompiledFragmentArtifact;
+  }) => void;
 }
 
 type PreviewLifecycle = {
@@ -28,6 +43,8 @@ type PreviewLifecycle = {
   latestRuntimeValues: RuntimeUniformValues;
   installedRuntimeUniforms: readonly RuntimeUniform[];
   installedRuntimeValues: RuntimeUniformValues;
+  /** Names explicitly changed through the preview controls. */
+  runtimeOverrideNames: Set<string>;
   publishRuntimeState: (
     uniforms: readonly RuntimeUniform[],
     values: RuntimeUniformValues,
@@ -41,6 +58,37 @@ type PreviewLifecycle = {
   requestedArtifact?: CompiledFragmentArtifact;
   requestedPlaying?: boolean;
 };
+
+function raceWithAbort<T>(
+  promise: Promise<T>,
+  signals: readonly AbortSignal[],
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () =>
+      signals.forEach((signal) => signal.removeEventListener("abort", abort));
+    const abort = () => {
+      cleanup();
+      reject(new Error("Preview operation aborted."));
+    };
+    if (signals.some((signal) => signal.aborted)) {
+      abort();
+      return;
+    }
+    signals.forEach((signal) =>
+      signal.addEventListener("abort", abort, { once: true }),
+    );
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
 
 function isActive(
   lifecycle: PreviewLifecycle,
@@ -70,15 +118,23 @@ function applyRuntimeValues(
   reportError: (error: unknown) => void,
 ): void {
   const handle = lifecycle.handle;
-  if (!handle || !lifecycle.rendererArtifact || !isActive(lifecycle, lifecycle.current))
+  if (
+    !handle ||
+    !lifecycle.rendererArtifact ||
+    !isActive(lifecycle, lifecycle.current)
+  )
     return;
 
   try {
-    // setShader can carry overrides across compatible replacements. An Apply
-    // is intentionally a reset boundary, even when the artifact is identical.
+    // An authored Apply is a reset boundary. Only names explicitly changed
+    // through the controls are written back through setUniforms: the runtime
+    // correctly treats every setUniforms key as a persistent override, which
+    // would make an old authored default win over a later same-name/type one.
     handle.resetUniforms();
     const patch = runtimeValuesToPatch(
-      lifecycle.installedRuntimeUniforms,
+      lifecycle.installedRuntimeUniforms.filter((uniform) =>
+        lifecycle.runtimeOverrideNames.has(uniform.name),
+      ),
       lifecycle.installedRuntimeValues,
     );
     if (Object.keys(patch).length > 0) handle.setUniforms(patch);
@@ -141,7 +197,8 @@ function updateArtifact(
         lifecycle.latestRuntimeUniforms,
         lifecycle.latestRuntimeValues,
       );
-      applyRuntimeValues(lifecycle, reportError);
+      // setShader already carries genuine runtime overrides. Do not reset
+      // them or rewrite authored defaults as persistent overrides here.
     },
     (error: unknown) => {
       if (
@@ -166,15 +223,17 @@ export function useShdrPreview({
   runtimeUniforms = [],
   playing = true,
   onError,
+  applyPortRef,
+  capturePortRef,
+  getAppliedRevision,
+  onInitialFrame,
 }: UseShdrPreviewOptions) {
   const hostRef = useRef<HTMLDivElement>(null);
   const latestArtifactRef = useRef(artifact);
   const latestPlayingRef = useRef(playing);
   const runtimeUniformsRef = useRef(runtimeUniforms);
   const initialRuntimeValues = defaultRuntimeValues(runtimeUniforms);
-  const runtimeValuesRef = useRef<RuntimeUniformValues>(
-    initialRuntimeValues,
-  );
+  const runtimeValuesRef = useRef<RuntimeUniformValues>(initialRuntimeValues);
   const lifecycleRef = useRef<PreviewLifecycle | null>(null);
   const [runtimeState, setRuntimeState] = useState<{
     uniforms: readonly RuntimeUniform[];
@@ -217,6 +276,14 @@ export function useShdrPreview({
         lifecycle.installedRuntimeUniforms = runtimeUniforms;
         lifecycle.installedRuntimeValues = defaults;
         publishRuntimeState(runtimeUniforms, defaults);
+      } else if (lifecycle.handle && lifecycle.rendererArtifact) {
+        lifecycle.installedRuntimeUniforms = runtimeUniforms;
+        lifecycle.installedRuntimeValues = defaults;
+        publishRuntimeState(runtimeUniforms, defaults);
+        // A successful Apply has already reset the renderer before its first
+        // candidate frame; keep the new authored defaults as values, not
+        // persistent host overrides.
+        applyRuntimeValues(lifecycle, reportError);
       }
     }
   }, [runtimeUniforms]);
@@ -265,11 +332,88 @@ export function useShdrPreview({
       latestRuntimeValues: runtimeValuesRef.current,
       installedRuntimeUniforms: runtimeUniformsRef.current,
       installedRuntimeValues: runtimeValuesRef.current,
+      runtimeOverrideNames: new Set(),
       publishRuntimeState,
     };
     // Used by the small helpers above to reject stale renderer lifecycles.
     lifecycle.current = lifecycle;
     lifecycleRef.current = lifecycle;
+
+    const port: ApplyPreviewPort = {
+      isReady: () =>
+        isActive(lifecycle, lifecycleRef.current) &&
+        lifecycle.handle !== undefined,
+      async installAndDraw(nextArtifact, options) {
+        const handle = lifecycle.handle;
+        if (!isActive(lifecycle, lifecycleRef.current) || !handle) {
+          throw new Error("Preview renderer is not ready.");
+        }
+        if (options.signal.aborted) throw new Error("Apply was cancelled.");
+        const generation = ++lifecycle.generation;
+        const result = await raceWithAbort(handle.setShader(nextArtifact), [
+          options.signal,
+          lifecycle.abortController.signal,
+        ]);
+        if (
+          options.signal.aborted ||
+          !isActive(lifecycle, lifecycleRef.current) ||
+          generation !== lifecycle.generation ||
+          result.status !== "installed"
+        ) {
+          throw new Error("Preview installation was superseded.");
+        }
+        lifecycle.rendererArtifact = nextArtifact;
+        lifecycle.requestedArtifact = nextArtifact;
+        // setShader intentionally preserves compatible explicit host
+        // overrides. Apply, however, is the REPL's reset boundary. Reset only
+        // after installation succeeds so a failed candidate leaves the
+        // previous shader and its runtime values untouched, then draw the
+        // candidate with its actual new defaults.
+        handle.resetUniforms();
+        options.onDrawing?.();
+        if (options.signal.aborted) throw new Error("Apply was cancelled.");
+        await raceWithAbort(handle.draw(), [
+          options.signal,
+          lifecycle.abortController.signal,
+        ]);
+        if (
+          options.signal.aborted ||
+          !isActive(lifecycle, lifecycleRef.current) ||
+          generation !== lifecycle.generation
+        )
+          throw new Error("Preview draw was superseded.");
+        // Clear old explicit overrides only after the replacement's default
+        // frame has succeeded; a failed candidate preserves them.
+        lifecycle.runtimeOverrideNames.clear();
+        installRuntimeSnapshot(
+          lifecycle,
+          nextArtifact,
+          lifecycle.latestRuntimeUniforms,
+          lifecycle.latestRuntimeValues,
+        );
+        return { backend: lifecycle.handle!.backend };
+      },
+    };
+    if (applyPortRef) applyPortRef.current = port;
+    if (capturePortRef) {
+      capturePortRef.current = createCapturePreviewPort({
+        readIdentity: () => {
+          const handle = lifecycle.handle;
+          if (!handle || !isActive(lifecycle, lifecycleRef.current))
+            return null;
+          return {
+            lifecycle,
+            generation: lifecycle.generation,
+            appliedRevision: getAppliedRevision?.() ?? null,
+            backend: handle.backend,
+            canvas: handle.canvas,
+            width: handle.canvas.width,
+            height: handle.canvas.height,
+            uniforms: lifecycle.installedRuntimeValues,
+          };
+        },
+      });
+    }
 
     const initialize = (): void => {
       if (
@@ -332,6 +476,10 @@ export function useShdrPreview({
               : initializingRuntimeValues,
           );
           applyRuntimeValues(lifecycle, reportError);
+          onInitialFrame?.({
+            backend: handle.backend,
+            artifact: initializedArtifact,
+          });
           const latestPlaying = latestPlayingRef.current;
           if (latestPlaying !== initialPlaying)
             updatePlaying(lifecycle, latestPlaying, reportError);
@@ -387,25 +535,44 @@ export function useShdrPreview({
       if (lifecycle.frame !== undefined) cancelAnimationFrame(lifecycle.frame);
       resizeObserver?.disconnect();
       lifecycle.abortController.abort();
+      if (applyPortRef?.current === port) applyPortRef.current = null;
+      if (capturePortRef) capturePortRef.current = null;
       lifecycle.handle?.destroy();
       lifecycle.handle = undefined;
     };
-  }, []);
+  }, [applyPortRef, capturePortRef, getAppliedRevision, onInitialFrame]);
 
-  function onRuntimeValueChange(name: string, value: RuntimeUniformValue): void {
+  function onRuntimeValueChange(
+    name: string,
+    value: RuntimeUniformValue,
+  ): void {
     if (!runtimeUniformsRef.current.some((uniform) => uniform.name === name))
       return;
     const next = { ...runtimeValuesRef.current, [name]: value };
     const uniforms = runtimeUniformsRef.current;
-    publishRuntimeState(uniforms, next);
     const lifecycle = lifecycleRef.current;
+    lifecycle?.runtimeOverrideNames.add(name);
+    publishRuntimeState(uniforms, next);
     if (!lifecycle?.active) return;
     lifecycle.installedRuntimeUniforms = uniforms;
     lifecycle.installedRuntimeValues = next;
     // During initial creation the latest snapshot is also the only snapshot.
-    if (!lifecycle.rendererArtifact)
-      lifecycle.latestRuntimeValues = next;
-    applyRuntimeValues(lifecycle, (error) => onError?.(error));
+    if (!lifecycle.rendererArtifact) lifecycle.latestRuntimeValues = next;
+    const handle = lifecycle.handle;
+    if (!handle || !lifecycle.rendererArtifact) return;
+    try {
+      // Only the value the user changed becomes a persistent renderer
+      // override. Rewriting every control value here would turn untouched
+      // authored defaults into overrides and make replacement metadata lie.
+      const patch = runtimeValuesToPatch(
+        uniforms.filter((uniform) => uniform.name === name),
+        { [name]: value },
+      );
+      if (Object.keys(patch).length > 0) handle.setUniforms(patch);
+      drawIfPaused(lifecycle, (error) => onError?.(error));
+    } catch (error: unknown) {
+      if (isActive(lifecycle, lifecycle.current)) onError?.(error);
+    }
   }
 
   return {

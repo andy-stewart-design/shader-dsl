@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "app-mcp": {
+      "command": "node",
+      "args": [
+        "/Users/andy/Documents/Development/shader-dsl/packages/agent-bridge/dist/bin.mjs",
+        "--allowed-origin",
+        "https://shdr-repl.vercel.app",
+        "--site-url",
+        "https://shdr-repl.vercel.app/"
+      ]
+    }
+  }
+}

@@ -24,8 +24,8 @@ import {
   keymap,
   lineNumbers,
 } from "@codemirror/view";
-import { insertLineAbove } from "./commands";
-import { editorHighlightStyle, editorTheme } from "./theme";
+import { insertLineAbove } from "./commands.ts";
+import { editorHighlightStyle, editorTheme } from "./theme.ts";
 
 export function createEditorExtensions(): Extension[] {
   return [

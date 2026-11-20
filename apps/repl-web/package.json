@@ -7,14 +7,23 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:preview-probe": "vite --config test/preview-probe/vite.config.ts",
+    "build:preview-probe": "vite build --config test/preview-probe/vite.config.ts",
+    "dev:authoring-probe": "vite --config test/authoring-probe/vite.config.ts",
+    "build:authoring-probe": "vite build --config test/authoring-probe/vite.config.ts",
     "generate-routes": "tsr generate",
+    "generate-doc-signatures": "node --experimental-strip-types scripts/generate-documentation.ts",
+    "check-doc-signatures": "node --experimental-strip-types scripts/generate-documentation.ts --check",
+    "prebuild": "pnpm generate-doc-signatures",
     "build": "vite build",
+    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'",
     "preview": "vite preview",
     "lint": "eslint .",
-    "check": "tsc --noEmit"
+    "check": "pnpm check-doc-signatures && tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "app-mcp": "workspace:*",
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-javascript": "^6.2.5",

@@ -8,7 +8,7 @@ The connection is reusable: each integrated website owns its application tools, 
 
 ## How it is used
 
-Open the deployed REPL and start an MCP-capable agent such as Pi. The agent launches the local helper and can present a pairing link. Connect the tab, then ask for a change or review normally. The agent can inspect the sketch, edit source and uniform definitions, apply the result, and inspect the rendered image.
+Open the deployed REPL and start an MCP-capable agent such as Pi. The agent launches the local helper and can present a pairing link. Connect the tab, then ask for a change or review normally; a same-origin refresh in that tab may resume the connection while the helper is still running. The agent can inspect the sketch, edit source and uniform definitions, apply the result, and inspect the rendered image.
 
 No local REPL development server is involved. Pairing enables communication; the agent still follows the user's requests rather than starting work on its own.
 
