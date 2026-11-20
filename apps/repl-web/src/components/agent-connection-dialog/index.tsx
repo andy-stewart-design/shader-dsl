@@ -19,12 +19,12 @@ interface Props {
   ref: Ref<AgentConnectionHandle>;
 }
 
-export default function AgentConnection({ ref }: Props) {
+export default function AgentConnectionDialog({ ref }: Props) {
   const state = useAgentConnectionState();
   const enabled = useAgentEnabled();
   const { connect, disconnect } = useAgentActions();
   const [pairingLink, setPairingLink] = useState("");
-  const [message, setMessage] = useState<string | undefined>();
+  const [message, setMessage] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
@@ -38,7 +38,7 @@ export default function AgentConnection({ ref }: Props) {
       setMessage("Paste a pairing link before connecting.");
       return;
     }
-    setMessage(undefined);
+    setMessage(null);
     setPairingLink("");
     void connect(link).catch(() => {
       setMessage("Needs attention. Check the pairing link and try again.");
@@ -55,8 +55,9 @@ export default function AgentConnection({ ref }: Props) {
   function close() {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    dialogRef.current?.close();
-    setIsDialogOpen(true);
+    dialog.close();
+    setIsDialogOpen(false);
+    setMessage(null);
   }
 
   useImperativeHandle(ref, () => ({ showModal, close }), []);
@@ -67,6 +68,18 @@ export default function AgentConnection({ ref }: Props) {
       className={s.dialog}
       aria-label="Agent connection"
       onClose={() => setIsDialogOpen(false)}
+      onClick={(event) => {
+        const dialog = event.currentTarget;
+        if (event.target !== dialog) return;
+        const bounds = dialog.getBoundingClientRect();
+        if (
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom
+        )
+          close();
+      }}
     >
       <div className={s.heading}>
         <div className={s.title}>
@@ -75,7 +88,12 @@ export default function AgentConnection({ ref }: Props) {
             {statusText(state.status)}
           </span>
         </div>
-        <button className={s.close} onClick={close}>
+        <button
+          className={s.close}
+          type="button"
+          aria-label="Close agent connection"
+          onClick={close}
+        >
           <svg viewBox="0 0 24 24" width={12} height={12} fill="none">
             <path
               d="M 2 2 L 22 22 M 22 2 L 2 22"
