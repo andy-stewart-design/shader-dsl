@@ -32,6 +32,10 @@
     "./react": {
       "types": "./dist/react.d.mts",
       "import": "./dist/react.mjs"
+    },
+    "./zustand": {
+      "types": "./dist/zustand.d.mts",
+      "import": "./dist/zustand.mjs"
     }
   },
   "files": [
@@ -47,10 +51,14 @@
     "test:packed": "pnpm build && node test/verify-packed.mjs"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "zustand": ">=5"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "zustand": {
       "optional": true
     }
   },
@@ -67,6 +75,7 @@
     "@types/ws": "^8.18.1",
     "react": "^19.3.1",
     "tsdown": "^0.22.5",
+    "zustand": "^5.0.16",
     "typescript": "7.0.2"
   }
 }

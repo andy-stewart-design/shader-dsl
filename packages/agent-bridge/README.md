@@ -33,7 +33,7 @@ if (link) await bridge.connect(link);
 
 ### React adapter
 
-React applications can use the optional `app-mcp/react` entrypoint. React is an optional peer; importing the browser entrypoint does not import React. The adapter consumes the initial pairing fragment at module evaluation, creates one bridge after `enabled` becomes true, queues explicit links until that bridge exists, and disposes it on real unmount. `disconnect()` clears queued links and the terminal bridge is replaced on the next `connect()`.
+React applications can use the optional `app-mcp/react` entrypoint. React is an optional peer; importing the browser entrypoint does not import React. The adapter captures and scrubs the initial pairing fragment through the shared private lifecycle, claims it only on committed activation, creates one bridge after `enabled` becomes true, queues explicit links until that bridge exists, and disposes it on real unmount. `disconnect()` clears queued links and the terminal bridge is replaced on the next `connect()`.
 
 ```tsx
 import { AgentBridgeProvider, useAgentBridge } from "app-mcp/react";
@@ -54,6 +54,23 @@ function ConnectionButton() {
 ```
 
 `tools` is replaced in the connected catalog through `updateTools` without recreating the bridge. Keep the array memoized when tool handlers are application-created. Pairing links passed while disabled wait for enable; `disconnect()` clears that queue. Disabling an active provider disconnects it; re-enabling creates a fresh controller. Factory changes likewise replace the controller.
+
+### Standalone Zustand adapter
+
+The optional `app-mcp/zustand` entry provides a vanilla Zustand store for non-React clients, or React clients that prefer `useStore`:
+
+```ts
+import { createAgentBridgeStore } from "app-mcp/zustand";
+import { useStore } from "zustand";
+
+const bridgeStore = createAgentBridgeStore({ tools });
+const state = bridgeStore.getState();
+await state.actions.connect(pairingLink); // queues while disabled
+bridgeStore.getState().actions.setEnabled(true);
+// In React: useStore(bridgeStore, (value) => value.connection)
+```
+
+The store exposes `connection`, `enabled`, and one stable `actions` object containing `connect`, `disconnect`, `setEnabled`, and `setTools`. Creation is disabled by default and does not create a browser controller. Set `enabled: true` (or call `actions.setEnabled(true)`) to initialize; initialization is deferred one microtask and the initial pairing fragment is claimed at most once by the first activated adapter. `actions.connect()` while disabled accepts and replaces the queued link; disabling preserves that queue, while `actions.disconnect()` clears it and blocks automatic initialization until a later explicit `actions.connect()`. A connect attempt is made only once; disabling or disconnecting rejects its adapter promise promptly even if a custom bridge ignores `disconnect()`, and late completions are ignored. A rejected redundant connect leaves the bridge's authoritative state and metadata intact. `actions.setTools()` validates immediately, queues the latest catalog before connection, and resolves after helper acknowledgement when already connected (queued changes resolve when accepted). Importing this entry is SSR-safe. Create one store outside render/provider scope, and do not use it alongside a React adapter as two page owners. The React and standalone adapters use the same private lifecycle coordinator.
 
 The public protocol is version 1 and uses a versioned catalog and result envelope. JSON Schema is validated synchronously on both sides; remote `$ref` loading is rejected. `imageResult` accepts only base64 PNG/JPEG content and enforces the decoded 4 MiB image limit. Images become MCP image blocks, while ordinary JSON and metadata remain readable text.
 

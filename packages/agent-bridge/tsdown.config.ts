@@ -9,10 +9,11 @@ export default defineConfig({
     "src/server.ts",
     "src/zod.ts",
     "src/react.tsx",
+    "src/zustand.ts",
   ],
   format: "esm",
   dts: true,
   deps: {
-    neverBundle: ["../package.json"],
+    neverBundle: ["../package.json", "zustand/vanilla"],
   },
 });

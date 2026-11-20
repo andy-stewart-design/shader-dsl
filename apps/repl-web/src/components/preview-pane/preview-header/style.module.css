@@ -40,3 +40,15 @@
   min-inline-size: 5ch;
   text-align: left;
 }
+
+.indicator {
+  display: inline-flex;
+  background: #555;
+  block-size: 0.5rem;
+  inline-size: 0.5rem;
+  border-radius: 100vmax;
+
+  &[data-connected="true"] {
+    background: #77ff77;
+  }
+}
