@@ -46,6 +46,7 @@ Static inspection only; no runtime verification was done for this spec.
 
 ### Library management and opening
 
+- Store a local `savedAt` timestamp in epoch milliseconds on create and content Save/update (including Save as copy and future Import via create), but not Rename. List newest first; older records without a timestamp sort last and show no date. Show a localized last-saved date and time in the dialog. No backfill, migration, or timestamp index is required.
 - **Rename** changes only the selected entry's name. **Delete** requires confirmation that identifies the entry. Deleting the active saved entry leaves its draft and preview in place, detaches it from the deleted entry, and treats it as unsaved relative to the starter baseline; a later Save creates a new entry. A failed delete does not detach it.
 - **Open** and **New** replace both live editor documents and the uniform draft as one coherent authoring change. Start a fresh editor undo history so Undo cannot pull text from the previously open sketch. On **Open**, after the draft is installed and attached to its saved baseline, run that snapshot once through the normal preview path. A compile, install, or draw error must be visible; if any previous preview remains, indicate that it is not a successful run of the opened sketch. Subsequent edits still require explicit Run.
 - Distinguish an empty library from a library that cannot be read. Show storage failures without claiming success; editing and manual Run remain available.

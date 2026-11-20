@@ -2,6 +2,7 @@ import { validateSnapshot, type SketchSnapshot } from "./codec.ts";
 
 export interface SketchRecord extends SketchSnapshot {
   id: string;
+  savedAt?: number;
 }
 
 const DB_NAME = "shdr-sketch-library";
@@ -64,7 +65,9 @@ export const sketchStorage = {
   list(): Promise<SketchRecord[]> {
     return transaction("readonly", (store, set) => {
       const request = store.getAll();
-      request.onsuccess = () => set(request.result);
+      request.onsuccess = () => set(request.result.sort((a: SketchRecord, b: SketchRecord) =>
+        (b.savedAt ?? -Infinity) - (a.savedAt ?? -Infinity),
+      ));
     });
   },
   read(id: string): Promise<SketchRecord | undefined> {
@@ -77,6 +80,7 @@ export const sketchStorage = {
     const record: SketchRecord = {
       ...validateSnapshot(snapshot),
       id: crypto.randomUUID(),
+      savedAt: Date.now(),
     };
     return transaction("readwrite", (store, set) => {
       store.add(record);
@@ -87,7 +91,7 @@ export const sketchStorage = {
     id: string,
     snapshot: SketchSnapshot,
   ): Promise<SketchRecord | undefined> {
-    const record: SketchRecord = { ...validateSnapshot(snapshot), id };
+    const record: SketchRecord = { ...validateSnapshot(snapshot), id, savedAt: Date.now() };
     return transaction("readwrite", (store, set) => {
       const request = store.get(id);
       request.onsuccess = () => {

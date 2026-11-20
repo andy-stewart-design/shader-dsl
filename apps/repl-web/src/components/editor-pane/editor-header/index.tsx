@@ -4,9 +4,13 @@ import s from "./style.module.css";
 
 interface EditorHeaderProps {
   onApply: () => void;
+  onSave: () => void;
+  onSaveCopy: () => void;
+  onLibrary: () => void;
+  saving: boolean;
 }
 
-export default function EditorHeader({ onApply }: EditorHeaderProps) {
+export default function EditorHeader({ onApply, onSave, onSaveCopy, onLibrary, saving }: EditorHeaderProps) {
   return (
     <div className={s.header}>
       <Tabs.List className={s.tabList} activateOnFocus>
@@ -22,7 +26,9 @@ export default function EditorHeader({ onApply }: EditorHeaderProps) {
       </Tabs.List>
       <div className={s.actions}>
         <HeaderButton label="Run" shorcutKeys={["⌥", "↵"]} onClick={onApply} />
-        <HeaderButton label="Save" shorcutKeys={["⌥", "S"]} />
+        <HeaderButton label="Save" onClick={onSave} disabled={saving} />
+        <HeaderButton label="Save as copy" onClick={onSaveCopy} disabled={saving} />
+        <HeaderButton label="Library" onClick={onLibrary} />
       </div>
     </div>
   );
@@ -33,15 +39,14 @@ interface HeaderButtonProps extends ComponentProps<"button"> {
   shorcutKeys?: string[];
 }
 
-function HeaderButton({ label, shorcutKeys, onClick }: HeaderButtonProps) {
+function HeaderButton({ label, shorcutKeys, ...props }: HeaderButtonProps) {
   return (
     <button
       className={s.action}
       type="button"
-      onClick={onClick}
-      aria-label="Evaluate"
-      aria-keyshortcuts="Alt+Enter"
-      title="Apply changes (Option + Return)"
+      {...props}
+      aria-keyshortcuts={label === "Run" ? "Alt+Enter" : undefined}
+      title={label === "Run" ? "Run (Option + Return)" : undefined}
     >
       <span>{label}</span>
       {shorcutKeys && (

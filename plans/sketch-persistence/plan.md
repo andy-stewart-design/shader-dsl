@@ -70,18 +70,21 @@ Expected files:
 - `apps/repl-web/src/hooks/use-sketch-library.ts` — add route-owned association, baseline, save/list state, and dirty-only leave warning.
 - `apps/repl-web/src/components/sketch-library-dialog/index.tsx` — add list, naming, and empty/error states, following the existing in-app dialog pattern.
 - `apps/repl-web/src/stores/draft.ts` — make the existing content comparison reusable without changing normal draft commits.
+- `apps/repl-web/src/library/storage.ts` and `src/library/codec.test.ts` — local save timestamps and a portable metadata exclusion check.
 
 Tasks:
 
-- [ ] Track the saved or starter baseline by exact draft content. Subscribe to draft changes, including agent edits; ignore revision-only differences. Attach `beforeunload` only while dirty and remove it when clean or unmounted.
-- [ ] Implement named first Save, update by active ID, and Save as copy with a new ID and association. Commit the captured baseline only on successful writes; newer edits remain dirty. Keep the draft and association on failure.
-- [ ] Present the saved list in an in-app dialog, with distinguishable duplicate names and distinct loading, empty, and error states. Keep editor and Run usable if storage fails.
-- [ ] Satisfy the verification and completion gate below and record concise evidence.
+- [x] Track the saved or starter baseline by exact draft content. Subscribe to draft changes, including agent edits; ignore revision-only differences. Attach `beforeunload` only while dirty and remove it when clean or unmounted.
+- [x] Implement named first Save, update by active ID, and Save as copy with a new ID and association. Commit the captured baseline only on successful writes; newer edits remain dirty. Keep the draft and association on failure.
+- [x] Present the saved list in an in-app dialog, with distinguishable duplicate names and distinct loading, empty, and error states. Keep editor and Run usable if storage fails.
+- [x] Satisfy the verification and completion gate below and record concise evidence.
 
 Verification: In the disposable browser, save a sketch that includes a change in each editable section. Edit and Run without saving, verify IndexedDB still holds the saved input, then Save as copy and Save a further edit; only the copy changes. Reload and verify the starter opens clean and both entries are listed. Separately, after interacting with the page, try to leave with dirty changes, stay, revert exactly, and leave without a warning in a browser that supports it. With an empty store, check the empty state; use a temporary browser-local IndexedDB read/write failure to verify visible errors and continued editing/Run.
 
 Completion gate: Save and copy affect only the intended entries, dirty-only leave warnings work, and storage failure does not appear as an empty list or successful save.  
 Evidence location: [evidence/step-1.2.md](evidence/step-1.2.md).
+
+Timestamp follow-up (separate from the original Step 1.2 gate): manually verify Save/update and Save as copy show localized dates and sort newest first, legacy records without timestamps sort last with no date, and Rename leaves the timestamp unchanged when available in Step 2.2. Verify Import receives a timestamp via create in Step 2.3. Record results in the relevant evidence; timestamp browser verification is pending.
 
 Phase exit gate: After Step 1.2, run `pnpm --filter repl-web check`. With the new header and dialog, save a named sketch, make an edit without saving, leave and return, and verify the list contains only the committed snapshot and the editor starts on the starter. Record the integration outcome in Step 1.2 evidence before Phase 2.
 

@@ -13,7 +13,7 @@ const snapshot: SketchSnapshot = {
 };
 
 test("v1 round trips raw ordered inputs without local metadata", () => {
-  const text = encodeSketch(snapshot);
+  const text = encodeSketch({ ...snapshot, id: "local-id", savedAt: 123 } as SketchSnapshot);
   assert.deepEqual(decodeSketch(text), snapshot);
   assert.deepEqual(Object.keys(JSON.parse(text)), [
     "format",

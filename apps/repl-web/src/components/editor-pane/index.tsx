@@ -8,6 +8,10 @@ import s from "./style.module.css";
 
 export interface EditorProps {
   onApply: () => void;
+  onSave: () => void;
+  onSaveCopy: () => void;
+  onLibrary: () => void;
+  saving: boolean;
   isEvaluationFlashing: boolean;
   compileError: string | null;
   runtimeError: string | null;
@@ -15,6 +19,10 @@ export interface EditorProps {
 
 export default function Editor({
   onApply,
+  onSave,
+  onSaveCopy,
+  onLibrary,
+  saving,
   isEvaluationFlashing,
   compileError,
   runtimeError,
@@ -24,7 +32,7 @@ export default function Editor({
 
   return (
     <Tabs.Root className={s.pane} defaultValue="main">
-      <EditorHeader onApply={onApply} />
+      <EditorHeader onApply={onApply} onSave={onSave} onSaveCopy={onSaveCopy} onLibrary={onLibrary} saving={saving} />
       <div className={s.panels}>
         <Tabs.Panel className={s.panel} value="main" keepMounted>
           <CodeEditor
