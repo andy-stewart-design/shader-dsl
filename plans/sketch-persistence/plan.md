@@ -44,17 +44,18 @@ Expected files:
 
 Tasks:
 
-- [ ] Capture the existing REPL test baseline before changing code.
-- [ ] Implement the versioned codec, preserving Main, Utils, ordered uniform IDs, raw numeric strings, and both color fields. Validate the usable last-valid color with the existing color helper, not the agent schema. Reject malformed files, unknown versions, and invalid shapes before any write.
-- [ ] Add lazy, client-only IndexedDB list/read/create/update/rename/delete operations. Use fresh identities for creates, await transaction completion, distinguish empty/not-found from read failure, and surface aborted writes. Keep updates by ID from recreating a missing entry.
-- [ ] Add focused codec tests and satisfy the verification and completion gate below; record concise evidence.
+- [x] Capture the existing REPL test baseline before changing code.
+- [x] Implement the versioned codec, preserving Main, Utils, ordered uniform IDs, raw numeric strings, and both color fields. Validate the usable last-valid color with the existing color helper, not the agent schema. Reject malformed files, unknown versions, and invalid shapes before any write.
+- [x] Add lazy, client-only IndexedDB list/read/create/update/rename/delete operations. Use fresh identities for creates, await transaction completion, distinguish empty/not-found from read failure, and surface aborted writes. Keep updates by ID from recreating a missing entry.
+- [x] Add focused codec tests and satisfy the verification and completion gate below; record concise evidence.
 
 Verification:
 
 - Automated: from `apps/repl-web`, run `node --test --experimental-strip-types src/library/codec.test.ts` after adding it. Assert exact snapshot round trips, including incomplete inputs, and rejection of invalid JSON, unsupported versions, duplicate uniform IDs, and unusable fallback colors.
-- Manual: on the dev origin, import `/src/library/storage.ts` in browser DevTools and call the repository with two same-named fixtures. Reload and verify both exact snapshots and IDs, then update, rename, and delete one without changing the other. In the disposable profile, abort a write transaction before commit and confirm the call rejects with the previous committed value intact.
+- Existing app check: run `pnpm --filter repl-web check`.
+- Real-browser repository proof is deferred to the UI gates: Save/reload and record isolation in Step 1.2 and its phase exit, remaining CRUD in Steps 2.1–2.2, and an aborted-write persistence check at the Phase 2 exit.
 
-Completion gate: Codec checks pass and real IndexedDB evidence demonstrates durable, independent records and no false success after an aborted write.  
+Completion gate: Focused codec checks and the existing app check pass.  
 Evidence location: [evidence/step-1.1.md](evidence/step-1.1.md).
 
 ### Step 1.2 — Explicit Save, library list, and dirty warning
@@ -162,7 +163,7 @@ Verification: Export an entry while the editor has unsaved changes and inspect t
 Completion gate: Browser download and file selection work, imports create independent entries, and invalid files or export/import actions cannot overwrite editor work.  
 Evidence location: [evidence/step-2.3.md](evidence/step-2.3.md).
 
-Phase exit gate: After Step 2.3, run `pnpm --filter repl-web test`, `pnpm --filter repl-web check`, and `pnpm --filter repl-web build`; require successful app regression, type/docs checks, and SSR build. In the disposable browser without overrides, Save a sketch, reload, reopen and see it render, export then import a copy, and verify the original stays intact. Review the full acceptance mapping below before requesting approval to advance. Record the integrated browser and command outcomes in Step 2.3 evidence; a build does not replace manual acceptance.
+Phase exit gate: After Step 2.3, run `pnpm --filter repl-web test`, `pnpm --filter repl-web check`, and `pnpm --filter repl-web build`; require successful app regression, type/docs checks, and SSR build. In the disposable browser without overrides, Save a sketch, reload, reopen and see it render, export then import a copy, and verify the original stays intact. In the disposable profile, explicitly abort a write transaction before commit, confirm the write reports failure and the previously persisted data remains intact, then remove the override. Together with the earlier UI gates, confirm durable, independent records and CRUD behavior in real IndexedDB. Review the full acceptance mapping below before requesting approval to advance. Record the integrated browser and command outcomes in Step 2.3 evidence; a build does not replace manual acceptance.
 
 ## Final acceptance
 
