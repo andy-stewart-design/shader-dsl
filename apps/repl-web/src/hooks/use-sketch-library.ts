@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { sketchStorage, type SketchRecord } from "../library/storage.ts";
-import { validateSnapshot } from "../library/codec.ts";
+import { decodeSketch, encodeSketch, validateSnapshot } from "../library/codec.ts";
 import { replaceDraft } from "../editor/replace-draft.ts";
 import { initialShaderSource } from "../shared/initial-source.ts";
 import { cloneUniforms } from "../shared/uniforms.ts";
@@ -143,7 +143,40 @@ export function useSketchLibrary(onSwitch: () => void) {
     }
     if (succeeded) { setSelected(null); showList(); }
   }
+  async function importFile(file: File) {
+    if (busy.current) return;
+    busy.current = true; setSaving(true); setError(null);
+    let succeeded = false;
+    try {
+      const snapshot = decodeSketch(await file.text());
+      await sketchStorage.create(snapshot);
+      succeeded = true;
+    } catch (reason) {
+      setError(`Import failed: ${message(reason)}`);
+    } finally { busy.current = false; setSaving(false); }
+    if (succeeded) showList();
+  }
+  async function exportRecord(id: string) {
+    if (busy.current) return;
+    busy.current = true; setSaving(true); setError(null);
+    try {
+      const record = await sketchStorage.read(id);
+      if (!record) throw new Error("The saved sketch no longer exists.");
+      const json = encodeSketch(record);
+      const filename = record.name.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "sketch";
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      try {
+        const link = document.createElement("a");
+        link.href = url; link.download = `${filename}.json`;
+        link.click();
+      } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    } catch (reason) {
+      setError(`Export failed: ${message(reason)}`);
+    } finally { busy.current = false; setSaving(false); }
+  }
   return { view, records, listError, error, saving, dirty, selected, showList, close, save, saveCopy,
+    importFile: (file: File) => void importFile(file),
+    exportRecord: (id: string) => void exportRecord(id),
     rename: (record: SketchRecord) => manage(record, "rename"),
     deleteSketch: (record: SketchRecord) => manage(record, "delete"),
     confirmManage: (name?: string) => void confirmManage(name),

@@ -157,8 +157,8 @@ Expected files:
 
 Tasks:
 
-- [ ] Export the selected committed record as v1 JSON, with no local metadata and no reads from the live draft.
-- [ ] Validate imports before creating a new record; do not overwrite a same-named entry, replace the current draft, or run the imported source. File-picker cancellation does nothing; report validation or transaction failures.
+- [x] Export the selected committed record as v1 JSON, with no local metadata and no reads from the live draft.
+- [x] Validate imports before creating a new record; do not overwrite a same-named entry, replace the current draft, or run the imported source. File-picker cancellation does nothing; report validation or transaction failures.
 - [ ] Satisfy the verification and completion gate below and record concise evidence.
 
 Verification: Export an entry while the editor has unsaved changes and inspect the download for the committed values. Reimport with the same name while the draft is dirty; check the new row appears and that the editor, warning state, and preview have not changed. Open the imported record and confirm a lossless round trip for incomplete uniform input. Try malformed JSON, an unsupported version, and an invalid uniform shape; show errors without adding rows. Re-run the focused codec test from Step 1.1.

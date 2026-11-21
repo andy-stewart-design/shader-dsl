@@ -6,7 +6,7 @@ The REPL editors contain shader bodies, not complete modules: Main is wrapped in
 
 ## Sketch library
 
-Save and Save as copy explicitly write named snapshots to this browser's local IndexedDB; editing, Run, and opening do not autosave. Library offers New and Open. Unsaved changes are guarded by Save, Discard, or Cancel; New restores and runs the starter, and Open runs the saved snapshot once. Further edits require Run. A failed run leaves the opened draft editable and labels any retained preview as potentially older. Browser site-data clearing can remove saved sketches.
+Save and Save as copy explicitly write named snapshots to this browser's local IndexedDB; editing, Run, and opening do not autosave. Library offers New and Open. Unsaved changes are guarded by Save, Discard, or Cancel; New restores and runs the starter, and Open runs the saved snapshot once. Further edits require Run. A failed run leaves the opened draft editable and labels any retained preview as potentially older. Export downloads one committed saved sketch as portable v1 JSON, not unsaved editor changes. Import validates one JSON file and creates a separate library entry without opening or running it; duplicate names are allowed. Local IDs and save dates are not exported. Browser site-data clearing or eviction can remove saved sketches, so export important copies.
 
 # Getting Started
 
