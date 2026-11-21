@@ -94,7 +94,7 @@ Outcome: The library dialog provides the complete v1 workflow, including safe sw
 Depends on: Phase 1 exit gate.  
 Review boundary: Complete the in-browser workflow without a dedicated library route, server persistence, or new agent operations.
 
-### Step 2.1 — Guarded New/Open and run-on-open
+### Step 2.1 — Guarded New/Open and run-on-switch
 
 Requirements / acceptance: R1–R4; AC1, AC3, AC5; AC6 (switch/Undo portion; deletion in Step 2.2), AC8 (failed Open portion; remaining cases in Steps 1.2 and 2.3).  
 Depends on: 1.2 and the Phase 1 exit gate.  
@@ -104,23 +104,23 @@ Expected files:
 
 - `apps/repl-web/src/editor/create-editor.ts`, `src/editor/authoring-adapter.ts`, and `src/hooks/use-code-editor.ts` — add the fresh-history replacement seam; late editor mounts read the committed draft.
 - `apps/repl-web/src/hooks/use-sketch-library.ts` and `src/components/sketch-library-dialog/index.tsx` — coordinate New/Open, custom guard, and error handling.
-- `apps/repl-web/src/routes/index.tsx`, `src/hooks/use-shdr-compilation.ts`, `src/agent/apply-controller.ts`, and `src/components/preview-pane/index.tsx` — connect the switch to the existing apply pipeline and show pending/failed preview status without changing the agent API.
+- `apps/repl-web/src/routes/index.tsx`, `src/hooks/use-shdr-compilation.ts`, `src/agent/apply-controller.ts`, and `src/components/preview-pane/index.tsx` — connect the switch to the existing apply pipeline and show failed preview status without changing the agent API.
 - `apps/repl-web/README.md` — document the exception to manual Run and the no-autosave behavior.
 
 Tasks:
 
-- [ ] Add a dedicated whole-draft replacement operation. Stage both mounted editors, reset their histories, and commit sources and uniforms together. On failure, keep the previous editors and draft; a later mount reads the committed draft. Preserve normal editing, shortcuts, and the existing agent path.
-- [ ] Add New and Open with the custom Save / Discard / Cancel guard. Fetch the target after a Save decision (including when opening the same entry); only replace after all target inputs are ready. Recheck for newer edits, including agent mutations, before committing a pending switch. Canceling naming, failed writes, and failed target reads must not discard work.
-- [ ] Run the opened snapshot once after successful replacement. Use the existing awaitable apply path; prevent earlier Run/Apply completions and the initial frame from being identified as a successful preview of the new sketch. Surface compile, install, or draw failure without undoing the open. Later edits still need Run.
+- [x] Add a dedicated whole-draft replacement operation. Stage both mounted editors, reset their histories, and commit sources and uniforms together. On failure, keep the previous editors and draft; a later mount reads the committed draft. Preserve normal editing, shortcuts, and the existing agent path.
+- [x] Add New and Open with the custom Save / Discard / Cancel guard. Fetch the target after a Save decision (including when opening the same entry); only replace after all target inputs are ready. Recheck for newer edits, including agent mutations, before committing a pending switch. Canceling naming, failed writes, and failed target reads must not discard work.
+- [x] Run the New or opened snapshot once after successful replacement. Wait for renderer and port readiness, and use the existing awaitable apply path; prevent earlier Run/Apply completions and the initial frame from being identified as a successful preview of the new sketch. Surface compile, install, or draw failure without undoing the open. Later edits still need Run.
 - [ ] Satisfy the verification and completion gate below and record concise evidence.
 
 Verification:
 
 - Automated regression: run `pnpm --filter repl-web test`; existing draft/editor and agent apply assertions must not regress.
 - Manual: Open after reload with edits across Main, Utils, and uniforms; inspect both editor tabs and confirm one Run (use a breakpoint/logpoint at the apply entry if needed). Switch between sketches, including with a hidden tab, and verify Undo cannot bring back the preceding sketch. Try New/Open with Cancel, Discard, Save, canceled naming, same-entry Save and Open, a failed save, and a failed target read. Inject failures in the disposable session at the IndexedDB transaction/read boundary; temporarily defer a storage operation and confirm a newer edit survives a pending switch.
-- Manual preview: with a valid render visible, open a saved broken sketch, fix it, and verify nothing runs or writes until explicitly requested. Confirm Run still works after the fix. Also exercise an overlapping earlier apply and force one install or draw rejection with a browser-local override at the preview port; earlier frames must not clear or masquerade as the new sketch's pending/failed preview. Remove local overrides before the phase gate.
+- Manual preview: select New and confirm the starter renders once without pressing Run and without a stale-preview banner during normal progress. With a valid render visible, open a saved broken sketch, fix it, and verify nothing runs or writes until explicitly requested. Confirm Run still works after the fix. Also exercise an overlapping earlier apply and force one install or draw rejection with a browser-local override at the preview port; earlier frames must not clear or masquerade as the new sketch's pending/failed preview. Remove local overrides before the phase gate.
 
-Completion gate: New/Open do not partially change or silently discard the draft, Undo does not cross the boundary, and Open performs exactly one honest Run. Existing agent and manual Run behavior is preserved.  
+Completion gate: New/Open do not partially change or silently discard the draft, Undo does not cross the boundary, and New/Open each perform exactly one honest Run without a stale-preview banner during normal progress. Existing agent and manual Run behavior is preserved.  
 Evidence location: [evidence/step-2.1.md](evidence/step-2.1.md).
 
 ### Step 2.2 — Rename and confirmed deletion

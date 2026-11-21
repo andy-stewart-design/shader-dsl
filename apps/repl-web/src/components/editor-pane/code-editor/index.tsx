@@ -4,6 +4,7 @@ import {
   editorRegistry,
 } from "../../../editor/authoring-adapter";
 import {
+  getDraftState,
   useDraftActions,
   useDraftSource,
   type DraftDocument,
@@ -25,6 +26,7 @@ export default function CodeEditor({
   const { setSource } = useDraftActions();
   const editorRef = useCodeEditor({
     initialDoc: source,
+    getInitialDoc: () => getDraftState()[document],
     ariaLabel:
       ariaLabel ??
       (document === "main" ? "Main shader source" : "Utils shader source"),

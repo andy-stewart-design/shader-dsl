@@ -186,9 +186,28 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     appliedRevision: null,
     diagnostics: [],
   });
-  const [applyPortRef] = useState<{ current: ApplyPreviewPort | null }>(() => ({
-    current: null,
-  }));
+  const [previewRegistration] = useState(() => {
+    let current: ApplyPreviewPort | null = null;
+    const listeners = new Set<(port: ApplyPreviewPort) => void>();
+    const ref = {
+      get current() { return current; },
+      set current(port: ApplyPreviewPort | null) {
+        current = port;
+        if (port) for (const listener of listeners) listener(port);
+      },
+    };
+    const wait = (signal: AbortSignal) => new Promise<ApplyPreviewPort>((resolve, reject) => {
+      if (current) { resolve(current); return; }
+      const cleanup = () => { listeners.delete(ready); signal.removeEventListener("abort", abort); };
+      const ready = (port: ApplyPreviewPort) => { cleanup(); resolve(port); };
+      const abort = () => { cleanup(); reject(new Error("Apply was cancelled.")); };
+      if (signal.aborted) { abort(); return; }
+      listeners.add(ready);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+    return { ref, wait };
+  });
+  const applyPortRef = previewRegistration.ref;
   const [capturePortRef] = useState<{ current: CapturePreviewPort | null }>(
     () => ({ current: null }),
   );
@@ -206,6 +225,7 @@ export function useShdrCompilation(): UseShdrCompilationResult {
       },
       compile: compileDraftSnapshot,
       preview: applyPortRef,
+      waitForPreview: previewRegistration.wait,
       onApplied: (snapshot, nextArtifact) => {
         artifactRevision.value = snapshot.revision;
         setArtifact(nextArtifact);
@@ -225,6 +245,8 @@ export function useShdrCompilation(): UseShdrCompilationResult {
       }),
     [controller],
   );
+
+  useEffect(() => () => controller.invalidate(), [controller]);
 
   const apply = useCallback(() => {
     const expectedRevision = getDraftState().revision;
