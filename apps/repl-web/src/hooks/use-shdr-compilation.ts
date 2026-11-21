@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledFragmentArtifact } from "shdr";
 import {
   createApplyController,
@@ -29,6 +29,8 @@ interface Sources {
   main: string;
   utils: string;
 }
+
+const FLASH_DURATION = 200;
 
 function sourceLocation(
   source: string,
@@ -162,6 +164,7 @@ export interface UseShdrCompilationResult {
   isEvaluationFlashing: boolean;
   onPreviewError: (error: unknown) => void;
   apply: () => void;
+  applySketchSwitch: () => void;
 }
 
 /** Manual Run and agent Apply share this awaitable compile/install/draw pipeline. */
@@ -180,6 +183,7 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     [],
   );
   const [isEvaluationFlashing, setIsEvaluationFlashing] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [applyState, setApplyState] = useState<ApplyState>({
     phase: "idle",
     attemptId: 0,
@@ -190,21 +194,39 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     let current: ApplyPreviewPort | null = null;
     const listeners = new Set<(port: ApplyPreviewPort) => void>();
     const ref = {
-      get current() { return current; },
+      get current() {
+        return current;
+      },
       set current(port: ApplyPreviewPort | null) {
         current = port;
         if (port) for (const listener of listeners) listener(port);
       },
     };
-    const wait = (signal: AbortSignal) => new Promise<ApplyPreviewPort>((resolve, reject) => {
-      if (current) { resolve(current); return; }
-      const cleanup = () => { listeners.delete(ready); signal.removeEventListener("abort", abort); };
-      const ready = (port: ApplyPreviewPort) => { cleanup(); resolve(port); };
-      const abort = () => { cleanup(); reject(new Error("Apply was cancelled.")); };
-      if (signal.aborted) { abort(); return; }
-      listeners.add(ready);
-      signal.addEventListener("abort", abort, { once: true });
-    });
+    const wait = (signal: AbortSignal) =>
+      new Promise<ApplyPreviewPort>((resolve, reject) => {
+        if (current) {
+          resolve(current);
+          return;
+        }
+        const cleanup = () => {
+          listeners.delete(ready);
+          signal.removeEventListener("abort", abort);
+        };
+        const ready = (port: ApplyPreviewPort) => {
+          cleanup();
+          resolve(port);
+        };
+        const abort = () => {
+          cleanup();
+          reject(new Error("Apply was cancelled."));
+        };
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+        listeners.add(ready);
+        signal.addEventListener("abort", abort, { once: true });
+      });
     return { ref, wait };
   });
   const applyPortRef = previewRegistration.ref;
@@ -248,13 +270,34 @@ export function useShdrCompilation(): UseShdrCompilationResult {
 
   useEffect(() => () => controller.invalidate(), [controller]);
 
-  const apply = useCallback(() => {
+  useEffect(
+    () => () => {
+      if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+
+  const applyCurrentDraft = useCallback(() => {
     const expectedRevision = getDraftState().revision;
-    setIsEvaluationFlashing(true);
-    void controller.apply({ expectedRevision }).then(() => {
-      setIsEvaluationFlashing(false);
-    });
+    void controller.apply({ expectedRevision });
   }, [controller]);
+
+  const apply = useCallback(() => {
+    if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    setIsEvaluationFlashing(true);
+    flashTimer.current = setTimeout(() => {
+      flashTimer.current = null;
+      setIsEvaluationFlashing(false);
+    }, FLASH_DURATION);
+    applyCurrentDraft();
+  }, [applyCurrentDraft]);
+
+  const applySketchSwitch = useCallback(() => {
+    if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    flashTimer.current = null;
+    setIsEvaluationFlashing(false);
+    applyCurrentDraft();
+  }, [applyCurrentDraft]);
 
   const onPreviewError = useCallback((error: unknown) => {
     setErrorPresentation((previous) => ({
@@ -312,5 +355,6 @@ export function useShdrCompilation(): UseShdrCompilationResult {
     isEvaluationFlashing,
     onPreviewError,
     apply,
+    applySketchSwitch,
   };
 }

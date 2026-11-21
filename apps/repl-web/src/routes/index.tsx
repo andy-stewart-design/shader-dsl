@@ -23,6 +23,7 @@ function Home() {
     isEvaluationFlashing,
     onPreviewError,
     apply,
+    applySketchSwitch,
     applyController,
     applyPortRef,
     capturePortRef,
@@ -34,7 +35,7 @@ function Home() {
   const [switchRevision, setSwitchRevision] = useState<number | null>(null);
   const library = useSketchLibrary(() => {
     setSwitchRevision(getDraftState().revision);
-    apply();
+    applySketchSwitch();
   });
   const previewStatus = switchPreviewStatus(switchRevision, applyState);
 
