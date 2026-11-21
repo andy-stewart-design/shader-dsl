@@ -42,31 +42,34 @@
   font-weight: 400;
 }
 
-.rowActions {
+.actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.125rem;
 }
 
-.quiet {
-  padding: 0.35rem 0.6rem;
+.action {
+  padding: 0.35rem;
   border: 1px solid var(--color-surface-border-subtle);
   border-radius: 0.25rem;
   background: var(--color-surface-background-secondary);
   color: inherit;
-  cursor: pointer;
   font-size: 0.75rem;
   border-color: transparent;
   background: transparent;
   color: var(--color-surface-foreground-secondary);
 
   &:hover:not(:disabled) {
-    background: var(--editor-control-hover);
+    color: var(--color-surface-foreground-primary);
   }
 
   &:disabled {
     color: var(--color-surface-foreground-disabled);
     cursor: default;
+  }
+
+  .row:not(:hover, :focus-within) & {
+    opacity: 0;
   }
 }

@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import IconClose from "#/components/core/icons/close";
-import IconImport from "#/components/core/icons/import";
+import IconArrowDown from "#/components/core/icons/arrow-down";
 import IconPlus from "#/components/core/icons/plus";
 import type { useSketchLibrary } from "#/hooks/use-sketch-library";
 import s from "./style.module.css";
@@ -29,7 +29,7 @@ export default function LibraryHeader({ library }: Props) {
           disabled={library.saving}
           onClick={() => fileInput.current?.click()}
         >
-          <IconImport size={8} strokeWidth={1} />
+          <IconArrowDown size={8} strokeWidth={1} />
           Import
         </button>
         <input

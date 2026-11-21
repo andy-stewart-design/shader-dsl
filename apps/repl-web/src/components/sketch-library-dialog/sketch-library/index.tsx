@@ -1,3 +1,6 @@
+import IconEdit from "#/components/core/icons/edit";
+import IconExport from "#/components/core/icons/export";
+import IconTrash from "#/components/core/icons/trash";
 import type { useSketchLibrary } from "#/hooks/use-sketch-library.ts";
 import s from "./style.module.css";
 
@@ -46,33 +49,33 @@ export default function SketchLibrary({ library }: Props) {
                 )}
               </button>
             </div>
-            <div className={s.rowActions}>
+            <div className={s.actions}>
               <button
                 type="button"
-                className={s.quiet}
+                className={s.action}
                 aria-label={`Rename ${record.name}`}
                 disabled={library.saving}
                 onClick={() => library.rename(record)}
               >
-                Rename
+                <IconEdit size={20} />
               </button>
               <button
                 type="button"
-                className={s.quiet}
+                className={s.action}
                 aria-label={`Delete ${record.name}`}
                 disabled={library.saving}
                 onClick={() => library.deleteSketch(record)}
               >
-                Delete
+                <IconTrash size={20} />
               </button>
               <button
                 type="button"
-                className={s.quiet}
+                className={s.action}
                 aria-label={`Export ${record.name}`}
                 disabled={library.saving}
                 onClick={() => library.exportRecord(record.id)}
               >
-                Export
+                <IconExport size={20} />
               </button>
             </div>
           </li>
