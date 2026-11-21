@@ -6,7 +6,7 @@ import { initialShaderSource } from "../shared/initial-source.ts";
 import { cloneUniforms } from "../shared/uniforms.ts";
 import { draftContentEqual, getDraftState, useDraftStore, type DraftContent } from "../stores/draft.ts";
 
-type View = "list" | "name" | "error" | "guard" | null;
+type View = "list" | "name" | "error" | "guard" | "rename" | "delete" | null;
 type Target = { kind: "new" } | { kind: "open"; id: string };
 const starter: DraftContent = { main: initialShaderSource, utils: "", uniforms: [] };
 function capture(): DraftContent {
@@ -21,6 +21,7 @@ export function useSketchLibrary(onSwitch: () => void) {
   const [records, setRecords] = useState<SketchRecord[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SketchRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
   const target = useRef<Target | null>(null);
@@ -41,6 +42,7 @@ export function useSketchLibrary(onSwitch: () => void) {
   function close() {
     if (busy.current) return;
     target.current = null;
+    setSelected(null);
     listVersion.current++;
     setView(null);
     setError(null);
@@ -106,12 +108,45 @@ export function useSketchLibrary(onSwitch: () => void) {
     } finally { busy.current = false; setSaving(false); }
   }
   function save() {
-    if (busy.current) return;
+    if (busy.current || view === "rename" || view === "delete") return;
     if (active) void write(active.name, active.id);
     else { setError(null); setView("name"); }
   }
-  function saveCopy() { if (!busy.current) { target.current = null; setError(null); setView("name"); } }
-  return { view, records, listError, error, saving, dirty, showList, close, save, saveCopy,
+  function saveCopy() { if (!busy.current && view !== "rename" && view !== "delete") { target.current = null; setError(null); setView("name"); } }
+  function manage(record: SketchRecord, action: "rename" | "delete") {
+    if (busy.current) return;
+    setSelected(record); setError(null); setView(action);
+  }
+  async function confirmManage(name?: string) {
+    if (busy.current || !selected || (view !== "rename" && view !== "delete")) return;
+    const action = view;
+    const record = selected;
+    busy.current = true; setSaving(true); setError(null);
+    let succeeded = false;
+    try {
+      if (action === "rename") {
+        const renamed = await sketchStorage.rename(record.id, name ?? "");
+        if (!renamed) throw new Error("The saved sketch no longer exists.");
+        setActive((current) => current?.id === record.id ? { id: current.id, name: renamed.name } : current);
+      } else {
+        if (!await sketchStorage.delete(record.id)) throw new Error("The saved sketch no longer exists.");
+        if (active?.id === record.id) {
+          setActive(null);
+          setBaseline(starter);
+        }
+      }
+      succeeded = true;
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      busy.current = false; setSaving(false);
+    }
+    if (succeeded) { setSelected(null); showList(); }
+  }
+  return { view, records, listError, error, saving, dirty, selected, showList, close, save, saveCopy,
+    rename: (record: SketchRecord) => manage(record, "rename"),
+    deleteSketch: (record: SketchRecord) => manage(record, "delete"),
+    confirmManage: (name?: string) => void confirmManage(name),
     submitName: (name: string) => void write(name),
     newSketch: () => request({ kind: "new" }),
     open: (id: string) => request({ kind: "open", id }),

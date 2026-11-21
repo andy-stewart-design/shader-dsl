@@ -120,10 +120,14 @@ export const sketchStorage = {
       };
     });
   },
-  delete(id: string): Promise<void> {
+  delete(id: string): Promise<boolean> {
     return transaction("readwrite", (store, set) => {
-      store.delete(id);
-      set(undefined);
+      const request = store.getKey(id);
+      request.onsuccess = () => {
+        if (request.result === undefined) { set(false); return; }
+        store.delete(id);
+        set(true);
+      };
     });
   },
 };

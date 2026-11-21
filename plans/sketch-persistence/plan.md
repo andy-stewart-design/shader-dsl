@@ -135,8 +135,8 @@ Expected files:
 
 Tasks:
 
-- [ ] Rename by ID and update the label without changing the saved contents or dirty baseline.
-- [ ] Add a confirmation that identifies the selected entry, even when names are duplicated. Detach the active draft only after a successful delete; leave its input and preview intact and compare it to the starter baseline. Canceling or a failed write leaves the association unchanged.
+- [x] Rename by ID and update the label without changing the saved contents or dirty baseline.
+- [x] Add a confirmation that identifies the selected entry, even when names are duplicated. Detach the active draft only after a successful delete; leave its input and preview intact and compare it to the starter baseline. Canceling or a failed write leaves the association unchanged.
 - [ ] Satisfy the verification and completion gate below and record concise evidence.
 
 Verification: Create two same-named records with different inputs. Rename one and reopen it to verify its inputs are unchanged. Cancel deletion of the active entry, then simulate a delete failure and confirm it stays in the list and Save still targets it. Finally delete it, confirm the other entry and active draft/preview are unchanged, and Save the detached draft as a new entry.
