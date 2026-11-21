@@ -9,9 +9,10 @@ import {
   useAgentActions,
   useAgentConnectionState,
   useAgentEnabled,
-} from "../../stores/agent.ts";
-import s from "./style.module.css";
+} from "#/stores/agent.ts";
+import Dialog from "#/components/core/dialog/index.tsx";
 import ConnectionDetails from "./connection-details/index.tsx";
+import s from "./style.module.css";
 
 export type AgentConnectionHandle = { showModal(): void; close(): void };
 
@@ -63,7 +64,7 @@ export default function AgentConnectionDialog({ ref }: Props) {
   useImperativeHandle(ref, () => ({ showModal, close }), []);
 
   return (
-    <dialog
+    <Dialog
       ref={dialogRef}
       className={s.dialog}
       aria-label="Agent connection"
@@ -156,7 +157,7 @@ export default function AgentConnectionDialog({ ref }: Props) {
           {message}
         </p>
       )}
-    </dialog>
+    </Dialog>
   );
 }
 

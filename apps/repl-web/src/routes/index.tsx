@@ -10,6 +10,9 @@ import { useAgentIntegration } from "#/hooks/use-agent-integration";
 import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
 import { switchPreviewStatus } from "../preview/switch-preview-status";
 import s from "./index.module.css";
+import NameDialog from "#/components/name-dialog";
+import DeleteDialog from "#/components/delete-dialog";
+import GuardDialog from "#/components/guard-dialog";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -51,9 +54,20 @@ function Home() {
         compileError={compileError}
         runtimeError={runtimeError}
       />
+
       <SketchLibraryDialog library={library} />
+      {(library.view === "name" || library.view === "rename") && (
+        <NameDialog library={library} />
+      )}
+      {library.view === "delete" && <DeleteDialog library={library} />}
+      {library.view === "guard" && <GuardDialog library={library} />}
+
       <section className={s.previewPane}>
-        {previewStatus && <p className={s.status} role="status">{previewStatus}</p>}
+        {previewStatus && (
+          <p className={s.status} role="status">
+            {previewStatus}
+          </p>
+        )}
         <div className={s.previewContent}>
           {artifact && (
             <Preview

@@ -1,0 +1,42 @@
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+
+  strong {
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+}
+
+.fileInput {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: none;
+  color: var(--color-surface-foreground-secondary);
+  font-size: 0.75rem;
+  /*font-weight: 500;*/
+
+  &:hover:not(:disabled) {
+    color: var(--color-surface-foreground-primary);
+  }
+
+  &:disabled {
+    color: var(--color-surface-foreground-disabled);
+    cursor: default;
+  }
+}

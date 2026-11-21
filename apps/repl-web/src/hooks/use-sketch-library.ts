@@ -1,14 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { sketchStorage, type SketchRecord } from "../library/storage.ts";
-import { decodeSketch, encodeSketch, validateSnapshot } from "../library/codec.ts";
+import {
+  decodeSketch,
+  encodeSketch,
+  validateSnapshot,
+} from "../library/codec.ts";
 import { replaceDraft } from "../editor/replace-draft.ts";
 import { initialShaderSource } from "../shared/initial-source.ts";
 import { cloneUniforms } from "../shared/uniforms.ts";
-import { draftContentEqual, getDraftState, useDraftStore, type DraftContent } from "../stores/draft.ts";
+import {
+  draftContentEqual,
+  getDraftState,
+  useDraftStore,
+  type DraftContent,
+} from "../stores/draft.ts";
 
 type View = "list" | "name" | "error" | "guard" | "rename" | "delete" | null;
 type Target = { kind: "new" } | { kind: "open"; id: string };
-const starter: DraftContent = { main: initialShaderSource, utils: "", uniforms: [] };
+const starter: DraftContent = {
+  main: initialShaderSource,
+  utils: "",
+  uniforms: [],
+};
 function capture(): DraftContent {
   const { main, utils, uniforms } = getDraftState();
   return { main, utils, uniforms: cloneUniforms(uniforms) };
@@ -16,7 +29,9 @@ function capture(): DraftContent {
 
 export function useSketchLibrary(onSwitch: () => void) {
   const [baseline, setBaseline] = useState(capture);
-  const [active, setActive] = useState<{ id: string; name: string } | null>(null);
+  const [active, setActive] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const [view, setView] = useState<View>(null);
   const [records, setRecords] = useState<SketchRecord[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -33,11 +48,18 @@ export function useSketchLibrary(onSwitch: () => void) {
 
   useEffect(() => {
     if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  useEffect(() => () => { listVersion.current++; }, []);
+  useEffect(
+    () => () => {
+      listVersion.current++;
+    },
+    [],
+  );
 
   function close() {
     if (busy.current) return;
@@ -50,18 +72,29 @@ export function useSketchLibrary(onSwitch: () => void) {
   function showList() {
     if (busy.current) return;
     const version = ++listVersion.current;
-    setView("list"); setRecords(null); setListError(null); setError(null);
-    void sketchStorage.list().then((items) => {
-      if (version === listVersion.current) setRecords(items);
-    }).catch((reason: unknown) => {
-      if (version === listVersion.current) setListError(message(reason));
-    });
+    setView("list");
+    setRecords(null);
+    setListError(null);
+    setError(null);
+    void sketchStorage
+      .list()
+      .then((items) => {
+        if (version === listVersion.current) setRecords(items);
+      })
+      .catch((reason: unknown) => {
+        if (version === listVersion.current) setListError(message(reason));
+      });
   }
   async function switchTo(next: Target, revision: number) {
     try {
-      const record = next.kind === "open" ? await sketchStorage.read(next.id) : null;
-      if (next.kind === "open" && !record) throw new Error("The saved sketch no longer exists.");
-      if (getDraftState().revision !== revision) throw new Error("The draft changed while switching. Your edits were kept; please try again.");
+      const record =
+        next.kind === "open" ? await sketchStorage.read(next.id) : null;
+      if (next.kind === "open" && !record)
+        throw new Error("The saved sketch no longer exists.");
+      if (getDraftState().revision !== revision)
+        throw new Error(
+          "The draft changed while switching. Your edits were kept; please try again.",
+        );
       const content = record ? validateSnapshot(record) : starter;
       replaceDraft(content);
       setBaseline(content);
@@ -71,14 +104,21 @@ export function useSketchLibrary(onSwitch: () => void) {
       onSwitch();
     } catch (reason) {
       target.current = null;
-      setError(message(reason)); setView("error");
+      setError(message(reason));
+      setView("error");
     }
   }
   async function proceed(next: Target) {
     if (busy.current) return;
-    busy.current = true; setSaving(true); setError(null);
-    try { await switchTo(next, getDraftState().revision); }
-    finally { busy.current = false; setSaving(false); }
+    busy.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      await switchTo(next, getDraftState().revision);
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
   function request(next: Target) {
     if (busy.current) return;
@@ -89,47 +129,80 @@ export function useSketchLibrary(onSwitch: () => void) {
   }
   async function write(name: string, id?: string) {
     if (busy.current) return;
-    busy.current = true; setSaving(true); setError(null);
+    busy.current = true;
+    setSaving(true);
+    setError(null);
     const content = capture();
     const revision = getDraftState().revision;
     try {
       const snapshot = { name, ...content };
-      const saved = id ? await sketchStorage.update(id, snapshot) : await sketchStorage.create(snapshot);
+      const saved = id
+        ? await sketchStorage.update(id, snapshot)
+        : await sketchStorage.create(snapshot);
       if (!saved) throw new Error("The saved sketch no longer exists.");
-      setActive({ id: saved.id, name: saved.name }); setBaseline(content);
+      setActive({ id: saved.id, name: saved.name });
+      setBaseline(content);
       const next = target.current;
       if (next) {
-        if (getDraftState().revision !== revision) throw new Error("The draft changed while saving. Your newer edits were kept; please try again.");
+        if (getDraftState().revision !== revision)
+          throw new Error(
+            "The draft changed while saving. Your newer edits were kept; please try again.",
+          );
         await switchTo(next, revision);
-      } else { setView(null); }
+      } else {
+        setView(null);
+      }
     } catch (reason) {
       target.current = null;
-      setError(message(reason)); setView("error");
-    } finally { busy.current = false; setSaving(false); }
+      setError(message(reason));
+      setView("error");
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
   function save() {
     if (busy.current || view === "rename" || view === "delete") return;
     if (active) void write(active.name, active.id);
-    else { setError(null); setView("name"); }
+    else {
+      setError(null);
+      setView("name");
+    }
   }
-  function saveCopy() { if (!busy.current && view !== "rename" && view !== "delete") { target.current = null; setError(null); setView("name"); } }
+  function saveCopy() {
+    if (!busy.current && view !== "rename" && view !== "delete") {
+      target.current = null;
+      setError(null);
+      setView("name");
+    }
+  }
   function manage(record: SketchRecord, action: "rename" | "delete") {
     if (busy.current) return;
-    setSelected(record); setError(null); setView(action);
+    setSelected(record);
+    setError(null);
+    setView(action);
   }
   async function confirmManage(name?: string) {
-    if (busy.current || !selected || (view !== "rename" && view !== "delete")) return;
+    if (busy.current || !selected || (view !== "rename" && view !== "delete"))
+      return;
     const action = view;
     const record = selected;
-    busy.current = true; setSaving(true); setError(null);
+    busy.current = true;
+    setSaving(true);
+    setError(null);
     let succeeded = false;
     try {
       if (action === "rename") {
         const renamed = await sketchStorage.rename(record.id, name ?? "");
         if (!renamed) throw new Error("The saved sketch no longer exists.");
-        setActive((current) => current?.id === record.id ? { id: current.id, name: renamed.name } : current);
+        setActive((current) =>
+          current?.id === record.id
+            ? { id: current.id, name: renamed.name }
+            : current,
+        );
       } else {
-        if (!await sketchStorage.delete(record.id)) throw new Error("The saved sketch no longer exists.");
+        if (!(await sketchStorage.delete(record.id)))
+          throw new Error("The saved sketch no longer exists.");
         if (active?.id === record.id) {
           setActive(null);
           setBaseline(starter);
@@ -139,13 +212,19 @@ export function useSketchLibrary(onSwitch: () => void) {
     } catch (reason) {
       setError(message(reason));
     } finally {
-      busy.current = false; setSaving(false);
+      busy.current = false;
+      setSaving(false);
     }
-    if (succeeded) { setSelected(null); showList(); }
+    if (succeeded) {
+      setSelected(null);
+      showList();
+    }
   }
   async function importFile(file: File) {
     if (busy.current) return;
-    busy.current = true; setSaving(true); setError(null);
+    busy.current = true;
+    setSaving(true);
+    setError(null);
     let succeeded = false;
     try {
       const snapshot = decodeSketch(await file.text());
@@ -153,28 +232,57 @@ export function useSketchLibrary(onSwitch: () => void) {
       succeeded = true;
     } catch (reason) {
       setError(`Import failed: ${message(reason)}`);
-    } finally { busy.current = false; setSaving(false); }
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
     if (succeeded) showList();
   }
   async function exportRecord(id: string) {
     if (busy.current) return;
-    busy.current = true; setSaving(true); setError(null);
+    busy.current = true;
+    setSaving(true);
+    setError(null);
     try {
       const record = await sketchStorage.read(id);
       if (!record) throw new Error("The saved sketch no longer exists.");
       const json = encodeSketch(record);
-      const filename = record.name.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "sketch";
-      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const filename =
+        record.name
+          .trim()
+          .replace(/[^a-zA-Z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 80) || "sketch";
+      const url = URL.createObjectURL(
+        new Blob([json], { type: "application/json" }),
+      );
       try {
         const link = document.createElement("a");
-        link.href = url; link.download = `${filename}.json`;
+        link.href = url;
+        link.download = `${filename}.json`;
         link.click();
-      } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (reason) {
       setError(`Export failed: ${message(reason)}`);
-    } finally { busy.current = false; setSaving(false); }
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
-  return { view, records, listError, error, saving, dirty, selected, showList, close, save, saveCopy,
+  return {
+    view,
+    records,
+    listError,
+    error,
+    saving,
+    dirty,
+    selected,
+    showList,
+    close,
+    save,
+    saveCopy,
     importFile: (file: File) => void importFile(file),
     exportRecord: (id: string) => void exportRecord(id),
     rename: (record: SketchRecord) => manage(record, "rename"),
@@ -183,7 +291,11 @@ export function useSketchLibrary(onSwitch: () => void) {
     submitName: (name: string) => void write(name),
     newSketch: () => request({ kind: "new" }),
     open: (id: string) => request({ kind: "open", id }),
-    discard: () => { if (target.current) void proceed(target.current); },
+    discard: () => {
+      if (target.current) void proceed(target.current);
+    },
   };
 }
-function message(reason: unknown): string { return reason instanceof Error ? reason.message : "Library storage failed."; }
+function message(reason: unknown): string {
+  return reason instanceof Error ? reason.message : "Library storage failed.";
+}
