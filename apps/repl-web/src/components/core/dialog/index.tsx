@@ -2,11 +2,25 @@ import type { ComponentProps } from "react";
 import s from "./style.module.css";
 import IconClose from "../icons/close";
 
+interface Props extends ComponentProps<"dialog"> {
+  type?: "modal" | "drawer";
+  align?: "start" | "end";
+}
+
 export default function Dialog({
+  type = "modal",
+  align = "start",
   className,
   ...props
-}: ComponentProps<"dialog">) {
-  return <dialog {...props} className={cn(s.dialog, className)} />;
+}: Props) {
+  return (
+    <dialog
+      {...props}
+      className={cn(s.dialog, className)}
+      data-type={type}
+      data-align={align}
+    />
+  );
 }
 
 function Header({ title, onClose }: { title: string; onClose: () => void }) {

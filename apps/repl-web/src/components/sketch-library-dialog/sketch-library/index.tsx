@@ -26,29 +26,27 @@ export default function SketchLibrary({ library }: Props) {
           record.savedAt === undefined ? null : new Date(record.savedAt);
         return (
           <li className={s.row} key={record.id}>
-            <div className={s.details}>
-              <button
-                type="button"
-                className={s.name}
-                aria-label={`Open ${record.name}`}
-                disabled={library.saving}
-                onClick={() => library.open(record.id)}
-              >
-                {record.name}
-                {date && (
-                  <time
-                    className={s.timestamp}
-                    dateTime={date.toISOString()}
-                    title={date.toLocaleString()}
-                  >
-                    {date.toLocaleString(undefined, {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              className={s.name}
+              aria-label={`Open ${record.name}`}
+              disabled={library.saving}
+              onClick={() => library.open(record.id)}
+            >
+              {record.name}
+              {date && (
+                <time
+                  className={s.timestamp}
+                  dateTime={date.toISOString()}
+                  title={date.toLocaleString()}
+                >
+                  {date.toLocaleString(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </time>
+              )}
+            </button>
             <div className={s.actions}>
               <button
                 type="button"

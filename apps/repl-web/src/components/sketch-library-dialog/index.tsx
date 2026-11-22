@@ -3,6 +3,7 @@ import LibraryHeader from "./library-header/index.tsx";
 import SketchLibrary from "./sketch-library/index.tsx";
 import type { useSketchLibrary } from "../../hooks/use-sketch-library.ts";
 import s from "./style.module.css";
+import { Dialog } from "../core/dialog/index.tsx";
 
 type Props = { library: ReturnType<typeof useSketchLibrary> };
 
@@ -18,8 +19,10 @@ export default function SketchLibraryDialog({ library }: Props) {
   }, [library]);
 
   return (
-    <dialog
+    <Dialog.Root
       ref={dialog}
+      type="drawer"
+      align="start"
       className={s.dialog}
       aria-label={library.view === "name" ? "Name sketch" : "Sketch library"}
       onCancel={(event) => {
@@ -34,6 +37,6 @@ export default function SketchLibraryDialog({ library }: Props) {
         </p>
       )}
       <SketchLibrary library={library} />
-    </dialog>
+    </Dialog.Root>
   );
 }
