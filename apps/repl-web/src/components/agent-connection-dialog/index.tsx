@@ -102,7 +102,6 @@ export default function AgentConnectionDialog({ ref }: Props) {
             <input
               id="agent-pairing-link"
               className={s.input}
-              type="password"
               value={pairingLink}
               onChange={(event) => setPairingLink(event.target.value)}
               placeholder={enabled ? "http://www.shdr..." : "Preparing…"}
