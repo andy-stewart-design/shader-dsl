@@ -1,5 +1,6 @@
 import { Tabs } from "@base-ui/react/tabs";
 import { Fragment, type ComponentProps } from "react";
+import SplitButton from "../../core/split-button";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -32,10 +33,11 @@ export default function EditorHeader({
       </Tabs.List>
       <div className={s.actions}>
         <HeaderButton label="Run" shorcutKeys={["⌥", "↵"]} onClick={onApply} />
-        <HeaderButton label="Save" onClick={onSave} disabled={saving} />
-        <HeaderButton
-          label="Save as copy"
-          onClick={onSaveCopy}
+        <SplitButton
+          primaryLabel="Save"
+          onPrimaryAction={onSave}
+          menuLabel="More save options"
+          secondaryActions={[{ label: "Save as copy", onSelect: onSaveCopy }]}
           disabled={saving}
         />
         <HeaderButton label="Library" onClick={onLibrary} />
