@@ -264,9 +264,14 @@ export function createApplyController(
             diagnostics: compiled.diagnostics,
           };
         }
-        const port = options.preview.current ?? (options.waitForPreview
-          ? await awaitAbortable(options.waitForPreview(abort.signal), abort.signal)
-          : null);
+        const port =
+          options.preview.current ??
+          (options.waitForPreview
+            ? await awaitAbortable(
+                options.waitForPreview(abort.signal),
+                abort.signal,
+              )
+            : null);
         if (!isCurrent()) throw new ApplyAbortError();
         if (!port) {
           return diagnosticResult(id, snapshot.revision, {
@@ -356,7 +361,12 @@ export function createApplyController(
     invalidate() {
       if (active) active.abort.abort();
       active = null;
-      publish({ phase: "idle", attemptId: ++attemptId, ...preservedApplied(), diagnostics: [] });
+      publish({
+        phase: "idle",
+        attemptId: ++attemptId,
+        ...preservedApplied(),
+        diagnostics: [],
+      });
     },
     getState: () => state,
     isReady: () => options.preview.current?.isReady?.() ?? false,

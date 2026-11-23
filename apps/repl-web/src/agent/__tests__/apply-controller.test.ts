@@ -257,7 +257,10 @@ test("stale and superseded state cannot replace or clear a newer visible error",
 test("initial frame cannot overwrite a later failed or invalidated attempt", async () => {
   const controller = createApplyController({
     readDraft: () => ({ revision: 1, main: "", utils: "", uniforms: [] }),
-    compile: () => ({ ok: false, diagnostics: [{ code: "syntax", message: "broken" }] }),
+    compile: () => ({
+      ok: false,
+      diagnostics: [{ code: "syntax", message: "broken" }],
+    }),
     preview: { current: null },
   });
   await controller.apply({ expectedRevision: 1 });
@@ -270,8 +273,14 @@ test("initial frame cannot overwrite a later failed or invalidated attempt", asy
 
 test("delayed preview registration is superseded without installing the old draft", async () => {
   let revision = 1;
-  let ready!: (port: { installAndDraw: () => Promise<{ backend: "webgl" }> }) => void;
-  const waiting = new Promise<{ installAndDraw: () => Promise<{ backend: "webgl" }> }>((resolve) => { ready = resolve; });
+  let ready!: (port: {
+    installAndDraw: () => Promise<{ backend: "webgl" }>;
+  }) => void;
+  const waiting = new Promise<{
+    installAndDraw: () => Promise<{ backend: "webgl" }>;
+  }>((resolve) => {
+    ready = resolve;
+  });
   let installs = 0;
   const controller = createApplyController({
     readDraft: () => snapshot(revision),
@@ -283,7 +292,12 @@ test("delayed preview registration is superseded without installing the old draf
   await new Promise((resolve) => setImmediate(resolve));
   revision = 2;
   const second = controller.apply({ expectedRevision: 2 });
-  ready({ installAndDraw: async () => { installs++; return { backend: "webgl" }; } });
+  ready({
+    installAndDraw: async () => {
+      installs++;
+      return { backend: "webgl" };
+    },
+  });
   assert.equal((await first).ok, false);
   assert.equal((await second).ok, true);
   assert.equal(installs, 1);
@@ -295,11 +309,16 @@ test("preview readiness failure is reported and teardown cancels a waiting apply
     readDraft: () => snapshot(1),
     compile: () => ({ ok: true, artifact }),
     preview: { current: null },
-    waitForPreview: async () => { throw new Error("renderer initialization failed"); },
+    waitForPreview: async () => {
+      throw new Error("renderer initialization failed");
+    },
   });
   const result = await controller.apply({ expectedRevision: 1 });
   assert.equal(result.ok, false);
-  assert.match(controller.getState().diagnostics[0]!.message, /renderer initialization failed/);
+  assert.match(
+    controller.getState().diagnostics[0]!.message,
+    /renderer initialization failed/,
+  );
   const waiting = createApplyController({
     readDraft: () => snapshot(1),
     compile: () => ({ ok: true, artifact }),

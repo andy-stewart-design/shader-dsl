@@ -65,9 +65,13 @@ export const sketchStorage = {
   list(): Promise<SketchRecord[]> {
     return transaction("readonly", (store, set) => {
       const request = store.getAll();
-      request.onsuccess = () => set(request.result.sort((a: SketchRecord, b: SketchRecord) =>
-        (b.savedAt ?? -Infinity) - (a.savedAt ?? -Infinity),
-      ));
+      request.onsuccess = () =>
+        set(
+          request.result.sort(
+            (a: SketchRecord, b: SketchRecord) =>
+              (b.savedAt ?? -Infinity) - (a.savedAt ?? -Infinity),
+          ),
+        );
     });
   },
   read(id: string): Promise<SketchRecord | undefined> {
@@ -91,7 +95,11 @@ export const sketchStorage = {
     id: string,
     snapshot: SketchSnapshot,
   ): Promise<SketchRecord | undefined> {
-    const record: SketchRecord = { ...validateSnapshot(snapshot), id, savedAt: Date.now() };
+    const record: SketchRecord = {
+      ...validateSnapshot(snapshot),
+      id,
+      savedAt: Date.now(),
+    };
     return transaction("readwrite", (store, set) => {
       const request = store.get(id);
       request.onsuccess = () => {
@@ -124,7 +132,10 @@ export const sketchStorage = {
     return transaction("readwrite", (store, set) => {
       const request = store.getKey(id);
       request.onsuccess = () => {
-        if (request.result === undefined) { set(false); return; }
+        if (request.result === undefined) {
+          set(false);
+          return;
+        }
         store.delete(id);
         set(true);
       };

@@ -133,7 +133,6 @@ export function mat4(
 ): Expr<Mat4<F32>>;
 
 export function mat4(value: Expr<Mat4<F32>>): Expr<Mat4<F32>>;
-
 ```
 
 ### UniformBuilder methods
@@ -149,6 +148,7 @@ export function mat4(value: Expr<Mat4<F32>>): Expr<Mat4<F32>>;
     readonly url: U;
   };
 ```
+
 <!-- END GENERATED UTILITY SIGNATURES -->
 
 The generated block is the source-of-truth reference for constructors, helper creation, uniform schemas, the fragment entry point, and `UniformBuilder`. Matrix constructor components are column-major. Constructors and helpers are source markers and are not ordinary JavaScript values at runtime.

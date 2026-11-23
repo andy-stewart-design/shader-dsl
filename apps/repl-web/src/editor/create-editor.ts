@@ -42,23 +42,24 @@ export function createEditor({
   onChange,
 }: CreateEditorOptions): EditorHandle {
   let disposed = false;
-  const makeState = (doc: string) => EditorState.create({
-    doc,
-    extensions: [
-      createEditorExtensions(),
-      EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
-      EditorView.updateListener.of((update) => {
-        if (!update.docChanged || !onChange) return;
-        const programmatic = update.transactions.some(
-          (transaction) => transaction.annotation(programmaticEdit) === true,
-        );
-        onChange({
-          doc: update.state.doc.toString(),
-          programmatic,
-        });
-      }),
-    ],
-  });
+  const makeState = (doc: string) =>
+    EditorState.create({
+      doc,
+      extensions: [
+        createEditorExtensions(),
+        EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged || !onChange) return;
+          const programmatic = update.transactions.some(
+            (transaction) => transaction.annotation(programmaticEdit) === true,
+          );
+          onChange({
+            doc: update.state.doc.toString(),
+            programmatic,
+          });
+        }),
+      ],
+    });
   const view = new EditorView({ state: makeState(initialDoc), parent });
 
   function requireReady(): void {
@@ -124,11 +125,22 @@ export function createEditor({
         current: base.doc.toString(),
         apply() {
           requireReady();
-          if (view.state !== base) throw new Error("Editor changed during switch.");
-          try { view.setState(fresh); applied = true; }
-          catch (error) { view.setState(base); throw error; }
+          if (view.state !== base)
+            throw new Error("Editor changed during switch.");
+          try {
+            view.setState(fresh);
+            applied = true;
+          } catch (error) {
+            view.setState(base);
+            throw error;
+          }
         },
-        rollback() { if (applied && !disposed) { view.setState(base); applied = false; } },
+        rollback() {
+          if (applied && !disposed) {
+            view.setState(base);
+            applied = false;
+          }
+        },
       };
     },
     undo() {

@@ -21,12 +21,12 @@ This plan is an execution contract. Scope, steps, IDs, dependencies, expected fi
 
 ## Phase overview and delivery boundary
 
-| Phase | Outcome | Dependencies | Exit gate |
-| --- | --- | --- | --- |
-| 0 | Reproducible baseline and verified SDK/API test seams. | Existing checkout and local tooling. | Baseline evidence and dependency/lifecycle mapping allow attribution of subsequent changes. |
-| 1 | A buildable SDK v2 migration and a dual-era CLI with separated helper/probe lifetimes. | Phase 0 exit. | Legacy, pinned-modern, direct attachment, fallback, and close checks compose successfully. |
-| 2 | Explicit-state, security, cancellation, and recovery invariants hold across protocol eras. | Phase 1 exit. | Complete bridge suite and REPL regressions demonstrate parity and modern negative cases. |
-| 3 | Installed artifacts and real client/browser usage establish final compatibility. | Phase 2 exit; live access for Step 3.2. | Packed consumer, workspace regression, documentation review, and separate modern/Pi browser acceptance. |
+| Phase | Outcome                                                                                    | Dependencies                            | Exit gate                                                                                               |
+| ----- | ------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 0     | Reproducible baseline and verified SDK/API test seams.                                     | Existing checkout and local tooling.    | Baseline evidence and dependency/lifecycle mapping allow attribution of subsequent changes.             |
+| 1     | A buildable SDK v2 migration and a dual-era CLI with separated helper/probe lifetimes.     | Phase 0 exit.                           | Legacy, pinned-modern, direct attachment, fallback, and close checks compose successfully.              |
+| 2     | Explicit-state, security, cancellation, and recovery invariants hold across protocol eras. | Phase 1 exit.                           | Complete bridge suite and REPL regressions demonstrate parity and modern negative cases.                |
+| 3     | Installed artifacts and real client/browser usage establish final compatibility.           | Phase 2 exit; live access for Step 3.2. | Packed consumer, workspace regression, documentation review, and separate modern/Pi browser acceptance. |
 
 Delivery boundary: one feature-complete PR. Steps are review slices, not separate releases. Intermediate SDK-only migration is not advertised as 2026 support.
 
@@ -280,22 +280,22 @@ Phase exit gate: After Step 3.2's syntax/source check and live checks, audit the
 
 ## Final acceptance
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result | Evidence location |
-| --- | --- | --- | --- |
-| AC1 | 1.1 + 3.1; Phase 3 final audit | v2 runtime/test clients, Node 24 floor, installed declaration resolution, unchanged exports/flags, browser dependency boundary. | [1.1](evidence/step-1.1.md), [3.1](evidence/step-3.1.md) |
-| AC2 | 1.2; Phase 1 exit | Pinned-modern CLI reports 2026-07-28 and exercises four tools without legacy initialization. | [1.2](evidence/step-1.2.md) |
-| AC3 | 1.1 + 1.2; Phase 1 exit | Legacy 2025-11-25 retains the same CLI and tool schemas/results. | [1.1](evidence/step-1.1.md), [1.2](evidence/step-1.2.md) |
-| AC4 | 2.1; Phase 2 exit | Explicit handles remain mandatory; optional identity/capability metadata does not leak authority across requests. | [2.1](evidence/step-2.1.md) |
-| AC5 | 2.1; Phase 2 exit | Raw malformed/unsupported modern requests return protocol errors without browser dispatch or state change. | [2.1](evidence/step-2.1.md) |
-| AC6 | 2.1; Phase 2 exit | Origin/credentials/ownership, schemas, unknown tools, and limits reject invalid operations in both eras. | [2.1](evidence/step-2.1.md) |
-| AC7 | 2.2 + 3.2; Phase 3 final audit | Automated text/image/revision checks plus actual rendered preview and stale-update rejection in modern/Pi browser paths. | [2.2](evidence/step-2.2.md), [3.2](evidence/step-3.2.md) |
-| AC8 | 2.2; Phase 2 exit | Handler cancellation/deadline cleanup, released capacity, ignored late results, and no post-cancel modern result. | [2.2](evidence/step-2.2.md) |
-| AC9 | 2.2; Phase 2 exit | Catalog invalidation and refresh/resume require fresh handles, cancel pending work, and never replay mutations. | [2.2](evidence/step-2.2.md) |
-| AC10 | 1.2; Phase 1 exit | Unpaired/paired probe disposal and fallback preserve the one shared helper and browser authority. | [1.2](evidence/step-1.2.md) |
-| AC11 | 1.2 + 2.2; Phase 2 exit | Actual EOF/direct close releases all owned resources and pending calls; repeat close/reuse semantics preserved. | [1.2](evidence/step-1.2.md), [2.2](evidence/step-2.2.md) |
-| AC12 | 1.1 + 1.2; Phase 1 exit | Public v2 direct transport attachment remains independently usable and single-use after factory refactor. | [1.1](evidence/step-1.1.md), [1.2](evidence/step-1.2.md) |
-| AC13 | 3.2; Phase 3 final audit | Actual installed Pi works with unchanged configuration; actual legacy protocol/version is recorded. | [3.2](evidence/step-3.2.md) |
-| AC14 | 3.1; Phase 3 final audit | Guidance accurately distinguishes SDK/server/client versions and unchanged setup; no HTTP/Pi-upgrade claim. | [3.1](evidence/step-3.1.md) |
+| Spec acceptance ID | Owning step / gate             | Verification and expected result                                                                                                | Evidence location                                        |
+| ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| AC1                | 1.1 + 3.1; Phase 3 final audit | v2 runtime/test clients, Node 24 floor, installed declaration resolution, unchanged exports/flags, browser dependency boundary. | [1.1](evidence/step-1.1.md), [3.1](evidence/step-3.1.md) |
+| AC2                | 1.2; Phase 1 exit              | Pinned-modern CLI reports 2026-07-28 and exercises four tools without legacy initialization.                                    | [1.2](evidence/step-1.2.md)                              |
+| AC3                | 1.1 + 1.2; Phase 1 exit        | Legacy 2025-11-25 retains the same CLI and tool schemas/results.                                                                | [1.1](evidence/step-1.1.md), [1.2](evidence/step-1.2.md) |
+| AC4                | 2.1; Phase 2 exit              | Explicit handles remain mandatory; optional identity/capability metadata does not leak authority across requests.               | [2.1](evidence/step-2.1.md)                              |
+| AC5                | 2.1; Phase 2 exit              | Raw malformed/unsupported modern requests return protocol errors without browser dispatch or state change.                      | [2.1](evidence/step-2.1.md)                              |
+| AC6                | 2.1; Phase 2 exit              | Origin/credentials/ownership, schemas, unknown tools, and limits reject invalid operations in both eras.                        | [2.1](evidence/step-2.1.md)                              |
+| AC7                | 2.2 + 3.2; Phase 3 final audit | Automated text/image/revision checks plus actual rendered preview and stale-update rejection in modern/Pi browser paths.        | [2.2](evidence/step-2.2.md), [3.2](evidence/step-3.2.md) |
+| AC8                | 2.2; Phase 2 exit              | Handler cancellation/deadline cleanup, released capacity, ignored late results, and no post-cancel modern result.               | [2.2](evidence/step-2.2.md)                              |
+| AC9                | 2.2; Phase 2 exit              | Catalog invalidation and refresh/resume require fresh handles, cancel pending work, and never replay mutations.                 | [2.2](evidence/step-2.2.md)                              |
+| AC10               | 1.2; Phase 1 exit              | Unpaired/paired probe disposal and fallback preserve the one shared helper and browser authority.                               | [1.2](evidence/step-1.2.md)                              |
+| AC11               | 1.2 + 2.2; Phase 2 exit        | Actual EOF/direct close releases all owned resources and pending calls; repeat close/reuse semantics preserved.                 | [1.2](evidence/step-1.2.md), [2.2](evidence/step-2.2.md) |
+| AC12               | 1.1 + 1.2; Phase 1 exit        | Public v2 direct transport attachment remains independently usable and single-use after factory refactor.                       | [1.1](evidence/step-1.1.md), [1.2](evidence/step-1.2.md) |
+| AC13               | 3.2; Phase 3 final audit       | Actual installed Pi works with unchanged configuration; actual legacy protocol/version is recorded.                             | [3.2](evidence/step-3.2.md)                              |
+| AC14               | 3.1; Phase 3 final audit       | Guidance accurately distinguishes SDK/server/client versions and unchanged setup; no HTTP/Pi-upgrade claim.                     | [3.1](evidence/step-3.1.md)                              |
 
 Broader checks run at Phase 3, not after every edit. No acceptance row is fulfilled merely by checking its implementation tasks. Phase gates are reassessed after their final step's checks, before dependent phases or supervised approval to advance.
 

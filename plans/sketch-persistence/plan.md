@@ -18,10 +18,10 @@ This plan is the execution contract. A checked task records work performed, not 
 
 ## Phase overview and delivery boundary
 
-| Phase | Outcome | Dependencies | Exit gate |
-| --- | --- | --- | --- |
-| 1 | Named snapshots can be saved explicitly and listed; dirty edits are protected on browser leave. | Local tooling and an isolated browser profile | Save, reload, and see committed entries only; the REPL stays usable with storage unavailable. |
-| 2 | The dialog can open and manage sketches and move them by JSON file without losing unsaved work. | Phase 1 exit gate | Complete browser acceptance and pass the REPL regression, type, and build checks. |
+| Phase | Outcome                                                                                         | Dependencies                                  | Exit gate                                                                                     |
+| ----- | ----------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 1     | Named snapshots can be saved explicitly and listed; dirty edits are protected on browser leave. | Local tooling and an isolated browser profile | Save, reload, and see committed entries only; the REPL stays usable with storage unavailable. |
+| 2     | The dialog can open and manage sketches and move them by JSON file without losing unsaved work. | Phase 1 exit gate                             | Complete browser acceptance and pass the REPL regression, type, and build checks.             |
 
 Delivery boundary: one feature-complete PR. Steps are review slices, not separate releases. Keep the editor replacement, switch guard, and run-on-open wiring together in Step 2.1: none should expose a partially working Open path.
 
@@ -170,16 +170,16 @@ Phase exit gate: After Step 2.3, run `pnpm --filter repl-web test`, `pnpm --filt
 
 ## Final acceptance
 
-| Spec acceptance ID | Owning step / gate | Verification and expected result | Evidence location |
-| --- | --- | --- | --- |
-| AC1 | 2.1 and Phase 2 exit | Save, reload, and open: the default is clean at startup; the stored inputs restore and run once. | [2.1](evidence/step-2.1.md), [Phase 2 exit](evidence/step-2.3.md) |
-| AC2 | 1.2 + 2.3 | Run alone writes nothing; Save as copy is independent; export contains only committed inputs. | [1.2](evidence/step-1.2.md), [2.3](evidence/step-2.3.md) |
-| AC3 | 2.1 | The custom guard protects dirty content through cancellation, a failed write, and a failed switch. | [2.1](evidence/step-2.1.md) |
-| AC4 | 1.2 | Exact revert clears the leave warning; reload doesn't restore unsaved work or overwrite a saved record. | [1.2](evidence/step-1.2.md) |
-| AC5 | 2.1 | Broken sketches remain editable; an older preview is not called successful and later edits don't rerun or save. | [2.1](evidence/step-2.1.md) |
-| AC6 | 2.1 + 2.2 | Undo cannot cross sketches; deletion is confirmed and detaches without replacing the draft. | [2.1](evidence/step-2.1.md), [2.2](evidence/step-2.2.md) |
-| AC7 | 2.2 + 2.3 | Rename affects labels only; reimport is lossless and independent. | [2.2](evidence/step-2.2.md), [2.3](evidence/step-2.3.md) |
-| AC8 | 1.2 + 2.1 + 2.3 | Empty, read/write failure, and invalid-file outcomes are distinct; no data is discarded on failure. | [1.2](evidence/step-1.2.md), [2.1](evidence/step-2.1.md), [2.3](evidence/step-2.3.md) |
+| Spec acceptance ID | Owning step / gate   | Verification and expected result                                                                                | Evidence location                                                                     |
+| ------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| AC1                | 2.1 and Phase 2 exit | Save, reload, and open: the default is clean at startup; the stored inputs restore and run once.                | [2.1](evidence/step-2.1.md), [Phase 2 exit](evidence/step-2.3.md)                     |
+| AC2                | 1.2 + 2.3            | Run alone writes nothing; Save as copy is independent; export contains only committed inputs.                   | [1.2](evidence/step-1.2.md), [2.3](evidence/step-2.3.md)                              |
+| AC3                | 2.1                  | The custom guard protects dirty content through cancellation, a failed write, and a failed switch.              | [2.1](evidence/step-2.1.md)                                                           |
+| AC4                | 1.2                  | Exact revert clears the leave warning; reload doesn't restore unsaved work or overwrite a saved record.         | [1.2](evidence/step-1.2.md)                                                           |
+| AC5                | 2.1                  | Broken sketches remain editable; an older preview is not called successful and later edits don't rerun or save. | [2.1](evidence/step-2.1.md)                                                           |
+| AC6                | 2.1 + 2.2            | Undo cannot cross sketches; deletion is confirmed and detaches without replacing the draft.                     | [2.1](evidence/step-2.1.md), [2.2](evidence/step-2.2.md)                              |
+| AC7                | 2.2 + 2.3            | Rename affects labels only; reimport is lossless and independent.                                               | [2.2](evidence/step-2.2.md), [2.3](evidence/step-2.3.md)                              |
+| AC8                | 1.2 + 2.1 + 2.3      | Empty, read/write failure, and invalid-file outcomes are distinct; no data is discarded on failure.             | [1.2](evidence/step-1.2.md), [2.1](evidence/step-2.1.md), [2.3](evidence/step-2.3.md) |
 
 ## Rollback and recovery
 

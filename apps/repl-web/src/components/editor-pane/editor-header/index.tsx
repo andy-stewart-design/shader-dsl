@@ -10,7 +10,13 @@ interface EditorHeaderProps {
   saving: boolean;
 }
 
-export default function EditorHeader({ onApply, onSave, onSaveCopy, onLibrary, saving }: EditorHeaderProps) {
+export default function EditorHeader({
+  onApply,
+  onSave,
+  onSaveCopy,
+  onLibrary,
+  saving,
+}: EditorHeaderProps) {
   return (
     <div className={s.header}>
       <Tabs.List className={s.tabList} activateOnFocus>
@@ -27,7 +33,11 @@ export default function EditorHeader({ onApply, onSave, onSaveCopy, onLibrary, s
       <div className={s.actions}>
         <HeaderButton label="Run" shorcutKeys={["⌥", "↵"]} onClick={onApply} />
         <HeaderButton label="Save" onClick={onSave} disabled={saving} />
-        <HeaderButton label="Save as copy" onClick={onSaveCopy} disabled={saving} />
+        <HeaderButton
+          label="Save as copy"
+          onClick={onSaveCopy}
+          disabled={saving}
+        />
         <HeaderButton label="Library" onClick={onLibrary} />
       </div>
     </div>

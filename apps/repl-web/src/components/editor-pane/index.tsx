@@ -32,7 +32,13 @@ export default function Editor({
 
   return (
     <Tabs.Root className={s.pane} defaultValue="main">
-      <EditorHeader onApply={onApply} onSave={onSave} onSaveCopy={onSaveCopy} onLibrary={onLibrary} saving={saving} />
+      <EditorHeader
+        onApply={onApply}
+        onSave={onSave}
+        onSaveCopy={onSaveCopy}
+        onLibrary={onLibrary}
+        saving={saving}
+      />
       <div className={s.panels}>
         <Tabs.Panel className={s.panel} value="main" keepMounted>
           <CodeEditor

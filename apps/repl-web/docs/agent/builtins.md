@@ -404,6 +404,7 @@ export function normalize(x: Expr<Vec3<F32>>): Expr<Vec3<F32>>;
 
 export function normalize(x: Expr<Vec4<F32>>): Expr<Vec4<F32>>;
 ```
+
 <!-- END GENERATED BUILTIN SIGNATURES -->
 
 The signatures are intentionally explicit: scalar and vector overloads are not interchangeable, and builtins do not accept matrices. Numeric literals in shader source are valid `f32` expressions even though the public declarations use `Expr<F32>`.

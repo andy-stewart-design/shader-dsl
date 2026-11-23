@@ -59,9 +59,15 @@ export function uniformsEqual(
 
 export type DraftContent = Pick<DraftState, "main" | "utils" | "uniforms">;
 
-export function draftContentEqual(left: DraftContent, right: DraftContent): boolean {
-  return left.main === right.main && left.utils === right.utils &&
-    uniformsEqual(left.uniforms, right.uniforms);
+export function draftContentEqual(
+  left: DraftContent,
+  right: DraftContent,
+): boolean {
+  return (
+    left.main === right.main &&
+    left.utils === right.utils &&
+    uniformsEqual(left.uniforms, right.uniforms)
+  );
 }
 
 function commitDraft(
