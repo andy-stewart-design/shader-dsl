@@ -27,6 +27,7 @@ export interface EditorHandle {
   read(): string;
   replace(next: string): void;
   prepareReplace(next: string): EditorReplacement | null;
+  prepareFresh(next: string): EditorReplacement;
   undo(): boolean;
   redo(): boolean;
   isReady(): boolean;
@@ -41,8 +42,8 @@ export function createEditor({
   onChange,
 }: CreateEditorOptions): EditorHandle {
   let disposed = false;
-  const state = EditorState.create({
-    doc: initialDoc,
+  const makeState = (doc: string) => EditorState.create({
+    doc,
     extensions: [
       createEditorExtensions(),
       EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
@@ -58,7 +59,7 @@ export function createEditor({
       }),
     ],
   });
-  const view = new EditorView({ state, parent });
+  const view = new EditorView({ state: makeState(initialDoc), parent });
 
   function requireReady(): void {
     if (disposed) throw new Error("The editor has been destroyed.");
@@ -114,6 +115,22 @@ export function createEditor({
       replacement?.apply();
     },
     prepareReplace,
+    prepareFresh(next) {
+      requireReady();
+      const base = view.state;
+      const fresh = makeState(next);
+      let applied = false;
+      return {
+        current: base.doc.toString(),
+        apply() {
+          requireReady();
+          if (view.state !== base) throw new Error("Editor changed during switch.");
+          try { view.setState(fresh); applied = true; }
+          catch (error) { view.setState(base); throw error; }
+        },
+        rollback() { if (applied && !disposed) { view.setState(base); applied = false; } },
+      };
+    },
     undo() {
       requireReady();
       return undo({

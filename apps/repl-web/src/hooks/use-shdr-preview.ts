@@ -339,13 +339,20 @@ export function useShdrPreview({
     lifecycle.current = lifecycle;
     lifecycleRef.current = lifecycle;
 
+    let resolveReady!: (handle: PreviewHandle) => void;
+    let rejectReady!: (error: unknown) => void;
+    const ready = new Promise<PreviewHandle>((resolve, reject) => {
+      resolveReady = resolve; rejectReady = reject;
+    });
+    // Initialization can fail before an Apply begins waiting.
+    void ready.catch(() => {});
     const port: ApplyPreviewPort = {
       isReady: () =>
         isActive(lifecycle, lifecycleRef.current) &&
         lifecycle.handle !== undefined,
       async installAndDraw(nextArtifact, options) {
-        const handle = lifecycle.handle;
-        if (!isActive(lifecycle, lifecycleRef.current) || !handle) {
+        const handle = lifecycle.handle ?? await raceWithAbort(ready, [options.signal, lifecycle.abortController.signal]);
+        if (!isActive(lifecycle, lifecycleRef.current)) {
           throw new Error("Preview renderer is not ready.");
         }
         if (options.signal.aborted) throw new Error("Apply was cancelled.");
@@ -461,6 +468,7 @@ export function useShdrPreview({
 
           lifecycle.failedArtifact = undefined;
           lifecycle.handle = handle;
+          resolveReady(handle);
           lifecycle.requestedArtifact = initializedArtifact;
           lifecycle.requestedPlaying = initialPlaying;
           const initializedLatest =
@@ -500,6 +508,7 @@ export function useShdrPreview({
           }
 
           lifecycle.failedArtifact = initializedArtifact;
+          rejectReady(error);
           if (!reportedError) reportError(error);
         },
       );

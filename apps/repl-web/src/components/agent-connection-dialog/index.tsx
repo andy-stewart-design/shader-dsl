@@ -9,9 +9,10 @@ import {
   useAgentActions,
   useAgentConnectionState,
   useAgentEnabled,
-} from "../../stores/agent.ts";
-import s from "./style.module.css";
+} from "#/stores/agent.ts";
+import Dialog from "#/components/core/dialog/index.tsx";
 import ConnectionDetails from "./connection-details/index.tsx";
+import s from "./style.module.css";
 
 export type AgentConnectionHandle = { showModal(): void; close(): void };
 
@@ -63,23 +64,11 @@ export default function AgentConnectionDialog({ ref }: Props) {
   useImperativeHandle(ref, () => ({ showModal, close }), []);
 
   return (
-    <dialog
+    <Dialog
       ref={dialogRef}
       className={s.dialog}
       aria-label="Agent connection"
       onClose={() => setIsDialogOpen(false)}
-      onClick={(event) => {
-        const dialog = event.currentTarget;
-        if (event.target !== dialog) return;
-        const bounds = dialog.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          close();
-      }}
     >
       <div className={s.heading}>
         <div className={s.title}>
@@ -113,7 +102,6 @@ export default function AgentConnectionDialog({ ref }: Props) {
             <input
               id="agent-pairing-link"
               className={s.input}
-              type="password"
               value={pairingLink}
               onChange={(event) => setPairingLink(event.target.value)}
               placeholder={enabled ? "http://www.shdr..." : "Preparing…"}
@@ -156,7 +144,7 @@ export default function AgentConnectionDialog({ ref }: Props) {
           {message}
         </p>
       )}
-    </dialog>
+    </Dialog>
   );
 }
 

@@ -127,6 +127,7 @@ export interface ApplyControllerOptions {
     snapshot: DraftSnapshot,
   ) => ApplyCompileResult | Promise<ApplyCompileResult>;
   readonly preview: { current: ApplyPreviewPort | null };
+  readonly waitForPreview?: (signal: AbortSignal) => Promise<ApplyPreviewPort>;
   readonly onApplied?: (
     snapshot: DraftSnapshot,
     artifact: CompiledFragmentArtifact,
@@ -135,6 +136,7 @@ export interface ApplyControllerOptions {
 
 export interface ApplyController {
   apply(request: ApplyRequest): Promise<ApplyResult>;
+  invalidate(): void;
   getState(): ApplyState;
   isReady?(): boolean;
   subscribe(listener: () => void): () => void;
@@ -262,7 +264,10 @@ export function createApplyController(
             diagnostics: compiled.diagnostics,
           };
         }
-        const port = options.preview.current;
+        const port = options.preview.current ?? (options.waitForPreview
+          ? await awaitAbortable(options.waitForPreview(abort.signal), abort.signal)
+          : null);
+        if (!isCurrent()) throw new ApplyAbortError();
         if (!port) {
           return diagnosticResult(id, snapshot.revision, {
             code: "backend",
@@ -348,6 +353,11 @@ export function createApplyController(
         if (active?.id === id) active = null;
       }
     },
+    invalidate() {
+      if (active) active.abort.abort();
+      active = null;
+      publish({ phase: "idle", attemptId: ++attemptId, ...preservedApplied(), diagnostics: [] });
+    },
     getState: () => state,
     isReady: () => options.preview.current?.isReady?.() ?? false,
     subscribe(listener) {
@@ -355,6 +365,7 @@ export function createApplyController(
       return () => listeners.delete(listener);
     },
     confirmInitial(revision, backend) {
+      if (state.attemptId !== 0 || state.phase !== "idle") return;
       publish({
         phase: "applied",
         attemptId: state.attemptId,

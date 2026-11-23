@@ -10,6 +10,7 @@ export type UseCodeEditorOptions = Pick<
   CreateEditorOptions,
   "initialDoc" | "ariaLabel"
 > & {
+  getInitialDoc?: () => string;
   onChange?: (change: EditorChange) => void;
   onReady?: (handle: EditorHandle) => void | (() => void);
 };
@@ -36,7 +37,7 @@ export function useCodeEditor(options: UseCodeEditorOptions) {
     const { initialDoc, ariaLabel } = initialOptionsRef.current;
     const editor = createEditor({
       parent,
-      initialDoc,
+      initialDoc: options.getInitialDoc?.() ?? initialDoc,
       ariaLabel,
       onChange: handleChange,
     });

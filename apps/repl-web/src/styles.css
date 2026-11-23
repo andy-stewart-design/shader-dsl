@@ -97,7 +97,7 @@
   --editor-font-size: 14px;
   --editor-line-height: 1.6;
   --editor-padding: 8px;
-  --editor-focus: transparent;
+  --editor-focus: var(--color-surface-foreground-primary);
   --editor-focus-outline: none;
   --editor-cursor: var(--color-surface-foreground-primary);
   --editor-border: var(--color-surface-border-subtle);

@@ -1,0 +1,36 @@
+.content {
+  display: grid;
+  gap: 1rem;
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0;
+    color: var(--color-surface-foreground-primary);
+  }
+
+  p {
+    font-size: 0.875rem;
+    margin: 0;
+    color: var(--color-surface-foreground-secondary);
+  }
+}
+
+.action {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-surface-border-subtle);
+  border-radius: 0.25rem;
+  background: var(--color-surface-background-secondary);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-control-hover);
+  }
+
+  &:disabled {
+    color: var(--color-surface-foreground-disabled);
+    cursor: default;
+  }
+}

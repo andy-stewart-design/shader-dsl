@@ -1,0 +1,19 @@
+.previewPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.status {
+  flex: none;
+  margin: 0;
+  padding: 0.5rem 1rem;
+}
+
+.previewContent {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

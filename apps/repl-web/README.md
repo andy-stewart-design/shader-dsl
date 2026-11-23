@@ -2,7 +2,11 @@
 
 The agent-facing, human-readable language reference lives in [`docs/agent/`](docs/agent/): start with [`overview.md`](docs/agent/overview.md), then use the language, builtins, utilities, uniforms, and preview topics. These Markdown files are the canonical source for the browser-safe `getDocumentation` API and are imported directly as raw Markdown by Vite. Run `pnpm generate-doc-signatures` after changing generated signature regions; `pnpm check-doc-signatures` verifies those regions without writing.
 
-The REPL editors contain shader bodies, not complete modules: Main is wrapped in a generated `createFragmentShader` callback and Utils is placed before it. Do not add imports or exports. The preview is installed only after explicit Run (Alt+Enter) or an approved apply operation; documentation responses contain no live draft, uniform, renderer, or canvas data.
+The REPL editors contain shader bodies, not complete modules: Main is wrapped in a generated `createFragmentShader` callback and Utils is placed before it. Do not add imports or exports. The preview is installed after explicit Run (Alt+Enter), an approved apply operation, or once automatically after explicit New or when a saved sketch is opened; documentation responses contain no live draft, uniform, renderer, or canvas data.
+
+## Sketch library
+
+Save and Save as copy explicitly write named snapshots to this browser's local IndexedDB; editing, Run, and opening do not autosave. Library offers New and Open. Unsaved changes are guarded by Save, Discard, or Cancel; New restores and runs the starter, and Open runs the saved snapshot once. Further edits require Run. A failed run leaves the opened draft editable and labels any retained preview as potentially older. Export downloads one committed saved sketch as portable v1 JSON, not unsaved editor changes. Import validates one JSON file and creates a separate library entry without opening or running it; duplicate names are allowed. Local IDs and save dates are not exported. Browser site-data clearing or eviction can remove saved sketches, so export important copies.
 
 # Getting Started
 

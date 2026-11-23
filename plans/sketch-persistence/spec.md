@@ -15,7 +15,7 @@ The web REPL lets people edit and run sketches but cannot keep more than the cur
 
 - A browser-local IndexedDB library, surfaced in one in-app dialog.
 - Explicit Save and Save as copy, basic library management, and one-sketch JSON import/export.
-- Warnings before replacing unsaved work and an automatic Run when a saved sketch opens.
+- Warnings before replacing unsaved work and an automatic Run after explicit New or saved Open.
 
 Non-goals: autosave or draft recovery, restoring the last open sketch at startup, revision history, bulk backup, thumbnails, accounts, sync, publishing, or new agent tools.
 
@@ -25,14 +25,14 @@ Static inspection only; no runtime verification was done for this spec.
 
 - The [draft store](../../apps/repl-web/src/stores/draft.ts) holds Main, Utils, ordered uniform drafts, and a revision. [Uniform drafts](../../apps/repl-web/src/shared/uniforms.ts) preserve raw strings, including incomplete input and a color's last valid value. The [agent authoring schema](../../apps/repl-web/src/agent/authoring-schema.ts) is not a lossless substitute for that shape.
 - The [editor header](../../apps/repl-web/src/components/editor-pane/editor-header/index.tsx) has an unwired Save button. The [editor hook](../../apps/repl-web/src/hooks/use-code-editor.ts) initializes live CodeMirror documents from the draft; a store-only update does not replace mounted editor documents.
-- [Run and agent Apply](../../apps/repl-web/src/hooks/use-shdr-compilation.ts) share an [apply pipeline](../../apps/repl-web/src/agent/apply-controller.ts). A compile failure can leave the previous preview visible. Editing remains separate from running; the one deliberate change is that opening a saved sketch also requests one Run.
+- [Run and agent Apply](../../apps/repl-web/src/hooks/use-shdr-compilation.ts) share an [apply pipeline](../../apps/repl-web/src/agent/apply-controller.ts). A compile failure can leave the previous preview visible. Editing remains separate from running; the deliberate exceptions are that explicit New and opening a saved sketch each request one Run.
 
 ## Requirements and invariants
 
 - **R1 — Local library:** Users can list, open, rename, and delete named sketches in a dialog. Successfully committed entries survive reload in the same browser profile and site origin.
 - **R2 — Explicit Save:** Save creates or updates a saved entry; Save as copy creates an independent entry. Neither editing nor running a draft writes it to the library. A saved snapshot preserves authoring input even if it does not compile.
 - **R3 — Protect unsaved work:** In-app actions that replace a dirty draft require a custom Save / Discard / Cancel dialog. A dirty page requests the native browser leave warning. Failed or canceled actions must not discard the draft.
-- **R4 — Open and run:** Opening installs the complete saved snapshot into the editors and draft, then runs it once. If that run fails, the snapshot stays open and the preview must not be presented as a successful render of it.
+- **R4 — Switch and run:** Explicit New or Open installs the complete starter or saved snapshot into the editors and draft, then runs it once. If that run fails, the snapshot stays open and the preview must not be presented as a successful render of it.
 - **R5 — Portable file:** Users can export a saved entry and import a versioned single-sketch JSON file. Import never overwrites an existing entry or replaces the current draft.
 
 ## Behavior and contracts
@@ -46,8 +46,9 @@ Static inspection only; no runtime verification was done for this spec.
 
 ### Library management and opening
 
+- Store a local `savedAt` timestamp in epoch milliseconds on create and content Save/update (including Save as copy and future Import via create), but not Rename. List newest first; older records without a timestamp sort last and show no date. Show a localized last-saved date and time in the dialog. No backfill, migration, or timestamp index is required.
 - **Rename** changes only the selected entry's name. **Delete** requires confirmation that identifies the entry. Deleting the active saved entry leaves its draft and preview in place, detaches it from the deleted entry, and treats it as unsaved relative to the starter baseline; a later Save creates a new entry. A failed delete does not detach it.
-- **Open** and **New** replace both live editor documents and the uniform draft as one coherent authoring change. Start a fresh editor undo history so Undo cannot pull text from the previously open sketch. On **Open**, after the draft is installed and attached to its saved baseline, run that snapshot once through the normal preview path. A compile, install, or draw error must be visible; if any previous preview remains, indicate that it is not a successful run of the opened sketch. Subsequent edits still require explicit Run.
+- **Open** and **New** replace both live editor documents and the uniform draft as one coherent authoring change. Start a fresh editor undo history so Undo cannot pull text from the previously open sketch. After **New** or **Open** installs the draft and its starter or saved baseline, run that snapshot once through the normal preview path, waiting for the renderer and preview port to be ready. Normal progress must not show a stale-preview banner. A compile, install, or draw error must be visible; if any previous preview remains, indicate that it is not a successful run of the switched sketch. Subsequent edits still require explicit Run.
 - Distinguish an empty library from a library that cannot be read. Show storage failures without claiming success; editing and manual Run remain available.
 
 ### JSON import/export
@@ -67,7 +68,7 @@ Manual browser verification is primary. Keep automated coverage lean; small chec
 | --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | AC1 | R1, R2, R4   | Save a starter variant with distinct Main, Utils, and uniforms; reload, open the library, and select it.                                        | Reload starts clean on the starter; the entry is listed and opening restores all inputs and runs it once.                                                                                                                    | Manual                           |
 | AC2 | R1, R2, R5   | Edit and Run an open sketch without saving; export its record, then Save as copy, and Save another edit to the copy.                            | The file and original entry contain only the original saved values. The separate copy is active and receives later saves.                                                                                                    | Manual                           |
-| AC3 | R3           | With dirty edits, try New or Open and exercise Cancel, Discard, and Save, including a canceled name prompt and a failed save.                   | Only Discard with a successful switch or Save after a committed write permits replacement; otherwise the edits remain.                                                                                                       | Manual                           |
+| AC3 | R3           | With dirty edits, try New or Open and exercise Cancel, Discard, and Save, including a canceled name prompt and a failed save; complete New and observe the preview.                   | Only Discard with a successful switch or Save after a committed write permits replacement; otherwise the edits remain. Successful New renders the starter once without a stale-preview banner during normal progress.                                                                                                       | Manual                           |
 | AC4 | R2, R3       | Edit and then exactly revert; try to leave both before and after the revert in a browser that supports the warning.                             | Dirty edits request the browser warning; clean edits do not. No recovery draft or overwritten entry appears on reload.                                                                                                       | Manual                           |
 | AC5 | R2, R4       | While a good preview is visible, open a saved non-compiling sketch. Then repair its code without pressing Run.                                  | The opened source and uniforms remain editable, an error explains the failed Run, and any old preview is clearly not from that sketch. Repairing the draft neither reruns nor saves it; Run can still be invoked explicitly. | Manual                           |
 | AC6 | R1, R3, R4   | Start editing one sketch, discard those edits to open another, then try Undo. Separately, cancel and then confirm deletion of the active entry. | Undo does not restore the other sketch's text. Canceled deletion changes nothing; confirmed deletion removes only that saved entry and keeps the live draft, which can be saved as new.                                      | Manual                           |
@@ -76,7 +77,7 @@ Manual browser verification is primary. Keep automated coverage lean; small chec
 
 ## Assumptions
 
-- The interview explicitly settled explicit Save and Save as copy, custom replacement warnings, a dirty-only browser warning, no autosave, run-on-open, a library dialog, simple import/export, and a manual-first verification approach.
+- The interview explicitly settled explicit Save and Save as copy, custom replacement warnings, a dirty-only browser warning, no autosave, run-on-switch, a library dialog, simple import/export, and a manual-first verification approach.
 - Defaults carried forward from the wrap-up or filled in here: reuse the starter on New and startup; provide Rename/Delete within the dialog; attach to a newly saved copy; allow duplicate names; and import/export one saved sketch at a time. These are v1 defaults rather than separately confirmed preferences. Check that the manual dialog walkthrough is clear without adding a dedicated library page.
 
 ## Risks and open decisions

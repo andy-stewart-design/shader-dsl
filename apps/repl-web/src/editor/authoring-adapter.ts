@@ -13,6 +13,7 @@ export interface EditorAdapter {
   isReady(): boolean;
   read(): string;
   prepareReplace(next: string): EditorReplacement | null;
+  prepareFresh?(next: string): EditorReplacement;
 }
 
 export function createEditorAdapter(
@@ -23,6 +24,7 @@ export function createEditorAdapter(
     document,
     isReady: handle.isReady,
     read: handle.read,
+    prepareFresh: (next) => ({ document, ...handle.prepareFresh(next) }),
     prepareReplace: (next) => {
       const replacement = handle.prepareReplace(next);
       return replacement
