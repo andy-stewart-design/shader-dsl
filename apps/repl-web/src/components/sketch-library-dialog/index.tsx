@@ -31,9 +31,9 @@ export default function SketchLibraryDialog({ library }: Props) {
       onClose={library.close}
     >
       <LibraryHeader library={library} />
-      {library.error && (
+      {library.actionError && (
         <p className={s.message} role="alert">
-          {library.error}
+          {library.actionError}
         </p>
       )}
       <SketchLibrary library={library} />
