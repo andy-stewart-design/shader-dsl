@@ -69,18 +69,6 @@ export default function AgentConnectionDialog({ ref }: Props) {
       className={s.dialog}
       aria-label="Agent connection"
       onClose={() => setIsDialogOpen(false)}
-      onClick={(event) => {
-        const dialog = event.currentTarget;
-        if (event.target !== dialog) return;
-        const bounds = dialog.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          close();
-      }}
     >
       <div className={s.heading}>
         <div className={s.title}>
