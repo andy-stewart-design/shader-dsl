@@ -29,11 +29,7 @@ export default function SketchLibraryDialog({ library }: Props) {
       type="drawer"
       align="start"
       className={s.dialog}
-      aria-label={
-        library.view === "save" || library.view === "duplicate"
-          ? "Name sketch"
-          : "Sketch library"
-      }
+      aria-label="Sketch library"
       onCancel={(event) => {
         if (library.saving) event.preventDefault();
       }}

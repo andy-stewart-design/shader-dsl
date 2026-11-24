@@ -43,25 +43,36 @@
     border-radius: 0;
     overflow-y: auto;
     opacity: 1;
-    transform: translateX(-100%);
-
-    &:open {
-      opacity: 1;
-      transform: translateX(0%);
-
-      @starting-style {
-        opacity: 1;
-        transform: translateX(-100%);
-      }
-    }
 
     &[data-align="start"] {
       border-inline-end: var(--core-dialog-border);
+      transform: translateX(-100%);
+
+      &:open {
+        opacity: 1;
+        transform: translateX(0%);
+
+        @starting-style {
+          opacity: 1;
+          transform: translateX(-100%);
+        }
+      }
     }
 
     &[data-align="end"] {
       margin-inline-start: auto;
       border-inline-start: var(--core-dialog-border);
+      transform: translateX(100%);
+
+      &:open {
+        opacity: 1;
+        transform: translateX(0%);
+
+        @starting-style {
+          opacity: 1;
+          transform: translateX(100%);
+        }
+      }
     }
   }
 }
