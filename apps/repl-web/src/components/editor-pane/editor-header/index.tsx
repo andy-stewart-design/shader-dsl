@@ -1,6 +1,6 @@
 import { Tabs } from "@base-ui/react/tabs";
 import Button from "#/components/core/button";
-import SplitButton from "#/components/core/split-button";
+import { SplitButton } from "#/components/core/split-button";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -35,13 +35,16 @@ export default function EditorHeader({
         <Button shorcutKeys={["⌥", "↵"]} onClick={onApply}>
           Run
         </Button>
-        <SplitButton
-          primaryLabel="Save"
-          onPrimaryAction={onSave}
-          menuLabel="More save options"
-          secondaryActions={[{ label: "Save as copy", onSelect: onSaveCopy }]}
-          disabled={saving}
-        />
+        <SplitButton.Root>
+          <SplitButton.Primary onClick={onSave} shorcutKeys={["⌥", "S"]}>
+            Save
+          </SplitButton.Primary>
+          <SplitButton.Popover aria-label="More save options" disabled={saving}>
+            <SplitButton.PopoverItem onClick={onSaveCopy}>
+              Save as copy
+            </SplitButton.PopoverItem>
+          </SplitButton.Popover>
+        </SplitButton.Root>
         <Button onClick={onLibrary}>Library</Button>
       </div>
     </div>
