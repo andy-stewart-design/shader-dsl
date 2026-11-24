@@ -5,6 +5,7 @@
   gap: 1rem;
   padding: 0.5rem 1rem;
   border-block-end: 1px solid var(--color-surface-border-subtle);
+  user-select: none;
 
   strong {
     font-size: 0.75rem;

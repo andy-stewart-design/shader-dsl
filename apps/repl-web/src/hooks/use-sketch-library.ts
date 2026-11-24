@@ -157,7 +157,6 @@ export function useSketchLibrary(onSwitch: () => void) {
     if (busy.current) return;
     const version = ++listVersion.current;
     setDialog({ view: "list" });
-    setRecords(null);
     setListError(null);
     setActionError(null);
     void sketchStorage
