@@ -1,23 +1,6 @@
-.dialog {
-  inline-size: 100%;
-  max-inline-size: 28rem;
-  font-size: 0.8125rem;
-
-  &[open] {
-    display: grid;
-    gap: 1.25rem;
-  }
-
-  &::backdrop {
-    background: rgb(0 0 0 / 0.3);
-  }
-}
-
-.heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+.content {
+  display: grid;
+  gap: 1.25rem;
 }
 
 .title {
@@ -41,15 +24,8 @@
   }
 }
 
-.close {
-  background: none;
-  padding: 0.375rem;
-  border: none;
-}
-
 .controls {
   display: flex;
-  align-items: center;
   gap: 0.5rem;
 }
 
@@ -60,6 +36,7 @@
 
 .label {
   color: var(--color-surface-foreground-secondary);
+  font-size: 0.8125rem;
   user-select: none;
 }
 
@@ -79,24 +56,10 @@
   }
 }
 
-.action {
-  padding: 0.3rem 0.55rem;
-  border: 1px solid var(--color-surface-border-subtle);
-  border-radius: 0.25rem;
-  background: var(--color-surface-background-secondary);
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.75rem;
-
-  &:disabled {
-    color: var(--color-surface-foreground-disabled);
-    cursor: default;
-  }
-}
-
 .message {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.8125rem;
   color: var(--color-syntax-orange);
 }

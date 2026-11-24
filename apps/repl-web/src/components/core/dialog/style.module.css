@@ -41,8 +41,9 @@
 
   .title {
     flex: 1 0 0;
-    font-size: 0.75rem;
-    color: var(--color-surface-foreground-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-surface-foreground-primary);
   }
 
   .close {

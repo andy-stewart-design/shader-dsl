@@ -1,4 +1,4 @@
-import { useRef, type ComponentProps } from "react";
+import { useRef, type ComponentProps, type ReactNode } from "react";
 import s from "./style.module.css";
 import IconClose from "../icons/close";
 
@@ -7,7 +7,7 @@ interface Props extends ComponentProps<"dialog"> {
   align?: "start" | "end";
 }
 
-export default function Dialog({
+function Root({
   type = "modal",
   align = "start",
   className,
@@ -63,10 +63,18 @@ export default function Dialog({
   );
 }
 
-function Header({ title, onClose }: { title: string; onClose: () => void }) {
+function Header({
+  title,
+  children,
+  onClose,
+}: {
+  children?: ReactNode;
+  title?: string;
+  onClose: () => void;
+}) {
   return (
     <div className={s.header}>
-      <div className={s.title}>{title}</div>
+      <div className={s.title}>{title || children}</div>
       <button className={s.close} onClick={onClose} aria-label="Close dialog">
         <IconClose size={12} />
       </button>
@@ -82,14 +90,15 @@ function Footer({ className, ...props }: ComponentProps<"div">) {
   return <div {...props} className={cn(s.footer, className)} />;
 }
 
-const Dia = {
-  Root: Dialog,
+const Dialog = {
+  Root,
   Header,
   Content,
   Footer,
 };
 
-export { Dia as Dialog };
+export default Dialog;
+export { Dialog };
 
 function cn(...classes: (string | undefined)[]) {
   return classes.filter(Boolean).join(" ");
