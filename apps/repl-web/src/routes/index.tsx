@@ -56,14 +56,9 @@ function Home() {
       />
 
       <SketchLibraryDialog library={library} />
-      {["save", "duplicate", "rename"].includes(library.view ?? "") && (
-        <SaveDialog library={library} />
-      )}
-      {/*{(library.view === "save" ||
-        library.view === "duplicate" ||
-        library.view === "rename") && <SaveDialog library={library} />}*/}
-      {library.view === "delete" && <DeleteDialog library={library} />}
-      {library.view === "guard" && <GuardDialog library={library} />}
+      <GuardDialog library={library} />
+      <SaveDialog library={library} />
+      <DeleteDialog library={library} />
 
       <section className={s.previewPane}>
         {previewStatus && (
