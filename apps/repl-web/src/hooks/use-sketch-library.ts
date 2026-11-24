@@ -20,7 +20,8 @@ type ActiveSketch = { id: string; name: string };
 type Target = { kind: "new" } | { kind: "open"; id: string };
 type Dialog =
   | { view: "guard"; target: Target }
-  | { view: "name"; target?: Target }
+  | { view: "save"; target?: Target }
+  | { view: "duplicate" }
   | { view: "rename" | "delete"; record: SketchRecord }
   | { view: "list" | "error" | null };
 const starter: DraftContent = {
@@ -176,14 +177,14 @@ export function useSketchLibrary(onSwitch: () => void) {
     if (active) void _write(active.name, active.id, next);
     else {
       setActionError(null);
-      setDialog({ view: "name", ...(next ? { target: next } : {}) });
+      setDialog({ view: "save", ...(next ? { target: next } : {}) });
     }
   }
 
   function saveCopy() {
     if (!busy.current && dialog.view !== "rename" && dialog.view !== "delete") {
       setActionError(null);
-      setDialog({ view: "name" });
+      setDialog({ view: "duplicate" });
     }
   }
 
@@ -265,7 +266,7 @@ export function useSketchLibrary(onSwitch: () => void) {
       void _write(
         name,
         undefined,
-        dialog.view === "name" ? dialog.target : undefined,
+        dialog.view === "save" ? dialog.target : undefined,
       ),
     newSketch: () => _request({ kind: "new" }),
     open: (id: string) => _request({ kind: "open", id }),

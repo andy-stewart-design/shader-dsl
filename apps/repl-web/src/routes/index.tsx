@@ -1,18 +1,18 @@
 import { useState } from "react";
-import { getDraftState } from "#/stores/draft";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "#/components/app-layout";
 import Editor from "#/components/editor-pane";
 import SketchLibraryDialog from "#/components/sketch-library-dialog";
-import { useSketchLibrary } from "#/hooks/use-sketch-library";
-import Preview from "#/components/preview-pane";
-import { useAgentIntegration } from "#/hooks/use-agent-integration";
-import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
-import { switchPreviewStatus } from "../preview/switch-preview-status";
-import s from "./index.module.css";
-import NameDialog from "#/components/name-dialog";
 import DeleteDialog from "#/components/delete-dialog";
 import GuardDialog from "#/components/guard-dialog";
+import Preview from "#/components/preview-pane";
+import SaveDialog from "#/components/name-dialog";
+import { getDraftState } from "#/stores/draft";
+import { useSketchLibrary } from "#/hooks/use-sketch-library";
+import { useAgentIntegration } from "#/hooks/use-agent-integration";
+import { useShdrCompilation } from "#/hooks/use-shdr-compilation";
+import { switchPreviewStatus } from "#/preview/switch-preview-status";
+import s from "./index.module.css";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -56,9 +56,12 @@ function Home() {
       />
 
       <SketchLibraryDialog library={library} />
-      {(library.view === "name" || library.view === "rename") && (
-        <NameDialog library={library} />
+      {["save", "duplicate", "rename"].includes(library.view ?? "") && (
+        <SaveDialog library={library} />
       )}
+      {/*{(library.view === "save" ||
+        library.view === "duplicate" ||
+        library.view === "rename") && <SaveDialog library={library} />}*/}
       {library.view === "delete" && <DeleteDialog library={library} />}
       {library.view === "guard" && <GuardDialog library={library} />}
 

@@ -13,7 +13,12 @@ export default function SketchLibraryDialog({ library }: Props) {
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
-    if (library.view && library.view !== "name" && !element.open)
+    if (
+      library.view &&
+      library.view !== "save" &&
+      library.view !== "duplicate" &&
+      !element.open
+    )
       element.showModal();
     if (!library.view && element.open) element.close();
   }, [library]);
@@ -24,7 +29,11 @@ export default function SketchLibraryDialog({ library }: Props) {
       type="drawer"
       align="start"
       className={s.dialog}
-      aria-label={library.view === "name" ? "Name sketch" : "Sketch library"}
+      aria-label={
+        library.view === "save" || library.view === "duplicate"
+          ? "Name sketch"
+          : "Sketch library"
+      }
       onCancel={(event) => {
         if (library.saving) event.preventDefault();
       }}

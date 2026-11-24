@@ -32,13 +32,9 @@ export default function EditorHeader({
         </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
-        <Button shorcutKeys={["⌥", "↵"]} onClick={onApply}>
-          Run
-        </Button>
+        <Button onClick={onApply}>Run</Button>
         <SplitButton.Root>
-          <SplitButton.Primary onClick={onSave} shorcutKeys={["⌥", "S"]}>
-            Save
-          </SplitButton.Primary>
+          <SplitButton.Primary onClick={onSave}>Save</SplitButton.Primary>
           <SplitButton.Popover aria-label="More save options" disabled={saving}>
             <SplitButton.PopoverItem onClick={onSaveCopy}>
               Save as copy

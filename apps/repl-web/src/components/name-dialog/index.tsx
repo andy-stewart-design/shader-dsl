@@ -5,12 +5,16 @@ import s from "./style.module.css";
 
 type Props = { library: ReturnType<typeof useSketchLibrary> };
 
-export default function NameDialog({ library }: Props) {
+export default function SaveDialog({ library }: Props) {
   const [name, setName] = useState(library.selected?.name ?? "");
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
   const title =
-    library.view === "rename" ? "Rename sketch" : "Duplicate sketch";
+    library.view === "rename"
+      ? "Rename sketch"
+      : library.view === "duplicate"
+        ? "Save as copy"
+        : "Save sketch";
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -26,7 +30,7 @@ export default function NameDialog({ library }: Props) {
 
   function handleClose() {
     if (library.view === "rename") library.showList();
-    else if (library.view === "name") library.close();
+    else library.close();
   }
 
   return (
@@ -56,7 +60,9 @@ export default function NameDialog({ library }: Props) {
               ? "Saving…"
               : library.view === "rename"
                 ? "Rename"
-                : "Save"}
+                : library.view === "duplicate"
+                  ? "Save as copy"
+                  : "Save"}
           </button>
         </Dialog.Footer>
       </form>
