@@ -1,5 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
-import IconChevronDown from "../icons/chevron-down";
+import Button from "#/components/core/button";
+import IconChevronDown from "#/components/core/icons/chevron-down";
 import s from "./style.module.css";
 
 interface SplitButtonProps {
@@ -19,14 +20,14 @@ export default function SplitButton({
 }: SplitButtonProps) {
   return (
     <div className={s.splitButton}>
-      <button
+      <Button
         className={s.primary}
         type="button"
         onClick={onPrimaryAction}
         disabled={disabled}
       >
         {primaryLabel}
-      </button>
+      </Button>
       <Menu.Root>
         <Menu.Trigger
           className={s.trigger}

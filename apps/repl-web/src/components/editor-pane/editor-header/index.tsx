@@ -1,6 +1,6 @@
 import { Tabs } from "@base-ui/react/tabs";
-import { Fragment, type ComponentProps } from "react";
-import SplitButton from "../../core/split-button";
+import Button from "#/components/core/button";
+import SplitButton from "#/components/core/split-button";
 import s from "./style.module.css";
 
 interface EditorHeaderProps {
@@ -32,7 +32,9 @@ export default function EditorHeader({
         </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
-        <HeaderButton label="Run" shorcutKeys={["⌥", "↵"]} onClick={onApply} />
+        <Button shorcutKeys={["⌥", "↵"]} onClick={onApply}>
+          Run
+        </Button>
         <SplitButton
           primaryLabel="Save"
           onPrimaryAction={onSave}
@@ -40,37 +42,8 @@ export default function EditorHeader({
           secondaryActions={[{ label: "Save as copy", onSelect: onSaveCopy }]}
           disabled={saving}
         />
-        <HeaderButton label="Library" onClick={onLibrary} />
+        <Button onClick={onLibrary}>Library</Button>
       </div>
     </div>
-  );
-}
-
-interface HeaderButtonProps extends ComponentProps<"button"> {
-  label: string;
-  shorcutKeys?: string[];
-}
-
-function HeaderButton({ label, shorcutKeys, ...props }: HeaderButtonProps) {
-  return (
-    <button
-      className={s.action}
-      type="button"
-      {...props}
-      aria-keyshortcuts={label === "Run" ? "Alt+Enter" : undefined}
-      title={label === "Run" ? "Run (Option + Return)" : undefined}
-    >
-      <span>{label}</span>
-      {shorcutKeys && (
-        <span className={s.shortcut} aria-hidden="true">
-          {shorcutKeys.map((key, i) => (
-            <Fragment key={key}>
-              <kbd>{key}</kbd>
-              {i < shorcutKeys.length - 1 && " + "}
-            </Fragment>
-          ))}
-        </span>
-      )}
-    </button>
   );
 }
