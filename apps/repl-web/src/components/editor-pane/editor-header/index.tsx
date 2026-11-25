@@ -22,7 +22,12 @@ export default function EditorHeader({
   return (
     <div className={s.header}>
       <div className={s.lead}>
-        <Button className={s.ghost} onClick={onLibrary}>
+        <Button
+          iconOnly
+          variant="tertiary"
+          onClick={onLibrary}
+          aria-label="Open sketch library"
+        >
           <IconSidebarStart size={20} />
         </Button>
       </div>
@@ -38,7 +43,6 @@ export default function EditorHeader({
         </Tabs.Tab>
       </Tabs.List>
       <div className={s.actions}>
-        <Button onClick={onApply}>Run</Button>
         <SplitButton.Root>
           <SplitButton.Primary onClick={onSave}>Save</SplitButton.Primary>
           <SplitButton.Popover aria-label="More save options" disabled={saving}>
@@ -47,6 +51,9 @@ export default function EditorHeader({
             </SplitButton.PopoverItem>
           </SplitButton.Popover>
         </SplitButton.Root>
+        <Button variant="primary" onClick={onApply}>
+          Run
+        </Button>
       </div>
     </div>
   );

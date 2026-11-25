@@ -1,25 +1,56 @@
 .button {
+  --core-button-block-size: 2rem;
+
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.375rem;
-  padding: 0.25rem 0.6125rem;
-  border: none;
-  border: 1px solid var(--editor-border);
-  border-radius: var(--editor-control-radius);
+  block-size: var(--core-button-block-size);
+  padding: 0rem 0.75rem;
   border-radius: 0.375rem;
-  background: var(--color-surface-background-secondary);
-  color: var(--editor-foreground);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.4;
 
-  &:hover {
-    background: var(--color-surface-background-tertiary);
+  &[data-variant="primary"] {
+    color: var(--color-surface-foreground-inverse);
+    background: var(--color-surface-background-inverse-primary);
+    border: 1px solid var(--color-surface-background-inverse-primary);
+
+    &:hover {
+      background: var(--color-surface-background-inverse-secondary);
+      border-color: var(--color-surface-background-inverse-secondary);
+    }
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--color-surface-foreground-primary);
+    background: var(--color-surface-background-secondary);
+    border: 1px solid var(--editor-border);
+
+    &:hover {
+      background: var(--color-surface-background-tertiary);
+    }
+  }
+
+  &[data-variant="tertiary"] {
+    color: var(--color-surface-foreground-primary);
+    background: transparent;
+    border: 1px solid transparent;
+
+    &:hover {
+      background: var(--color-surface-background-tertiary);
+    }
   }
 
   &:focus-visible {
-    outline: 2px solid var(--editor-focus);
-    outline-offset: 1px;
+    outline: 1.5px solid var(--editor-focus);
+    outline-offset: 1.5px;
+  }
+
+  &[data-icon-only="true"] {
+    inline-size: var(--core-button-block-size);
+    padding: 0;
   }
 }
 

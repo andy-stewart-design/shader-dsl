@@ -4,9 +4,10 @@ import s from "./style.module.css";
 
 type ButtonOwnProps<T extends ElementType = "button"> = {
   as?: T;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "tertiary";
   children: ReactNode;
   shorcutKeys?: string[];
+  iconOnly?: boolean;
 };
 
 type ButtonProps<T extends ElementType = "button"> = ButtonOwnProps<T> &
@@ -14,10 +15,11 @@ type ButtonProps<T extends ElementType = "button"> = ButtonOwnProps<T> &
 
 export default function Button<T extends ElementType = "button">({
   as,
-  variant = "primary",
+  variant = "secondary",
   className = "",
   children,
   shorcutKeys,
+  iconOnly = false,
   ...props
 }: ButtonProps<T>) {
   const Component = as || "button";
@@ -27,6 +29,7 @@ export default function Button<T extends ElementType = "button">({
       {...props}
       className={[s.button, className].filter(Boolean).join(" ")}
       data-variant={variant}
+      data-icon-only={iconOnly}
     >
       {children}
       {shorcutKeys && (

@@ -7,7 +7,7 @@
 }
 
 .codeEditor[data-evaluated="true"] :global(.cm-line) {
-  background: var(--color-surface-background-inverse) !important;
+  background: var(--color-surface-background-inverse-primary) !important;
   width: max-content;
 
   & * {

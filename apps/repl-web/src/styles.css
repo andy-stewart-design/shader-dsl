@@ -64,7 +64,8 @@
   --color-surface-background-secondary: #0c0c0c;
   --color-surface-background-tertiary: #131313;
   --color-surface-background-quaternary: #181818;
-  --color-surface-background-inverse: var(--color-surface-foreground-primary);
+  --color-surface-background-inverse-primary: #ededed;
+  --color-surface-background-inverse-secondary: #cdcdcd;
 
   --color-surface-foreground-primary: #ededed;
   --color-surface-foreground-secondary: #a1a1a1;
