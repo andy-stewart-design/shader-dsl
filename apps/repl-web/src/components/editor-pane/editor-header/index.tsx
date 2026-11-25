@@ -2,6 +2,7 @@ import { Tabs } from "@base-ui/react/tabs";
 import Button from "#/components/core/button";
 import { SplitButton } from "#/components/core/split-button";
 import s from "./style.module.css";
+import IconSidebarStart from "#/components/core/icons/sidebar-start";
 
 interface EditorHeaderProps {
   onApply: () => void;
@@ -20,6 +21,11 @@ export default function EditorHeader({
 }: EditorHeaderProps) {
   return (
     <div className={s.header}>
+      <div className={s.lead}>
+        <Button className={s.ghost} onClick={onLibrary}>
+          <IconSidebarStart size={20} />
+        </Button>
+      </div>
       <Tabs.List className={s.tabList} activateOnFocus>
         <Tabs.Tab className={s.tab} value="main">
           main
@@ -41,7 +47,6 @@ export default function EditorHeader({
             </SplitButton.PopoverItem>
           </SplitButton.Popover>
         </SplitButton.Root>
-        <Button onClick={onLibrary}>Library</Button>
       </div>
     </div>
   );
