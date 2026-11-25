@@ -4,7 +4,8 @@
   container-type: inline-size;
   overflow: clip;
   background: var(--color-surface-background-secondary);
-  border-block-start: 1px solid var(--editor-border);
+  box-shadow: inset 0px 1px 0px 0px var(--color-surface-border-subtle);
+  /*border-radius: 0.375rem;*/
 
   & > div {
     display: grid;

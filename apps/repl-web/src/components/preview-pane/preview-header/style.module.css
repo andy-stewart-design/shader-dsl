@@ -20,7 +20,7 @@
   border-inline-end: 1px solid var(--editor-border);
   border-radius: var(--editor-control-radius);
   color: var(--editor-foreground);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
